@@ -2,7 +2,7 @@
 
 ## A place for community driven integrations with Zabbix
 
-![Template Repository](https://github.com/zvjaceslavs/intshare/actions/workflows/ci.yml/badge.svg)
+![Template Repository](https://github.com/zabbix/community-templates/actions/workflows/update_readme.yml/badge.svg)
 
 This repository is dedicated to templates that are created and maintained by Zabbix community. 
 
