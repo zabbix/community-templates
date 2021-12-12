@@ -17,7 +17,7 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 43200</p>|
-|Тип картриджа - black|<p>-</p>|`SNMP agent`|type.black<p>Update: 43200</p>|
+|Cartridge type - black|<p>-</p>|`SNMP agent`|type.black<p>Update: 43200</p>|
 |Current cartridge toner level - magenta|<p>-</p>|`SNMP agent`|ink.magenta.now<p>Update: 360</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 43200</p>|
 |Current cartridge toner level - yellow|<p>-</p>|`SNMP agent`|ink.yellow.now<p>Update: 360</p>|
@@ -30,12 +30,12 @@ There are no discovery rules in this template.
 |Current cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.now<p>Update: 360</p>|
 |Cartridge toner level % - cyan|<p>-</p>|`Calculated`|cyan.cartridge.toner<p>Update: 360</p>|
 |Max cartridge toner level - yellow|<p>-</p>|`SNMP agent`|ink.yellow.max<p>Update: 360</p>|
-|Тип картриджа - Yellow|<p>-</p>|`SNMP agent`|type.Yellow<p>Update: 43200</p>|
+|Cartridge type - Yellow|<p>-</p>|`SNMP agent`|type.Yellow<p>Update: 43200</p>|
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 360</p>|
 |Max cartridge toner level - magenta|<p>-</p>|`SNMP agent`|ink.magenta.max<p>Update: 360</p>|
-|Тип картриджа - Magenta|<p>-</p>|`SNMP agent`|type.Magenta<p>Update: 43200</p>|
+|Cartridge type - Magenta|<p>-</p>|`SNMP agent`|type.Magenta<p>Update: 43200</p>|
 |Pages printed - total|<p>-</p>|`SNMP agent`|pages.printed.total<p>Update: 360</p>|
-|Тип картриджа - Cyan|<p>-</p>|`SNMP agent`|type.cyan<p>Update: 43200</p>|
+|Cartridge type - Cyan|<p>-</p>|`SNMP agent`|type.cyan<p>Update: 43200</p>|
 ## Triggers
 
 There are no triggers in this template.
