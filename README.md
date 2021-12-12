@@ -628,6 +628,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Canon Color MF printers](Printers/Canon/template_canon_color_mf_printer-working)
         * [OCE ColorWave 500](Printers/Canon/template_canon_oce_colorwave_500)
     * [HP](Printers/HP)
+        * [Printer HP Color LaserJet CP1515n](Printers/HP/template_hp_color_laserjet_cp1515n)
         * [Printer HP Color LaserJet CP2025dn](Printers/HP/template_hp_color_laserjet_cp2025dn)
         * [HP_Designjet_T770](Printers/HP/template_hp_designjet_t770_snmp)
         * [Printer HP Designjet Z5200](Printers/HP/template_hp_designjet_z5200)
