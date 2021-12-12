@@ -1,4 +1,4 @@
-# Printer HP Color LaserJet CP2025dn
+# Printer HP Color LaserJet CP1515n
 
 ## Macros used
 
