@@ -14,7 +14,7 @@ John W Kerns (https://github.com/PackeTsar)
 
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
-|{$GITLAB_TOKEN}| Gitlab personal access token | None | Text macro |
+|`{$GITLAB_TOKEN}`| Gitlab personal access token | None | Text macro |
 
 ## Template links
 - [zabbix_template_gitlab_update_check.xml](zabbix_template_gitlab_update_check.xml)
