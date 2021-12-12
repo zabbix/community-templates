@@ -3,6 +3,10 @@ import re
 import uuid
 import argparse
 
+non_replace_uuids = {
+    '7df96b18c230490a9a0a9e2307226338': 'Templates',
+}
+
 def find_uuids_in_file(filename):
     """Reads the whole file and searches for uuid occurences.
 
@@ -17,6 +21,8 @@ def find_uuids_in_file(filename):
             if not m or not m.group('uuid'):
                 continue
             old_uuid = m.group('uuid')
+            if non_replace_uuids.get(old_uuid):
+                continue
             if not result.get(old_uuid):
                 new_uuid = uuid.uuid4().hex
                 result[old_uuid] = new_uuid
