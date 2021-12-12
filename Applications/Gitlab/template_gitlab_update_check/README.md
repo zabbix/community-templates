@@ -19,7 +19,7 @@ John W Kerns (https://github.com/PackeTsar)
 
 ## Template links
 
-There are no template links in this template.
+- [zabbix_template_gitlab_update_check.xml](zabbix_template_gitlab_update_check.xml)
 
 ## Discovery rules
 
