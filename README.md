@@ -486,8 +486,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [ZFS on Linux](Operating_Systems/Linux/template_zfs_on_linux)
     * [Mac_OS](Operating_Systems/Mac_OS)
         * [macOS Content Cache](Operating_Systems/Mac_OS/template_macos_content_caching)
-    * [RedHat](Operating_Systems/RedHat)
-        * [App NFS Service](Operating_Systems/RedHat/template_nfs_monitoring)
     * [VMWare](Operating_Systems/VMWare)
         * [ESXi HP Smart Array](Operating_Systems/VMWare/template_esxi_hp_smart_array_monitoring)
         * [SNMP OS ESXi](Operating_Systems/VMWare/template_esxi_snmp_only_for_zabbix3.0)
