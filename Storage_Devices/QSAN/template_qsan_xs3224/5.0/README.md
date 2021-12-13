@@ -1,28 +1,5 @@
 # SNMP QSAN XS3224 Storage
 
-## Overview
-
-Template for QSAN XS3224 storage.
-
-
-Collects temperature data and status as text, discovers disks, pools and volumes.
-
-
-Based on [https://share.zabbix.com/storage-devices/monitor-qsan-storage-devices-via-snmp](storage-devices/monitor-qsan-storage-devices-via-snmp) template with changes to support XS3224 (but no external scripts and OIDs are hardcoded, so no MIB is required).
-
-
-
-## Overview
-
-Template for QSAN XS3224 storage.
-
-
-Collects temperature data and status as text, discovers disks, pools and volumes.
-
-
-Based on [https://share.zabbix.com/storage-devices/monitor-qsan-storage-devices-via-snmp](storage-devices/monitor-qsan-storage-devices-via-snmp) template with changes to support XS3224 (but no external scripts and OIDs are hardcoded, so no MIB is required).
-
-
 
 ## Description
 
@@ -38,7 +15,9 @@ Collects temperature data and status as text, discovers disks, pools and volumes
 
 Based on [https://share.zabbix.com/storage-devices/monitor-qsan-storage-devices-via-snmp](storage-devices/monitor-qsan-storage-devices-via-snmp) template with changes to support XS3224 (but no external scripts and OIDs are hardcoded, so no MIB is required).
 
+## Author
 
+Dmitry V
 
 ## Macros used
 
@@ -158,20 +137,6 @@ Collects temperature data and status as text, discovers disks, pools and volumes
 
 
 Based on [https://share.zabbix.com/storage-devices/monitor-qsan-storage-devices-via-snmp](storage-devices/monitor-qsan-storage-devices-via-snmp) template with changes to support XS3224 (but no external scripts and OIDs are hardcoded, so no MIB is required).
-
-
-
-## Overview
-
-Template for QSAN XS3224 storage.
-
-
-Collects temperature data and status as text, discovers disks, pools and volumes.
-
-
-Based on [https://share.zabbix.com/storage-devices/monitor-qsan-storage-devices-via-snmp](storage-devices/monitor-qsan-storage-devices-via-snmp) template with changes to support XS3224 (but no external scripts and OIDs are hardcoded, so no MIB is required).
-
-
 
 ## Macros used
 
