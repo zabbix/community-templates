@@ -19,7 +19,7 @@ This repository is dedicated to templates that are created and maintained by Zab
 - Answer questions and discuss in GitHub issues
 
 ## How to contribute a new template
-- Read [template guidelines](https://www.zabbix.com/documentation/guidelines/thosts)
+- Read [template guidelines](https://www.zabbix.com/documentation/guidelines/en/thosts)
 - Review template structure
 - Open a pull request with a template for the correct version
 - Be ready to discuss your pull request
