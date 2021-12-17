@@ -62,7 +62,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Fail2ban](Applications/Firewall/template_fail2ban)
         * [ViPNet IDS SNMPv2](Applications/Firewall/template_vipnet_ids_snmpv2)
     * [Gitlab](Applications/Gitlab)
-        * [Update Check](Applications/Gitlab/template_gitlab_update_check)
+        * [Template Gitlab Update Check](Applications/Gitlab/template_gitlab_update_check)
     * [High_Availability_(HA)](Applications/High_Availability_(HA))
         * [HAProxy](Applications/High_Availability_(HA)/template_haproxy_using_socket)
     * [Java_Application](Applications/Java_Application)
