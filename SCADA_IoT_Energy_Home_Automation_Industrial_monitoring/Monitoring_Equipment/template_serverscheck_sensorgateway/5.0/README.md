@@ -15,7 +15,7 @@ ServerCheck SensorGateway.
 * Graphics.
 
 
-Tested in Zabbix 5.0 TLS
+Tested in Zabbix 5.0 LTS
 
 
 
