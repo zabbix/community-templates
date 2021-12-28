@@ -1,8 +1,9 @@
 # Template Hyperbackup
 
 ## Description
+Attention: TESTED only on 5.4.x. Please give me info if it works correctly on 5.0 too.
 
-Template to monitor Synology Hyperbackup status
+Template to monitor Synology Hyperbackup status.
 
 Create a zabbix user in your DSM. The user should be in the administrator group as it must be able to ssh to the DSM. You can disable access to all folders and to all programs/functions.
 Login on DSM with administrative/root account and create /etc/sudoers.d/zabbix with this inside:
