@@ -887,8 +887,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [SNMP QNAP NAS](Storage_Devices/QNAP/template_zabbix_3.0_qnap_nas_snmp)
         * [SNMP QNAP NAS](Storage_Devices/QNAP/template_zabbix_3.4_qnap_nas_snmp)
         * [SNMP QNAP NAS](Storage_Devices/QNAP/template_zabbix_4.2_qnap_nas_snmp)
-    * [Qumulo](Storage_Devices/Qumulo)
-        * [QUMULO](Storage_Devices/Qumulo/template_qumulo/5.4/)
     * [QSAN](Storage_Devices/QSAN)
         * [SNMP QSAN XS3224 Storage](Storage_Devices/QSAN/template_qsan_xs3224)
     * [ReadyNAS](Storage_Devices/ReadyNAS)
