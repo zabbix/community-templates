@@ -780,6 +780,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [VLAN L2 Huawei](Server_Hardware/Huawei/template_vlan_l2_huawei)
     * [IBM_and_Lenovo](Server_Hardware/IBM_and_Lenovo)
         * [Lenovo Flex chassis](Server_Hardware/IBM_and_Lenovo/template_lenovo_flex_snmpv3)
+        * [Lenovo XClarity Controller](Server_Hardware/IBM_and_Lenovo/Lenovo%20XCC%20SNMPv3)
     * [Inspur](Server_Hardware/Inspur)
         * [Server Inspur BMC All Items 4 Zabbix5.0](Server_Hardware/Inspur/template_inspur_server_for_zabbix_5.0)
         * [Server Inspur BMC SNMPv3](Server_Hardware/Inspur/template_inspur_server_snmpv3)
