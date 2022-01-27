@@ -10,6 +10,9 @@ Needs **curl** to be installed on the Nextcloud server.
 
 **You need to set the macros according to your environment.**
 
+**You also need to allow the execution of the script in Zabbix Agent configuration file**
+For example, `AllowKey=system.run["curl *"]`
+
 
 Fully compatible with Nextcloud versions 14 - 17.
 
