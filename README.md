@@ -336,7 +336,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Power Supply NetEngine SNMP](Network_Devices/Huawei/template_power_supply_netengine)
         * [Power Supply S6700 SNMP](Network_Devices/Huawei/template_power_supply_s6700_snmp)
     * [Infinera](Network_Devices/Infinera)
-        * [Groove-G30 Infinera](Network_Devices/Infinera/template_groove_g30_infinera)
+        * [Groove-G30-Infinera](Network_Devices/Infinera/template_groove_g30_infinera)
         * [ZBX-INFINERA-XTM-SERIES-MONITORING](Network_Devices/Infinera/template_infinera_xtm_series_tm-3000_ii_and_tm-301_ii_chassis)
     * [Intelbras](Network_Devices/Intelbras)
         * [Dvr](Network_Devices/Intelbras/template_dvr_intelbras)
