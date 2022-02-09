@@ -33,6 +33,7 @@ xhr.onprogress = function (event) {
 function parse_meta(meta, id) {
   // console.log(`parse ${id}`);
   let parent = document.getElementById(id);
+  let isTemplateOnly = true;
   meta.forEach(
     function (item, i, meta) {
       let li = document.createElement('li');
@@ -45,6 +46,7 @@ function parse_meta(meta, id) {
           li.append(ul);
           parent.append(li);
           parse_meta(item.next, ul.id);
+          isTemplateOnly = false
           break;
         case 'template':
           let template = document.createElement('div');
@@ -73,4 +75,7 @@ function parse_meta(meta, id) {
           console.log(`Unknown meta type: ${item.type}`)
       }
     });
+  if (isTemplateOnly) {
+    parent.className = 'folder_template';
+  }
 }
