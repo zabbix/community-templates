@@ -34,6 +34,8 @@ function parse_meta(meta, id) {
   // console.log(`parse ${id}`);
   let parent = document.getElementById(id);
   let isTemplateOnly = true;
+  let tmpl_container = document.createElement('div');
+  tmpl_container.className = 'container';
   meta.forEach(
     function (item, i, meta) {
       let li = document.createElement('li');
@@ -68,13 +70,17 @@ function parse_meta(meta, id) {
           });
           template.append(versions);
           template.append(tags)
-          li.append(template);
-          parent.append(li);
+          tmpl_container.append(template);          
           break;
         default:
           console.log(`Unknown meta type: ${item.type}`)
       }
     });
+  if (tmpl_container.childElementCount) {
+    let li = document.createElement('li');
+    li.append(tmpl_container);
+    parent.append(li);
+  }
   if (isTemplateOnly) {
     parent.className = 'folder_template';
   }

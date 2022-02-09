@@ -198,7 +198,7 @@ def main():
 
     parse_dir(os.getcwd())
 
-    root.clear_old(120)
+    root.clear_old(300)
     global_readme_obj = root.export_folders()
 
     with open('.github/homepage/meta.json', 'w', encoding='utf-8') as meta_json:
