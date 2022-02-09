@@ -39,8 +39,8 @@ function parse_meta(meta, id) {
       switch (item.type) {
         case 'folder':          
           let ul = document.createElement('ul');
-          ul.className = 'folder';
-          ul.innerHTML = item.name;
+          li.className = 'folder';
+          li.innerHTML = item.name;
           ul.id = id + '_' + i;
           li.append(ul);
           parent.append(li);
@@ -58,7 +58,7 @@ function parse_meta(meta, id) {
           tags.className = 'tag';
           let vers = item.versions;
           vers.forEach(function(ver, v, vers) {
-            versions.insertAdjacentHTML('beforeend', `<p>${ver.version}</p>`)
+            versions.insertAdjacentHTML('beforeend', `<p>${ver.version.toFixed(1)}</p>`)
           });
           let tgs = item.tags;
           tgs.forEach(function(tg, t, tgs) {
