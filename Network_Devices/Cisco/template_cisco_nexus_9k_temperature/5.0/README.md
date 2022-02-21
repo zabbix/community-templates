@@ -24,16 +24,16 @@ There are no macros in this template.
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
-| Temperature Sensors | Enumerate temperature sensors on switch an create a prototype for each | `SNMP Agent` | temp.sensors       Update: 24h |
+| Temperature Sensors | Enumerate temperature sensors on switch an create a prototype for each | `SNMP Agent` | `temp.sensors` <br /> Update: 24h |
 
 
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
-| {#SENSORNAME} Temperature Warning Threshold | Warning temperature threshold for this sensor position | `SNMP Agent` | temp.warning[{#SNMPINDEX}]       Update: 24h |
-| {#SENSORNAME} Temperature Critical Threshold | Critical temperature threshold for this sensor position | `SNMP Agent` | temp.critical[{#SNMPINDEX}]       Update: 24h |
-| {#SENSORNAME} Temperature Sensor | Actual temperature reading from this sensor | `SNMP Agent` | temp.sensors[{#SNMPINDEX}] |
+| {#SENSORNAME} Temperature Warning Threshold | Warning temperature threshold for this sensor position | `SNMP Agent` | `temp.warning[{#SNMPINDEX}]` <br /> Update: 24h |
+| {#SENSORNAME} Temperature Critical Threshold | Critical temperature threshold for this sensor position | `SNMP Agent` | `temp.critical[{#SNMPINDEX}]` <br /> Update: 24h |
+| {#SENSORNAME} Temperature Sensor | Actual temperature reading from this sensor | `SNMP Agent` | `temp.sensors[{#SNMPINDEX}]` <br /> Update: default |
 
 
 ## Triggers
