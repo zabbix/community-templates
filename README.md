@@ -248,6 +248,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [SNMP Cisco IP SLA](Network_Devices/Cisco/template_cisco_ip_sla_discovery_1)
         * [Cisco IPsec VPN discovering](Network_Devices/Cisco/template_cisco_ipsec_vpn_discovering)
         * [tpl_part_network_cisco_all_performance](Network_Devices/Cisco/template_cisco_memory_and_cpu)
+        * [Cisco Nexus 9K Temperature](Network_Devices/Cisco/template_cisco_nexus_9k_temperature)
         * [Cisco_SG200-26P](Network_Devices/Cisco/template_cisco_sg200-26p)
         * [Cisco_SG300-52-d](Network_Devices/Cisco/template_cisco_sg300_and_sg200)
         * [SG500X_48P](Network_Devices/Cisco/template_cisco_sg500_48p)
