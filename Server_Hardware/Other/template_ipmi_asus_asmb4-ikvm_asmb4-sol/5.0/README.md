@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 #FRNT_FAN4|<p>-</p>|`IPMI agent`|asmb4.frnt_fan4<p>Update: 120</p>|
 |+3.3V|<p>-</p>|`IPMI agent`|asmb4.plus3.3v<p>Update: 120</p>|
 |+12V|<p>-</p>|`IPMI agent`|asmb4.plus12v<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

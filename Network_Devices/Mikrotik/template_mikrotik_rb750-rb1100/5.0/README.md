@@ -21,6 +21,8 @@ There are no template links in this template.
 #Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |LLD Interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -47,6 +49,8 @@ There are no template links in this template.
 #Operacional Status Interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 |Out-Erros Interface $1|<p>-</p>|`SNMP agent`|ifOutErrors[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 |Outbound Interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

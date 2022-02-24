@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 #SatteliteStatus.LinkMargin|<p>Link Margin – Estimated C/N of the received signal relative to the C/N in EN 300-421 for a given FEC rate.</p>|`SNMP agent`|.1.3.6.1.4.1.4466.1.2.10.1.1.1.2.1.4.1392508928<p>Update: 30</p>|
 |SatteliteStatus.CN|<p>Shows the Carrier to Noise ratio</p>|`SNMP agent`|.1.3.6.1.4.1.4466.1.2.10.1.1.1.2.1.9.1392508928<p>Update: 30</p>|
 |SatteliteStatus.SignalQuality|<p>Signal Quality – Qualitative indicator of the received signal C/N relative to the maximum C/N that can be measured without forcing the receiver to saturation. The signal quality is calculated by: SQ[%]=C/N [dB]/36 *100</p>|`SNMP agent`|.1.3.6.1.4.1.4466.1.2.10.1.1.1.2.1.6.1392508928<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

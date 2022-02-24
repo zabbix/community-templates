@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 #+5VSB|<p>-</p>|`IPMI agent`|asmb4.plus5vsb<p>Update: 120</p>|
 |FRNT_FAN4|<p>-</p>|`IPMI agent`|asmb4.frnt_fan4<p>Update: 120</p>|
 |VBAT|<p>-</p>|`IPMI agent`|asmb4.vbat<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
