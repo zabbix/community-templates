@@ -4,8 +4,12 @@ import json
 import xmltodict
 from ruamel.yaml import YAML
 import time
+import shutil
+import re
+
+
 class Template:
-    def __init__(self, name, type='template', sync=int(time.time())):
+    def __init__(self, name, type='template', sync=int(time.time()), collection='_templates'):
         self.name = name
         self.template = ''
         self.versions = []
@@ -15,8 +19,9 @@ class Template:
         self.sync = sync
         self.tags = []
         self.author = ''
+        self.collection = collection
 
-    def add_file(self, template_object={}, file_type='xml'):   
+    def add_file(self, template_object={}, file_type='xml'):
         if not 'zabbix_export' in template_object:
             return
         if not 'templates' in template_object['zabbix_export']:
@@ -58,12 +63,45 @@ class Template:
                 self.versions.remove(version)
 
     def export_folders(self, isprint):
+        file_mame = re.sub(r'[^A-Za-z0-9-]', '-', '-'.join(self.path))
+        file_mame = re.sub("-+", "-", file_mame)
+        file_mame = file_mame.lower()
+        file_mame = file_mame.strip('-')
+        iter = 1
+        while os.path.exists('{}.md'.format(os.path.join(self.collection,'_zabbix_templates',file_mame))):
+            file_mame = '{}-{}'.format(file_mame, iter)
+            iter += 1
+        info = {
+            'versions': [],
+            'tags': self.tags
+        } 
+        for ver in self.versions:
+            info['versions'].append(ver['version'])
+            os.makedirs(os.path.join(self.collection,os.sep.join(['_includes','markdown','zabbix_templates']),file_mame,str(ver['version'])))
+            shutil.copyfile(os.path.join(os.sep.join(self.path),str(ver['version']),'README.md'),
+                            os.path.join(self.collection,os.sep.join(['_includes','markdown','zabbix_templates']),file_mame,str(ver['version']),'README.md'))
+        with open('{}.md'.format(os.path.join(self.collection,'_zabbix_templates',file_mame)), 'w', encoding='utf-8') as collect:
+            collect.write('---\n\
+layout: {}\n\
+name: {}\n\
+folder: {}\n\
+github: {}\n\
+---\n\
+'.format('template',
+                self.template,
+                file_mame,
+                '/'.join(self.path)))
+            collect.close()
+        with open('{}.json'.format(os.path.join(self.collection,'_data','zabbix_templates',file_mame)), 'w', encoding='utf-8') as json_tmpl:
+            json_tmpl.write(json.dumps(info))
+            json_tmpl.close()        
         return {
             'name': self.name,
             'template': self.template,
             'type': self.type,
             'sync': self.sync,
             'path': self.path,
+            'jekyll': file_mame,
             'description': self.description,
             'versions': self.versions,
             'tags': self.tags,
@@ -72,25 +110,26 @@ class Template:
 
 
 class Folder:
-    def __init__(self, name='.', file = 'meta.json', type='folder', sync=int(time.time())):
+    def __init__(self, name='.', file='meta.json', type='folder', sync=int(time.time()), collection='_templates'):
         self.next = []
         self.name = name
         self.file = file
         self.type = type
         self.sync = sync
-        
+        self.collection = collection
+
     def update(self):
         self.next.clear()
-        with open(self.file, 'r', encoding='utf-8') as meta_json:
+        with open(os.path.join(self.collection,'_data',self.file), 'r', encoding='utf-8') as meta_json:
             fld = json.load(meta_json)
             self.import_folders(fld['next'])
             meta_json.close()
-            
+
         self.sync = int(time.time())
         self.parse_dir(self.name)
         self.name = os.path.normpath(os.path.relpath(self.name))
         self.clear_old(int(time.time()) - self.sync + 2)
-        
+
     def parse_dir(self, directory):
         """Iterative view of the catalog tree 
 
@@ -98,7 +137,7 @@ class Folder:
             directory (path): Path to the catalog 
         """
         for dir in os.listdir(directory):
-            if dir in ['.git', '.github', '.vscode']:
+            if dir in ['.git', '.github', '.vscode', 'docs']:
                 continue
             next_dir = os.path.join(directory, dir)
             if os.path.isdir(next_dir):
@@ -110,8 +149,8 @@ class Folder:
                     path = normpath.split(os.sep)
                     self.add_folder(path)
                     # add_directory(next_dir)
-                    self.parse_dir(next_dir)   
-                    
+                    self.parse_dir(next_dir)
+
     def parse_template(self, directory):
         """Processing directory template 
 
@@ -121,14 +160,15 @@ class Folder:
         yaml = YAML()
         yaml.allow_unicode = True
         yaml.encoding = 'utf-8'
-        
+
         print(directory)
         normpath = os.path.relpath(directory)
         normpath = os.path.normpath(normpath)
         path = normpath.split(os.sep)
-        tmpl = Template(directory.split(os.sep)[-1])
-        tmpl.path = path     
-        
+        tmpl = Template(directory.split(os.sep)
+                        [-1], collection=self.collection)
+        tmpl.path = path
+
         for version in os.listdir(directory):
             if not os.path.isdir(os.path.join(directory, version)):
                 continue
@@ -149,8 +189,8 @@ class Folder:
                 elif file.split('.')[-1] == 'yaml':
                     in_template = yaml.load(r_file)
                 tmpl.add_file(in_template, file.split('.')[-1])
-        if len(tmpl.versions) > 0:        
-            self.add_folder(path[:-1], template=tmpl) 
+        if len(tmpl.versions) > 0:
+            self.add_folder(path[:-1], template=tmpl)
 
     def add_folder(self, path=[], template=None):
         if len(path) == 0:
@@ -168,7 +208,7 @@ class Folder:
                 child.add_folder(path[1:], template)
                 break
         else:
-            child = Folder(path[0], self.file)
+            child = Folder(path[0], self.file, collection=self.collection)
             child.add_folder(path[1:], template)
             self.next.append(child)
 
@@ -183,11 +223,11 @@ class Folder:
         for new_folder in folders:
             if new_folder['type'] == 'folder':
                 child = Folder(name=new_folder['name'],
-                               type=new_folder['type'], sync=new_folder['sync'])
+                               type=new_folder['type'], sync=new_folder['sync'], collection=self.collection)
                 child.import_folders(new_folder['next'])
             elif new_folder['type'] == 'template':
                 child = Template(name=new_folder['name'],
-                               type=new_folder['type'], sync=new_folder['sync'])
+                                 type=new_folder['type'], sync=new_folder['sync'], collection=self.collection)
                 child.versions = new_folder['versions']
                 child.template = new_folder['template']
                 child.path = new_folder['path']
@@ -197,26 +237,37 @@ class Folder:
             self.next.append(child)
 
     def export_folders(self, isprint):
+        if isprint:
+            dirs = ['_zabbix_templates',
+                    os.sep.join(['_includes','markdown','zabbix_templates']),
+                    os.sep.join(['_data','zabbix_templates'])]
+            for dr in dirs:                
+                if os.path.exists(os.path.join(self.collection,dr)):
+                    shutil.rmtree(os.path.join(self.collection,dr))
+                os.makedirs(os.path.join(self.collection,dr))
         childs = []
         for child in self.next:
             childs.append(child.export_folders(False))
-        out =  {
+        out = {
             'name': self.name,
             'type': self.type,
             'sync': self.sync,
             'next': childs
-        } 
+        }
         if not isprint:
-            return out       
-        with open(self.file, 'w', encoding='utf-8') as meta_json:
+            return out
+        with open(os.path.join(self.collection,'_data',self.file), 'w', encoding='utf-8') as meta_json:
             json.dump(out, meta_json, ensure_ascii=False, indent=4)
             meta_json.close()
+
 
 def main():
     """The main function. Generation readme.md file.     """
     
-    root = Folder(name=os.getcwd(),file='.github/homepage/meta.json')
+    root = Folder(name=os.getcwd(), file='meta.json',
+                  collection='.github/jekyll')
     root.update()
     root.export_folders(True)
+
 
 main()
