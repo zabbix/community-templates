@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |System Temp|<p>-</p>|`IPMI agent`|ipmi.system.temp<p>Update: 300</p>|
 |FAN 3|<p>-</p>|`IPMI agent`|ipmi.fan.3<p>Update: 300</p>|
 |VBAT|<p>-</p>|`IPMI agent`|ipmi.vbat<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

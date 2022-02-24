@@ -92,6 +92,8 @@ There are no discovery rules in this template.
 |Frequencia Entrada Nobreak|<p>objeto freqIn na MIB</p>|`SNMP agent`|enterprises.28802.2.3.10.0<p>Update: 1</p>|
 |Alarme Sonoro|<p>Indica se o beep do no-break esta ligado</p>|`SNMP agent`|beep<p>Update: 1</p>|
 |Verifica se a bateria atingiu nivel de tensao baixa critico|<p>Indica se a bateria atingiu nivel de tensao baixo critico ok(0), falha(1)</p>|`SNMP agent`|bateriaBaixaCritica<p>Update: 1</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

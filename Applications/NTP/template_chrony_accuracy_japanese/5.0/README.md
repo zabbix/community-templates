@@ -36,6 +36,8 @@ chrony テンプレートが使用できます。
 |----|-----------|-------|----|
 |{$NTP_OFFSET}|<p>-</p>|`50`|Text macro|
 |{$NTP_OFFSET_LARGE}|<p>-</p>|`5000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -61,6 +63,8 @@ There are no discovery rules in this template.
 |chronyバージョン|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc -v]<p>Update: 1h</p>|
 |NTPオフセット(長期平均)|<p>NTPサーバとの時刻ズレ</p>|`Dependent item`|RMSoffset<p>Update: 0</p>|
 |chronyReach|<p>過去8回の問合せ成功回数を8ビットで表現します。</p>|`Zabbix agent (active)`|system.run[chronyc sources|grep \* |awk '{print$5}']<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

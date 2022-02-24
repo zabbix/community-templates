@@ -15,6 +15,8 @@ Parks
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`parks`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -174,6 +176,8 @@ There are no discovery rules in this template.
 |Operational status of interface $1|<p>The current operational state of the interface.</p>|`SNMP agent`|ifOperStatus[giga-ethernet0/5]<p>Update: 60</p>|
 |Operational status of interface $1|<p>The current operational state of the interface.</p>|`SNMP agent`|ifOperStatus[giga-ethernet0/4]<p>Update: 60</p>|
 |Outgoing traffic on interface $1|<p>The number of octets transmitted in MAC frames on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifOutOctets[giga-ethernet0/0]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

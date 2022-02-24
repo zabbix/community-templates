@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |promotions|<p>-</p>|`Dependent item`|lvmcache.promotions<p>Update: 0</p>|
 |lvm raw data|<p>-</p>|`Zabbix agent`|lvmcache.raw<p>Update: 3m</p>|
 |write_hits|<p>-</p>|`Dependent item`|lvmcache.write_hits<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

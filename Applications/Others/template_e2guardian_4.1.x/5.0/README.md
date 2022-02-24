@@ -43,6 +43,8 @@ Marco Hofmann
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$E2GUARDIAN_DSTATS}|<p>-</p>|`/var/log/e2guardian/dstats.log`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -66,6 +68,8 @@ There are no discovery rules in this template.
 |e2guardian - httpworkers busy|<p>3. busy - Number of httpworker threads busy handling connections at current time</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},3]<p>Update: 5m</p>|
 |e2guardian - httpworkers total|<p>2. httpw - Number of httpworker threads running</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},2]<p>Update: 5m</p>|
 |e2guardian - total sum connections each 5 minutes|<p>6. conx - number of connections handled since last stats line.</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},6]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

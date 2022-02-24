@@ -9,6 +9,8 @@ Oleg
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -18,6 +20,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |fxsPortStateTAU|<p>-</p>|`SNMP agent`|fxsPortState<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -45,6 +49,8 @@ There are no template links in this template.
 |smgFan3|<p>-</p>|`SNMP agent`|smgFan3<p>Update: 1m</p>|
 |smgVoip0busyChannels|<p>-</p>|`SNMP agent`|Voip0busyChannels<p>Update: 30s</p>|
 |Статус FXS {#FXSNAME}|<p>-</p>|`SNMP agent`|fxsPort.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

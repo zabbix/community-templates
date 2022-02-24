@@ -22,6 +22,8 @@ Dustin Howard
 |----|-----------|-------|----|
 |{$OPTICAL_VARIANCE}|<p>the allowed variance from baselines in db</p>|`2`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`secret`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -37,6 +39,8 @@ There are no template links in this template.
 |Optical OSC Spanloss Discovery|<p>-</p>|`SNMP agent`|optical.osc.spanloss.discovery<p>Update: 1d;wd1h10</p>|
 |Ethernet Interface Discovery|<p>-</p>|`SNMP agent`|ethernet.transport.if.discovery<p>Update: 1d;wd1h14</p>|
 |Optical Transport Interface Discovery|<p>-</p>|`SNMP agent`|optical.transport.if.discovery<p>Update: 1d;wd1h11</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -68,6 +72,8 @@ There are no template links in this template.
 |{#IFDESCR}: Post-FEC bit error rate|<p>Post-FEC bit error rate estimate, optical channel transport unit</p>|`SNMP agent`|net.if.status[post.fec.ber.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |{#IFDESCR}: Pre-FEC bit error rate|<p>Pre-FEC bit error rate, optical channel transport unit</p>|`SNMP agent`|net.if.status[pre.fec.ber.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |{#IFDESCR}: Uncorrected FEC block|<p>Uncorrected FEC blocks, Optical Transport Unit.</p>|`SNMP agent`|net.if.status[uncorrected.fec.block.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |Transfer Roller Hours|<p>Lifetime: 100 000 hours</p>|`SNMP agent`|samsung.rol.peren<p>Update: 30</p>|
 |General Printer Name|<p>-</p>|`SNMP agent`|samsung.prtGeneralPrinterName<p>Update: 30</p>|
 |System Location|<p>-</p>|`SNMP agent`|samsung.sysLocation<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

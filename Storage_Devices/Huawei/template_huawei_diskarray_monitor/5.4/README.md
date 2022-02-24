@@ -28,6 +28,8 @@ zhangzhefeng
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CLOUD_SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |Controller Discovery|<p>-</p>|`SNMP agent`|ControllerDiscovery<p>Update: 12h</p>|
 |Disk Discovery|<p>-</p>|`SNMP agent`|DiskDiscovery<p>Update: 12h</p>|
 |Fan Discovery|<p>-</p>|`SNMP agent`|FanDiscovery<p>Update: 12h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -48,6 +52,8 @@ There are no template links in this template.
 |ControllerHealthStatus {#SNMPVALUE}|<p>-</p>|`SNMP agent`|ControllerHealthStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |DiskHealthStatus {#SNMPVALUE}|<p>-</p>|`SNMP agent`|DiskHealthStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |FanHealthStatus {#SNMPVALUE}|<p>-</p>|`SNMP agent`|FanHealthStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

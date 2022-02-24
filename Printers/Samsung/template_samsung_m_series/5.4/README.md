@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Page Counter|<p>-</p>|`SNMP agent`|sams.clr.counter<p>Update: 3600</p>|
 |Level Black Toner|<p>-</p>|`SNMP agent`|sams.clr.black.perc<p>Update: 1800</p>|
 |Model Black Cartridge|<p>-</p>|`SNMP agent`|samsung.black.type<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

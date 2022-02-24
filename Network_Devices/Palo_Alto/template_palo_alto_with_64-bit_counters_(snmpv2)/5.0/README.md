@@ -60,6 +60,8 @@ There are no template links in this template.
 |CPU discovery|<p>-</p>|`SNMP agent`|hrDeviceDescr.discovery<p>Update: 1d</p>|
 |interface discovery|<p>-</p>|`SNMP agent`|ifName.discovery<p>Update: 1d</p>|
 |entPhysical discovery - Fan|<p>-</p>|`SNMP agent`|entPhysicalName.discovery.fan<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -92,6 +94,8 @@ There are no template links in this template.
 |$1 sensor value|<p>-</p>|`SNMP agent`|entPhySensorValue.fan.["{#PHY}"]<p>Update: 1m</p><p>LLD</p>|
 |$1 class|<p>-</p>|`SNMP agent`|entPhysicalClass.fan.["{#PHY}"]<p>Update: 1m</p><p>LLD</p>|
 |$1 sensor description|<p>-</p>|`SNMP agent`|entPhysicalDescr.fan.["{#PHY}"]<p>Update: 1d</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

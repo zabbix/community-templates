@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |Maintenance Kit level|<p>-</p>|`SNMP agent`|MaintenanceKitCurrentLevel<p>Update: 60</p>|
 |Device description|<p>A textual description of the entity. This value should include the full name and version identification of the system's hardware type, software operating-system, and networking software.</p>|`SNMP agent`|sysDescr<p>Update: 3600</p>|
 |05 Device Serial Number|<p>-</p>|`SNMP agent`|serialNumber<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

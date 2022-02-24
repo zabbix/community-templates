@@ -100,6 +100,8 @@ Antony Ryabov
 |{$API_PORT}|<p>-</p>|`3002`|Text macro|
 |{$FERM_PORT}|<p>-</p>|`3004`|Text macro|
 |{$IMHO_PORT}|<p>-</p>|`3000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -119,6 +121,8 @@ There are no discovery rules in this template.
 |Php-fpm - idle processes count|<p>-</p>|`External check`|fcgi_stat_getter["-h","{HOST.CONN}","-p","3000","-c","stat","-k","idle processes"]<p>Update: 60</p>|
 |Php-fpm|<p>-</p>|`External check`|fcgi_stat_getter["-h","{HOST.CONN}","-p","3000","-c","ping"]<p>Update: 60</p>|
 |Php-fpm - active processes count|<p>-</p>|`External check`|fcgi_stat_getter["-h","{HOST.CONN}","-p","3000","-c","stat","-k","active processes"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

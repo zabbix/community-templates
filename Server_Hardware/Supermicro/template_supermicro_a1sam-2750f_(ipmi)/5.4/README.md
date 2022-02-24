@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |FAN 3|<p>-</p>|`IPMI agent`|ipmi.system.fan_3<p>Update: 300</p>|
 |3.3VCC|<p>-</p>|`IPMI agent`|ipmi.system.3.3vcc<p>Update: 300</p>|
 |System Temp|<p>-</p>|`IPMI agent`|ipmi.system.system_temp<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

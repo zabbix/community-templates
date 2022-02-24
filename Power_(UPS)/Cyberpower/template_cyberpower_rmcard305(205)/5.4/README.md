@@ -52,6 +52,8 @@ Sergey Romanov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -68,6 +70,8 @@ There are no template links in this template.
 |Battery Age Recommendation Discovery|<p>Discovery because CPS-MIB::upsBaseBatteryAgeRecommand returns 0 (zero) on OR-series UPSes.</p>|`SNMP agent`|BatteryAge.discovery<p>Update: 30s</p>|
 |Configuration Discovery #5|<p>Discovery because CPS-MIB::upsAdvanceConfigSleepDelay returns NULL on OR-series UPSes.</p>|`SNMP agent`|config.discovery.5<p>Update: 30s</p>|
 |Configuration Discovery #1|<p>Discovery because CPS-MIB::upsAdvanceConfigColdStart returns NULL on OR-series UPSes.</p>|`SNMP agent`|config.discovery.1<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +112,8 @@ There are no template links in this template.
 |Last Replace Date|<p>CPS-MIB::upsBaseBatteryLastReplaceDate - the UPS batteries last replaced date in mm/dd/yyyy format. This value is originally set when manufactured. If batteries replaced, administrator should reset this value.</p>|`SNMP agent`|battery.lastReplaceDate.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Timers - Sleep Delay|<p>CPS-MIB::upsAdvanceConfigSleepDelay - the delay time the UPS will enter sleep mode after receiving a sleep command. The possible values are between 60 to 5940 seconds. If a value other than a supported value is set, the value will not be accepted.</p>|`SNMP agent`|config.sleepDelay.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
 |System - Cold Start|<p>CPS-MIB::upsAdvanceConfigColdStart - set the ability of the UPS can start in the absence of input power. When this option is enabled the UPS can be turned on without having input power.</p>|`SNMP agent`|config.coldStart.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

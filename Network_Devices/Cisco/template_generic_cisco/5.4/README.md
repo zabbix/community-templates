@@ -46,6 +46,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +63,8 @@ There are no macros links in this template.
 |Entity Serial Numbers Discovery|<p>-</p>|`SNMP agent`|entity_sn.discovery<p>Update: 1h</p>|
 |Cisco Fan|<p>-</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr<p>Update: 5m</p>|
 |Cisco Device Model Name|<p>-</p>|`SNMP agent`|modelName<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -95,6 +99,8 @@ There are no macros links in this template.
 |$1 state|<p>-</p>|`SNMP agent`|ciscoEnvMonFanState[{#FANVAL}]<p>Update: 1d</p><p>LLD</p>|
 |Device Model Name at OID [{#SNMPINDEX}]|<p>-</p>|`SNMP agent`|modelName[{#SNMPINDEX}]<p>Update: 1d</p><p>LLD</p>|
 |Device Serial Number at OID [{#SNMPINDEX}]|<p>-</p>|`SNMP agent`|SerialNumber[{#SNMPINDEX}]<p>Update: 1d</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

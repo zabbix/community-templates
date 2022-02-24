@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 |CPU1 Vcore|<p>-</p>|`IPMI agent`|ipmi.system.processor_vcc1<p>Update: 60</p>|
 |-12 V|<p>-</p>|`IPMI agent`|ipmi.system.m12v<p>Update: 60</p>|
 |+3.3VSB|<p>-</p>|`IPMI agent`|ipmi.system.3.3vsb<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

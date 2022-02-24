@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |Tray1.paper.out|<p>Printer Tray 1 paper out.</p>|`SNMP agent`|Tray1.paper.out<p>Update: 60</p>|
 |Device.IP.address|<p>Shows device IP address</p>|`SNMP agent`|Device.IP.address<p>Update: 10800</p>|
 |Toner.Magenta.level.max|<p>Max Nuber of Magenta toner.</p>|`SNMP agent`|Toner.Magenta.level.max<p>Update: 10800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

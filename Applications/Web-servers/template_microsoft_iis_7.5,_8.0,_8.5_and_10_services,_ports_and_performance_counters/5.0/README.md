@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |IIS Web Service(_Total) Current Connections|<p>Current number of connections to the service</p>|`Zabbix agent`|perf_counter["\Web Service(_Total)\Current Connections",300]<p>Update: 30</p>|
 |IIS Admin Service|<p>IIS Admin Service</p>|`Zabbix agent`|service_state[IISAdmin]<p>Update: 30</p>|
 |IIS Web Service(_Total) Bytes Sent/sec|<p>Rate of total bytes transferred by service (sent)</p>|`Zabbix agent`|perf_counter["\Web Service(_Total)\Bytes Sent/sec",300]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

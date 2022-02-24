@@ -248,6 +248,8 @@ There are no discovery rules in this template.
 |TCP count remote port $2 $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[,445,SYN_SENT]<p>Update: 0</p>|
 |TCP count remote port $2 $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[,10051,CLOSE_WAIT]<p>Update: 0</p>|
 |TCP count $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[,,SYN_RECV]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

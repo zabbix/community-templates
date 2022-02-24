@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |tuner 3 SNR|<p>-</p>|`Dependent item`|tuner3_snr<p>Update: 0</p>|
 |tuner 4 SNR|<p>-</p>|`Dependent item`|tuner4_snr<p>Update: 0</p>|
 |Tuner 2 LOCK|<p>-</p>|`Dependent item`|tuner2_lock<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

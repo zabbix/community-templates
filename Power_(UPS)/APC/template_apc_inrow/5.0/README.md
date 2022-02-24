@@ -33,6 +33,8 @@ There are no discovery rules in this template.
 |UPS InRow Manufacture Date|<p>A character string identifying the unit manufacture date.</p>|`SNMP agent`|AirirscunitIdentManufactureDate<p>Update: 1h</p>|
 |UPS InRow Cond Outlet Temp|<p>The unit condenser outlet air temperature in tenths of degrees Celsius.</p>|`SNMP agent`|AirirscunitStatusCondOutletTempMetric<p>Update: 3m</p>|
 |UPS InRow Model Number|<p>A character string identifying the unit model number.</p>|`SNMP agent`|AirirscunitIdentModelNumber<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

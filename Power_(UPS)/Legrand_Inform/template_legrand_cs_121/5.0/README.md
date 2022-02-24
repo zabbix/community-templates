@@ -60,6 +60,8 @@ Tudor Ticau
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`MonitorZabbix`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -90,6 +92,8 @@ There are no discovery rules in this template.
 |Battery voltage|<p>The magnitude of the present battery voltage.</p>|`SNMP agent`|upsBatteryVoltage<p>Update: 60</p>|
 |Bypass Power|<p>An automatic bypass is used by the UPS to switch its load to the mains if it experiences an overload or internal failure. In other words, this mean that UPS has some problems and switch to the main (wall) power. So, if we have bypass - in bypass time our servers are connected directly to the line power - and are exposed to all electricity hazards This item show the power that we have in bypass time</p>|`SNMP agent`|upsBypassPower.1<p>Update: 30</p>|
 |Estimated minutes remaining if no power|<p>An estimate of the time to battery charge depletion under the present load conditions if the utility power is off and remains off, or if it were to be lost and remain off.</p>|`SNMP agent`|upsEstimatedMinutesRemaining<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

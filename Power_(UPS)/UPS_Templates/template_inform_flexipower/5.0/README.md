@@ -51,6 +51,8 @@ There are no discovery rules in this template.
 |Output load|<p>-</p>|`SNMP agent`|upsAdvOutputLoad<p>Update: 30</p>|
 |Battery charge|<p>-</p>|`SNMP agent`|upsAdvBatteryCapacity<p>Update: 30</p>|
 |Runtime remaining|<p>-</p>|`SNMP agent`|upsAdvBatteryRunTimeRemaining<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

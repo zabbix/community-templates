@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Nobreak SMS: Bateria Baixa|<p>Status do alerta Bateria Baixa</p>|`Dependent item`|nobreaksms.bateria.baixa<p>Update: 0</p>|
 |Nobreak SMS: Bypass|<p>Indica se o Bypass do Nobreak está ativo, ou seja, utilizando energia direto da rede sem o filtro do nobreak. Geralmente por algum problema na bateria, no nobreak, ou sobrecarga de potencia.</p>|`Dependent item`|nobreaksms.bypass<p>Update: 0</p>|
 |Nobreak SMS: Tensao da Bateria|<p>Tensão da bateria reportado em %. Basicamente o nível de carga.</p>|`Dependent item`|nobreaksms.tensao.bateria<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

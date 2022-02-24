@@ -49,6 +49,8 @@ Tomas Hermanek
 |{$JMX.PROTOCOL}|<p>-</p>|`remote`|Text macro|
 |{$WILDFLY.PASS}|<p>-</p>|`heslo`|Text macro|
 |{$WILDFLY.USER}|<p>-</p>|`zabbix`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -62,6 +64,8 @@ There are no template links in this template.
 |Server|<p>-</p>|`JMX agent`|jmx.get[attributes,"jboss.as:management-root=server,*"]<p>Update: 30m</p>|
 |Garbage Collector|<p>-</p>|`JMX agent`|jmx.get[beans,"*:type=GarbageCollector,name=*"]<p>Update: 30m</p>|
 |Datasource POOL|<p>-</p>|`JMX agent`|jmx.get[beans,"jboss.as:subsystem=datasources,data-source=*,statistics=pool"]<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -176,6 +180,8 @@ There are no template links in this template.
 |{#JMXDATA_SOURCE} TotalPoolTime|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},TotalPoolTime]<p>Update: 30</p><p>LLD</p>|
 |{#JMXDATA_SOURCE} TotalUsageTime|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},TotalUsageTime]<p>Update: 30</p><p>LLD</p>|
 |{#JMXDATA_SOURCE} XAStartTotalTime|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},XAStartTotalTime]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

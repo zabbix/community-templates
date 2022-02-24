@@ -23,6 +23,8 @@ There are no template links in this template.
 |Discovery LLD Hardware Inventory|<p>-</p>|`SNMP agent`|fgHaStatsHostname.discovery<p>Update: 84600</p>|
 |Firewall Network Interface LLD Discovery|<p>-</p>|`SNMP agent`|FwIfName.discovery<p>Update: 84600</p>|
 |Discovery LLD Information Memory Firewall|<p>-</p>|`SNMP agent`|fgHaStatsMemUsage2.discovery<p>Update: 84600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Firewall Buffering Memory Usage $1|<p>-</p>|`SNMP agent`|memBuffer.[{#SNMPVALUE}]<p>Update: 30s</p><p>LLD</p>|
 |Firewall Share Memory Usage $1|<p>-</p>|`SNMP agent`|memShared.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Firewall Free Total Memory $1|<p>-</p>|`SNMP agent`|memTotalFree.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

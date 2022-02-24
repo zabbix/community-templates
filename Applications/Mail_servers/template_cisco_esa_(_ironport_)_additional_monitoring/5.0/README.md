@@ -97,6 +97,8 @@ There are no discovery rules in this template.
 |hard_bounced_recips per 1m|<p>-</p>|`Dependent item`|hard_bounced_recips_last_1_min<p>Update: 0</p>|
 |inj_msgs per 1m|<p>-</p>|`Dependent item`|inj_msgs_last_1_min<p>Update: 0</p>|
 |deleted_recips  lifetime|<p>-</p>|`Dependent item`|deleted_recips<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |Perda de Pacotes|<p>-</p>|`Simple check`|icmppingloss<p>Update: 60</p>|
 |X3 Bytes In/sec|<p>-</p>|`SNMP agent`|ifInOctets.4<p>Update: 60</p>|
 |Simultaneous connections|<p>-</p>|`SNMP agent`|sonicCurrentConnCacheEntries.0<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

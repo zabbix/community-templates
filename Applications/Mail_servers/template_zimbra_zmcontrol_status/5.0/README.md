@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Status Proxy Zimbra|<p>-</p>|`Zabbix agent`|zimbra.proxy.status<p>Update: 3m</p>|
 |Status Amavis Zimbra|<p>-</p>|`Zabbix agent`|zimbra.amavis.status<p>Update: 3m</p>|
 |Status MTA Zimbra|<p>-</p>|`Zabbix agent`|zimbra.mta.status<p>Update: 3m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -93,6 +93,8 @@ There are no discovery rules in this template.
 |jvm Uptime|<p>-</p>|`JMX agent`|jmx["java.lang:type=Runtime",Uptime]<p>Update: 60</p>|
 |gc G1 Old collection time|<p>-</p>|`JMX agent`|jmx["java.lang:type=GarbageCollector,name=G1 Old Generation",CollectionTime]<p>Update: 20</p>|
 |mp PS Old Gen used|<p>-</p>|`JMX agent`|jmx["java.lang:type=MemoryPool,name=PS Old Gen",Usage.used]<p>Update: 20</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

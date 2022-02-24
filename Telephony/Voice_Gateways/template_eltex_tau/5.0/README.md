@@ -18,6 +18,8 @@ Oleg
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |fxsPortStateTAU|<p>-</p>|`SNMP agent`|fxsPortState<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -53,6 +57,8 @@ There are no template links in this template.
 |Device location|<p>The physical location of this node (e.g., `telephone closet, 3rd floor'). If the location is unknown, the value is the zero-length string.</p>|`SNMP agent`|sysLocation<p>Update: 1h</p>|
 |Свободная оперативная память|<p>-</p>|`SNMP agent`|fxsFreeRam<p>Update: 1m</p>|
 |Статус FXS {#FXSNAME}|<p>-</p>|`SNMP agent`|fxsPort.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Alerting|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,com.watch4net.alerting.engine.AlertingEngine]<p>Update: 30s</p>|
 |Backend|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,APG-Backend]<p>Update: 30s</p>|
 |Web Portal|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,Web-Servers]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |Velocidade Total Wireless MAC TX|<p>-</p>|`Calculated`|mimosaTxMacTotal.0<p>Update: 1m</p>|
 |Velocidade Física Wireless Total|<p>-</p>|`Calculated`|mimosaTxPhyTotal.0<p>Update: 1m</p>|
 |% Taxa de Erro TX em Pacotes Wireless|<p>-</p>|`SNMP agent`|mimosaPerTxRate.0<p>Update: 5</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

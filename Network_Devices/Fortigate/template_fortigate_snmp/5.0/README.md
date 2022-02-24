@@ -41,6 +41,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interfaces|<p>-</p>|`SNMP agent`|ifname<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |Upload $1|<p>-</p>|`SNMP agent`|ifHCOutOctets[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Link Speed $1|<p>-</p>|`SNMP agent`|ifHighSpeed[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Download $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -84,6 +84,8 @@ There are no discovery rules in this template.
 |Total sessions POP3|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Total sessions POP3"]<p>Update: 120</p>|
 |Total messages SMTP (entrant)|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Total messages SMTP (entrant)"]<p>Update: 120</p>|
 |File distante figée|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\File distante figée"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

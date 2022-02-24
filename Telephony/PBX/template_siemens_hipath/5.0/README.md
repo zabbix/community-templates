@@ -23,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Devices|<p>-</p>|`SNMP agent`|h150ePort<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Lock State of device $1|<p>-</p>|`SNMP agent`|Lock[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |State of device $1|<p>-</p>|`SNMP agent`|State[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Type of device $1|<p>-</p>|`SNMP agent`|Type[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

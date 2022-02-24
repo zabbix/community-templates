@@ -16,6 +16,8 @@ There are no template links in this template.
 |Interfaces Totals|<p>-</p>|`SNMP agent`|snmp.discoverytotal<p>Update: 300</p>|
 |Storage|<p>-</p>|`SNMP agent`|hrStorageDescr<p>Update: 300</p>|
 |$1 Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[FAN]<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +63,8 @@ There are no template links in this template.
 |{#SNMPVALUE} Used|<p>-</p>|`SNMP agent`|hrStorageUsed[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Operational status of FAN $1|<p>-</p>|`SNMP agent`|entPhySensorOperStatus[{#SNMPVALUE},FAN]<p>Update: 30</p><p>LLD</p>|
 |Current speed of $2 $1|<p>-</p>|`SNMP agent`|entPhySensorValue[{#SNMPVALUE},FAN]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -11,6 +11,8 @@ Template for color printers Samsung CLP and other color Samsung models
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -46,6 +48,8 @@ There are no discovery rules in this template.
 |Name|<p>-</p>|`SNMP agent`|mib-2.43.5.1.1.16.1<p>Update: 1d</p>|
 |Magenta Toner Resource|<p>-</p>|`SNMP agent`|mib-2.43.11.1.1.8.1.2<p>Update: 10m</p>|
 |Yellow Toner Level|<p>-</p>|`Calculated`|YPersent<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

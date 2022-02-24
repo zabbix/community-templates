@@ -15,6 +15,8 @@ There are no template links in this template.
 |BGP Peers|<p>BGP4-MIB::bgpPeerIdentifier</p>|`SNMP agent`|bgpPeerIdentifier<p>Update: 300</p>|
 |OSPF Neighbors|<p>OSPF-MIB::ospfNbrIpAddr The IP address this neighbor is using in its IP source address. Note that, on addressless links, this will not be 0.0.0.0 but the address of another of the neighbor's interfaces.</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 300</p>|
 |OSPF Interfaces|<p>OSPF-MIB::ospfIfIpAddress The IP address of this OSPF interface.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -23,6 +25,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}" State|<p>-</p>|`SNMP trap`|snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState\.{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"]<p>Update: 0</p><p>LLD</p>|
 |OSPF "{#SNMPVALUE}" Neighbour State|<p>-</p>|`SNMP trap`|snmptrap["(ospfNbrStateChange).*ospfNbrIpAddr[[:space:]]{#SNMPVALUE}[[:space:]].*[[:space:]][a-zA-Z]+[[:space:]]$"]<p>Update: 0</p><p>LLD</p>|
 |OSPF Interface "{SNMPVALUE}" State|<p>-</p>|`SNMP trap`|snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -35,6 +39,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}"->"{#SNMPVALUE}" State changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState .{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"],10m)=0</p><p>**Recovery expression**: </p>|average|
 |OSPF Neighbor {#SNMPVALUE} has been changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["(ospfNbrStateChange).*ospfNbrIpAddr[[:space:]]{#SNMPVALUE}[[:space:]].*[[:space:]][a-zA-Z]+[[:space:]]$"],10m)=0</p><p>**Recovery expression**: </p>|average|
 |OSPF Interface "{#SNMPVALUE}" State has been changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"],10m)=0</p><p>**Recovery expression**: </p>|average|
+
+
 # Cisco_7513
 
 ## Overview
@@ -80,6 +86,8 @@ There are no macros links in this template.
 |----|
 |Template Cisco General|
 |Template_Cisco_Traps|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -94,6 +102,8 @@ There are no macros links in this template.
 |Voltage|<p>CISCO-ENVMON-MIB::ciscoEnvMonVoltageStatusDescr Textual description of the testpoint being instrumented.</p>|`SNMP agent`|ciscoEnvMonVoltageStatusDescr<p>Update: 300</p>|
 |OSPF Neighbors|<p>OSPF-MIB::ospfNbrIpAddr The IP address this neighbor is using in its IP source address. Note that, on addressless links, this will not be 0.0.0.0 but the address of another of the neighbor's interfaces.</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 300</p>|
 |FAN|<p>CISCO-ENVMON-MIB::ciscoEnvMonFanStatusDescr Textual description of the fan being instrumented.</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -123,6 +133,8 @@ There are no macros links in this template.
 |Value of Voltage "$1"|<p>-</p>|`SNMP agent`|ciscoEnvMonVoltageStatusValue["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
 |OSPF "{#SNMPVALUE}" Neighbour State|<p>-</p>|`SNMP trap`|snmptrap["(ospfNbrStateChange).*ospfNbrIpAddr[[:space:]]{#SNMPVALUE}[[:space:]].*[[:space:]][a-zA-Z]+[[:space:]]$"]<p>Update: 0</p><p>LLD</p>|
 |Status of FAN "$1"|<p>CISCO-ENVMON-MIB::ciscoEnvMonFanState The current state of the fan being instrumented.</p>|`SNMP agent`|ciscoEnvMonFanState["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -171,6 +183,8 @@ There are no macros links in this template.
 |Status of FAN "{#SNMPVALUE}" is non-operable (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7513/ciscoEnvMonFanState["{#SNMPVALUE}"])=2</p><p>**Recovery expression**: </p>|warning|
 |Status of FAN "{#SNMPVALUE}" is not functioning (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7513/ciscoEnvMonFanState["{#SNMPVALUE}"])=6</p><p>**Recovery expression**: </p>|average|
 |Status of FAN "{#SNMPVALUE}" is shutdown (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7513/ciscoEnvMonFanState["{#SNMPVALUE}"])=4</p><p>**Recovery expression**: </p>|high|
+
+
 # Template_Cisco_Traps
 
 ## Macros used
@@ -202,6 +216,8 @@ There are no discovery rules in this template.
 |OSP TX Retransmits|<p>-</p>|`SNMP trap`|snmptrap["ospfTxRetransmit"]<p>Update: 0</p>|
 |OSPF neighbour state|<p>1 : down 2 : attempt 3 : init 4 : twoWay 5 : exchangeStart 6 : exchange 7 : loading 8 : full</p>|`SNMP trap`|snmptrap["ospfNbrStateChange.*ospfNbrState[[:space:]]"]<p>Update: 0</p>|
 |BFD Sessions|<p>CISCO-IETF-BFD-MIB::ciscoBfdSessDown and ciscoBfdSessUp</p>|`SNMP trap`|snmptrap["ciscoBfdSess(Up|Down)"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

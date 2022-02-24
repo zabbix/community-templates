@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |Data de Criação|<p>-</p>|`SNMP agent`|date<p>Update: 60s</p>|
 |Voltagem de Entrada PoE|<p>-</p>|`SNMP agent`|voltagem<p>Update: 60s</p>|
 |Status de controle da Saída da Fonte|<p>-</p>|`SNMP agent`|statusswitch<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

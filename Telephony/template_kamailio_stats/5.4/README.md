@@ -188,6 +188,8 @@ There are no discovery rules in this template.
 |Rcv Replies 18X|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,core:rcv_replies_18x]<p>Update: 1m</p>|
 |Rcv Replies 3XX Prack|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,core:rcv_replies_3xx_prack]<p>Update: 1m</p>|
 |Rpl Generated|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,tmx:rpl_generated]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

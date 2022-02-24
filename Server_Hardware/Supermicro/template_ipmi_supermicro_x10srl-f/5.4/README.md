@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |Fan 2|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.fan2<p>Update: 240</p>|
 |Fan 3|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.fan3<p>Update: 240</p>|
 |DIMMC2 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.p1.dimmc2.temp<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

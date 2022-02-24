@@ -21,6 +21,8 @@ Slawek Glebocki
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -46,6 +48,8 @@ There are no discovery rules in this template.
 |Black Drum|<p>-</p>|`SNMP agent`|black.drum<p>Update: 600</p>|
 |Device name|<p>An administratively-assigned name for this managed node. By convention, this is the node's fully-qualified domain name. If the name is unknown, the value is the zero-length string.</p>|`SNMP agent`|sysName<p>Update: 3600</p>|
 |Cyan Toner|<p>-</p>|`SNMP agent`|toner.lvl.cyan[available]<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

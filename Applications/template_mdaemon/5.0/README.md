@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |DNSBL refused total|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\DNSBL refused total"]<p>Update: 120</p>|
 |MDaemon uptime|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\MDaemon up time"]<p>Update: 30</p>|
 |Active SMTP (out) sessions|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Active SMTP (out) sessions"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

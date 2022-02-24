@@ -29,6 +29,8 @@ SNMP Discovery - Temperature Sensor
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -43,6 +45,8 @@ There are no template links in this template.
 |SNMP Discovery - Interfaces|<p>-</p>|`SNMP agent`|snmp.discovery<p>Update: 60</p>|
 |SNMP Discovery - Temperature Sensor|<p>-</p>|`SNMP agent`|snmp.discovery.temp.sensor<p>Update: 60</p>|
 |SNMP Discovery - CPU Cores|<p>-</p>|`SNMP agent`|snmp.discovery.cpu.cores<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -126,6 +130,8 @@ There are no template links in this template.
 |Nice CPU core last 5 minutes|<p>-</p>|`SNMP agent`|cpuCoreFiveMinutesNIce[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Interrupt CPU core last 5 minutes|<p>-</p>|`SNMP agent`|cpuCoreFiveMinutesInterrupt[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Wait CPU core last 1 minute|<p>-</p>|`SNMP agent`|cpuCoreOneMinuteWait[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

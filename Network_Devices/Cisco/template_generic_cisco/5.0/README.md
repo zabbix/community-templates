@@ -46,6 +46,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +63,8 @@ There are no macros links in this template.
 |Cisco Temperature|<p>-</p>|`SNMP agent`|ciscoEnvMonTemperatureStatusDescr<p>Update: 30m</p>|
 |Cisco Fan|<p>-</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr<p>Update: 5m</p>|
 |Memory Discovery|<p>Discovery of ciscoMemoryPoolTable, a table of memory pool monitoring entries. http://www.cisco.com/c/en/us/support/docs/ip/simple-network-management-protocol-snmp/15216-contiguous-memory.html</p>|`SNMP agent`|memory.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -95,6 +99,8 @@ There are no macros links in this template.
 |{#SNMPVALUE}: Available memory|<p>MIB: CISCO-MEMORY-POOL-MIB Indicates the number of bytes from the memory pool that are currently unused on the managed device. Note that the sum of ciscoMemoryPoolUsed and ciscoMemoryPoolFree is the total amount of memory in the pool Reference: http://www.cisco.com/c/en/us/support/docs/ip/simple-network-management-protocol-snmp/15216-contiguous-memory.html</p>|`SNMP agent`|vm.memory.free[ciscoMemoryPoolFree.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |{#SNMPVALUE}: Memory utilization|<p>Memory utilization in %</p>|`Calculated`|vm.memory.pused[vm.memory.pused.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |{#SNMPVALUE}: Used memory|<p>MIB: CISCO-MEMORY-POOL-MIB Indicates the number of bytes from the memory pool that are currently in use by applications on the managed device. Reference: http://www.cisco.com/c/en/us/support/docs/ip/simple-network-management-protocol-snmp/15216-contiguous-memory.html</p>|`SNMP agent`|vm.memory.used[ciscoMemoryPoolUsed.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

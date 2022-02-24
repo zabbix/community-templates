@@ -63,6 +63,8 @@ There are no discovery rules in this template.
 |P1-DIMMD1 TEMP|<p>-</p>|`IPMI agent`|ipmi.p1dimmd1.temp<p>Update: 60</p>|
 |+3.3VSB|<p>-</p>|`IPMI agent`|ipmi.system.3.3vsb<p>Update: 60</p>|
 |5V|<p>-</p>|`IPMI agent`|ipmi.system.5v<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

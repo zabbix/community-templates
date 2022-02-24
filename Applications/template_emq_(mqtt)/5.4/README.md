@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |MQTT Packets SUBACK|<p>-</p>|`Zabbix trapper`|emqtt[packets/suback]<p>Update: 0</p>|
 |MQTT Messages Sent|<p>-</p>|`Zabbix trapper`|emqtt[messages/sent]<p>Update: 0</p>|
 |MQTT Packets Sent|<p>-</p>|`Zabbix trapper`|emqtt[packets/sent]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

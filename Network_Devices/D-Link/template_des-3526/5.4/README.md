@@ -483,6 +483,8 @@ There are no discovery rules in this template.
 |ifOperStatus.9|<p>-</p>|`SNMP agent`|ifOperStatus.9<p>Update: 30s</p>|
 |PVID порта 7|<p>-</p>|`SNMP agent`|mib-2.17.7.1.4.5.1.1.7<p>Update: 30s</p>|
 |port description 13|<p>-</p>|`SNMP agent`|ifDescr13<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

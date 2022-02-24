@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Activated|<p>Content Caching is enabled (true or false)</p>|`Dependent item`|contentcache.activated<p>Update: 0</p>|
 |Bytes Stored from Origin|<p>Download rate (bytes per second) from Apple's app and iCloud servers</p>|`Dependent item`|contentcache.bytes.storedfromorigin<p>Update: 0</p>|
 |Bytes Returned to Clients|<p>Download rate (bytes per second) to local macOS and iOS clients</p>|`Dependent item`|contentcache.bytes.returnedtoclients<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |Printer Serial Number|<p>-</p>|`SNMP agent`|samsung.prtGeneralSerialNumber<p>Update: 30</p>|
 |Feed Roller Hours|<p>Service life of feed roller: 50000 hours</p>|`SNMP agent`|samsung.tor.rol.mc<p>Update: 30</p>|
 |Black Cartrige Printed Pages|<p>-</p>|`SNMP agent`|samsung.prtMarkerSuppliesCapacity<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

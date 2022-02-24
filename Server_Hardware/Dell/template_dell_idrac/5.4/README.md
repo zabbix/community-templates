@@ -14,6 +14,8 @@ Based on <https://github.com/endersonmaia/zabbix-templates/tree/master/dell/idra
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -31,6 +33,8 @@ There are no template links in this template.
 |Processor Enumeration|<p>-</p>|`SNMP agent`|ProcEnum<p>Update: 43200</p>|
 |Network Enumeration|<p>-</p>|`SNMP agent`|NetworkEnum<p>Update: 7200</p>|
 |Disk Enumeration|<p>-</p>|`SNMP agent`|DiskEnumeration<p>Update: 7200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +88,8 @@ There are no template links in this template.
 |Disk {#DISKNAME} : Serial Number |<p>-</p>|`SNMP agent`|DiskSerialNo.[{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
 |Disk {#DISKNAME} : Disk Size|<p>-</p>|`SNMP agent`|DiskSize.[{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
 |Disk {#DISKNAME} : Disk State|<p>-</p>|`SNMP agent`|DiskState.[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

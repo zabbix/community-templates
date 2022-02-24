@@ -40,6 +40,8 @@ Perhaps works at versions 2.*.
 |{$TEMPERATURE_DISK_C_HIGH_TSRNT}|<p>-</p>|`75`|Text macro|
 |{$TEMPERATURE_DISK_C_TSRNT}|<p>-</p>|`50`|Text macro|
 |{$TSNMPGT_NODATA}|<p>-</p>|`240m`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Volumes discovery|<p>-</p>|`SNMP agent`|volumeNumber<p>Update: 3600</p>|
 |Disks discovery|<p>HDD discovery in the device</p>|`SNMP agent`|diskNumber<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -70,6 +74,8 @@ There are no template links in this template.
 |Disk $1 status|<p>-</p>|`SNMP agent`|diskstatus[{#DISKNUMBER}]<p>Update: 3600</p><p>LLD</p>|
 |Disk $1 temperature|<p>The data received from the device. Original data are obtained in Fahrenheit.</p>|`SNMP agent`|disktemperature[{#DISKNUMBER}]<p>Update: 3600</p><p>LLD</p>|
 |Disk $1 temperature celsius|<p>Conversion of Fahrenheit in celsius</p>|`Calculated`|disktemperature_c[{#DISKNUMBER}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

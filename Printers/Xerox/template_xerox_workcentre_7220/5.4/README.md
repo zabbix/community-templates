@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |Type of cartridge - magenta|<p>-</p>|`SNMP agent`|magenta.cartridge.type<p>Update: 21600</p>|
 |Fuser %|<p>-</p>|`SNMP agent`|fuser.percent<p>Update: 60</p>|
 |Cartridge toner level % - magenta|<p>-</p>|`Calculated`|magenta.cartridge.toner<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

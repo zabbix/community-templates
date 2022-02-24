@@ -68,6 +68,8 @@ Kari Karvonen
 |{$BATTERY_TEMP_LOW_CRITICAL}|<p>-</p>|`-20`|Text macro|
 |{$BATTERY_TEMP_LOW_WARNING}|<p>-</p>|`0`|Text macro|
 |{$SNMP_COMMUNITY}|<p>SNMPv2 read only community</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -109,6 +111,8 @@ There are no discovery rules in this template.
 |Load Status|<p>-</p>|`SNMP agent`|loadStatus.0<p>Update: 1m</p>|
 |Power System Status|<p>-</p>|`SNMP agent`|powerSystemStatus.0<p>Update: 1m</p>|
 |Battery 1 Temperature Value|<p>-</p>|`SNMP agent`|batteryTemperaturesValue.0<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

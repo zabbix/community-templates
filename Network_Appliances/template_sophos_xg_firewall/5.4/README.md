@@ -95,6 +95,8 @@ There are no discovery rules in this template.
 |idpExpiryDate|<p>-</p>|`SNMP agent`|idpExpiryDate<p>Update: 300</p>|
 |Memory capacity in MB|<p>Memory capacity in MB</p>|`SNMP agent`|memoryCapacity<p>Update: 300</p>|
 |ntpService|<p>-</p>|`SNMP agent`|ntpService<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

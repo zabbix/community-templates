@@ -49,6 +49,8 @@ There are no template links in this template.
 |Ruckus APs|<p>-</p>|`SNMP agent`|APRZ-[{#SNMPVALUE}]<p>Update: 3600</p>|
 |SSIDs|<p>-</p>|`SNMP agent`|SSIDRZ-[{#SNMPVALUE}]<p>Update: 3600</p>|
 |ZoneDirector Eth|<p>-</p>|`SNMP agent`|ZDEthName[{#SNMPVALUE}]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +71,8 @@ There are no template links in this template.
 |ruckusZDWLANTxBytes $1|<p>-</p>|`SNMP agent`|ruckusZDWLANTxBytes-[{#SNMPVALUE}]<p>Update: 1200</p><p>LLD</p>|
 |SSID $1 : Name|<p>-</p>|`SNMP agent`|SSIDName-[{#SNMPVALUE}]<p>Update: 21600</p><p>LLD</p>|
 |Status $1|<p>-</p>|`SNMP agent`|ruckusZDEthStatus[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

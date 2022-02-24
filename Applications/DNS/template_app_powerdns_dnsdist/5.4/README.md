@@ -24,6 +24,8 @@ Manuel Frei
 |{$PDNS.DNSDIST.APIKEY}|<p>-</p>|`changeme`|Text macro|
 |{$PDNS.DNSDIST.WEBSERVER.IP}|<p>-</p>|`127.0.0.1`|Text macro|
 |{$PDNS.DNSDIST.WEBSERVER.PORT}|<p>-</p>|`8083`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -87,6 +89,8 @@ There are no discovery rules in this template.
 |cpu-sys-msec|<p>Milliseconds spent by dnsdist in the “system” state.</p>|`Dependent item`|pdns.dnsdist.statistics[cpu-sys-msec]<p>Update: 0</p>|
 |cpu-steal|<p>Stolen time, which is the time spent by the whole system in other operating systems when running in a virtualized environment, in units of USER_HZ. New in version 1.5.0.</p>|`Dependent item`|pdns.dnsdist.statistics[cpu-steal]<p>Update: 0</p>|
 |servfail-responses|<p>Number of servfail answers received from backends.</p>|`Dependent item`|pdns.dnsdist.statistics[servfail-responses]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

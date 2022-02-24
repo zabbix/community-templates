@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Nginx Active Connections|<p>-</p>|`External check`|nginx_stat_getter["-h","{HOST.CONN}","-p","4040","-s","active"]<p>Update: 60</p>|
 |Nginx memory allocated|<p>-</p>|`Zabbix agent`|proc.mem[nginx,nginx]<p>Update: 60</p>|
 |Nginx Writting state count|<p>-</p>|`External check`|nginx_stat_getter["-h","{HOST.CONN}","-p","4040","-s","writing"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

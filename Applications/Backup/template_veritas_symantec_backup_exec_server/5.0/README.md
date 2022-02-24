@@ -37,6 +37,8 @@ Khatsayuk Alexander
 |{$BE.USER}|<p>-</p>|`LOGIN`|Text macro|
 |{$HISTORY}|<p>-</p>|`14d`|Text macro|
 |{$TRENDS}|<p>-</p>|`180d`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |Backup Exec Jobs Discovery (FULL)|<p>Discover Full Backup Exec jobs by SQL query.</p>|`Database monitor`|db.odbc.discovery[be.jobs.full,{HOST.HOST}]<p>Update: 1h</p>|
 |Backup Exec Services|<p>Discovery Backup Exec Services.</p>|`Zabbix agent (active)`|service.discovery<p>Update: 3h</p>|
 |Backup Exec Jobs Discovery (INCREMENTAL)|<p>Discover Incremental Backup Exec jobs by SQL query.</p>|`Database monitor`|db.odbc.discovery[be.jobs.incr,{HOST.HOST}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +61,8 @@ There are no template links in this template.
 |Service {#SERVICE.NAME} status|<p>{#SERVICE.NAME} status Display name: {#SERVICE.DISPLAYNAME} Description: {#SERVICE.DESCRIPTION}</p>|`Zabbix agent (active)`|service.info[{#SERVICE.NAME}]<p>Update: 1m</p><p>LLD</p>|
 |{#JOB.NAME}: Final Job Status|<p>{#JOB.NAME} final job status</p>|`Database monitor`|db.odbc.select[be.job.incr.{#JOB.NAME}.finaljobstatus,{HOST.HOST}]<p>Update: 15m</p><p>LLD</p>|
 |{#JOB.NAME}: Total Data Size, bytes|<p>{#JOB.NAME} total bytes</p>|`Database monitor`|db.odbc.select[be.job.incr.{#JOB.NAME}.totalbytes,{HOST.HOST}]<p>Update: 15m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

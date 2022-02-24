@@ -37,6 +37,8 @@ Raveren
 |{$WARN_EXT2_SENSOR_TEMP}|<p>-</p>|`30`|Text macro|
 |{$WARN_HUMIDITY_SENSOR}|<p>-</p>|`50`|Text macro|
 |{$WARN_INT_SENSOR_TEMP}|<p>-</p>|`37`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -53,6 +55,8 @@ There are no discovery rules in this template.
 |External temperature sensor 1|<p>-</p>|`SNMP agent`|nv1.sensor.ets1<p>Update: 300s</p>|
 |External humidity sensor|<p>-</p>|`SNMP agent`|nv1.sensor.ehs<p>Update: 300s</p>|
 |Internal temperature sensor|<p>-</p>|`SNMP agent`|nv1.sensor.its<p>Update: 300s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

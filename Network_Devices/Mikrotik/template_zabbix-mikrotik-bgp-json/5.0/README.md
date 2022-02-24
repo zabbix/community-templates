@@ -38,6 +38,8 @@ AlKosmos
 |{$MIKROTIK_SSH_PASS}|<p>-</p>|`1111`|Text macro|
 |{$MIKROTIK_SSH_PORT}|<p>-</p>|`22`|Text macro|
 |{$MIKROTIK_SSH_USER}|<p>-</p>|`mikmon`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -47,6 +49,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |BGP - Peers|<p>-</p>|`SSH agent`|ssh.run[,,{$MIKROTIK_SSH_PORT},]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -54,6 +58,8 @@ There are no template links in this template.
 |BGP - Peer JSON|<p>-</p>|`SSH agent`|ssh.run[BGP - Peer JSON,,{$MIKROTIK_SSH_PORT},]<p>Update: {$UPDATEINT}</p>|
 |{#PEERNAME} ({#REMOTEAS}) - Prefix|<p>-</p>|`Dependent item`|ssh.run[{#PEERNAME}-prefix,,{$MIKROTIK_SSH_PORT},]<p>Update: 0</p><p>LLD</p>|
 |{#PEERNAME} ({#REMOTEAS}) - Status|<p>-</p>|`Dependent item`|ssh.run[{#PEERNAME}-status,,{$MIKROTIK_SSH_PORT},]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

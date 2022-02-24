@@ -25,6 +25,8 @@ There are no template links in this template.
 |Network Interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 30</p>|
 |Memory Discovery|<p>-</p>|`SNMP agent`|memory.discovery<p>Update: 1h</p>|
 |CPU Discovery|<p>HOST-RESOURCES-MIB::hrProcessorTable discovery</p>|`SNMP agent`|hrProcessorLoad.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -155,6 +157,8 @@ There are no template links in this template.
 |#{#SNMPINDEX}: Memory units|<p>-</p>|`SNMP agent`|vm.memory.units[hrStorageAllocationUnits.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |#{#SNMPINDEX}: Used memory|<p>-</p>|`Calculated`|vm.memory.used[memoryUsed.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |#{#SNMPINDEX}: CPU utilization|<p>-</p>|`SNMP agent`|system.cpu.util[hrProcessorLoad.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

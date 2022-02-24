@@ -32,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Internal APC Sensor|<p>-</p>|`SNMP agent`|apc18953A<p>Update: 5</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no template links in this template.
 |atsOutputCurrent|<p>-</p>|`SNMP agent`|atsOutputCurrent.1.1.1<p>Update: 30s</p>|
 |System upTIme {#SNMPVALUE}|<p>-</p>|`SNMP agent`|sysUpTime<p>Update: 60s</p>|
 |atsOutputVoltage|<p>{#SNMPVALUE}</p>|`SNMP agent`|atsOutputVoltage.["{#SNMPINDEX}"]<p>Update: 5</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

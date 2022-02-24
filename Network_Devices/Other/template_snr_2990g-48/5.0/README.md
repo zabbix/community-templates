@@ -322,6 +322,8 @@ There are no discovery rules in this template.
 |Port26OUT|<p>-</p>|`SNMP agent`|ifOutOctets26<p>Update: 120</p>|
 |ifOperStatus.22|<p>-</p>|`SNMP agent`|ifOperStatus.22<p>Update: 120</p>|
 |Port45IN|<p>-</p>|`SNMP agent`|ifInOctets.45<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

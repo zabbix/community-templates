@@ -29,6 +29,8 @@ There are no template links in this template.
 |Descoberta automática de Corrente de entrada|<p>Descoberta automática de Corrente de fase</p>|`SNMP agent`|corrente.discovery<p>Update: 30m</p>|
 |Descoberta automática de Corrente de Saida|<p>Descoberta automática de Corrente de fase</p>|`SNMP agent`|corrente.s.discovery<p>Update: 30m</p>|
 |Descoberta automática de Potência de Saída|<p>Descoberta automática de Potencia de saída de fase</p>|`SNMP agent`|potencia.s.discovery<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -47,6 +49,8 @@ There are no template links in this template.
 |Corrente de entrada da fase $1|<p>-</p>|`SNMP agent`|corrente.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Corrente de saida da fase $1|<p>-</p>|`SNMP agent`|corrente.s.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Potencia de saída da fase $1|<p>-</p>|`SNMP agent`|potencia.s.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

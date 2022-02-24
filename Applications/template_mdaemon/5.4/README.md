@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |MDaemon running state|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\MDaemon running state"]<p>Update: 30</p>|
 |SMTP sessions (in) total|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\SMTP sessions (in) total"]<p>Update: 120</p>|
 |Inbound queue messages|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Inbound queue messages"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

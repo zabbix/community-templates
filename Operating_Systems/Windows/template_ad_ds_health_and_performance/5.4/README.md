@@ -43,6 +43,8 @@ Events
 |----|-----------|-------|----|
 |{$ADDB_PATH}|<p>-</p>|`c:\windows\ntds\ntds.dit`|Text macro|
 |{$ADLOG_PATH}|<p>-</p>|`c:\windows\ntds\edb.log`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -88,6 +90,8 @@ There are no discovery rules in this template.
 |State of service "Kdc" (Kerberos Key Distribution Center)|<p>-</p>|`Zabbix agent`|service.info[Kdc,state]<p>Update: 1m</p>|
 |DRA Pending Replication Synchronizations|<p>perf_counter[ NTDA DRA Pending Replication Synchronizations]</p>|`Zabbix agent`|perf_counter[\6956\17266]<p>Update: 1m</p>|
 |DRA Outbound Bytes Total/sec|<p>perf_counter[ NTDA DRA Outbound Bytes Total/sec]</p>|`Zabbix agent`|perf_counter[\6956\17452]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

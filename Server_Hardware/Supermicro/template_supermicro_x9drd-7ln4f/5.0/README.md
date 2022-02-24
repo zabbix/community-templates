@@ -62,6 +62,8 @@ There are no discovery rules in this template.
 |VDIMM EF|<p>-</p>|`IPMI agent`|ipmi.vdimm.ef<p>Update: 300</p>|
 |VDIMM GH|<p>-</p>|`IPMI agent`|ipmi.vdimm.gh<p>Update: 300</p>|
 |VTT|<p>-</p>|`IPMI agent`|ipmi.vtt<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

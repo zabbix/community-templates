@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |FAN_1|<p>-</p>|`IPMI agent`|ipmi.sensors.fan1<p>Update: 30s</p>|
 |CPU2 Temp|<p>-</p>|`IPMI agent`|ipmi.sensors.cpu2Temp<p>Update: 30s</p>|
 |12V Standby|<p>-</p>|`IPMI agent`|ipmi.sensors.12vStandby<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

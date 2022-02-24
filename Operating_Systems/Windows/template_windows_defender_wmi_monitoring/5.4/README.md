@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Full Scan Age|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select FullScanAge from MSFT_MpComputerStatus"]<p>Update: 3h</p>|
 |Real Time Protection Enabled|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select RealTimeProtectionEnabled from MSFT_MpComputerStatus"]<p>Update: 1h</p>|
 |NIS Signature Last updated|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select NISSignatureLastUpdated from MSFT_MpComputerStatus"]<p>Update: 3h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

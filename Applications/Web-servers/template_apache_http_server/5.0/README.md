@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Workers DNS lookup|<p>-</p>|`Dependent item`|apache.workers.dnslookup<p>Update: 0</p>|
 |Workers logging|<p>-</p>|`Dependent item`|apache.workers.logging<p>Update: 0</p>|
 |Workers closing connection|<p>-</p>|`Dependent item`|apache.workers.closing<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

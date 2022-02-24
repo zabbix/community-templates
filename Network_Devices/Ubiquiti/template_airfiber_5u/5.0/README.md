@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |RadioLinkRXFrequency|<p>-</p>|`SNMP agent`|AirFiberRadioRXFrequency<p>Update: 1h</p>|
 |RadioRemoteLinkRXPoweChain0Valid|<p>-</p>|`SNMP agent`|AirFiberRemoteRXPoweChain0Valid<p>Update: 30s</p>|
 |RadioLinkRemoteRXPoweChain0|<p>-</p>|`SNMP agent`|AirFiberRemoteRXPoweChain0<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

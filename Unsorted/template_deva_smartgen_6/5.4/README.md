@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |Device Serial Number|<p>device.serNum</p>|`SNMP agent`|device.serNum<p>Update: 86400</p>|
 |Status TA Input|<p>"TA Input State"</p>|`SNMP agent`|mntrRDS.TA.Input<p>Update: 60</p>|
 |GPS Fix Mode|<p>mntrGPS.FixMode INTEGER { fixModeUnknown ( 0 ) , fixNotAvailable ( 1 ) , fix2D ( 2 ) , fix3D ( 3 ) }</p>|`SNMP agent`|mntrGPS.FixMode<p>Update: 1200</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

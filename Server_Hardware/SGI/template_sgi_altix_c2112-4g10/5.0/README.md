@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |CPU1 DIMM VTT|<p>-</p>|`IPMI agent`|ipmi.cpu1.dimm.vtt<p>Update: 300</p>|
 |+5 V|<p>-</p>|`IPMI agent`|ipmi.5.v<p>Update: 300</p>|
 |+3.3VSB|<p>-</p>|`IPMI agent`|ipmi.3.3vsb<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

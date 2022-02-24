@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |Ambient Temp|<p>-</p>|`IPMI agent`|ipmi.ambient.temp<p>Update: 300</p>|
 |FAN 3 RPM|<p>-</p>|`IPMI agent`|ipmi.fan.3.rpm<p>Update: 300</p>|
 |FAN 4 RPM|<p>-</p>|`IPMI agent`|ipmi.fan.4.rpm<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

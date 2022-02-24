@@ -90,6 +90,8 @@ There are no discovery rules in this template.
 |Free disk space on C: (percentage)|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[C:,pfree]<p>Update: 60m</p>|
 |Total swap space|<p>-</p>|`Zabbix agent (active)`|system.swap.size[,total]<p>Update: 3600</p>|
 |Number of camera's offline|<p>-</p>|`Zabbix agent (active)`|web.page.get[localhost,/command?type=getchannelsstates&login={$EOCORTEX_USER}&password={$EOCORTEX_PASSWORD}&responsetype=json,8080]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

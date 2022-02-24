@@ -79,6 +79,8 @@ There are no discovery rules in this template.
 |VM Processor - Shares|<p>The number of CPU shares allocated to the virtual machine.</p>|`Zabbix agent`|perf_counter["\VM Processor(_Total)\Shares"]<p>Update: 10m</p>|
 |VM Processor - % Processor Time|<p>Current load of the VM's virtual processor.</p>|`Zabbix agent`|perf_counter["\VM Processor(_Total)\% Processor Time"]<p>Update: 1m</p>|
 |VM Processor - Host processor speed in MHz|<p>Host Processor speed.</p>|`Zabbix agent`|perf_counter["\VM Processor(_Total)\Host processor speed in MHz"]<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

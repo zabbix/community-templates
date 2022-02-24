@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |IPSec Phase2 Tunnel discovery|<p>The IP address of the remote endpoint for the IPsec Phase-2 Tunnel.</p>|`SNMP agent`|cipSecTunIndex<p>Update: 60</p>|
 |IPSec Phase1  Tunnel discovery|<p>-</p>|`SNMP agent`|cikeTunIndex<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Phase1 Peer {#SNMPVALUE} local peer identity|<p>The value of the local peer identity. If the local peer type is an IP Address, then this is the IP Address used to identify the local peer. If the local peer type is a host name, then this is the host name used to identify the local peer.</p>|`SNMP agent`|cikeTunLocalValue[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Phase1 Peer {#SNMPVALUE} outbound traffic|<p>The total number of octets sent by this IPsec Phase-1 IKE Tunnel.</p>|`SNMP agent`|cikeTunOutOctets[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Phase1 Peer {#SNMPVALUE} remote peer identity|<p>The value of the remote peer identity. If the remote peer type is an IP Address, then this is the IP Address used to identify the remote peer. If the remote peer type is a host name, then this is the host name used to identify the remote peer.</p>|`SNMP agent`|cikeTunRemoteValue[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

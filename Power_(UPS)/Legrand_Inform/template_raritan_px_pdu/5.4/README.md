@@ -38,6 +38,8 @@ There are no template links in this template.
 |Inlets|<p>-</p>|`SNMP agent`|pduInlet<p>Update: 3600</p>|
 |Sensors|<p>-</p>|`SNMP agent`|externalSensor<p>Update: 3600</p>|
 |Overcurrent Protectors|<p>-</p>|`SNMP agent`|overCurrentProtector<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -97,6 +99,8 @@ There are no template links in this template.
 |Name of Overcurrent Protector $1|<p>-</p>|`SNMP agent`|overCurrentProtectorName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 |Capability of  Overcurrent Protector  $1|<p>-</p>|`SNMP agent`|overCurrentProtectorRatedCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 |Type of  Overcurrent Protector  $1|<p>-</p>|`SNMP agent`|overCurrentProtectorType[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

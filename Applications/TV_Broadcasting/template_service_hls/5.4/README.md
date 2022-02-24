@@ -81,6 +81,8 @@ Kirill Savin
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$HLSURI}|<p>URI to m3u8</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -90,6 +92,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |m3u8 lists|<p>-</p>|`Zabbix agent`|hls["-d",{$HLSURI}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -101,6 +105,8 @@ There are no template links in this template.
 |HLS target duration $1|<p>-</p>|`Dependent item`|hls.target_duration[{#PROFILE}]<p>Update: 0</p><p>LLD</p>|
 |HLS total legth $1|<p>-</p>|`Dependent item`|hls.totallength[{#PROFILE}]<p>Update: 0</p><p>LLD</p>|
 |HLS ts present $1|<p>-</p>|`Dependent item`|hls.tsuri[{#PROFILE}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -281,6 +281,8 @@ There are no discovery rules in this template.
 |OutErrorsFa0/23|<p>-</p>|`SNMP agent`|ifOutErrors.23<p>Update: 120</p>|
 |Bytes Tx port 47|<p>-</p>|`SNMP agent`|ifOutOctets.47<p>Update: 120</p>|
 |OutErrorsFa0/32|<p>-</p>|`SNMP agent`|ifOutErrors.32<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

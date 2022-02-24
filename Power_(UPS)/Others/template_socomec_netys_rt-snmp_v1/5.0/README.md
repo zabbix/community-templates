@@ -33,6 +33,8 @@ diablofight89
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`afLpogHP16EW`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -65,6 +67,8 @@ There are no discovery rules in this template.
 |Output Status|<p>"The present source of output power."</p>|`SNMP agent`|upsOutputSource.0<p>Update: 1m</p>|
 |Alarm - Fan Fault|<p>"Fans failure. (A054)"</p>|`SNMP agent`|upsAlarmFansFailure.0<p>Update: 1m</p>|
 |Battery Voltage|<p>"The magnitude of the present battery voltage in 0.1 Volt DC."</p>|`SNMP agent`|upsBatteryVoltage.0<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

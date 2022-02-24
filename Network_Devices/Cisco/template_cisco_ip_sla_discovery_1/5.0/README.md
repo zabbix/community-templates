@@ -19,6 +19,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |IP SLA Discovery|<p>-</p>|`SNMP agent`|rttMonCtrlAdminTag<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -31,6 +33,8 @@ There are no template links in this template.
 |IP SLA {#SNMPINDEX} threshold|<p>This object defines an administrative threshold limit. If the RTT operation time exceeds this limit and if the conditions specified in rttMonReactAdminThresholdType or rttMonHistoryAdminFilter are satisfied, a threshold is generated.</p>|`SNMP agent`|rttMonCtrlAdminThreshold[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |IP SLA {#SNMPINDEX} timeout|<p>Specifies the duration to wait for a RTT operation completion. The value of this object cannot be set to a value which would specify a duration exceeding rttMonCtrlAdminFrequency. For connection oriented protocols, this may cause the connection to be closed by the probe. Once closed, it will be assumed that the connection reestablishment will be performed. To prevent unwanted closure of connections, be sure to set this value to a realistic connection timeout.</p>|`SNMP agent`|rttMonCtrlAdminTimeout[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |IP SLA {#SNMPINDEX} verify data|<p>When set to true, the resulting data in each RTT operation is compared with the expected data. This includes checking header information (if possible) and exact packet size. Any mismatch will be recorded in the rttMonStatsCollectVerifyErrors object. Some RttMonRttTypes may not support this option. When a type does not support this option, the agent will transition this object to false. It is the management applications responsibility to check for this transition. This object is only applicable to SNA protocols.</p>|`SNMP agent`|rttMonCtrlAdminVerifyData[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

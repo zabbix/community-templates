@@ -22,6 +22,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discovery ISP Server|<p>-</p>|`Zabbix agent`|speedtest.discovery<p>Update: 500s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -32,6 +34,8 @@ There are no template links in this template.
 |Speedtest {#SERVERNAME} - Download|<p>-</p>|`Zabbix agent`|speedtest.download.server[{#SERVERID}]<p>Update: 1200s</p><p>LLD</p>|
 |Speedtest {#SERVERNAME} - Ping|<p>-</p>|`Zabbix agent`|speedtest.ping.server[{#SERVERID}]<p>Update: 1200s</p><p>LLD</p>|
 |Speedtest {#SERVERNAME} - Upload|<p>-</p>|`Zabbix agent`|speedtest.upload.server[{#SERVERID}]<p>Update: 1200s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

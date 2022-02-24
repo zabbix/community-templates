@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |hh3cSensorServerityLevel_Inlet Temp|<p>-</p>|`SNMP agent`|hh3cSensorServerityLevel_Inlet_Temp<p>Update: 1m</p>|
 |hh3cCPUHealthStatus|<p>-</p>|`SNMP agent`|hh3cCPUHealthStatus<p>Update: 1m</p>|
 |hh3cFanHealthStatus|<p>-</p>|`SNMP agent`|hh3cFanHealthStatus<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

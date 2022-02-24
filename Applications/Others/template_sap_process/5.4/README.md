@@ -38,6 +38,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |sap.discovery|<p>-</p>|`Zabbix agent`|sap.availability[database]<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +51,8 @@ There are no template links in this template.
 |[$2 - $3] [ HDB PreProcessor ]|<p>-</p>|`Zabbix agent`|sap.availability[hdbpreprocessor,{#COD_ID},{#NAME_ID}]<p>Update: 60s</p><p>LLD</p>|
 |[$2 - $3] [ HDB Webdispatcher ]|<p>-</p>|`Zabbix agent`|sap.availability[hdbwebdispatcher,{#COD_ID},{#NAME_ID}]<p>Update: 60s</p><p>LLD</p>|
 |[$2 - $3] [ HDB Engine ]|<p>-</p>|`Zabbix agent`|sap.availability[hdbxsengine,{#COD_ID},{#NAME_ID}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

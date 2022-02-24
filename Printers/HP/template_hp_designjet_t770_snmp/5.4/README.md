@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Type_of_MK_toner|<p>-</p>|`SNMP agent`|Type_of_MK_toner<p>Update: 86400</p>|
 |Name_of_model|<p>-</p>|`SNMP agent`|Name_of_model<p>Update: 86400</p>|
 |Maximum_yellow_toner_level|<p>-</p>|`SNMP agent`|Maximum_yellow_toner_level<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

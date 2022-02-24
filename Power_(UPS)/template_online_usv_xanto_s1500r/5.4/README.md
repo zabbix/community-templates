@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |USV Model|<p>-</p>|`SNMP agent`|USVVersion<p>Update: 86400</p>|
 |MAC|<p>-</p>|`SNMP agent`|deviceMAC<p>Update: 86400</p>|
 |system uptime|<p>-</p>|`SNMP agent`|system.up<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

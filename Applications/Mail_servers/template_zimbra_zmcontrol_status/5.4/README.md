@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Status Webmail Zimbra Service|<p>-</p>|`Zabbix agent`|zimbra.webmail.status<p>Update: 3m</p>|
 |Status Mailbox Zimbra|<p>-</p>|`Zabbix agent`|zimbra.mailbox.status<p>Update: 3m</p>|
 |Status AntiSpam Zimbra|<p>-</p>|`Zabbix agent`|zimbra.antispam.status<p>Update: 3m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Descarregando CC|<p>-</p>|`SNMP agent`|alarmeDescCC<p>Update: 1m</p>|
 |Falha na Ventilação|<p>-</p>|`SNMP agent`|alarmeFalhaVentilacao<p>Update: 1m</p>|
 |Fusível Interrompido|<p>-</p>|`SNMP agent`|alarmeFusivelInterrompido<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

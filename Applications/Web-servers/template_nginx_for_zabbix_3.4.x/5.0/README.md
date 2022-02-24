@@ -42,6 +42,8 @@ Alex Gluck
 |{$NGINX_PORT}|<p>-</p>|`80`|Text macro|
 |{$NGINX_REQ_NUM}|<p>-</p>|`600`|Text macro|
 |{$NGINX_STATS_URI}|<p>-</p>|`nginx-stats`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |Nginx: connections accepted per sec|<p>-</p>|`Dependent item`|nginx.accepts<p>Update: 0</p>|
 |Get Nginx stat page|<p>-</p>|`Zabbix agent`|web.page.get[{$NGINX_HOST},{$NGINX_STATS_URI},{$NGINX_PORT}]<p>Update: 60s</p>|
 |Nginx: connections handled per sec|<p>-</p>|`Dependent item`|nginx.handled<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

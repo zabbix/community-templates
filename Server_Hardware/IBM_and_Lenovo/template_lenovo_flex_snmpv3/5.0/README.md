@@ -37,6 +37,8 @@ Evgen-20
 |----|-----------|-------|----|
 |{$FLEX_PASS}|<p>-</p>|``|Text macro|
 |{$FLEX_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -49,6 +51,8 @@ There are no template links in this template.
 |Discovery blades|<p>-</p>|`SNMP agent`|discovery.flex.blades<p>Update: 1h</p>|
 |Discovery switches|<p>-</p>|`SNMP agent`|discovery.flex.switch<p>Update: 1d</p>|
 |Discovery status power|<p>-</p>|`SNMP agent`|discovery.flex.power<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -64,6 +68,8 @@ There are no template links in this template.
 |Flex blade {#SNMPINDEX}|<p>unknown(0) good(1) warning(2) critical(3) kernelMode(4) discovering(5) commError(6) noPower(7) flashing(8) initFailure(9) insufficientPower(10) powerDenied(11) maintMode(12) firehoseDump(13)</p>|`SNMP agent`|1.3.6.1.4.1.2.3.51.2.2.8.2.1.1.5.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |Flex switch {#SNMPINDEX}|<p>Switchs: Ethernet, Fiber and etc. unknown(0) good(1) warning(2) bad(3)</p>|`SNMP agent`|1.3.6.1.4.1.2.3.51.2.22.3.1.1.1.15.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |Flex power {#SNMPINDEX}|<p>unknown(0) good(1) warning(2) notAvailable(3) critical(4)</p>|`SNMP agent`|1.3.6.1.4.1.2.3.51.2.2.4.1.1.3.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

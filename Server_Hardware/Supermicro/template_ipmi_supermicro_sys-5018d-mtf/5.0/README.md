@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Fan 3|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.fan3<p>Update: 240</p>|
 |Vcpu|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.Vcpu<p>Update: 240</p>|
 |Fan 1|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.fan1<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -52,6 +52,8 @@ There are no template links in this template.
 |Descoberta LLD Informacoes do Hardware|<p>-</p>|`SNMP agent`|sysDescr<p>Update: 3600</p>|
 |Descoberta LLD Toner Yellow|<p>-</p>|`SNMP agent`|prtMarkerSuppliesDescriptionYellow<p>Update: 3600</p>|
 |Descoberta LLD Nivel de Papel Tray 2|<p>-</p>|`SNMP agent`|prtInputDescriptionTray2<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -143,6 +145,8 @@ There are no template links in this template.
 |Nivel de Papel da Bandeja $1|<p>-</p>|`SNMP agent`|prtInputCurrentLevelTray2[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |Descricao da Bandeja 2|<p>-</p>|`SNMP agent`|prtInputDescriptionTray1[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |Maxima Capacidade da Bandeja $1|<p>-</p>|`SNMP agent`|prtInputMaxCapacityTray2[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

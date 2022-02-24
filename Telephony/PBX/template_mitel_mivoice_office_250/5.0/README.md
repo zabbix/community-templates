@@ -44,6 +44,8 @@ Trigger for:
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$AWS.PORT}|<p>-</p>|`443`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -64,6 +66,8 @@ There are no discovery rules in this template.
 |Release version|<p>MiVO 250 Release version</p>|`Dependent item`|mitel.mivo250.relver<p>Update: 0</p>|
 |Call Processing version|<p>MiVO 250 Call Processing version</p>|`Dependent item`|mitel.mivo250.cpver<p>Update: 0</p>|
 |Alarm status|<p>MiVO 250 Alarm status</p>|`Dependent item`|mitel.mivo250.alarm<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

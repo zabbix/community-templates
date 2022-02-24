@@ -45,6 +45,8 @@ Rene Schwarz
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -57,6 +59,8 @@ There are no template links in this template.
 |3R-10G|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.680.20.1.7.0<p>Update: 30s</p>|
 |3R-10G-SS|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.210.20.1.9.0<p>Update: 30s</p>|
 |1000MS|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.310.20.1.11.0<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -106,6 +110,8 @@ There are no template links in this template.
 |1000MS Slot{#SNMPINDEX} Tx PWR|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.310.20.1.134.0.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |1000MS Slot{#SNMPINDEX} Rx PWR|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.310.20.1.135.0.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |1000MS Slot{#SNMPINDEX} SFP Temperatur|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.4756.20.310.20.1.136.0.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

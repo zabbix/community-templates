@@ -84,6 +84,8 @@ There are no discovery rules in this template.
 |sensor7LastErrMsg|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.11.10.5.0<p>Update: 30</p>|
 |sensor1Value|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.3.2.0<p>Update: 30</p>|
 |sensor1name|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.3.1.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

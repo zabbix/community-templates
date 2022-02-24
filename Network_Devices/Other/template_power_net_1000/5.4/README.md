@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |Modo de Operação da Fonte|<p>-</p>|`SNMP agent`|mod.oper<p>Update: 300</p>|
 |Voltagem do Ramal 3|<p>-</p>|`SNMP agent`|volt.ramal.3<p>Update: 60</p>|
 |Voltagem do Ramal 1|<p>-</p>|`SNMP agent`|volt.ramal.1<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

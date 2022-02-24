@@ -14,6 +14,8 @@ Requires the mod\_snmp SNMP subagent to be enabled in Freeswitch+net-snmp.
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$FS_MAX_CALLS}|<p>-</p>|`4`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -33,6 +35,8 @@ There are no discovery rules in this template.
 |Number of freeswitch processes|<p>-</p>|`Zabbix agent`|proc.num[,,,freeswitch]<p>Update: 2m</p>|
 |Freeswitch active calls|<p>-</p>|`SNMP agent`|enterprises.27880.1.2.5.0<p>Update: 1m</p>|
 |Freeswitch peak sessions per second|<p>-</p>|`SNMP agent`|enterprises.27880.1.2.8.0<p>Update: 30m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

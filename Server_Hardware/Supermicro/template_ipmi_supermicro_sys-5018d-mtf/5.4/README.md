@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Peripheral - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.peripheral.temp<p>Update: 240</p>|
 |System - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.system.temp<p>Update: 240</p>|
 |P1-DIMMB2 Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-5018d-mtf.p1.dimmb2.temp<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

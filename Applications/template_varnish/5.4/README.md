@@ -22,6 +22,8 @@ Dave Humphrey (dave@uesp.net)
 |{$VARNISH.RESPONSE_TIME.MAX.WARN}|<p>Max response time before a warning is given.</p>|`5`|Text macro|
 |{$VARNISH.STATUS.HOST}|<p>IP or hostname of the Varnish server.</p>|`127.0.0.1`|Text macro|
 |{$VARNISH.STATUS.PORT}|<p>Port of the Varnish server.</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |Varnish: Memory usage (vsize)|<p>Virtual memory size used by process in bytes.</p>|`Zabbix agent`|proc.mem["{$VARNISH.PROCESS_NAME}",,,,vsize]<p>Update: 1m</p>|
 |Varnish: Memory usage (rss)|<p>Resident set size memory used by process in bytes.</p>|`Zabbix agent`|proc.mem["{$VARNISH.PROCESS_NAME}",,,,rss]<p>Update: 1m</p>|
 |Varnish: LRU nuked objects|<p>Number of LRU nuked objects</p>|`Dependent item`|varnish.objects.lrunuked<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

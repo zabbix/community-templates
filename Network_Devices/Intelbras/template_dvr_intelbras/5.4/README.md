@@ -36,6 +36,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Nome Canal|<p>-</p>|`SNMP agent`|nome.canal<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -63,6 +65,8 @@ There are no template links in this template.
 |Status Canal 8|<p>-</p>|`SNMP agent`|canal8<p>Update: 10m</p>|
 |Status Canal 16|<p>-</p>|`SNMP agent`|canal16<p>Update: 10m</p>|
 |Nome Dispositivo|<p>-</p>|`SNMP agent`|nome_dispositivo<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -66,6 +66,8 @@ There are no discovery rules in this template.
 |Velocidade Porta GigabitEthernet 1/1/1 MTU|<p>-</p>|`SNMP agent`|ifMtu.49<p>Update: 60</p>|
 |Temperatura|<p>-</p>|`SNMP agent`|entPhySensorValue.68420481<p>Update: 120</p>|
 |Pacotes de entrada com erro Tengigabitethernet 1/1/1|<p>-</p>|`SNMP agent`|ifInErrors.107<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

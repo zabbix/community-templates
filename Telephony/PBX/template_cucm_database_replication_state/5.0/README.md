@@ -36,6 +36,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |DB Replication State|<p>-</p>|`Dependent item`|dbrepstate<p>Update: 0</p>|
 |API PerfmonRequet State of Replication|<p>-</p>|`HTTP agent`|ucdbreplication<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

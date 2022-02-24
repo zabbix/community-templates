@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |5VCC|<p>-</p>|`IPMI agent`|ipmi.5vcc<p>Update: 300</p>|
 |Vcpu1|<p>-</p>|`IPMI agent`|ipmi.vcpu1<p>Update: 300</p>|
 |P1-DIMMB1 Temp|<p>-</p>|`IPMI agent`|ipmi.p1-dimmb1.temp<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

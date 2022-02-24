@@ -38,6 +38,8 @@ There are no template links in this template.
 |Fan RPM Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[FAN]<p>Update: 5m</p>|
 |Component Temperature Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[Temp]<p>Update: 5m</p>|
 |Storage|<p>-</p>|`SNMP agent`|hrStorageDescr<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +90,8 @@ There are no template links in this template.
 |Temperature of $1|<p>-</p>|`SNMP agent`|entPhySensorTemp[{#SENSORNAME}]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Size|<p>-</p>|`SNMP agent`|hrStorageSize[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |{#SNMPVALUE} Used|<p>-</p>|`SNMP agent`|hrStorageUsed[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

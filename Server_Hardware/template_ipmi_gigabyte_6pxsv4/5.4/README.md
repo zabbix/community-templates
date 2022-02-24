@@ -48,6 +48,8 @@ There are no discovery rules in this template.
 |DIMM Group 1|<p>-</p>|`IPMI agent`|ipmi.system.dimm.group1<p>Update: 1m</p>|
 |SYS_FAN 3|<p>-</p>|`IPMI agent`|ipmi.system.sys_fan_3<p>Update: 1m</p>|
 |Battery|<p>-</p>|`IPMI agent`|ipmi.system.vbat<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

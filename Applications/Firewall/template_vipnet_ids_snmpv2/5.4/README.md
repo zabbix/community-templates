@@ -27,6 +27,8 @@ Antik89
 |{$LIC.DAYS}|<p>days of license time to inform</p>|`30`|Text macro|
 |{$RAM.USAGE}|<p>max RAM usage</p>|`75`|Text macro|
 |{$SENSOR.ID}|<p>paste item Sensor ID here</p>|`357810809`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -42,6 +44,8 @@ There are no template links in this template.
 |Last day attacks (attacker ip addresses)|<p>-</p>|`SNMP agent`|lastday.attacks.attacker.ip<p>Update: 15m</p>|
 |Last day attacks (events count)|<p>-</p>|`SNMP agent`|lastday.attacks.events.count<p>Update: 15m</p>|
 |Last day attacks (events URL)|<p>-</p>|`SNMP agent`|lastday.attacks.events.url<p>Update: 15m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -90,6 +94,8 @@ There are no template links in this template.
 |Last day attacks (attacker ip addresses №{#SNMPINDEX})|<p>-</p>|`SNMP agent`|lastday.attacks.attacker.ip[{#SNMPINDEX}]<p>Update: 15m</p><p>LLD</p>|
 |Last day attacks (events count) №{#SNMPINDEX}|<p>-</p>|`SNMP agent`|lastday.attacks.events.count[{#SNMPINDEX}]<p>Update: 15m</p><p>LLD</p>|
 |Last day events URL №{#SNMPINDEX}|<p>-</p>|`SNMP agent`|lastday.attacks.events.url[{#SNMPINDEX}]<p>Update: 15m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

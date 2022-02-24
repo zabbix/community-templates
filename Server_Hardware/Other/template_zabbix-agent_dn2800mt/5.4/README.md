@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |AVCC voltage|<p>-</p>|`Zabbix agent`|sensor[w83627dhg-isa-0290,in2]<p>Update: 60</p>|
 |+12V voltage|<p>-</p>|`Zabbix agent`|sensor[w83627dhg-isa-0290,in1]<p>Update: 60</p>|
 |+3.3V Voltage|<p>-</p>|`Zabbix agent`|sensor[w83627dhg-isa-0290,in3]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

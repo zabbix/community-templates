@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |11-PCI 2 Zone|<p>-</p>|`IPMI agent`|11-PCI2Zone<p>Update: 300</p>|
 |20-VR P1VDDQ|<p>-</p>|`IPMI agent`|20-VRP1VDDQ<p>Update: 300</p>|
 |06-Chipset|<p>-</p>|`IPMI agent`|06-Chipset<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

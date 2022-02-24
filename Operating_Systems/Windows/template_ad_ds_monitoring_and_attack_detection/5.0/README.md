@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Windows Security (ID4621)|<p>Administrator recovered system from CrashOnAuditFail. Users who are not administrators will now be allowed to log on. Some auditable activity might not have been recorded.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4621$]<p>Update: 5m</p>|
 |Windows Security (ID4964)|<p>Special groups have been assigned to a new logon.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4964$]<p>Update: 5m</p>|
 |Windows Security (ID4766)|<p>An attempt to add SID History to an account failed.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4766$]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

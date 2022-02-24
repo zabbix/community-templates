@@ -38,11 +38,15 @@ There are no macros links in this template.
 |----|
 |Template Module ICMP Ping|
 |Template Module Generic SNMP|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |BDT Module Discovery|<p>-</p>|`SNMP agent`|BdtDeviceStatModEntry<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +63,8 @@ There are no macros links in this template.
 |Current Module {#SNMPINDEX} Drive Power Module 2 Status|<p>-</p>|`SNMP agent`|bdtDeviceStatModEntryDPwr2[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Current Module {#SNMPINDEX} Health Stat|<p>-</p>|`SNMP agent`|bdtDeviceStatModEntryHealth[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Current Module {#SNMPINDEX} Power Supply Status|<p>-</p>|`SNMP agent`|bdtDeviceStatModEntryPwrSupply[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

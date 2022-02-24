@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |FAN_1|<p>-</p>|`IPMI agent`|ipmi.sensors.fan1<p>Update: 30s</p>|
 |DIMM ZONE 2 Temp|<p>-</p>|`IPMI agent`|ipmi.sensors.dimmZone2Temp<p>Update: 30s</p>|
 |FAN_3|<p>-</p>|`IPMI agent`|ipmi.sensors.fan3<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

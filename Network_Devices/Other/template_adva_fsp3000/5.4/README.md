@@ -87,6 +87,8 @@ There are no template links in this template.
 |Fan|<p>-</p>|`SNMP agent`|fan_advaInventoryUnitName<p>Update: 3600</p>|
 |Mgmt module|<p>-</p>|`SNMP agent`|ncu_advaInventoryUnitName<p>Update: 3600</p>|
 |Expansion module|<p>-</p>|`SNMP agent`|scu_advaInventoryUnitName<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -194,6 +196,8 @@ There are no template links in this template.
 |Administrative State for  $2 ($1)|<p>-</p>|`SNMP agent`|scmoduleAdmin[{#SNMPVALUE},{#SNMPVALUE2}]<p>Update: 30</p><p>LLD</p>|
 |Operational State for  $2 ($1)|<p>-</p>|`SNMP agent`|scmoduleOperState[{#SNMPVALUE},{#SNMPVALUE2}]<p>Update: 30</p><p>LLD</p>|
 |Row Status for  $2 ($1)|<p>-</p>|`SNMP agent`|scmoduleRowStatus[{#SNMPVALUE},{#SNMPVALUE2}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

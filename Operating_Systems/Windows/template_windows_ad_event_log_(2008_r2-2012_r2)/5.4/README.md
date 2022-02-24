@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |Create User|<p>Обліковий запис користувача створено</p>|`Zabbix agent (active)`|eventlog[Security,,,,4720,,]<p>Update: 300</p>|
 |User Password Reset|<p>Пароль користувача скинуто</p>|`Zabbix agent (active)`|eventlog[Security,,,,4724,,]<p>Update: 300</p>|
 |Delete User|<p>Обліковий запис користувача видалено</p>|`Zabbix agent (active)`|eventlog[Security,,,,4726,,]<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

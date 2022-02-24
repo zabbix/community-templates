@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Cartridge toner level % - black|<p>-</p>|`Calculated`|black.cartridge.toner<p>Update: 10m</p>|
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 10m</p>|
 |Type of cartridge - black|<p>-</p>|`SNMP agent`|black.cartridge.type<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

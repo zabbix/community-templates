@@ -43,6 +43,8 @@ Apps Needing Update
 |{$CLOUD_ADMIN_USER}|<p>-</p>|`user`|Text macro|
 |{$FQDN_NEXTCLOUD}|<p>-</p>|`nextcloud.domain.com`|Text macro|
 |{$HTTP_OR_HTTPS}|<p>-</p>|`https`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -71,6 +73,8 @@ There are no discovery rules in this template.
 |Nextcloud Storage Users|<p>Nextcloud Storage Users</p>|`Dependent item`|nextcloud.storage.numusers<p>Update: 0</p>|
 |Nextcloud Monitoring API|<p>Master Item - Nextcloud Monitoring API</p>|`Zabbix agent`|system.run[curl -s --user {$CLOUD_ADMIN_USER}:{$CLOUD_ADMIN_PW}  {$HTTP_OR_HTTPS}://{$FQDN_NEXTCLOUD}/ocs/v2.php/apps/serverinfo/api/v1/info]<p>Update: 1m</p>|
 |Nextcloud Storage Freespace|<p>Nextcloud Storage Freespace</p>|`Dependent item`|nextcloud.storage.freespace<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

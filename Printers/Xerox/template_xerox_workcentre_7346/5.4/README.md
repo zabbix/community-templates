@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |ink.cyan.now|<p>-</p>|`SNMP agent`|ink.cyan.now<p>Update: 30</p>|
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 30</p>|
 |Уровень жёлтого тонера Drum|<p>-</p>|`Calculated`|yellow.drum.toner<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |Corrente de Entrada - Fase 2|<p>-</p>|`SNMP agent`|Inputcurrentfase2<p>Update: 300</p>|
 |Contact|<p>-</p>|`SNMP agent`|sysContact<p>Update: 300</p>|
 |Potência reativa de saída - Fase 3|<p>-</p>|`SNMP agent`|Outputreactovepowerfase3<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Interface|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 300</p>|
 |FiberChannel Ports|<p>-</p>|`SNMP agent`|swFCPortIndex<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -40,6 +42,8 @@ There are no template links in this template.
 |Bad EOF delimited frames received on port $1|<p>"This object counts the number of received frames that have bad EOF delimiter."</p>|`SNMP agent`|swFCPortRxBadEofs[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Operational status of port $1|<p>"This object identifies the operational status of the port. The online(1) state indicates that user frames can be passed. The unknown(0) state indicates that likely the port module is physically absent (see swFCPortPhyState)."</p>|`SNMP agent`|swFCPortOpStatus[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |WWN of port $1|<p>"The World_wide_Name of the Fibre Channel port. The contents of an instance are in the IEEE extended format as specified in FC-PH; the 12-bit port identifier represents the port number within the switch."</p>|`SNMP agent`|swFCPortWwn[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

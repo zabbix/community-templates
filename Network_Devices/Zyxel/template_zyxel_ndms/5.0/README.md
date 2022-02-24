@@ -24,6 +24,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifDescr<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -35,6 +37,8 @@ There are no template links in this template.
 |$1 Incoming|<p>-</p>|`SNMP agent`|ifInOctets[{#IFDESCR}]<p>Update: 60</p><p>LLD</p>|
 |$1 Operation status|<p>-</p>|`SNMP agent`|ifOperStatus[{#IFDESCR}]<p>Update: 60</p><p>LLD</p>|
 |$1 Outgoing|<p>-</p>|`SNMP agent`|ifOutOctets[{#IFDESCR}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

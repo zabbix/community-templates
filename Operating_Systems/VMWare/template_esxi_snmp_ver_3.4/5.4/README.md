@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Environment discovery|<p>A unique identifier that does not persist across management restarts</p>|`SNMP agent`|vmwEnvIndex<p>Update: 3600</p>|
 |Virtual Machines|<p>Name by which this vm is displayed. It is not guaranteed to be unique. MOB: https://esx.example.com/mob/?moid=vmwVmIdx&doPath=summary%2eguest</p>|`SNMP agent`|vmwVmDisplayName<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -33,6 +35,8 @@ There are no template links in this template.
 |VM {#SNMPVALUE} Power State|<p>Power state of the virtual machine. VIM Property: powerState MOB: https://esx.example.com/mob/?moid=vmwVmIdx&doPath=summary%2eruntime</p>|`SNMP agent`|vmwVMState.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |VM {#SNMPVALUE} CPUs Number|<p>Number of virtual CPUs assigned to this virtual machine. VIM Property: numCPU MOB: https://esx.example.com/mob/?moid=vmwVmIdx&doPath=config%2ehardware</p>|`SNMP agent`|vmwVMCPUs.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |VM {#SNMPVALUE} Memory Size|<p>Memory configured for this virtual machine. Memory > MAX Integer32 is reported as max integer32. VIM Property: memoryMB MOB: https://esx.example.com/mob/?moid=vmwVmIdx&doPath=config%2ehardware</p>|`SNMP agent`|vmwVMMemSize.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

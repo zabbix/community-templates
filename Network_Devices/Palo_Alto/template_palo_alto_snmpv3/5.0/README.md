@@ -38,6 +38,8 @@ There are no template links in this template.
 |Interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 5m</p>|
 |Component Temperature Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[Temp]<p>Update: 5m</p>|
 |Interfaces Totals|<p>-</p>|`SNMP agent`|snmp.discoverytotal<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +90,8 @@ There are no template links in this template.
 |Multicast packets incoming on interface $1|<p>-</p>|`SNMP agent`|ifInMulticastPkts[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Broadcast packets outgoing on interface $1|<p>-</p>|`SNMP agent`|ifOutBroadcastPkts[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Multicast packets outgoing on interface $1|<p>-</p>|`SNMP agent`|ifOutMulticastPkts[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

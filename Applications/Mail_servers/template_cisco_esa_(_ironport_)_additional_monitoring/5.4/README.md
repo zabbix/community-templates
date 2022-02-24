@@ -97,6 +97,8 @@ There are no discovery rules in this template.
 |completed_recips per 1m|<p>-</p>|`Dependent item`|completed_recips_last_1_min<p>Update: 0</p>|
 |other_hard_bounced_recips  lifetime|<p>-</p>|`Dependent item`|other_hard_bounced_recips<p>Update: 0</p>|
 |inj_recips per 1m|<p>-</p>|`Dependent item`|inj_recips_last_1_min<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

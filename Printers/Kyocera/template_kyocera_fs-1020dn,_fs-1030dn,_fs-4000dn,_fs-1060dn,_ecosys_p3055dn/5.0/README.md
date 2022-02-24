@@ -53,6 +53,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |KyoceraPrint|<p>-</p>|`SNMP agent`|KyoceraPrint<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +75,8 @@ There are no template links in this template.
 |Строка состояния2|<p>-</p>|`SNMP agent`|StatusStr2<p>Update: 3600</p>|
 |Код ошибки|<p>-</p>|`SNMP agent`|ErrorCode<p>Update: 60</p>|
 |Модель|<p>-</p>|`SNMP agent`|ModelName<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

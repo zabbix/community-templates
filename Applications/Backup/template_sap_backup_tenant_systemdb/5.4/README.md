@@ -30,6 +30,8 @@ wilsonwers
 |{$BCO}|<p>-</p>|`PRD`|Text macro|
 |{$ID}|<p>-</p>|`00`|Text macro|
 |{$PASS}|<p>-</p>|`passwd`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no discovery rules in this template.
 |{$BCO} - LAST INDEXSERVER TENANT|<p>-</p>|`Zabbix agent`|check_backup[{$ID},{$PASS},{$BCO},backup_last,indexserver]<p>Update: 21600s</p>|
 |{$BCO} - STATUS XSENGINE TENANT|<p>-</p>|`Zabbix agent`|check_backup[{$ID},{$PASS},{$BCO},backup,xsengine]<p>Update: 3600s</p>|
 |{$BCO} - LAST NAMESERVER SYSTEMDB|<p>-</p>|`Zabbix agent`|check_backup[{$ID},{$PASS},{$BCO},backup_last,nameserver]<p>Update: 21600s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

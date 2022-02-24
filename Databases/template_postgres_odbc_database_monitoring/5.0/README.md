@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |tupfetched|<p>-</p>|`Database monitor`|db.odbc.select[tupfetched,{HOST.NAME}]<p>Update: 60s</p>|
 |one|<p>-</p>|`Database monitor`|db.odbc.select[one,{HOST.NAME}]<p>Update: 60s</p>|
 |rowsharelock|<p>-</p>|`Database monitor`|db.odbc.select[rowsharelock,{HOST.NAME}]<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

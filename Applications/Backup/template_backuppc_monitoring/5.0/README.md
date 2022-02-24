@@ -46,6 +46,8 @@ Evren Yurtesen
 |{$BACKUPPC.SIZECHANGE.CRIT}|<p>Crit backup `size` or `new files size` difference</p>|`5G`|Text macro|
 |{$BACKUPPC.SIZECHANGE.WARN}|<p>Warn backup `size` or `new files size` difference</p>|`1G`|Text macro|
 |{$BACKUPPC.USERNAME}|<p>Metrics access username.</p>|`backuppc`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -55,6 +57,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discover backed up hosts|<p>-</p>|`Dependent item`|backuppc.hosts.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -85,6 +89,8 @@ There are no template links in this template.
 |[{#HOST}] Last size|<p>-</p>|`Dependent item`|backuppc.last_size.[{#HOST}]<p>Update: 0</p><p>LLD</p>|
 |[{#HOST}] Last new files size|<p>-</p>|`Dependent item`|backuppc.last_size_new.[{#HOST}]<p>Update: 0</p><p>LLD</p>|
 |[{#HOST}] Last start time|<p>-</p>|`Dependent item`|backuppc.last_start_time.[{#HOST}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

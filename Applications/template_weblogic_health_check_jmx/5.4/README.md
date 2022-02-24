@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |OIMSERVER1 Average Connection Count|<p>-</p>|`JMX agent`|jmx["com.bea:ServerRuntime=oim_server1,Name=ApplicationDB,Type=JDBCConnectionPoolRuntime","ActiveConnectionsAverageCount"]<p>Update: 30s</p>|
 |OIMSERVER1|<p>-</p>|`JMX agent`|jmx["com.bea:Name=oim_server1,Type=ServerRuntime","State"]<p>Update: 30s</p>|
 |OIMSERVER1 Leaked Connection Count|<p>-</p>|`JMX agent`|jmx["com.bea:ServerRuntime=oim_server1,Name=ApplicationDB,Type=JDBCConnectionPoolRuntime","LeakedConnectionCount"]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

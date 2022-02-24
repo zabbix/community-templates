@@ -34,6 +34,8 @@ There are no template links in this template.
 |Fan discovery|<p>-</p>|`SNMP agent`|fanDiscovery<p>Update: 1h</p>|
 |CPU discovery|<p>-</p>|`SNMP agent`|cpuDiscovery<p>Update: 1h</p>|
 |Volume discovery|<p>-</p>|`SNMP agent`|volumeDiscovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +77,8 @@ There are no template links in this template.
 |Volume #{#SNMPINDEX} name|<p>Имя тома</p>|`SNMP agent`|volumeName[{#SNMPINDEX}]<p>Update: 15m</p><p>LLD</p>|
 |Volume #{#SNMPINDEX} status|<p>Статус тома (Healthy, Clean, Active, Resyncing, Recovering, Reshaping, Appending, Migrating, fsExpanding fsIniting Degraded, Failed, Inactive)</p>|`SNMP agent`|volumeStatus[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Volume #{#SNMPINDEX} total size|<p>Общий размер тома в гигабайтах (ГБ)</p>|`SNMP agent`|volumeTotalSize[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

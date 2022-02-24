@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |BB BMC Temp|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.bbbmc.temp<p>Update: 240</p>|
 |Sys Fan 4|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.sysfan4<p>Update: 240</p>|
 |BB +1.5 P1MEM|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.BBP1MEM<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

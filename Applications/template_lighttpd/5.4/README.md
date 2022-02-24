@@ -19,6 +19,8 @@ Dave Humphrey (dave@uesp.net)
 |{$LIGHTTPD.STATUS.HOST}|<p>Hostname or IP address of the Lighttpd status page</p>|`127.0.0.1`|Text macro|
 |{$LIGHTTPD.STATUS.PATH}|<p>The URL path to the Lighttpd stats page</p>|`server-status?json`|Text macro|
 |{$LIGHTTPD.STATUS.PORT}|<p>The port of the Lighttpd status page</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -47,6 +49,8 @@ There are no discovery rules in this template.
 |Lighttpd: Total bytes|<p>Total bytes served since restart</p>|`Dependent item`|lighttpd.bytes<p>Update: 0</p>|
 |Lighttpd: Service ping|<p>-</p>|`Zabbix agent`|net.tcp.service[http,"{$LIGHTTPD.STATUS.HOST}","{$LIGHTTPD.STATUS.PORT}"]<p>Update: 1m</p>|
 |Lighttpd: Busy servers|<p>Number of Lighttpd threads currently serving requests.</p>|`Dependent item`|lighttpd.servers.busy<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

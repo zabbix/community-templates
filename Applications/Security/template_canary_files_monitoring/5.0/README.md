@@ -72,6 +72,8 @@ There are no discovery rules in this template.
 |lsofile|<p>Show lsof for the canary file that triggered.</p>|`Zabbix trapper`|canary.lsofile[]<p>Update: 0</p>|
 |fuser|<p>Show fuser for all the pids using the file</p>|`Zabbix trapper`|canary.fuser[]<p>Update: 0</p>|
 |lsof|<p>Show lsof for all the files (First one thousand lines)</p>|`Zabbix trapper`|canary.lsof[]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

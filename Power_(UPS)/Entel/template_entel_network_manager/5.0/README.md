@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Частота входа|<p>-</p>|`SNMP agent`|upsInputFrequency<p>Update: 30</p>|
 |Статус АКБ|<p>-</p>|`SNMP agent`|upsBatteryStatus<p>Update: 30</p>|
 |Частота выхода|<p>-</p>|`SNMP agent`|upsOutputFrequency<p>Update: 10</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

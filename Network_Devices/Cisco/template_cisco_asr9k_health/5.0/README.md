@@ -124,6 +124,8 @@ Flavio Camacho Junior
 |{$CPU_HIGH_WARNING}|<p>% maximum warning cpu</p>|`70`|Text macro|
 |{$MEMORY_HIGH_ALARM}|<p>% maximum alarm memory</p>|`80`|Text macro|
 |{$MEMORY_HIGH_WARNING}|<p>% maximum warning memory</p>|`70`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -141,6 +143,8 @@ There are no template links in this template.
 |Memory Pool Discovery|<p>CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName A textual name assigned to the memory pool.</p>|`SNMP agent`|ciscoMemoryPoolName["Memory"]<p>Update: 1h</p>|
 |FAN Tray Sensor Discovery|<p>The textual name of the physical entity.</p>|`SNMP agent`|entPhysicalName["FAN Tray"]<p>Update: 1h</p>|
 |Temperature LC Discovery|<p>The textual name of the physical entity.</p>|`SNMP agent`|entPhysicalName["LC"]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -165,6 +169,8 @@ There are no template links in this template.
 |Status of Temperature Sensor "$1"|<p>CISCO-ENTITY-SENSOR-MIB::entSensorStatus This variable indicates the present operational status of the sensor.</p>|`SNMP agent`|entSensorStatus["{#SNMPVALUE}","Temperature LC"]<p>Update: 1m</p><p>LLD</p>|
 |Thresholds::"$1" | Temperature Alarm|<p>-</p>|`SNMP agent`|entSensorThresholdValue["{#SNMPVALUE}","Temperature LC","Alarm"]<p>Update: 1h</p><p>LLD</p>|
 |Temperature on Sensor "$1"|<p>CISCO-ENTITY-SENSOR-MIB::entSensorValue This variable reports the most recent measurement seen by the sensor.</p>|`SNMP agent`|entSensorValue["{#SNMPVALUE}","Temperature LC"]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

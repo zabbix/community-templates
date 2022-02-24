@@ -20,6 +20,8 @@ If you wish to see new items added please open an issue @ [albinbatman/zabbix-qn
 |{$DISK_LATENCY_ALARM}|<p>Amount in ms when an alarm shall be raised</p>|`30`|Text macro|
 |{$HDD_TEMPERATURE_ALARM}|<p>Amount in centigrade when an alarm shall be raised</p>|`50`|Text macro|
 |{$POOL_SIZE_ALARM}|<p>Amount in % when an alarm shall be raised</p>|`15`|Text macro|
+
+
 ## Template links
 
 |Name|
@@ -29,6 +31,8 @@ If you wish to see new items added please open an issue @ [albinbatman/zabbix-qn
 |Template Module Interfaces Simple SNMP|
 |Template Module Generic SNMP|
 |Template Net Network Generic Device SNMP|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -41,6 +45,8 @@ If you wish to see new items added please open an issue @ [albinbatman/zabbix-qn
 |Disk Discovery|<p>-</p>|`SNMP agent`|disk.discovery<p>Update: 15m</p>|
 |EtherLike-MIB Discovery|<p>Discovering interfaces from IF-MIB and EtherLike-MIB. Interfaces with up(1) Operational Status are discovered.</p>|`SNMP agent`|net.if.duplex.discovery<p>Update: 1h</p>|
 |Volume Discovery|<p>-</p>|`SNMP agent`|volume.discovery<p>Update: 15m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -83,6 +89,8 @@ If you wish to see new items added please open an issue @ [albinbatman/zabbix-qn
 |Volume {#VOLUMEINDEX}: Free size|<p>-</p>|`SNMP agent`|volume.freeSize[{#VOLUMEINDEX}]<p>Update: 15m</p><p>LLD</p>|
 |Volume {#VOLUMEINDEX}: Name|<p>-</p>|`SNMP agent`|volume.name[{#VOLUMEINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Volume {#VOLUMEINDEX}: Status|<p>-</p>|`SNMP agent`|volume.status[{#VOLUMEINDEX}]<p>Update: 15m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

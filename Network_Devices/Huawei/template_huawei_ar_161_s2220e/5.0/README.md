@@ -19,6 +19,8 @@ There are no template links in this template.
 |Fan Sensors detect|<p>Searches the CISCO-ENVMON-MIB for the Fan sensors, use ciscoEnvMonFanStatusDescr as key.</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr<p>Update: 60</p>|
 |Huawei chassis component|<p>Searches the Cisco MIB for the chassis model and blades.</p>|`SNMP agent`|ceAssetOrderablePartNumber<p>Update: 60</p>|
 |Power Supply detect|<p>Searches the CISCO-ENVMON-MIB for the Fan sensors, use ciscoEnvMonSupplyStatusDescr as key.</p>|`SNMP agent`|ciscoEnvMonSupplyStatusDescr<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |State of "$1"|<p>-</p>|`SNMP agent`|ciscoEnvMonFanState[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Cisco P/N: "$1"|<p>-</p>|`SNMP agent`|ceAssetOrderablePartNumber[{#SNMPVALUE}]<p>Update: 86400</p><p>LLD</p>|
 |State of "$1"|<p>-</p>|`SNMP agent`|ciscoEnvMonSupplyState[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

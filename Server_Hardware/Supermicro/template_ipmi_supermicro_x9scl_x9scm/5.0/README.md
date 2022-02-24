@@ -44,6 +44,8 @@ There are no discovery rules in this template.
 |PS Status|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.ps.status<p>Update: 240</p>|
 |3.3VCC|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.3.3VCC<p>Update: 240</p>|
 |CPU Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.cpu.temp<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

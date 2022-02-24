@@ -26,6 +26,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |ServiceProviderConnections|<p>-</p>|`SNMP agent`|ozeki.ServiceProviderConnectionsList<p>Update: 30s</p>|
 |Users|<p>-</p>|`SNMP agent`|ozeki.UsersList<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +61,8 @@ There are no template links in this template.
 |UserMessageQueues $1|<p>-</p>|`SNMP agent`|ozeki.UserMessageQueues[{#OZEKIUSERNAME}]<p>Update: 30s</p><p>LLD</p>|
 |UserName $1|<p>-</p>|`SNMP agent`|ozeki.UserName[{#OZEKIUSERNAME}]<p>Update: 30s</p><p>LLD</p>|
 |UserType $1|<p>-</p>|`SNMP agent`|ozeki.UserType[{#OZEKIUSERNAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

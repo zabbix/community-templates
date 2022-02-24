@@ -57,6 +57,8 @@ There are no template links in this template.
 |PROCESSOR INFO Discovery|<p>-</p>|`SNMP agent`|inspur.server.processor.info.dicovery<p>Update: 60m</p>|
 |PCIE Discovery|<p>-</p>|`SNMP agent`|inspur.server.pcie.dicovery<p>Update: 60m</p>|
 |MICROCONTROLLER  Discovery|<p>-</p>|`SNMP agent`|inspur.server.microcontroller.dicovery<p>Update: 20m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +109,8 @@ There are no template links in this template.
 |PCIE SLOT ON RISER: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.pcie.slot.on.riser.[{#SNMPVALUE}]<p>Update: 60m</p><p>LLD</p>|
 |PCIE VENDER: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.pcie.vender.[{#SNMPVALUE}]<p>Update: 60m</p><p>LLD</p>|
 |MICROCONTROLLER STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.microcontroller.status.[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

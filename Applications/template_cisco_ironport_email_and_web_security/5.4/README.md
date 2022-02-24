@@ -40,6 +40,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |updateServiceName|<p>-</p>|`SNMP agent`|updateServiceName<p>Update: 1h</p>|
 |keyDescription|<p>-</p>|`SNMP agent`|keyDescription<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -63,6 +65,8 @@ There are no template links in this template.
 |keyDescription $1|<p>-</p>|`SNMP agent`|keyDescription[{#SNMPVALUE}]<p>Update: 3h</p><p>LLD</p>|
 |keyIsPerpetual $1|<p>-</p>|`SNMP agent`|keyIsPerpetual[{#SNMPVALUE}]<p>Update: 3h</p><p>LLD</p>|
 |keySecondsUntilExpire $1|<p>-</p>|`SNMP agent`|keySecondsUntilExpire[{#SNMPVALUE}]<p>Update: 3h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

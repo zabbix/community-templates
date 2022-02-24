@@ -26,6 +26,8 @@ In order to run this solution, you have to have an active session-id in a global
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$PROXYFUZZYTIME}|<p>-</p>|`3m`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -35,11 +37,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discover all proxies|<p>-</p>|`HTTP agent`|get.proxy.list<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Last access for {#PROXYNAME}|<p>-</p>|`Zabbix internal`|zabbix[proxy,{#PROXYNAME},lastaccess]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

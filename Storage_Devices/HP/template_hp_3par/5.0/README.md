@@ -23,6 +23,8 @@ Battery, CagePowerSupply, DiskDrive, DriveCage, DynamicStoragePool, EthernetPort
 |{$HP_USER}|<p>-</p>|``|Text macro|
 |{$OVERPROVISION}|<p>-</p>|`90`|Text macro|
 |{$SMI_S_PORT}|<p>-</p>|`5989`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -45,6 +47,8 @@ There are no template links in this template.
 |FCPort|<p>-</p>|`Zabbix trapper`|FCPort<p>Update: 0</p>|
 |NodeSystem|<p>-</p>|`Zabbix trapper`|NodeSystem<p>Update: 0</p>|
 |DiskDrive|<p>-</p>|`Zabbix trapper`|DiskDrive<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -82,6 +86,8 @@ There are no template links in this template.
 |Operational status of Node "{#ELEMENT_NAME}"|<p>-</p>|`Zabbix trapper`|oper.NodeSystem.[{#ELEMENT_NAME}]<p>Update: 0</p><p>LLD</p>|
 |Health status of a DiskDrive "{#ELEMENT_NAME}"|<p>-</p>|`Zabbix trapper`|health.DiskDrive.[{#ELEMENT_NAME}]<p>Update: 0</p><p>LLD</p>|
 |Operational status of a DiskDrive "{#ELEMENT_NAME}"|<p>-</p>|`Zabbix trapper`|oper.DiskDrive.[{#ELEMENT_NAME}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

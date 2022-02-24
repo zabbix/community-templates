@@ -86,6 +86,8 @@ Rickk Barbosa (https://github.com/rickkbarbosa)
 |{$ELASTICSEARCH_PROTOCOL}|<p>-</p>|`http`|Text macro|
 |{$ELASTICSEARCH_SNAPSHOT}|<p>-</p>|`cs-automated-enc`|Text macro|
 |{$ELASTICSEARCH_SNAPSHOTP_DAYS}|<p>-</p>|`3`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -96,6 +98,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |ES Indexes discovery|<p>https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-indices.html</p>|`HTTP agent`|elasticsearch.discovery.indexes<p>Update: 1m</p>|
 |ES Node discovery|<p>https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-nodes.html</p>|`HTTP agent`|elasticsearch.discovery.nodes<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -154,6 +158,8 @@ There are no template links in this template.
 |Elasticsearch Storage Total [ {#ELASTICSEARCH_NODE} ]|<p>https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-allocation.html</p>|`Dependent item`|elasticsearch.node[disk,{#ELASTICSEARCH_NODE},total]<p>Update: 0</p><p>LLD</p>|
 |Elasticsearch Storage Used (in %) [ {#ELASTICSEARCH_NODE} ]|<p>https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-allocation.html</p>|`Dependent item`|elasticsearch.node[disk,{#ELASTICSEARCH_NODE},usedp]<p>Update: 0</p><p>LLD</p>|
 |Elasticsearch Storage Used [ {#ELASTICSEARCH_NODE} ]|<p>https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-allocation.html</p>|`Dependent item`|elasticsearch.node[disk,{#ELASTICSEARCH_NODE},used]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -60,6 +60,8 @@ There are no discovery rules in this template.
 |Уровень заряда батареи|<p>-</p>|`Zabbix agent`|BCHARGE<p>Update: 3600</p>|
 |Имя ИБП|<p>Имя ИБП</p>|`Zabbix agent`|UPSNAME<p>Update: 3600</p>|
 |Текущий статус ИБП 2|<p>-</p>|`Zabbix agent`|STATUS_2<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -6,6 +6,8 @@
 |----|-----------|-------|----|
 |{$ZABBIX_SSH_PASS}|<p>-</p>|`zabbixPassword`|Text macro|
 |{$ZABBIX_SSH_USER}|<p>-</p>|`zabbixUsername`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -17,6 +19,8 @@ There are no template links in this template.
 |Controllers Discovery|<p>-</p>|`SSH agent`|ssh.run[hpraid.ctrl.discovery]<p>Update: 86400</p>|
 |Logical Volumes Discovery|<p>-</p>|`SSH agent`|ssh.run[hpraid.ld.discovery]<p>Update: 21600</p>|
 |Physical Drives Discovery|<p>-</p>|`SSH agent`|ssh.run[hpraid.pd.discovery]<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -28,6 +32,8 @@ There are no template links in this template.
 |Logical volume $1 status|<p>-</p>|`SSH agent`|ssh.run[hpraid.ld.status.{#LD}]<p>Update: 600</p><p>LLD</p>|
 |Physical drive {#PD} status|<p>-</p>|`SSH agent`|ssh.run[hpraid.pd.status.{#PD}]<p>Update: 600</p><p>LLD</p>|
 |Physical drive {#PD} temperature|<p>-</p>|`SSH agent`|ssh.run[hpraid.pd.temperature.{#PD}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

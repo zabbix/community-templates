@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |UPS-ACNormal-Voltage|<p>-</p>|`SNMP agent`|UPS-ACNormal-Voltage<p>Update: 30</p>|
 |UPS-Temperature-Low|<p>-</p>|`SNMP agent`|UPS-Temperature-Low<p>Update: 30</p>|
 |UPS-Manufacturer|<p>-</p>|`SNMP agent`|UPS-Manufacturer<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

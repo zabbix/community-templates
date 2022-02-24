@@ -52,6 +52,8 @@ There are no discovery rules in this template.
 |ntcDevsMod01SyIntTemp|<p>-</p>|`SNMP agent`|ntcDevsMod01SyIntTemp<p>Update: {$UPDATEINT}</p>|
 |ethRxCongested|<p>Extra performance stuff for Newtec satellite modems</p>|`SNMP agent`|ethRxCongested<p>Update: {$UPDATEINT}</p>|
 |ntcDevsMod01DmEstLinMar|<p>-</p>|`SNMP agent`|ntcDevsMod01DmEstLinMar<p>Update: {$UPDATEINT}</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

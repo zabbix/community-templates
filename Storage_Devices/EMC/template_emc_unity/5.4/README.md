@@ -24,6 +24,8 @@ BBU, Disk, Disk Array Enclosure, Disk Processor Enclosure, FAN, I/O Module, LCC,
 |{$API_USER}|<p>-</p>|``|Text macro|
 |{$SUBSCRIBED_PERCENT}|<p>-</p>|`91`|Text macro|
 |{$USED_PERCENT}|<p>-</p>|`91`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Disk Array Enclosure (DAE)|<p>-</p>|`Zabbix trapper`|dae<p>Update: 0</p>|
 |PortSAS|<p>-</p>|`Zabbix trapper`|sasPort<p>Update: 0</p>|
 |LCC|<p>Link Control Cards (LCCs)</p>|`Zabbix trapper`|lcc<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -98,6 +102,8 @@ There are no template links in this template.
 |Running status of SAS port "{#ID}"|<p>-</p>|`Zabbix trapper`|link.sasPort.[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |Health status of LLC "{#ID}"|<p>-</p>|`Zabbix trapper`|health.lcc.[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |Running status of LLC "{#ID}"|<p>-</p>|`Zabbix trapper`|running.lcc.[{#ID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

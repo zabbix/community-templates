@@ -37,6 +37,8 @@ TODO: triggers
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NGINXPLUS_API_VER}|<p>Nginx+ API version</p>|`6`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -49,6 +51,8 @@ There are no template links in this template.
 |Nginx+ STREAM upstreams discovery|<p>when the "fields" param is empty it returns only names of upstreams creates LLD macro {#STREAM} containing upstream name</p>|`HTTP agent`|nginxplus.stream.upstreams.discovery<p>Update: 1h</p>|
 |Nginx+ HTTP limit_reqs discovery|<p>when the "fields" param is empty it returns only names of upstreams creates LLD macro {#LIMIT_REQ} containing upstream name</p>|`HTTP agent`|nginxplus.http.limit_reqs.discovery<p>Update: 1h</p>|
 |Nginx+ HTTP caches discovery|<p>when the "fields" param is empty it returns only names of upstreams creates LLD macro {#CACHE} containing upstream name</p>|`HTTP agent`|nginxplus.http.caches.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -126,6 +130,8 @@ There are no template links in this template.
 |bypass responses written|<p>-</p>|`Dependent item`|nginxplus.http.caches[{#CACHE},bypass_responses_written]<p>Update: 0</p><p>LLD</p>|
 |bypass responses|<p>-</p>|`Dependent item`|nginxplus.http.caches[{#CACHE},bypass_responses]<p>Update: 0</p><p>LLD</p>|
 |miss bytes|<p>-</p>|`Dependent item`|nginxplus.http.caches[{#CACHE},miss_bytes]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

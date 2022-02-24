@@ -21,6 +21,8 @@ Fedor Katilov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$COMMUNITY_NAME}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs.</p>|`SNMP agent`|ifDescr<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -206,6 +210,8 @@ There are no template links in this template.
 |Oper status port FE20|<p>-</p>|`SNMP agent`|ifOperStatus.4227778<p>Update: 30s</p>|
 |Bytes Rx FE13|<p>-</p>|`SNMP agent`|ifInOctets.4227722<p>Update: 30s</p>|
 |Errors RX port FE21|<p>-</p>|`SNMP agent`|ifInErrors.4227786<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

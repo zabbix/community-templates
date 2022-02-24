@@ -15,6 +15,8 @@ I'm use SSL client certificate to connect to Docker API (here <https://dker.ru/d
 |----|-----------|-------|----|
 |{$CERT_FNAME}|<p>-</p>|`dclient-cert.pem`|Text macro|
 |{$KEY_FNAME}|<p>-</p>|`dclient-key.pem`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -26,6 +28,8 @@ There are no template links in this template.
 |Docker swarm services discovery|<p>-</p>|`HTTP agent`|docker.swarm.services.lld<p>Update: 5m</p>|
 |Docker swarm nodes discovery|<p>-</p>|`HTTP agent`|docker.swarm.nodes.lld<p>Update: 1h</p>|
 |Docker swarm containers discovery|<p>-</p>|`HTTP agent`|docker.containers.lld<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -56,6 +60,8 @@ There are no template links in this template.
 |{#NAME} CPU number|<p>-</p>|`Dependent item`|docker.container.cpu_num[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |{#NAME} Mem usage|<p>-</p>|`Dependent item`|docker.container.mem[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |{#NAME} CPU system usage|<p>-</p>|`Dependent item`|docker.container.system_cpu[{#ID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |Service Status Microsoft Exchange Replication|<p>-</p>|`Zabbix agent`|service_state[MSExchangeRepl]<p>Update: 30</p>|
 |Service Status Microsoft Exchange Service Host|<p>-</p>|`Zabbix agent`|service_state[MSExchangeServiceHost]<p>Update: 30</p>|
 |Service Status Microsoft Exchange Transport|<p>-</p>|`Zabbix agent`|service_state[MSExchangeTransport]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

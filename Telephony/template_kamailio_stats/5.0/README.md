@@ -188,6 +188,8 @@ There are no discovery rules in this template.
 |Sendq Full|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,tcp:sendq_full]<p>Update: 1m</p>|
 |Sent Replies|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,sl:sent_replies]<p>Update: 1m</p>|
 |6xx Transactions|<p>-</p>|`Zabbix agent`|kamailio.rpc[stats,tmx:6xx_transactions]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

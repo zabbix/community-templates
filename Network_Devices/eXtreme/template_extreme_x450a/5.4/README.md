@@ -15,6 +15,8 @@ There are no template links in this template.
 |Memory|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorSystemSlotId Slot Id of the MSM monitored.</p>|`SNMP agent`|extremeMemoryMonitorSystemSlotId<p>Update: 300</p>|
 |CPU|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeCpuMonitorSystemSlotId Slot Id of the system monitored.</p>|`SNMP agent`|extremeCpuMonitorSystemSlotId<p>Update: 300</p>|
 |FAN|<p>EXTREME-SYSTEM-MIB::extremeFanEntPhysicalIndex The entity index for this fan entity in the entityPhysicalTable table of the entity MIB.</p>|`SNMP agent`|extremeFanEntPhysicalIndex<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -35,6 +37,8 @@ There are no template links in this template.
 |Used Memory #$1 by Applications|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorUserUsage Total amount of memory used by applications in Kbytes in the system.</p>|`SNMP agent`|extremeMemoryMonitorUserUsage[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |CPU #$1 Utilization (5min)|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeCpuMonitorSystemUtilization5mins The CPU utilization by system resources. This is the utilization of the system resourcesin the last 5 minutes.</p>|`SNMP agent`|extremeCpuMonitorSystemUtilization5mins[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Status of FAN #$1|<p>EXTREME-SYSTEM-MIB::extremeFanOperational Operational status of a cooling fan.</p>|`SNMP agent`|extremeFanOperational[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

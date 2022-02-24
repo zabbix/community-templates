@@ -9,6 +9,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -35,6 +37,8 @@ There are no discovery rules in this template.
 |Status da Rede Elétrica|<p>-</p>|`SNMP agent`|statusac<p>Update: 20</p>|
 |Contador do Sensor 2|<p>-</p>|`SNMP agent`|contadorsensor2<p>Update: 20</p>|
 |Status do Sensor 1|<p>-</p>|`SNMP agent`|statussensor1<p>Update: 20</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

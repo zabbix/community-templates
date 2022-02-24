@@ -24,6 +24,8 @@ There are no template links in this template.
 |Topic Discovery|<p>-</p>|`JMX agent`|jmx.discovery[beans,"kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*"]<p>Update: 60s</p>|
 |Request rate Produce Version discovery|<p>-</p>|`JMX agent`|jmx.discovery[beans,"kafka.network:type=RequestMetrics,name=RequestsPerSec,request=Produce,version=*"]<p>Update: 30s</p>|
 |Request rate Fetch Follower Version discovery|<p>-</p>|`JMX agent`|jmx.discovery[beans,"kafka.network:type=RequestMetrics,name=RequestsPerSec,request=FetchFollower,version=*"]<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -105,6 +107,8 @@ There are no template links in this template.
 |{#JMXTOPIC} MessagesInPerSec OneMinuteRate|<p>-</p>|`JMX agent`|jmx["kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic={#JMXTOPIC}","OneMinuteRate"]<p>Update: 60s</p><p>LLD</p>|
 |Request rate Produce v{#JMXVERSION}|<p>-</p>|`JMX agent`|jmx["kafka.network:type=RequestMetrics,name=RequestsPerSec,request=Produce,version={#JMXVERSION}","Count"]<p>Update: 60s</p><p>LLD</p>|
 |Request rate Fetch Follower v{#JMXVERSION}|<p>-</p>|`JMX agent`|jmx["kafka.network:type=RequestMetrics,name=RequestsPerSec,request=FetchFollower,version={#JMXVERSION}","Count"]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

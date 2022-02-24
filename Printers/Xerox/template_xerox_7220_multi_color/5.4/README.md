@@ -50,6 +50,8 @@ There are no discovery rules in this template.
 |Cartridge toner level % - yellow|<p>-</p>|`Calculated`|yellow.cartridge.toner<p>Update: 30</p>|
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 3600</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

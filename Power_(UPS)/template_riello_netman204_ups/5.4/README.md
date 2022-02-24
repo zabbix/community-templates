@@ -37,6 +37,8 @@ balmag
 |----|-----------|-------|----|
 |{$NOMINAL_FREQUENCY}|<p>-</p>|`50`|Text macro|
 |{$NOMINAL_VOLTAGE}|<p>-</p>|`230`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |Output Lines|<p>-</p>|`SNMP agent`|OutputLinesD<p>Update: 30s</p>|
 |Bypass Lines|<p>-</p>|`SNMP agent`|BypassLinesD<p>Update: 30s</p>|
 |Input Lines|<p>-</p>|`SNMP agent`|InputLinesD<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -81,6 +85,8 @@ There are no template links in this template.
 |Line {#SNMPINDEX} Input Frequency|<p>-</p>|`SNMP agent`|rupsInputFrequency.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Line {#SNMPINDEX} Input  True Power|<p>-</p>|`SNMP agent`|rupsInputTruePower.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Line {#SNMPINDEX} Input  Voltage|<p>-</p>|`SNMP agent`|rupsInputVolage.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

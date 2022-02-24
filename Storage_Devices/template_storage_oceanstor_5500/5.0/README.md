@@ -19,6 +19,8 @@
 |{$SNMPV3_AUTHPASS}|<p>-</p>|`пароль`|Text macro|
 |{$SNMPV3_PRIVPASS}|<p>-</p>|`пароль`|Text macro|
 |{$SNMPV3_SECNAME}|<p>-</p>|`логин`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -35,6 +37,8 @@ There are no template links in this template.
 |Обнаружение Performance LUN|<p>-</p>|`SNMP agent`|hwPerformanceLun<p>Update: 1d</p>|
 |Обнаружение Performance Port|<p>-</p>|`SNMP agent`|hwPortPerformance<p>Update: 1d</p>|
 |Обнаружение БП|<p>-</p>|`SNMP agent`|hwinfoPower<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -62,6 +66,8 @@ There are no template links in this template.
 |LUN {$LUNID{#LUNPID}} Write bandwidth MB/s|<p>-</p>|`SNMP agent`|hwPerfLunWriteTraffic.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Port: {#PORTLOCATION} I/O latancy|<p>-</p>|`SNMP agent`|hwPerfPortDelay.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Состояние БП: {#PLOCATION}|<p>-</p>|`SNMP agent`|hwInfoPowerHealthStatus.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

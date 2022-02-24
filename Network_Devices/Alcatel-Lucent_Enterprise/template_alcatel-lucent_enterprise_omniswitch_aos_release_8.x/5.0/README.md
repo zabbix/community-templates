@@ -80,6 +80,8 @@ Benny Eggerstedt
 |{$SNMP_V3_AUTHPASSPHRASE}|<p>-</p>|``|Text macro|
 |{$SNMP_V3_PRIVPASSPHRASE}|<p>-</p>|``|Text macro|
 |{$SNMP_V3_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -91,6 +93,8 @@ There are no template links in this template.
 |Discover ALE OmniSwitch Entity AOS Release 8.x|<p>ENTITY-MIB::entPhysicalContainedIn.X - X is the slot number (element of the stack) and VALUE is Entity-value</p>|`SNMP agent`|slotindex<p>Update: 3600</p>|
 |Discover Ethernet Interfaces|<p>-</p>|`SNMP agent`|ifDescription<p>Update: 3600</p>|
 |Discover ALE OmniSwitch AOS Release 8.x|<p>-</p>|`SNMP agent`|vchassisnbr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -115,6 +119,8 @@ There are no template links in this template.
 |RXTX usage 1 day avg chassis {#SNMPVALUE}|<p>-</p>|`SNMP agent`|rxtx1dayavg.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |RXTX usage 1 hr avg chassis {#SNMPVALUE}|<p>-</p>|`SNMP agent`|rxtx1hravg.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |RXTX usage 1 min avg chassis {#SNMPVALUE}|<p>-</p>|`SNMP agent`|rxtx1minavg.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

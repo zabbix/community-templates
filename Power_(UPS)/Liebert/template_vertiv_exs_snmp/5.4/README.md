@@ -19,6 +19,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -51,6 +53,8 @@ There are no discovery rules in this template.
 |UPS input voltage L3|<p>-</p>|`SNMP agent`|upsAdvInputVoltage3<p>Update: 60</p>|
 |Device Name|<p>-</p>|`SNMP agent`|sysName<p>Update: 60</p>|
 |UPS output power L1|<p>-</p>|`SNMP agent`|upsAdvOutputPower1<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

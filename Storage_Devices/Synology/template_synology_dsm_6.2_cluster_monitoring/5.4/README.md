@@ -90,6 +90,8 @@ Tudor Ticau
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -110,6 +112,8 @@ There are no discovery rules in this template.
 |Heartbeat Status|<p>Status of heartbeat connection Possible values: normal (0) - The heartbeat connection is normal abnormal (1) - Some information about heartbeat is not available disconnected (2) - The High-Availability cluster loses connection to passive server through heartbeat interface, or it is currently in split-brain mode empty (3) - The High-Availability cluster has no passive server.</p>|`SNMP agent`|heartbeatStatus<p>Update: 60</p>|
 |Active Server Name|<p>Hostname of active server/NAS</p>|`SNMP agent`|activeNodeName<p>Update: 60</p>|
 |Cluster Name|<p>Hostname of High-Availability cluster</p>|`SNMP agent`|clusterName<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

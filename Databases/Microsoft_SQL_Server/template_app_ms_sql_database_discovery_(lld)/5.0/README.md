@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$INSTANCE01}|<p>-</p>|`SQLServer`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -14,6 +16,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |MS SQL DB Discovery|<p>Discovers databases within a single instance specified in a Powershell script.</p>|`Zabbix agent`|windowsdb.discovery<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -47,6 +51,8 @@ There are no template links in this template.
 |{$INSTANCE01} Databases {#DBS} Commit Table Entries|<p>The size of the in-memory portion of the commit table for the database.</p>|`Zabbix agent`|perf_counter["\{$INSTANCE01}:Databases({#DBS})\Commit Table Entries",300]<p>Update: 30</p><p>LLD</p>|
 |{$INSTANCE01} Databases {#DBS} Bulk Copy Throughput/sec|<p>Amount of data bulk copied (in kilobytes) per second.</p>|`Zabbix agent`|perf_counter["\{$INSTANCE01}:Databases({#DBS})\Bulk Copy Throughput/sec",300]<p>Update: 30</p><p>LLD</p>|
 |{$INSTANCE01} Databases {#DBS} Write Transactions/sec|<p>Number of transactions that wrote to the database and committed, in the last second.</p>|`Zabbix agent`|perf_counter["\{$INSTANCE01}:Databases({#DBS})\Write Transactions/sec",300]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

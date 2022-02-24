@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |Voltagem do Ramal 4|<p>-</p>|`SNMP agent`|volt.ramal.4<p>Update: 60</p>|
 |Status do Ramal 1|<p>-</p>|`SNMP agent`|status.ramal.1<p>Update: 300</p>|
 |Temperatura Interna|<p>Temperatura Interna</p>|`SNMP agent`|temp.Interna<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

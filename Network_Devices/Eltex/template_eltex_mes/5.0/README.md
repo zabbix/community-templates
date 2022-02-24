@@ -17,6 +17,8 @@ Added to the Eltex MES switches, serial number, MAC address, firmware version.
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -26,6 +28,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifName<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -67,6 +71,8 @@ There are no template links in this template.
 |Incoming Broadcast packets on interface $1|<p>The number of octets in valid MAC frames received on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifHCInBroadcastPkts[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Description of interface $1|<p>A textual string containing information about the interface. This string should include the name of the manufacturer, the product name and the version of the interface hardware/software.</p>|`SNMP agent`|ifDescr[{#SNMPVALUE}]<p>Update: 1h</p><p>LLD</p>|
 |Speed on interface $1|<p>Mode speed on interfece.</p>|`SNMP agent`|speed_on_[{#SNMPVALUE}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

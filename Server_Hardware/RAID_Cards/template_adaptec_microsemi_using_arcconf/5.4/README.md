@@ -32,6 +32,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Logical disks discovery|<p>-</p>|`Zabbix agent`|adaptec.raid[lld,ld]<p>Update: {$LD_DISCOVERY_PERIOD}</p>|
 |Physical disks discovery|<p>-</p>|`Zabbix agent`|adaptec.raid[lld,pd]<p>Update: {$PD_DISCOVERY_PERIOD}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +51,8 @@ There are no template links in this template.
 |Physical disk "{#SLOT}" SMART warnings|<p>-</p>|`Dependent item`|adaptec.pd.smartwarn.["{#SLOT}"]<p>Update: 0</p><p>LLD</p>|
 |Physical disk "{#SLOT}" serial number|<p>-</p>|`Dependent item`|adaptec.pd.sn.["{#SLOT}"]<p>Update: 0</p><p>LLD</p>|
 |Physical disk "{#SLOT}" state|<p>-</p>|`Dependent item`|adaptec.pd.state.["{#SLOT}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

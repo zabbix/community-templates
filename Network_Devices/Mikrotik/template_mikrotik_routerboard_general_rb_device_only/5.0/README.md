@@ -61,6 +61,8 @@ There are no template links in this template.
 |自动检查VPN拨出帐号|<p>-</p>|`SNMP agent`|net.if.discoveryppp<p>Update: 30s</p>|
 |发现网络接口|<p>正则表达式2-3位数字 ^ d{2,3}$</p>|`SNMP agent`|net.if.discovery<p>Update: 30s</p>|
 |自动检查CPU|<p>-</p>|`SNMP agent`|system.discoverycpu<p>Update: 3s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +86,8 @@ There are no template links in this template.
 |{#IFNAME}流量接收|<p>-</p>|`SNMP agent`|net.if.in[ifHCInOctets.{#SNMPINDEX}]<p>Update: 1s</p><p>LLD</p>|
 |{#IFNAME}流量发送|<p>-</p>|`SNMP agent`|net.if.out[ifHCOutOctets.{#SNMPINDEX}]<p>Update: 1s</p><p>LLD</p>|
 |CPU{#SNMPINDEX}使用|<p>-</p>|`SNMP agent`|cpucore[ifnum{#SNMPINDEX}]<p>Update: 15s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

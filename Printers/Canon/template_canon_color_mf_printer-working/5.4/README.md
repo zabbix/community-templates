@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |Device.location|<p>Device location.</p>|`SNMP agent`|Device.location<p>Update: 10800</p>|
 |Toner.Black.level.max|<p>Max Nuber of Black toner.</p>|`SNMP agent`|Toner.Black.level.max<p>Update: 10800</p>|
 |Ping response time|<p>UPS ping check.</p>|`Simple check`|icmppingsec[, , , , ,]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

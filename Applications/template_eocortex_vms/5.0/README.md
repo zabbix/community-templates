@@ -90,6 +90,8 @@ There are no discovery rules in this template.
 |Number of camera's offline|<p>-</p>|`Zabbix agent (active)`|web.page.get[localhost,/command?type=getchannelsstates&login={$EOCORTEX_USER}&password={$EOCORTEX_PASSWORD}&responsetype=json,8080]<p>Update: 1m</p>|
 |Average disk read queue length|<p>Full counter name: PhysicalDisk(_Total) Avg. Disk Read Queue Length</p>|`Zabbix agent (active)`|perf_counter[\234(_Total)\1402]<p>Update: 60</p>|
 |Number of camera's|<p>-</p>|`Zabbix agent (active)`|web.page.get[127.0.0.1,/command?type=getchannelsstates&login={$EOCORTEX_USER}&password={$EOCORTEX_PASSWORD}&responsetype=json,8080]<p>Update: 60m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

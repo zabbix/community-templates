@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |Tipo de Transceiver (GBIC) $1|<p>-</p>|`SNMP agent`|hh3cTransceiverType<p>Update: 30</p>|
 |Potencia de RX $1|<p>-</p>|`SNMP agent`|hh3cTransceiverCurRXPower<p>Update: 30</p>|
 |Alarme no Transceiver (GBIC) $1|<p>-</p>|`SNMP agent`|hh3cTransceiverDiagnostic<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

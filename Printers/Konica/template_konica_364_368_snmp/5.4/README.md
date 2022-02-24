@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Amount_of_black_toner_remaining|<p>-</p>|`SNMP agent`|Amount_of_black_toner_remaining<p>Update: 3600</p>|
 |Maximum_fusing_unit_level|<p>-</p>|`SNMP agent`|Maximum_fusing_unit_level<p>Update: 86400</p>|
 |Maximum_cyan_toner_level|<p>-</p>|`SNMP agent`|Maximum_cyan_toner_level<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

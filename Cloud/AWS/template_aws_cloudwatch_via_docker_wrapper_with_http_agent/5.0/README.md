@@ -27,6 +27,8 @@ Mariano J. Obarrio Miles
 |{$API_SERVER}|<p>IP y Puerto en que escucha la API</p>|`http://10.1.2.100:3000`|Text macro|
 |{$BASICTOKEN}|<p>Usr: admin Psw: zabbix</p>|`YWRtaW46emFiYml4`|Text macro|
 |{$REGION}|<p>Region de AWS</p>|`eu-west-1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -36,6 +38,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Get Credentials|<p>Recupera el Bearer token con el cual podremos acceder a la API</p>|`HTTP agent`|get.bearer.token<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +55,8 @@ There are no template links in this template.
 |RDS FreeStorageSpace|<p>"The amount of available storage space. Units: Bytes"</p>|`HTTP agent`|get.rds.FreeStorageSpace[{#ACCOUNT}]<p>Update: 5m</p><p>LLD</p>|
 |RDS List Metrics|<p>-</p>|`HTTP agent`|get.rds.metrics[{#ACCOUNT}]<p>Update: 1d</p><p>LLD</p>|
 |RDS SwapUsage|<p>"The amount of swap space used on the DB instance. This metric is not available for SQL Server. Units: Bytes"</p>|`HTTP agent`|get.rds.SwapUsage[{#ACCOUNT}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NTP_IP}|<p>-</p>|`127.0.0.1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -25,6 +27,8 @@ There are no discovery rules in this template.
 |NTP上位サーバ({$NTP_IP})|<p>同期しているNTPサーバーの上位NTPサーバ</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$2}']<p>Update: 1800</p>|
 |NTPオフセット({$NTP_IP})|<p>NTPサーバとの時刻ズレ</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$9}']<p>Update: 1800</p>|
 |NTP階層({$NTP_IP})|<p>同期しているNTPサーバーのstratum</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$3}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -57,6 +61,8 @@ There are no discovery rules in this template.
 |NTP階層|<p>同期しているNTPサーバーのstratum</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$3}']<p>Update: 1800</p>|
 |NTP上位サーバ|<p>同期しているNTPサーバーの上位NTPサーバ</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$2}']<p>Update: 1800</p>|
 |NTPプロセス|<p>-</p>|`Zabbix agent`|proc.num[ntpd]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Status of Power Supply|<p>-</p>|`SNMP agent`|swSensorStatus.7<p>Update: 300</p>|
 |Status of FAN 1|<p>-</p>|`SNMP agent`|swSensorStatus.4<p>Update: 300</p>|
 |Temperature on Sensor 2|<p>-</p>|`SNMP agent`|swSensorInfo.2<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -38,6 +38,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Mikrotik Queue Tree Table|<p>-</p>|`SNMP agent`|mktQueueTreeTable.discovery<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -45,6 +47,8 @@ There are no template links in this template.
 |mtxrQueueTreeDropped.[{#MKTQUEUETREENAME}]|<p>-</p>|`SNMP agent`|mtxrQueueTreeDropped.[{#MKTQUEUETREENAME}]<p>Update: {$UPDATEINT}</p><p>LLD</p>|
 |mtxrQueueTreeHCBytes.[{#MKTQUEUETREENAME}]|<p>-</p>|`SNMP agent`|mtxrQueueTreeHCBytes.[{#MKTQUEUETREENAME}]<p>Update: {$UPDATEINT}</p><p>LLD</p>|
 |mtxrQueueTreePackets.[{#MKTQUEUETREENAME}]|<p>-</p>|`SNMP agent`|mtxrQueueTreePackets.[{#MKTQUEUETREENAME}]<p>Update: {$UPDATEINT}</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

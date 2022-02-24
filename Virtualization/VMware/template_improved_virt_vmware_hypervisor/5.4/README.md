@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Datastore discovery|<p>-</p>|`Simple check`|vmware.hv.datastore.discovery[{$URL},{HOST.HOST}]<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -47,6 +49,8 @@ There are no template links in this template.
 |Free space on datastore $3|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{HOST.HOST},{#DATASTORE},free]<p>Update: 300</p><p>LLD</p>|
 |Free space on datastore $3 (percentage)|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{HOST.HOST},{#DATASTORE},pfree]<p>Update: 300</p><p>LLD</p>|
 |Total size of datastore $3|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{HOST.HOST},{#DATASTORE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

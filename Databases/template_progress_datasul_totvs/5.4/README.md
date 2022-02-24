@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |DB EMS2SOR|<p>-</p>|`Zabbix agent`|net.tcp.port[,23610]<p>Update: 10s</p>|
 |DB MDTCRM|<p>-</p>|`Zabbix agent`|net.tcp.port[,23628]<p>Update: 10s</p>|
 |DB EMS2MOV|<p>-</p>|`Zabbix agent`|net.tcp.port[,23601]<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Output frequency|<p>-</p>|`SNMP agent`|upsAdvOutputFrequency<p>Update: 180</p>|
 |UPS model|<p>-</p>|`SNMP agent`|upsBasicIdentModel<p>Update: 3600</p>|
 |Input frequency|<p>-</p>|`SNMP agent`|upsAdvInputFrequency<p>Update: 180</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

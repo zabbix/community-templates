@@ -36,6 +36,8 @@ Anderson Raber
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$ITEM.ID}|<p>-</p>|`1-128`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |ONU Registradas|<p>discovery[{#SNMPVALUE},.1.3.6.1.4.1.3902.1012.3.13.1.1.1]</p>|`SNMP agent`|snmp.enterprises<p>Update: 30s</p>|
 |Interface Status|<p>-</p>|`SNMP agent`|discovery[{#SNMPVALUE},IF-MIB::ifDescr]<p>Update: 30s</p>|
 |Status Placas|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1015.2.1.3.13.5.1.1.1.1<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -95,6 +99,8 @@ There are no template links in this template.
 |CPU Load Placa {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1015.2.1.1.3.1.9.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Temperatura Placa {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1015.2.1.3.13.5.1.1.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Status Placa {#SNMPINDEX}|<p>-</p>|`SNMP agent`|1.3.6.1.4.1.3902.1015.2.1.1.3.1.5.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

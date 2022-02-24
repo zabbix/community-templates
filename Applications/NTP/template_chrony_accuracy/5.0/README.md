@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Chrony synchronized server|<p>This is the reference ID and name (or IP address) if available, of the server to which the computer is currently synchronized.</p>|`Zabbix agent (active)`|system.run[chronyc tracking|grep "Reference ID"|awk '{print $4$5}']<p>Update: 1800</p>|
 |Chrony Update interval|<p>This is the total dispersion accumulated through all the computers back to the stratum-1 computer from which the computer is ultimately synchronized. Dispersion is due to system clock resolution, statistical measurement variations etc.</p>|`Zabbix agent (active)`|system.run[chronyc tracking|grep "Update interval"|awk '{print $4}']<p>Update: 1800</p>|
 |Chrony Root delay|<p>This is the total of the network path delays to the stratum-1 computer from which the computer is ultimately synchronized. In certain extreme situations, this value can be negative. (This can arise in a symmetric peer arrangement where the computers’ frequencies are not tracking each other and the network delay is very short relative to the turn-around time at each computer.)</p>|`Zabbix agent (active)`|system.run[chronyc tracking|grep "Root delay"|awk '{print $4}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

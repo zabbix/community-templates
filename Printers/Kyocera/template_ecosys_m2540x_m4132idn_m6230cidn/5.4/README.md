@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |Real time toner  Yellow|<p>-</p>|`SNMP agent`|real-int-yellow<p>Update: 0;10s/7,08:00-18:00</p>|
 |Max toner Cyan|<p>-</p>|`SNMP agent`|max-int-cyan<p>Update: 0;10s/7,08:00-18:00</p>|
 |Серийный номер|<p>-</p>|`SNMP agent`|SerialNumb<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -112,6 +114,8 @@ There are no discovery rules in this template.
 |Real time toner|<p>-</p>|`SNMP agent`|real-int-black<p>Update: 30s</p>|
 |Серийный номер|<p>-</p>|`SNMP agent`|SerialNumb<p>Update: 30s</p>|
 |Осталось картриджа|<p>-</p>|`SNMP agent`|Int-Black<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

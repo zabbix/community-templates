@@ -33,6 +33,8 @@ There are no template links in this template.
 |nevisAuthInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceAuth.discovery<p>Update: 1m</p>|
 |nevisKeyboxInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceKeybox.discovery<p>Update: 1m</p>|
 |nevisAdminInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceAdmin.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -90,6 +92,8 @@ There are no template links in this template.
 |#{#SNMPINDEX}: nevisinstanceAdminJVMKBHeapUsage|<p>Usage of the heap within the Java virtual machine in kbytes.</p>|`SNMP agent`|nevisinstanceAdminJVMKBHeapUsage[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |#{#SNMPINDEX}: nevisinstanceAdminName|<p>The instance name we're counting/checking on.</p>|`SNMP agent`|nevisinstanceAdminName[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |#{#SNMPINDEX}: nevisinstanceAdminStatus|<p>Indicates if the instance has been started (=1) or stopped (=0).</p>|`SNMP agent`|nevisinstanceAdminStatus[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

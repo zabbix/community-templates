@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |Capacidade Bateria|<p>-</p>|`SNMP agent`|xupsBatCapacity<p>Update: 30</p>|
 |Número de Frequência ou Tensão Anormais|<p>-</p>|`SNMP agent`|xupsInputLineBads<p>Update: 30</p>|
 |Frequência do Byppas|<p>-</p>|`SNMP agent`|xupsBypassFrequency<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

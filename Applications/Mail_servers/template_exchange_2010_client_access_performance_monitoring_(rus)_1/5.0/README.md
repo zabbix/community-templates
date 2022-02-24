@@ -63,6 +63,8 @@ There are no discovery rules in this template.
 |Exchange Mailbox Database Записанных в журнал байтов/с|<p>Shows the rate of bytes written to the log. Should be less than 10,000,000 at all times. With each log file being 1,000,000 bytes in size, 10,000,000 bytes/sec would yield 10 logs per second. This may indicate a large message being sent or a looping message.</p>|`Zabbix agent`|perf_counter["\MSExchange Database(*)\Записанных в журнал байтов/с"]<p>Update: 30</p>|
 |MSExchangeIS Средняя задержка RPC|<p>Indicates the RPC latency, in ms, averaged for all operations in the last 1,024 packets. For information about how clients are affected when overall server RPC averaged latencies increase, see Understanding Client Throttling Policies. Shouldn't be higher than 100 ms on average. To determine if certain protocols are causing overall RPC latencies, monitor MSExchangeIS Client (*) RPC Average Latency to separate latencies based on client protocol.</p>|`Zabbix agent`|perf_counter["\MSExchangeIS\Средняя задержка RPC"]<p>Update: 30</p>|
 |\Интерфейс хранилища MSExchange Медленных запросов RPC (%)|<p>Shows the percentage of slow RPC requests among all RPC requests. A slow RPC request is one that has taken more than 500 ms. Should be less than 1 at all times.</p>|`Zabbix agent`|perf_counter["\Интерфейс хранилища MSExchange(*)\Медленных запросов RPC (%)"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

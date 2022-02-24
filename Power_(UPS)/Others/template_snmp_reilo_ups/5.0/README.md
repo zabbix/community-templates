@@ -16,6 +16,8 @@ Sing Kingdavong
 |----|-----------|-------|----|
 |{$NOMINAL_FREQUENCY}|<p>-</p>|`50`|Text macro|
 |{$NOMINAL_VOLTAGE}|<p>-</p>|`230`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Output lines|<p>-</p>|`SNMP agent`|upsOutputLineIndex<p>Update: 15s</p>|
 |Input Lines|<p>-</p>|`SNMP agent`|upsInputLineIndex<p>Update: 15s</p>|
 |Bypass lines|<p>-</p>|`SNMP agent`|upsBypassNumLines<p>Update: 15s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -58,6 +62,8 @@ There are no template links in this template.
 |Line {#SNMPVALUE} Bypass Current|<p>-</p>|`SNMP agent`|upsBypassCurrent[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Line {#SNMPVALUE} Bypass Power|<p>-</p>|`SNMP agent`|upsBypassPower[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Line {#SNMPVALUE} Bypass Voltage|<p>-</p>|`SNMP agent`|upsBypassVoltage[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

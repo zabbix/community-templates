@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |DB MOV2DIS|<p>-</p>|`Zabbix agent`|net.tcp.port[,23640]<p>Update: 10s</p>|
 |DB FINANCE|<p>-</p>|`Zabbix agent`|net.tcp.port[,23614]<p>Update: 10s</p>|
 |DB EMS2MOV|<p>-</p>|`Zabbix agent`|net.tcp.port[,23601]<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -42,6 +42,8 @@ Stefan Sonneveld
 |----|-----------|-------|----|
 |{$DISK_UTIL_CRIT}|<p>-</p>|`200M`|Text macro|
 |{$DISK_UTIL_WARN}|<p>-</p>|`2G`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -51,6 +53,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Mounted filesystem discovery|<p>Discovery of file systems of different types as defined in global regular expression "File systems for discovery".</p>|`Zabbix agent`|vfs.fs.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +63,8 @@ There are no template links in this template.
 |Free disk space on {#FSNAME} (percentage)|<p>-</p>|`Zabbix agent`|vfs.fs.size[{#FSNAME},pfree]<p>Update: 60</p><p>LLD</p>|
 |Total disk space on {#FSNAME}|<p>-</p>|`Zabbix agent`|vfs.fs.size[{#FSNAME},total]<p>Update: 3600</p><p>LLD</p>|
 |Used disk space on {#FSNAME}|<p>-</p>|`Zabbix agent`|vfs.fs.size[{#FSNAME},used]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

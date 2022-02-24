@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |Ping|<p>-</p>|`Simple check`|icmpping<p>Update: 30</p>|
 |Tráfego de saída Tengigabitethernet 1/1/1|<p>-</p>|`SNMP agent`|ifOutOctets.107<p>Update: 60</p>|
 |Fan 04|<p>-</p>|`SNMP agent`|rlEnvMonFanState.67109253<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

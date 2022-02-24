@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Type_of_cartridge_7|<p>-</p>|`SNMP agent`|Type_of_cartridge_7<p>Update: 86400</p>|
 |Magenta_Toner_Cartridge_KX-FATK502_507|<p>-</p>|`SNMP agent`|Magenta_Toner_Cartridge_KX-FATK502_507<p>Update: 3600</p>|
 |MAC_address|<p>-</p>|`SNMP agent`|MAC_address<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

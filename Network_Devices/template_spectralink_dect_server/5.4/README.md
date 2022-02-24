@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |SIP User Registered|<p>-</p>|`SNMP agent`|ipDectUsersSipRegistered<p>Update: 30</p>|
 |Abnormal Release total|<p>-</p>|`SNMP agent`|ipDectAbnormalReleaseTotal<p>Update: 30</p>|
 |Software Version|<p>-</p>|`SNMP agent`|ipDectSoftwareVersion<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

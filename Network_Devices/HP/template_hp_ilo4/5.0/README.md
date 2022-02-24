@@ -20,6 +20,8 @@ There are no template links in this template.
 |Fan discovery|<p>A number that uniquely specifies this fan description.</p>|`SNMP agent`|cpqHeFltTolFanIndex[{#SNMPVALUE}]<p>Update: 1h</p>|
 |Logical Drive discovery|<p>Drive Array Logical Drive Index. This logical drive number keeps track of multiple instances of logical drives which are on the same controller. For each controller index value, the logical drive index starts at 1 and increments for each logical drive.</p>|`SNMP agent`|cpqDaLogDrvIndex-[{#SNMPVALUE}]<p>Update: 1h</p>|
 |Array Accelerator Board Controller|<p>Array Accelerator Board Controller Index. This value is a logical number whose meaning is OS dependent. The value has a direct mapping to the controller table index such that controller 'i' has accelerator table entry 'i'.</p>|`SNMP agent`|cpqDaAccelCntlrIndex-[{#SNMPVALUE}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |FAN $1 redundant|<p>This specifies if the fan is in a redundant configuration.</p>|`SNMP agent`|cpqHeFltTolFanRedundant[{#SNMPVALUE}]<p>Update: 1h</p><p>LLD</p>|
 |Logical Drive $1 condition|<p>The Logical Drive condition. This value represents the overall condition of this logical drive and any associated physical drives.</p>|`SNMP agent`|cpqDaLogDrvCondition[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Array Accelerator Board Controller $1 Status|<p>The condition of the device. This value represents the overall condition of this array accelerator.</p>|`SNMP agent`|cpqDaAccelCondition[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

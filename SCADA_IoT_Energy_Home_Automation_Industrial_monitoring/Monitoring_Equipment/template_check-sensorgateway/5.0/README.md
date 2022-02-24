@@ -86,6 +86,8 @@ There are no discovery rules in this template.
 |productnetsecdns|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.1.9.0<p>Update: 30</p>|
 |productdate|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.1.3.0<p>Update: 30</p>|
 |productversion|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.1.2.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

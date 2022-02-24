@@ -40,6 +40,8 @@ Ticau Tudor
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`MonitorZabbix`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Disk partitions|<p>The rule will discover all disk partitions matching the global regexp "Storage devices for SNMP discovery". {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|hrStorageDescr<p>Update: 1d</p>|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifDescr<p>Update: 1d</p>|
 |Access Rules|<p>https://www.watchguard.com/help/docs/fireware/11/en-US/Content/en-US/basicadmin/snmp_mibs_details_c.html</p>|`SNMP agent`|rule[{#SNMPVALUE}]<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -76,6 +80,8 @@ There are no template links in this template.
 |Outbound errors on interface $1|<p>For packet-oriented interfaces, the number of outbound packets that could not be transmitted because of errors. For character-oriented or fixed-length interfaces, the number of outbound transmission units that could not be transmitted because of errors.</p>|`SNMP agent`|ifOutErrors[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>The number of octets transmitted in MAC frames on this interface per second , including the MAC header and FCS.</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Traffic on {#SNMPVALUE}|<p>-</p>|`SNMP agent`|Traffic[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

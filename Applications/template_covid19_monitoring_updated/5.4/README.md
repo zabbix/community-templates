@@ -36,6 +36,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Covid19 - Selected Countries|<p>-</p>|`External check`|covid19_affectedcountries.py<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |[ {#COUNTRY_NAME} | {#COUNTRY_IBAN} ] - Serious,Critical|<p>-</p>|`Dependent item`|covid19.data["{#COUNTRY_NAME}", Serious]<p>Update: 0</p><p>LLD</p>|
 |[ {#COUNTRY_NAME} | {#COUNTRY_IBAN} ] - TotalDeaths|<p>-</p>|`Dependent item`|covid19.data["{#COUNTRY_NAME}", TotalDeaths]<p>Update: 0</p><p>LLD</p>|
 |[ {#COUNTRY_NAME} | {#COUNTRY_IBAN} ] - TotalRecovered|<p>-</p>|`Dependent item`|covid19.data["{#COUNTRY_NAME}", TotalRecovered]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

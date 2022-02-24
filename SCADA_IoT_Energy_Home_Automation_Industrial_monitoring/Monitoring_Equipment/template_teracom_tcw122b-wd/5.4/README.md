@@ -181,6 +181,8 @@ There are no discovery rules in this template.
 |temp2|<p>Output is 200 if sensor is not connected</p>|`SNMP agent`|TCW122B-WD.temp2<p>Update: 1m</p>|
 |hostName|<p>-</p>|`SNMP agent`|TCW122B-WD.hostName<p>Update: 60m</p>|
 |watchdog 2 number of restarts|<p>-</p>|`SNMP agent`|TCW122B-WD.wdg2NumberOfRestarts<p>Update: 60m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

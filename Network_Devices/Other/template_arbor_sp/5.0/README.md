@@ -26,6 +26,8 @@ There are no discovery rules in this template.
 |Usage of Physical Memory (%)|<p>PEAKFLOW-SP-MIB::devicePhysicalMemoryUsage Percentage of physical memory used.</p>|`SNMP agent`|devicePhysicalMemoryUsage<p>Update: 60</p>|
 |Accumulative flow count|<p>PEAKFLOW-SP-MIB::deviceTotalFlows Accumulative flow count per SP device.</p>|`SNMP agent`|deviceTotalFlows<p>Update: 60</p>|
 |Total of Swap Space|<p>PEAKFLOW-SP-MIB:: deviceSwapSpace Total swap space available (in KiB).</p>|`SNMP agent`|deviceSwapSpace<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

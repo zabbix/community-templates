@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |VR temp|<p>-</p>|`Zabbix agent`|sensor[w83627dhg-isa-0290,temp3]<p>Update: 60</p>|
 |CPU core0 temp|<p>-</p>|`Zabbix agent`|sensor[coretemp-isa-0000,temp2]<p>Update: 60</p>|
 |CPU core1 temp|<p>-</p>|`Zabbix agent`|sensor[coretemp-isa-0000,temp3]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

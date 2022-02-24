@@ -94,6 +94,8 @@ There are no discovery rules in this template.
 |Setting of input brownout high voltage (Source 1)|<p>-</p>|`SNMP agent`|atsConfigInputBrownoutHigh_source1<p>Update: 1m</p>|
 |The RTC timer value (since 1/1/2000 00:00:00)|<p>-</p>|`SNMP agent`|atsConfigTimeRTC<p>Update: 10m</p>|
 |The activity of source test|<p>-</p>|`SNMP agent`|atsConfigTest<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

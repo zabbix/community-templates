@@ -24,6 +24,8 @@ BBU, Disk, Disk Array Enclosure, Disk Processor Enclosure, FAN, I/O Module, LCC,
 |{$API_USER}|<p>-</p>|``|Text macro|
 |{$SUBSCRIBED_PERCENT}|<p>-</p>|`91`|Text macro|
 |{$USED_PERCENT}|<p>-</p>|`91`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |PortFibreChannel|<p>-</p>|`Zabbix trapper`|fcPort<p>Update: 0</p>|
 |PortEth|<p>-</p>|`Zabbix trapper`|ethernetPort<p>Update: 0</p>|
 |Storage Processors|<p>-</p>|`Zabbix trapper`|storageProcessor<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -98,6 +102,8 @@ There are no template links in this template.
 |Running status of Ethernet port "{#ID}"|<p>-</p>|`Zabbix trapper`|link.ethernetPort.[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |Health status of Storage Processors "{#ID}"|<p>-</p>|`Zabbix trapper`|health.storageProcessor.[{#ID}]<p>Update: 0</p><p>LLD</p>|
 |Running status of Storage Processors "{#ID}"|<p>-</p>|`Zabbix trapper`|running.storageProcessor.[{#ID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

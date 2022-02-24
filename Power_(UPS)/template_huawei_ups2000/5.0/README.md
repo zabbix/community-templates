@@ -58,6 +58,8 @@ P.V. Galonza
 |----|-----------|-------|----|
 |{$BACKUP_TIME}|<p>-</p>|`15m`|Text macro|
 |{$BATTERY_CHARGE}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -67,6 +69,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Device|<p>Rack ID, ranging from 1 to 100. This node is referenced as an index node by hwUpsDeviceIdentTable, hwUpsDeviceOperInfoTable, hwUpsInputTable, and hwUpsBattScheduleTestTable.</p>|`SNMP agent`|huawei-ups.hwUpsDeviceId<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -153,6 +157,8 @@ There are no template links in this template.
 |{#HWUPSDEVICETYPE}-{#HWUPSDEVICEID} battery shallow test|<p>Battery Shallow Test,Enumeration type. Value 1 indicates enabled. Value 2 indicates unknown</p>|`SNMP agent`|huawei-ups[hwUpsCtrlBatteryShallowTest.{#HWUPSDEVICEID}]<p>Update: 10m</p><p>LLD</p>|
 |{#HWUPSDEVICETYPE}-{#HWUPSDEVICEID} battery manual float charge|<p>Battery Manual to Float Charge,Enumeration type. Value 1 indicates enabled. Value 2 indicates unknown</p>|`SNMP agent`|huawei-ups[hwUpsCtrlBatteryManualFloatCharge.{#HWUPSDEVICEID}]<p>Update: 10m</p><p>LLD</p>|
 |{#HWUPSDEVICETYPE}-{#HWUPSDEVICEID} output voltage phase C|<p>Rack phase C output voltage. The value ranges from 0 to 10000. The value is accurate to one decimal place on the NetEco. The unit is V.</p>|`SNMP agent`|huawei-ups[hwUpsOutputVoltageC.{#HWUPSDEVICEID}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

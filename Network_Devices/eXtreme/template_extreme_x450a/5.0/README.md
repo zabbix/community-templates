@@ -15,6 +15,8 @@ There are no template links in this template.
 |FAN|<p>EXTREME-SYSTEM-MIB::extremeFanEntPhysicalIndex The entity index for this fan entity in the entityPhysicalTable table of the entity MIB.</p>|`SNMP agent`|extremeFanEntPhysicalIndex<p>Update: 300</p>|
 |CPU|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeCpuMonitorSystemSlotId Slot Id of the system monitored.</p>|`SNMP agent`|extremeCpuMonitorSystemSlotId<p>Update: 300</p>|
 |Memory|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorSystemSlotId Slot Id of the MSM monitored.</p>|`SNMP agent`|extremeMemoryMonitorSystemSlotId<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -35,6 +37,8 @@ There are no template links in this template.
 |Total Memory #$1|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorSystemTotal Total amount of DRAM in Kbytes in the system.</p>|`SNMP agent`|extremeMemoryMonitorSystemTotal[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 |Used Memory #$1|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorSystemUsage Total amount of memory used by system services in Kbytes in the system.</p>|`SNMP agent`|extremeMemoryMonitorSystemUsage[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Used Memory #$1 by Applications|<p>EXTREME-SOFTWARE-MONITOR-MIB::extremeMemoryMonitorUserUsage Total amount of memory used by applications in Kbytes in the system.</p>|`SNMP agent`|extremeMemoryMonitorUserUsage[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

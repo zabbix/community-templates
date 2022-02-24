@@ -51,6 +51,8 @@ There are no discovery rules in this template.
 |jvm.memory.maxheapsize-count-count|<p>-</p>|`Zabbix agent`|glassfish.maxheapsize-count-count<p>Update: 900</p>|
 |jvm.thread-system.threadcount-count|<p>-</p>|`Zabbix agent`|glassfish.threadcount-count<p>Update: 120</p>|
 |jvm.memory.usedheapsize-count-count|<p>-</p>|`Zabbix agent`|glassfish.usedheapsize-count-count<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |UPS software version|<p>-</p>|`SNMP agent`|upsIdentUPSSoftwareVersion<p>Update: 3600</p>|
 |The present bypass frequency|<p>The present bypass frequency.</p>|`SNMP agent`|PresentBypassFrequency<p>Update: 30</p>|
 |Output voltage|<p>The output voltage of the UPS system.</p>|`SNMP agent`|upsAdvOutputVoltage<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -39,6 +39,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Transceivers|<p>-</p>|`SNMP agent`|transceivers-[{#SNMPVALUE}]<p>Update: 240</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +71,8 @@ There are no template links in this template.
 |Current received power of interface $1#{#DESCRIPTION}#{#ALIAS}|<p>Indicating the current received power. The unit is in hundredths of dBM.</p>|`SNMP agent`|hh3cTransceiverCurRXPower.["{#SNMPINDEX}"]<p>Update: 600</p><p>LLD</p>|
 |Bias Low Alarm interface $1#{#DESCRIPTION}#{#ALIAS}|<p>Transceiver bias low alarm threshold limit in microamps.</p>|`SNMP agent`|hh3cTransceiverBiasLoAlarm.["{#SNMPINDEX}"]<p>Update: 3600</p><p>LLD</p>|
 |Alias of transceiver $1#{#DESCRIPTION}#{#ALIAS}|<p>-</p>|`SNMP agent`|TransceiverAlias[{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -25,6 +25,8 @@ Template tested with ignite 2.8.0 and GridGain 2.7.16
 |----|-----------|-------|----|
 |{$IGNITE_JMX_PASS}|<p>-</p>|``|Text macro|
 |{$IGNITE_JMX_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Cache Groups|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=\"Cache groups\",name=*"]<p>Update: 30m</p>|
 |Thread Pool Metrics|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=\"Thread Pools\",name=*"]<p>Update: 30m</p>|
 |Ingite Kernal Metrics|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=Kernal,name=IgniteKernal"]<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -101,6 +105,8 @@ There are no template links in this template.
 |{#JMXIGNITEINSTANCENAME} - CurrentThreadCount|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group=Kernal,name=ClusterLocalNodeMetricsMXBeanImpl",CurrentThreadCount]<p>Update: 1m</p><p>LLD</p>|
 |{#JMXIGNITEINSTANCENAME} - CurrentRejectedJobs|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group=Kernal,name=ClusterLocalNodeMetricsMXBeanImpl",CurrentRejectedJobs]<p>Update: 1m</p><p>LLD</p>|
 |{#JMXIGNITEINSTANCENAME} - StripedExecutor - QueueSize|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group=\"Thread Pools\",name=StripedExecutor",TotalQueueSize]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -21,6 +21,8 @@ There are no template links in this template.
 |Descoberta LLD Descricao do Firewall|<p>-</p>|`SNMP agent`|sysDescr.discovery<p>Update: 84600</p>|
 |Descoberta LLD Inventario Hardware|<p>-</p>|`SNMP agent`|fgHaStatsHostname.discovery<p>Update: 84600</p>|
 |Descoberta LLD Informacoes Memoria Firewall|<p>-</p>|`SNMP agent`|fgHaStatsMemUsage2.discovery<p>Update: 84600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Uso de Memoria em Buffer do Firewall $1|<p>-</p>|`SNMP agent`|memBuffer.[{#SNMPVALUE}]<p>Update: 30s</p><p>LLD</p>|
 |Uso de Memoria em Share do Firewall $1|<p>-</p>|`SNMP agent`|memShared.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Memoria Total Livre do Firewall $1|<p>-</p>|`SNMP agent`|memTotalFree.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

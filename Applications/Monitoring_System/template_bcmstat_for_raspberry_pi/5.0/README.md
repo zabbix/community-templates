@@ -26,6 +26,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template App SSH Service|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -48,6 +50,8 @@ There are no discovery rules in this template.
 |RX Bytes per second|<p>-</p>|`Dependent item`|rxbps<p>Update: 0</p>|
 |IRQ per second|<p>Interrupt requests per second</p>|`Dependent item`|IRQs<p>Update: 0</p>|
 |Core Temp|<p>-</p>|`Dependent item`|CoreTemp<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

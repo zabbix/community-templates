@@ -79,6 +79,8 @@ There are no discovery rules in this template.
 |VM Processor - Reservation in MHz|<p>The minimum processing power in MHz available to the virtual machine. Assigning a CPU Reservation ensures that even as other virtual machines on the same host consume shared processing power, there is still a certain minimum amount for this virtual machine.</p>|`Zabbix agent`|perf_counter["\VM Processor(_Total)\Reservation in MHz"]<p>Update: 10m</p>|
 |VM Memory - Memory Shares|<p>The number of memory shares allocated to the virtual machine.</p>|`Zabbix agent`|perf_counter["\VM Memory\Memory Shares"]<p>Update: 5m</p>|
 |VM Processor - Limit in MHz|<p>The maximum processing power in MHz allowed to the virtual machine. Assigning a CPU Limit ensures that this virtual machine never consumes more than a certain amount of the available processor power. By limiting the amount of processing power consumed, a portion of the processing power becomes available to other virtual machines.</p>|`Zabbix agent`|perf_counter["\VM Processor(_Total)\Limit in MHz"]<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

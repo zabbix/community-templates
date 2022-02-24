@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Battery Test Results|<p>-</p>|`SNMP agent`|upsAdvReplaceBatteryIndicator<p>Update: 600</p>|
 |Runtime Remaining|<p>-</p>|`SNMP agent`|upsRuntimeRemaining<p>Update: 30s</p>|
 |Output Load (%)|<p>-</p>|`SNMP agent`|upsAdvOutputLoad<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

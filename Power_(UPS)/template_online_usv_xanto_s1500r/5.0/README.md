@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |system uptime|<p>-</p>|`SNMP agent`|system.up<p>Update: 86400</p>|
 |Temperature|<p>Temp</p>|`SNMP agent`|Temp<p>Update: 30</p>|
 |Load Current %|<p>current load in %</p>|`SNMP agent`|Load<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

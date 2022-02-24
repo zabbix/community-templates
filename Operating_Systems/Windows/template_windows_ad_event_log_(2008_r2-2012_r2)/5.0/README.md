@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |Delete User|<p>Обліковий запис користувача видалено</p>|`Zabbix agent (active)`|eventlog[Security,,,,4726,,]<p>Update: 300</p>|
 |Changed domain policy|<p>Змінена політика домену</p>|`Zabbix agent (active)`|eventlog[Security,,,,4739,,]<p>Update: 300</p>|
 |User Off|<p>Обліковий запис користувача виключено</p>|`Zabbix agent (active)`|eventlog[Security,,,,4725,,]<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

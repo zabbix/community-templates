@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |PVE Cluster Ressource Manager|<p>-</p>|`Zabbix agent (active)`|proc.num[pve-ha-crm]<p>Update: 60s</p>|
 |PVE Status|<p>-</p>|`Zabbix agent (active)`|proc.num[pvestatd]<p>Update: 60s</p>|
 |PVE API Proxy|<p>-</p>|`Zabbix agent (active)`|proc.num[pveproxy]<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -168,6 +168,8 @@ There are no discovery rules in this template.
 |OutErrorsFa0/3|<p>-</p>|`SNMP agent`|ifOutErrors.3<p>Update: 120</p>|
 |Status port 2|<p>-</p>|`SNMP agent`|ifOperStatus.2<p>Update: 120</p>|
 |InErrorsFa0/28|<p>-</p>|`SNMP agent`|ifInErrors.28<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

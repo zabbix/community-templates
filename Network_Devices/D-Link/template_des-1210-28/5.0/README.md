@@ -1,7 +1,9 @@
 # Template SNMP D-Link DES-1210-28
 
-Autor: m.beloglazov@gmail.com
-Template: Template D-link DES-1210-28 SNMP
+Autor: m.beloglazov@gmail.com
+
+Template: Template D-link DES-1210-28 SNMP
+
 Version Zabbix: 3.0## Macros used
 
 There are no macros links in this template.
@@ -12,8 +14,10 @@ There are no template links in this template.
 
 ## Discovery rules
 
-|Name|Description|Type|Key and additional info|
-|----|-----------|----|----|
+|Name|Description|Type|Key and additional info||
+
+
+#----|-----------|----|----|
 |LLD Interfaces|<p>-</p>|`SNMP agent`|dlink.des1210.snmp.discovery<p>Update: 3600</p>|
 ## Items collected
 
@@ -28,8 +32,10 @@ There are no template links in this template.
 |Interface $1 Inbound errors|<p>-</p>|`SNMP agent`|dlink.des1210.ifInErrors[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Interface $1 In|<p>Incoming traffic on interface</p>|`SNMP agent`|dlink.des1210.ifInOctets[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |Interface $1 Operational status|<p>-</p>|`SNMP agent`|dlink.des1210.ifOperStatus[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
-|interface $1 Outbound errors|<p>-</p>|`SNMP agent`|dlink.des1210.ifOutErrors[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
-|Interface $1 Out|<p>Outgoing traffic on interface</p>|`SNMP agent`|dlink.des1210.ifOutOctets[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
+|interface $1 Outbound errors|<p>-</p>|`SNMP agent`|dlink.des1210.ifOutErrors[{#SNMPINDEX}]<p>Update: 60|
+
+
+#Interface $1 Out|<p>Outgoing traffic on interface</p>|`SNMP agent`|dlink.des1210.ifOutOctets[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |Interface $1 Speed|<p>-</p>|`SNMP agent`|dlink.des1210.ifSpeed[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 ## Triggers
 

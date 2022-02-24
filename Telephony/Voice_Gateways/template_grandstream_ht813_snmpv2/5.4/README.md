@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Uptime|<p>-</p>|`SNMP agent`|gateway.uptime<p>Update: 1m</p>|
 |FXO Hook|<p>-</p>|`SNMP agent`|fxo.hook<p>Update: 1m</p>|
 |FXS Hook|<p>-</p>|`SNMP agent`|fxs.hook<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

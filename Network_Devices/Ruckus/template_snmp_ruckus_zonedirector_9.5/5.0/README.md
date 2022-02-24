@@ -49,6 +49,8 @@ There are no template links in this template.
 |ZoneDirector Eth|<p>-</p>|`SNMP agent`|ZDEthName[{#SNMPVALUE}]<p>Update: 3600</p>|
 |SSIDs|<p>-</p>|`SNMP agent`|SSIDRZ-[{#SNMPVALUE}]<p>Update: 3600</p>|
 |Ruckus APs|<p>-</p>|`SNMP agent`|APRZ-[{#SNMPVALUE}]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +71,8 @@ There are no template links in this template.
 |AP $1 : Name|<p>-</p>|`SNMP agent`|APname[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |AP $1 : Auth Clients|<p>-</p>|`SNMP agent`|ruckusZDWLANAPNumSta[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |AP Status $1|<p>-</p>|`SNMP agent`|ruckusZDWLANAPStatus[{#SNMPVALUE}]<p>Update: 360</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

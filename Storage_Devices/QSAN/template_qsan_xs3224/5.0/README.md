@@ -30,6 +30,8 @@ There are no macros links in this template.
 |Template SNMP Generic|
 |SNMP trap fallback|
 |SNMP traps|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -37,6 +39,8 @@ There are no macros links in this template.
 |Volumes|<p>-</p>|`SNMP agent`|nasVolume<p>Update: 300</p>|
 |Pools|<p>-</p>|`SNMP agent`|nasPool<p>Update: 300</p>|
 |Disks|<p>-</p>|`SNMP agent`|nasDisk<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +79,8 @@ There are no macros links in this template.
 |Name of Disk $1|<p>-</p>|`SNMP agent`|sanDiskName[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |State of Disk $1|<p>-</p>|`SNMP agent`|sanDiskState[{#SNMPINDEX}]<p>Update: 120</p><p>LLD</p>|
 |Status of Disk $1|<p>-</p>|`SNMP agent`|sanDiskStatus[{#SNMPINDEX}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -91,6 +97,8 @@ There are no macros links in this template.
 |SAN Pool {#SNMPVALUE} on {HOST.NAME} is NOT Online (LLD)|<p>-</p>|<p>**Expression**: {SNMP QSAN XS3224 Storage:sanPoolStatus[{#SNMPVALUE}].iregexp(^Online$)}=0</p><p>**Recovery expression**: </p>|high|
 |SAN Disk {#SNMPVALUE} on {HOST.NAME} is NOT Good (LLD)|<p>-</p>|<p>**Expression**: {SNMP QSAN XS3224 Storage:sanDiskState[{#SNMPINDEX}].iregexp(^Good$)}=0</p><p>**Recovery expression**: </p>|high|
 |SAN Disk {#SNMPVALUE} on {HOST.NAME} is NOT Online (LLD)|<p>-</p>|<p>**Expression**: {SNMP QSAN XS3224 Storage:sanDiskStatus[{#SNMPINDEX}].iregexp(^Online$)}=0</p><p>**Recovery expression**: </p>|high|
+
+
 # SNMP trap fallback
 
 ## Overview
@@ -122,6 +130,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |SNMP trap fallback|<p>-</p>|`SNMP trap`|snmptrap.fallback<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -147,6 +157,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |SNMP trap fallback|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.

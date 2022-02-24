@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |ID Modelo|<p>-</p>|`SNMP agent`|identModelo<p>Update: 1m</p>|
 |Sistema Corrente UR2|<p>-</p>|`SNMP agent`|sistemaCorrenteUR2<p>Update: 1m</p>|
 |Tensão do Consumidor|<p>-</p>|`SNMP agent`|ifTensaoConsumidor<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

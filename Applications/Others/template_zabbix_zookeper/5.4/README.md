@@ -40,6 +40,8 @@ Patrick Fouquet
 |----|-----------|-------|----|
 |{$ZOO_IP}|<p>-</p>|`127.0.0.1`|Text macro|
 |{$ZOO_PORT}|<p>-</p>|`2181`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -69,6 +71,8 @@ There are no discovery rules in this template.
 |zk - $1|<p>Number of file descriptors open by the ZooKeeper process.</p>|`Dependent item`|zookeeper[Open File Descriptor Count]<p>Update: 0</p>|
 |zk - $1|<p>Average latency between ensemble hosts</p>|`Dependent item`|zookeeper[Latency (avg)]<p>Update: 0</p>|
 |zk - $1|<p>zk_znode_count is the total count of znodes stored in the ZooKeeper ensemble. Every time a client creates a new znode, this counter will increment. Every time a client deletes a new znode (either explicitly or by dropping its ephemeral znodes after disconnection), this counter will decrement.</p>|`Dependent item`|zookeeper[Znode Count]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

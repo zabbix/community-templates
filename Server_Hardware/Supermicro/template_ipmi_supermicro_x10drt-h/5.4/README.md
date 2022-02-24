@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Vcpu1VRM Temp|<p>-</p>|`IPMI agent`|ipmi.vcpu1vrm.temp<p>Update: 300</p>|
 |P2-DIMMF1 Temp|<p>-</p>|`IPMI agent`|ipmi.p2-dimmf1.temp<p>Update: 300</p>|
 |P2-DIMMG1 Temp|<p>-</p>|`IPMI agent`|ipmi.p2-dimmg1.temp<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

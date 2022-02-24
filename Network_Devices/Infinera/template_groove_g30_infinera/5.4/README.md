@@ -40,6 +40,8 @@ There are no template links in this template.
 |Groove-Shelf-Temperature|<p>#MACRO1 : shelfInletTemperature #MACRO2 : shelfOutletTemperature</p>|`SNMP agent`|Shelf-Temperature<p>Update: 30s</p>|
 |Groove-Q-Factor-Table|<p>qFactorInstant {#MACRO1} qFactorAvg {#MACRO2} qFactorMin {#MACRO3} qFactorMax {#MACRO4}</p>|`SNMP agent`|qFactorEntry<p>Update: 30s</p>|
 |Groove-Osnr-Table|<p>osnrInstant - {#MACRO1} osnrAvg - {#MACRO2} osnrMin - {#MACRO3} osnrMax - {#MACRO4}</p>|`SNMP agent`|osnrTable<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +61,8 @@ There are no template links in this template.
 |Groove-osnrInstant: {#MACRO1}|<p>-</p>|`SNMP agent`|osnrInstant[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Groove-osnrMax: {#MACRO4}|<p>-</p>|`SNMP agent`|osnrMax[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Groove-osnrMin: {#MACRO3}|<p>-</p>|`SNMP agent`|osnrMin[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

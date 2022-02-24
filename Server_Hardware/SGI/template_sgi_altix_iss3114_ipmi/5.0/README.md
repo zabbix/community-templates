@@ -111,6 +111,8 @@ There are no discovery rules in this template.
 |Fan 1 Present|<p>-</p>|`IPMI agent`|ipmi.fan.1.present<p>Update: 300</p>|
 |DIMM Thrm Mrgn 1|<p>-</p>|`IPMI agent`|ipmi.dimm.thrm.mrgn.1<p>Update: 300</p>|
 |P2 Therm Margin|<p>-</p>|`IPMI agent`|ipmi.p2.therm.margin<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

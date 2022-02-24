@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Temperature Celcius|<p>Temperature reading from the internal thermometer</p>|`SNMP agent`|temperatureCelcius<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

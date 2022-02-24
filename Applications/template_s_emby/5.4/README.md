@@ -25,6 +25,8 @@ Note: if possible use the Emby URL in http, there may be problems using https
 |{$EMBY_TOKEN}|<p>-</p>|``|Text macro|
 |{$EMBY_URL}|<p>-</p>|``|Text macro|
 |{$PORT_EMBY}|<p>-</p>|`8096`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -55,6 +57,8 @@ There are no discovery rules in this template.
 |Music Video Count|<p>-</p>|`Dependent item`|musicvideo.count<p>Update: 0</p>|
 |Song Count|<p>-</p>|`Dependent item`|song.count<p>Update: 0</p>|
 |Program Count|<p>-</p>|`Dependent item`|program.count<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

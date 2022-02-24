@@ -34,6 +34,8 @@ Federico Coppola
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -54,6 +56,8 @@ There are no discovery rules in this template.
 |Ethernet Input Bytes|<p>Counter input bytes (received bytes)</p>|`SNMP agent`|eth.input.bytes<p>Update: 60s</p>|
 |Ethernet Operational Status|<p>Operational Interface Status Value = 1 (UP) Value = 0 (DOWN)</p>|`SNMP agent`|eth.operational.status<p>Update: 30s</p>|
 |Ethernet Interface Status|<p>Ethernet Interface status Value = 1 (UP) Value = 0 (DOWN)</p>|`SNMP agent`|eth.int.status<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

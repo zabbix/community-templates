@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |CPU1 Temp|<p>-</p>|`IPMI agent`|ipmi.system.temp_cpu1<p>Update: 60</p>|
 |VDIMM EFGH|<p>-</p>|`IPMI agent`|ipmi.system.vdimm_efgh<p>Update: 60</p>|
 |VTT|<p>-</p>|`IPMI agent`|impi.system.vtt<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -105,6 +105,8 @@ There are no discovery rules in this template.
 |Endereço IP|<p>-</p>|`SNMP agent`|ipAdEntAddr<p>Update: 1s</p>|
 |Tempo ligada|<p>-</p>|`SNMP agent`|sysUpTime.0<p>Update: 1s</p>|
 |Total de impressões|<p>-</p>|`SNMP agent`|sams.clr.counter<p>Update: 1s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

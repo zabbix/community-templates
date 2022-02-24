@@ -39,12 +39,16 @@ Justin Simmonds
 |{$RTSP_PASS}|<p>-</p>|`RTSP_PASS`|Text macro|
 |{$RTSP_USER}|<p>-</p>|`RTSP_User`|Text macro|
 |{$SNMP.TIMEOUT}|<p>-</p>|`5m`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template App HTTP Service|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -58,6 +62,8 @@ There are no discovery rules in this template.
 |System Model|<p>MIB: SNMPv2-MIB A textual description of the entity. This value should include the full name and version identification of the system's hardware type, software operating-system, and networking software.</p>|`SNMP agent`|system.model<p>Update: 12h</p>|
 |System Manafacturer|<p>MIB: SNMPv2-MIB A textual description of the entity. This value should include the full name and version identification of the system's hardware type, software operating-system, and networking software.</p>|`SNMP agent`|system.manafacturer<p>Update: 12h</p>|
 |SNMP agent availability|<p>-</p>|`Zabbix internal`|zabbix[host,snmp,available]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

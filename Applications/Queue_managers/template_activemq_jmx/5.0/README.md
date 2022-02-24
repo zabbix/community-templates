@@ -21,6 +21,8 @@ Armagan Yaman
 |{$AMQ_BROKER_STORE_USAGE_THRESHOLD}|<p>-</p>|`85`|Text macro|
 |{$AMQ_BROKER_TMP_USAGE_THRESHOLD}|<p>-</p>|`85`|Text macro|
 |{$BRKNAME}|<p>-</p>|`none`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -68,6 +70,8 @@ There are no discovery rules in this template.
 |TotalDequeueCount per minute for {$BRKNAME}|<p>-</p>|`JMX agent`|jmx["org.apache.activemq:type=Broker,brokerName={$BRKNAME}",TotalDequeueCount]<p>Update: 30s</p>|
 |mem Non-Heap Memory max|<p>-</p>|`JMX agent`|jmx["java.lang:type=Memory",NonHeapMemoryUsage.max]<p>Update: 1h</p>|
 |MemoryPercentUsage for {$BRKNAME}|<p>-</p>|`JMX agent`|jmx["org.apache.activemq:type=Broker,brokerName={$BRKNAME}",MemoryPercentUsage]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

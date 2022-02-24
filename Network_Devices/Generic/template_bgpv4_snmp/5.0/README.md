@@ -85,6 +85,8 @@ Flavio Camacho Junior
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$PEER_LOW_TIME}|<p>time in sec alarm for low uptime bgp session</p>|`14400`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -94,6 +96,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |BGPv4 Peers Discovery|<p>-</p>|`SNMP agent`|BgpPeerDiscovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -104,6 +108,8 @@ There are no template links in this template.
 |BGP peer last error {#SNMPVALUE}|<p>-</p>|`SNMP agent`|bgpPeerLastError[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Remote AS for peer $1|<p>-</p>|`SNMP agent`|bgpPeerRemoteAs[{#SNMPVALUE}]<p>Update: 1d</p><p>LLD</p>|
 |Operational status for peer $1|<p>-</p>|`SNMP agent`|bgpPeerState[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

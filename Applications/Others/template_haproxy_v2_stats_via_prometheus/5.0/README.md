@@ -46,6 +46,8 @@ There are no template links in this template.
 |HAProxy Server discovery|<p>-</p>|`Dependent item`|haproxy.server.discovery<p>Update: 0</p>|
 |HAProxy Frontend Discover|<p>-</p>|`Dependent item`|haproxy.frontend.discovery<p>Update: 0</p>|
 |HAProxy Backend Discover|<p>-</p>|`Dependent item`|haproxy.backend.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -67,6 +69,8 @@ There are no template links in this template.
 |backend [{#BACKEND_NAME}] current sessions|<p>-</p>|`Dependent item`|haproxy.stats[{#BACKEND_NAME},BACKEND,scur]<p>Update: 0</p><p>LLD</p>|
 |backend [{#BACKEND_NAME}] max sessions|<p>-</p>|`Dependent item`|haproxy.stats[{#BACKEND_NAME},BACKEND,smax]<p>Update: 0</p><p>LLD</p>|
 |backend [{#BACKEND_NAME}] status|<p>-</p>|`Dependent item`|haproxy.stats[{#BACKEND_NAME},BACKEND,status]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -26,6 +26,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces de Rede|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -79,6 +81,8 @@ There are no template links in this template.
 |Erros de Entrada - RX-error  - $1|<p>-</p>|`SNMP agent`|ifInErrors.[{#IFDESCR}]<p>Update: 5m</p><p>LLD</p>|
 |Erros de Saida - TX-error  - $1|<p>-</p>|`SNMP agent`|ifOutErrors.[{#IFDESCR}]<p>Update: 5m</p><p>LLD</p>|
 |Velocidade da Interface - $1|<p>-</p>|`SNMP agent`|ifSpeed.[{#IFDESCR}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

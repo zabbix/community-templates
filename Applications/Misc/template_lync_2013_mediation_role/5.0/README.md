@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Inbound Calls: Active media bypass calls|<p>This component monitor returns the number of media bypass calls in progress.</p>|`Zabbix agent`|perf_counter["\LS:MediationServer - Inbound Calls(_total)\- Active media bypass calls"]<p>Update: 60</p>|
 |Total failed calls caused by unexpected interaction from the Proxy|<p>This component monitor returns the number of calls that failed because of an unexpected response from the Front End Server. The returned value should be as low as possible.</p>|`Zabbix agent`|perf_counter["\LS:MediationServer - Global Counters\- Total failed calls caused by unexpected interaction from the Proxy"]<p>Update: 60</p>|
 |Total failed calls caused by unexpected interaction from a gateway|<p>This component monitor returns the number of calls that failed because of an unexpected response from a gateway peer. The returned value should be as low as possible.</p>|`Zabbix agent`|perf_counter["\LS:MediationServer - Global Per Gateway Counters(_Total)\- Total failed calls caused by unexpected interaction from a gateway"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

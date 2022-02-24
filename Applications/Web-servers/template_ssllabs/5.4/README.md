@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |SSL Certificate Grade|<p>-</p>|`Zabbix trapper`|ssllabs.certificate.grade<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

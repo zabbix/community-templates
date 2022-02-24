@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Sinal ONU|<p>-</p>|`Zabbix trapper`|sinal.onu<p>Update: 0</p>|
 |Sinal OLT|<p>-</p>|`Zabbix trapper`|sinal.olt<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

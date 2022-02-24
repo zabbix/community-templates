@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Present Current Demand [Phase C]|<p>-</p>|`SNMP agent`|cdPresentCurrentDemandL3<p>Update: 30s</p>|
 |Wiring Type|<p>Single Phase Line to Neutral 2 Wire 1CT 1PT is '10' Single Phase Line to Line 2 Wire 1CT 1PT is '11' Single Phase 3-Wire 3 wire 2CT 2PT is '12' Three Phase 3 Wire 2CT 2PT is '30' Three Phase 3 Wire 3CT 2PT is '31' Three Phase 3 Wire 1CT 2PT is '32' Three Phase 4 Wire 3CT 3PT is '40' Three Phase 4 Wire 3CT 2PT is '42' Three Phase 4 Wire 1CT 3PT is '44'</p>|`SNMP agent`|swtWiringType<p>Update: 3600</p>|
 |Peak Current Demand [Phase A]|<p>Host Meter Peak Current Demand Units =A (Amps)</p>|`SNMP agent`|cdPeakCurrentDemandL1<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

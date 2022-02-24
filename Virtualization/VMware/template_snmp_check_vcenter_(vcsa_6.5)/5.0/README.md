@@ -35,6 +35,8 @@ There are no template links in this template.
 |Network|<p>-</p>|`SNMP agent`|snmp.network.discovery<p>Update: 180</p>|
 |CPU|<p>-</p>|`SNMP agent`|snmp.CPU.discovery<p>Update: 3600</p>|
 |File System|<p>-</p>|`SNMP agent`|snmp.filesystem.discovery<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -122,6 +124,8 @@ There are no template links in this template.
 |File System {#SNMPVALUE} - Used Percentage|<p>-</p>|`Calculated`|File-System-Space-Used-Percentage.[{#SNMPVALUE}]<p>Update: 180</p><p>LLD</p>|
 |File System {#SNMPVALUE} - Espace Alloue|<p>-</p>|`SNMP agent`|SNMP-File-System-Space-Allocated.[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |File System {#SNMPVALUE} - Espace Utilise|<p>-</p>|`SNMP agent`|SNMP-File-System-Space-Used.[{#SNMPVALUE}]<p>Update: 180</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

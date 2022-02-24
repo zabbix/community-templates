@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |存储柜电源状态|<p>If you receive an alert, it means that one of the power supplies has experienced an error.</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.11"]<p>Update: 0</p>|
 |风扇控制器状态|<p>State is Warning the fan is running slower than the low threshold of 1715 rpm. State is Failed the fan is missing or has failed.</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.3"]<p>Update: 0</p>|
 |存储柜工作温度异常状态|<p>State is Warning the temperature is warning</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.12"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

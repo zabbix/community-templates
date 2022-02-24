@@ -62,6 +62,8 @@ Felipe de Moura Vieira
 |{$SOLR_PASSWORD}|<p>-</p>|`NEWPASS`|Text macro|
 |{$SOLR_USERNAME}|<p>-</p>|`NEWUSER`|Text macro|
 |{$URI}|<p>-</p>|`/solr/admin/metrics`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -71,6 +73,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Solr: Core Discovery|<p>Discovers core List</p>|`HTTP agent`|solr.core.discovery<p>Update: 60m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -117,6 +121,8 @@ There are no template links in this template.
 |Solr: Core {#CORENAME} document cache - inserts/sec|<p>-</p>|`Dependent item`|solr.core.documentCache.inserts[{#CORENAME}]<p>Update: 0</p><p>LLD</p>|
 |Solr: Core {#CORENAME} document cache - hits/sec|<p>-</p>|`Dependent item`|solr.core.documentCache.hits[{#CORENAME}]<p>Update: 0</p><p>LLD</p>|
 |Solr: Core {#CORENAME} select - timeouts/sec|<p>-</p>|`Dependent item`|solr.core.select.timeouts.count[{#CORENAME}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

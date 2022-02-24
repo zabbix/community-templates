@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |Max cartridge ink level - Magenta|<p>-</p>|`SNMP agent`|ink.magenta.max<p>Update: 3600</p>|
 |Level Cyan %|<p>-</p>|`Calculated`|cyan<p>Update: 600</p>|
 |Max cartridge ink level - Cyan|<p>-</p>|`SNMP agent`|ink.cyan.max<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

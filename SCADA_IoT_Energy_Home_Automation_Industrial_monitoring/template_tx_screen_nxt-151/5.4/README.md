@@ -39,6 +39,8 @@ Marcos Sousa and Guilherme Pereira
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$USER}|<p>-</p>|`{$USER_FULLNAME}`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -121,6 +123,8 @@ There are no discovery rules in this template.
 |Alarm Seamless Input2|<p>alarm of Seamless Input 2 of input</p>|`SNMP agent`|input.alarm.input2<p>Update: 5s</p>|
 |Alarm  Transport Stream Presence|<p>alarm of transport stream presence of modulator</p>|`SNMP agent`|modulator.alarm.transport.stream.presence<p>Update: 5s</p>|
 |Alarm Current|<p>alarm of current of system</p>|`SNMP agent`|system.alarm.current<p>Update: 5s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

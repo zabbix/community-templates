@@ -52,6 +52,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interface errors|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifDescription<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +71,8 @@ There are no template links in this template.
 |Fan 1|<p>-</p>|`SNMP agent`|fan1.status<p>Update: 60</p>|
 |Switch Temperature|<p>-</p>|`SNMP agent`|switch.temp<p>Update: 60</p>|
 |CRC errors on interface $1|<p>-</p>|`SNMP agent`|CRC.Errors[{#SNMPVALUE}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

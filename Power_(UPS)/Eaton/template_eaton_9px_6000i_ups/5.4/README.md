@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |UPS-BatteryChargeStatus|<p>-</p>|`SNMP agent`|UPS-BatteryChargeStatus<p>Update: 30</p>|
 |UPS-Humidity-High|<p>-</p>|`SNMP agent`|UPS-Humidity-High<p>Update: 30</p>|
 |UPS-Location|<p>-</p>|`SNMP agent`|SNMP-UPS-Location<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

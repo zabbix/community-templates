@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |configuredNodes|<p>-</p>|`SNMP agent`|configuredNodes.0<p>Update: 300</p>|
 |clusterIfsInBitsPerSecond|<p>The cumulative throughput rate (bits per second) into /ifs.</p>|`SNMP agent`|clusterIfsInBitsPerSecond.0<p>Update: 60</p>|
 |offlineNodes|<p>-</p>|`SNMP agent`|offlineNodes.0<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -162,6 +164,8 @@ There are no template links in this template.
 |Licenses|<p>-</p>|`SNMP agent`|licenseModuleName<p>Update: 3600</p>|
 |Sensors|<p>-</p>|`SNMP agent`|tempSensorNumber<p>Update: 3600</p>|
 |Disks|<p>-</p>|`SNMP agent`|diskBay<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -208,6 +212,8 @@ There are no template links in this template.
 |Disk $1 Model|<p>-</p>|`SNMP agent`|diskModel.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Disk $1 Serial Number|<p>-</p>|`SNMP agent`|diskSerialNumber.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Disk $1 Size|<p>-</p>|`SNMP agent`|diskSizeBytes.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

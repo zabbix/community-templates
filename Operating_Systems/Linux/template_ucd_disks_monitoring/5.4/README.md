@@ -53,6 +53,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Disks|<p>-</p>|`SNMP agent`|ucdDisk<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -65,6 +67,8 @@ There are no template links in this template.
 |Description of Disk $1|<p>-</p>|`SNMP agent`|ucdStorageDesc[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Read Access From Disk Since Boot $1|<p>-</p>|`SNMP agent`|ucdStorageDiskReads[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Write Access To Disk Since Boot $1|<p>-</p>|`SNMP agent`|ucdStorageDiskWrites[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

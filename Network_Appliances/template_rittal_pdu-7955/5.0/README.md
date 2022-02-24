@@ -24,6 +24,8 @@ There are no macros links in this template.
 |----|
 |Template Module ICMP Ping|
 |Template Module Generic SNMP|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no macros links in this template.
 |Discovery Temperature|<p>-</p>|`SNMP agent`|cmcIIIVarName.Temperature<p>Update: 1h</p>|
 |Energy Meter 1|<p>-</p>|`SNMP agent`|cmcIIIVarName.EnergyMeter1<p>Update: 1h</p>|
 |Discovery Input 2|<p>-</p>|`SNMP agent`|cmcIIIVarName.Input2<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +88,8 @@ There are no macros links in this template.
 |Input 2.DescName|<p>-</p>|`SNMP agent`|cmcIIIVarStrg.Input2.DescName[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Input 2 Status|<p>-</p>|`SNMP agent`|cmcIIIVarStrg.Input2.Status[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |Input 2 Value|<p>-</p>|`SNMP agent`|cmcIIIVarStrg.Input2.Value[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -46,6 +46,8 @@ Yioda
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$OVERSTAY_THRESHOLD}|<p>stay on certain server too long, default: 1 day</p>|`1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -62,6 +64,8 @@ There are no discovery rules in this template.
 |Overstay users on the {HOST.NAME} > {$OVERSTAY_THRESHOLD} day(s)|<p>-</p>|`Dependent item`|system.users.overstay.list<p>Update: 0</p>|
 |Num of overstay users on the {HOST.NAME} > {$OVERSTAY_THRESHOLD} day(s)|<p>-</p>|`Dependent item`|system.users.overstay.num<p>Update: 0</p>|
 |Num of Active(logged in) users|<p>Same purpose as the Zabbix built-in metric `system.users.num`.</p>|`Dependent item`|system.users.loggedin.num<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

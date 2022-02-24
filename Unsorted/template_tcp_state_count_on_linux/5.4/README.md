@@ -248,6 +248,8 @@ There are no discovery rules in this template.
 |TCP count local port $1 $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[10050,,LAST_ACK]<p>Update: 0</p>|
 |TCP count local port $1 $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[10051,,CLOSING]<p>Update: 0</p>|
 |TCP count $3|<p>-</p>|`Dependent item`|net.tcp.count.depend[,,TIME_WAIT]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

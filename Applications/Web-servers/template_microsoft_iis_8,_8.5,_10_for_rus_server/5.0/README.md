@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |IIS Web Service Всего байтов в секунду|<p>Rate of total bytes transferred by service (sum of bytes sent and received)</p>|`Zabbix agent`|perf_counter["\Веб-служба(*)\Всего байтов в секунду",300]<p>Update: 30</p>|
 |Служба веб-публикаций IIS World Side Web|<p>World Wide Web Publishing Service</p>|`Zabbix agent`|service_state[W3SVC]<p>Update: 30</p>|
 |IIS Service порт 80 (HTTP)|<p>-</p>|`Zabbix agent`|net.tcp.listen[80]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

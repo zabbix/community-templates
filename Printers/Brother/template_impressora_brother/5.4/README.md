@@ -29,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Consumables|<p>-</p>|`SNMP agent`|consumablesID<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +48,8 @@ There are no template links in this template.
 |$1 Current Capacity|<p>-</p>|`SNMP agent`|ConsumableCurrentCapacity[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |$1 Max Capacity|<p>-</p>|`SNMP agent`|ConsumableMaxCapacity[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |$1 Calculated Capacity (current/max)|<p>Depending on the consumable (toner vs drum/belt) this calculation will return a particular percentage. Drum Units & Belt Units return integer values that can be used in calculations to determine a percentage of how much of the unit is remaining. Max "status" is stored in the MIB and is used in the calculation. Toner consumables return the follow codes: -3 = Level Okay -2 = Low Warning (equivalent to “max status”) 0 = Critical/empty Toner possibilities for calculations of current / max * 100 -3 / -2 * 100 = 150% -2 / -2 * 100 = 100% 0 / -2 * 100 = 0% The calculations above are used in the triggers to make it very straight forward on determining if a toner is low or not.</p>|`Calculated`|CosumableCalculated[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

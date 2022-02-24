@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |赤インクの現在容量|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevelmagen<p>Update: 180;3600/7,00:00-24:00</p>|
 |青インクの現在容量|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevelcyan<p>Update: 180;3600/7,00:00-24:00</p>|
 |all print|<p>-</p>|`SNMP agent`|allprint<p>Update: 600;3600/1-6,19:00-24:00;3600/1-6,00:00-08:00;3600/7,00:00-24:00</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

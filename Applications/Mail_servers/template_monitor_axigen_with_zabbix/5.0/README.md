@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |SMTP-IN accepted|<p>-</p>|`SNMP agent`|SmtpInAccepted<p>Update: 60</p>|
 |POP3 response time|<p>-</p>|`Simple check`|net.tcp.service.perf[pop]<p>Update: 60</p>|
 |SMTP-IN connections|<p>-</p>|`SNMP agent`|SmtpInConnections<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

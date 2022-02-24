@@ -104,6 +104,8 @@ There are no discovery rules in this template.
 |Available memory|<p>Available memory is defined as free+cached+buffers memory.</p>|`SNMP agent`|memAvailReal.0<p>Update: 1m</p>|
 |Cached memory|<p>-</p>|`SNMP agent`|memCached.0<p>Update: 1m</p>|
 |Buffer memory|<p>-</p>|`SNMP agent`|memBuffer.0<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

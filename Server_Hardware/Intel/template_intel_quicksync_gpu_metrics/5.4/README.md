@@ -109,6 +109,8 @@ There are no discovery rules in this template.
 |$1 usage|<p>GT Freq</p>|`Zabbix agent`|gpu.metrics["GT_Freq",100,500]<p>Update: 30s</p>|
 |$1 usage|<p>2nd instance of the MultiFormat Codec Engine, if available (Examples of supported processor include 5th generation of Intel® Core™ processors with Intel® HD Graphics 6000, Intel® Iris™ Graphics 6100, Intel® Iris™ Pro Graphics 6200, Intel® Iris™ Pro Graphics P6300) Video Encode (PAK) and Decode</p>|`Zabbix agent`|gpu.metrics["VIDEO2",100,500]<p>Update: 30s</p>|
 |$1 usage|<p>Multi-Format Codec Engine (also known as “MFX” or “VDBOX”) Video Encode (PAK) and Decode</p>|`Zabbix agent`|gpu.metrics["VIDEO ",100,500]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

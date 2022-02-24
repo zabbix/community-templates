@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |CacheReferralCacheSize|<p>-</p>|`SNMP agent`|s64CacheReferralCacheSize<p>Update: 5m</p>|
 |CacheNumPrefetchQueries|<p>Number of cache entries that were refreshed before their TTL expires. This is a performance enhancement intended to decrease the latency by prefetching popular entries to avoid cache misses. An entry is prefetched if it is queried with the last 10% of its TTL.</p>|`SNMP agent`|s64CacheNumPrefetchQueries<p>Update: 60</p>|
 |CacheNumNXDOMAINRedirects|<p>Number of NXDOMAIN responses that are redirected by attributes provided in the caching server configuration.</p>|`SNMP agent`|s64CacheNumNXDOMAINRedirects<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

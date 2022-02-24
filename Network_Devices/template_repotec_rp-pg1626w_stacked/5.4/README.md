@@ -139,6 +139,8 @@ There are no discovery rules in this template.
 |SW 1 Interface 28 Last change|<p>SW 1 Interface 28 Last change Timeticks</p>|`SNMP agent`|sw1.interface.28.lastChange<p>Update: 30</p>|
 |SW 1 Interface 22 Status|<p>SW 1 Interface 22 Status</p>|`SNMP agent`|sw1.interface.22.status<p>Update: 30</p>|
 |SW 1 Interface 14 Last change|<p>SW 1 Interface 14 Last change Timeticks</p>|`SNMP agent`|sw1.interface.14.lastChange<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

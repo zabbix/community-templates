@@ -67,6 +67,8 @@ Be sure to set the $SNMP\_COMMUNITY and $CRD\_SNMPV2\_R values. They should both
 |{$MEM_FREE_MIN_2:"I/O"}|<p>-</p>|`500000`|Text macro|
 |{$MEM_FREE_MIN_2:"SRAM"}|<p>-</p>|`1000`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`FillMeIn`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no template links in this template.
 |Cisco BGP Peer Enumeration|<p>-</p>|`SNMP agent`|discovery.bgpDescr<p>Update: 3600</p>|
 |Cisco OSPF Discovery|<p>-</p>|`SNMP agent`|cisco.ospf.diuscovery<p>Update: 3600</p>|
 |Cisco memory pool discovery|<p>{#MEMNAME} --> A textual name assigned to the memory pool. This object is suitable for output to a human operator, and may also be used to distinguish among the various pool types, especially among dynamic pools.</p>|`SNMP agent`|ciscoMemoryPoolTable<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -97,6 +101,8 @@ There are no template links in this template.
 |BGP Admin Status {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.15.3.1.3.[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |ospfNbrState {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.14.10.1.6.[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |Memory - free in pool '{#MEMNAME}'|<p>Indicates the number of bytes from the memory pool that are currently unused on the managed device.</p>|`SNMP agent`|ciscoMemoryPoolFree[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

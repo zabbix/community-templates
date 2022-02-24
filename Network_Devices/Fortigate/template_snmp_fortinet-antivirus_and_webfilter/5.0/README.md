@@ -54,6 +54,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery of fgAntivirus|<p>-</p>|`SNMP agent`|fgAvStatsEntry<p>Update: 1h</p>|
 |Discovery of fgWebfilter|<p>A table of Web-filter statistics per virtual domain</p>|`SNMP agent`|fgWebfilterStatsEntry<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -83,6 +85,8 @@ There are no template links in this template.
 |HTTPS Sessions Blocked ID #{#SNMPINDEX}|<p>Number of HTTPS sessions blocked by Web-filter since start-up</p>|`SNMP agent`|fgWfHTTPSBlocked[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |HTTPS URLS Blocked ID #{#SNMPINDEX}|<p>Number of HTTPS URLs blocked by Web-filter since start-up</p>|`SNMP agent`|fgWfHTTPSURLBlocked[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |HTTP URLS Blocked ID #{#SNMPINDEX}|<p>Number of HTTP URLs blocked by Web-filter since start-up</p>|`SNMP agent`|fgWfHTTPURLBlocked[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -33,6 +33,8 @@ There are no template links in this template.
 |VSF Stack Links|<p>-</p>|`SNMP agent`|hpeVSFStackLinks<p>Update: 1h</p>|
 |VSF Stack OS Version|<p>-</p>|`SNMP agent`|hpeVSFStackOSVersion<p>Update: 1h</p>|
 |VSF Stack Status|<p>-</p>|`SNMP agent`|hpeVSFStackStatus<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |VSF Stack OS Version $1|<p>-</p>|`SNMP agent`|hpeVSFStackOSVersion[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |VSF Stack Admin Status|<p>-</p>|`SNMP agent`|hpicfVsfVCAdminStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |VSF Stack Oper Status|<p>-</p>|`SNMP agent`|hpicfVsfVCOperStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

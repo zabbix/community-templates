@@ -26,6 +26,8 @@ Yihai Duan
 |{$SNMPV3_AUTHPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_PRIVPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_SECURITYNAME}|<p>-</p>|`sysadmin`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -45,6 +47,8 @@ There are no template links in this template.
 |FAN Discovery|<p>-</p>|`SNMP agent`|inspur.server.fan.dicovery<p>Update: 300</p>|
 |MANAGEMENT SUBSYSTEM HEALTH  Discovery|<p>-</p>|`SNMP agent`|inspur.server.management.subsystem.health.dicovery<p>Update: 300</p>|
 |FRU Discovery|<p>-</p>|`SNMP agent`|inspur.server.fru.dicovery<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -64,6 +68,8 @@ There are no template links in this template.
 |FAN STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.fan.status.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |MANAGEMENT SUBSYSTEM HEALTH STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.management.subsystem.health.status.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |FRU INFO: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.fru.info.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

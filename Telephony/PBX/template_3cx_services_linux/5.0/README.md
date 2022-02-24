@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |3CX Configuration Service|<p>-</p>|`Zabbix agent`|proc.num[,,,3CXSLDBServ]<p>Update: 1m</p>|
 |3CX Queue Manager Service|<p>-</p>|`Zabbix agent`|proc.num[,,,TcxQMsrv]<p>Update: 1m</p>|
 |PostgreSQL Service|<p>-</p>|`Zabbix agent`|proc.num[,,,postgres]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

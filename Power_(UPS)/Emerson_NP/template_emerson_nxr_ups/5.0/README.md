@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |直流输入电压1|<p>-</p>|`SNMP agent`|ups.DCBus1Voltage<p>Update: 10m</p>|
 |正电池电流|<p>-</p>|`SNMP agent`|ups.PositiveCurrent<p>Update: 10m</p>|
 |输入频率|<p>-</p>|`SNMP agent`|ups.hz<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -44,6 +44,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |IPSLA tag discover|<p>-</p>|`SNMP agent`|discoverySLA<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -65,6 +67,8 @@ There are no template links in this template.
 |Jitter MAX to {#SNMPVALUE}|<p>-</p>|`SNMP agent`|SLADiscovery_JitterMAX_to.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Jitter MAX from {#SNMPVALUE}|<p>-</p>|`SNMP agent`|SLADiscovery_JitterMAX_from.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |RTTmin between {#SNMPVALUE} and host|<p>-</p>|`SNMP agent`|SLADiscovery_RTTmin.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

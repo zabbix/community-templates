@@ -43,6 +43,8 @@ Exported from Zabbix 5.0
 |{$NETAPP.VOL.FREE.WARN}|<p>-</p>|`80`|Text macro|
 |{$NETAPP.VOL.INODE.FREE.ERR}|<p>-</p>|`90`|Text macro|
 |{$NETAPP.VOL.INODE.FREE.WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -57,6 +59,8 @@ There are no template links in this template.
 |Enclosures|<p>-</p>|`SNMP agent`|encl<p>Update: 43200</p>|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 43200</p>|
 |Aggregates|<p>-</p>|`SNMP agent`|aggr<p>Update: 43200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -129,6 +133,8 @@ There are no template links in this template.
 |Aggregate Used Size[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|df64UsedKBytes[{#SNMPINDEX}]<p>Update: 180</p><p>LLD</p>|
 |Aggregate Size Used (%)[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|dfPerCentKBytesCapacity[{#SNMPINDEX}]<p>Update: 180</p><p>LLD</p>|
 |Aggregate Filesystem Status[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|dfStatus[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

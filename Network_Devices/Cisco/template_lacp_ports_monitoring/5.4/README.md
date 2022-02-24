@@ -24,6 +24,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Port-channels|<p>-</p>|`SNMP agent`|Port-channels<p>Update: 1h</p>|
 |dot3adAggPorts|<p>-</p>|`SNMP agent`|dot3adAggPorts<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -33,6 +35,8 @@ There are no template links in this template.
 |{#IFNAME} InErrors|<p>-</p>|`SNMP agent`|if.in.errors.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |Po{#SNMPVALUE}|{#IFNAME} LAG Status|<p>{#IFALIAS}</p>|`SNMP agent`|if.lag.status.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |{#IFNAME} OutErrors|<p>-</p>|`SNMP agent`|if.out.errors.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

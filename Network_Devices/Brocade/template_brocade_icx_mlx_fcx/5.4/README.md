@@ -25,6 +25,8 @@ Stefan Krüger
 |----|-----------|-------|----|
 |{$CRITTEMP}|<p>-</p>|`100`|Text macro|
 |{$WARNTEMP}|<p>-</p>|`90`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -36,6 +38,8 @@ There are no template links in this template.
 |Temperatur sensors|<p>Describes the temperature sensor in a human readable form. This is the same as snAgentTempSensorId, which is numeric and used to traverse the temperature sensor table. The description provides the meaning and purpose of this senor.</p>|`SNMP agent`|snAgentTempSensorDescr<p>Update: 3600</p>|
 |power supply information|<p>-</p>|`SNMP agent`|snChasPwr.snChasPwrSupplyTable<p>Update: 30</p>|
 |Fan|<p>Describes the temperature sensor in a human readable form. This is the same as snAgentTempSensorId, which is numeric and used to traverse the temperature sensor table. The description provides the meaning and purpose of this senor.</p>|`SNMP agent`|snChassis.snChasFan<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -56,6 +60,8 @@ There are no template links in this template.
 |{#SNMPVALUE} Chassi: {#SNMPINDEX}|<p>-</p>|`SNMP agent`|snAgentTempValue[{#SNMPINDEX}]<p>Update: 240</p><p>LLD</p>|
 |Power Supply {#SNMPINDEX} Status|<p>-</p>|`SNMP agent`|snChasPwrSupplyDescription[{#SNMPINDEX}]<p>Update: 120</p><p>LLD</p>|
 |State of Fan Number {#SNMPINDEX}|<p>-</p>|`SNMP agent`|snChasFanOperStatus[{#SNMPINDEX}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -68,6 +74,8 @@ There are no template links in this template.
 |Temperature is > {$WARNTEMP} on {#SNMPVALUE} Chassi: {#SNMPINDEX} (LLD)|<p>Temperature ist mire than {$WARNTEMP}</p>|<p>**Expression**: last(/SNMP Brocade/snAgentTempValue[{#SNMPINDEX}])>90</p><p>**Recovery expression**: </p>|average|
 |Operational status was changed on Power Supply {#PWRSUPID} (LLD)|<p>The power supply operation has been changed</p>|<p>**Expression**: (last(/SNMP Brocade/snChasPwrSupplyDescription[{#SNMPINDEX}],#1)<>last(/SNMP Brocade/snChasPwrSupplyDescription[{#SNMPINDEX}],#2))=1</p><p>**Recovery expression**: </p>|average|
 |Fan Number {#SNMPINDEX} Failure (LLD)|<p>-</p>|<p>**Expression**: last(/SNMP Brocade/snChasFanOperStatus[{#SNMPINDEX}])<>2</p><p>**Recovery expression**: </p>|average|
+
+
 # SNMP Brocade-Copper
 
 ## Overview
@@ -121,6 +129,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |PortDiscover|<p>-</p>|`SNMP agent`|snSwIfInfoConnectorTypeCopper<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -130,12 +140,16 @@ There are no template links in this template.
 |Incoming traffic on interface $1|<p>The total number of packets transmitted out of the interface.</p>|`SNMP agent`|snSwIfStatsInFrames[{#IFDESCRCOP}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>The total number of packets received on the interface.</p>|`SNMP agent`|snSwIfStatsOutFrames[{#IFDESCRCOP}]<p>Update: 60</p><p>LLD</p>|
 |Status of interface $1|<p>The current operational state of the interface. The testing(3) state indicates that no operational packets can be passed.</p>|`SNMP agent`|snSwPortInfoLinkStatus[{#IFDESCRCOP}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
 |Operational status was changed on {HOST.NAME} interface {#IFDESCRCOP}|<p>-</p>|<p>**Expression**: (last(/SNMP Brocade-Copper/snSwPortInfoLinkStatus[{#IFDESCRCOP}],#1)<>last(/SNMP Brocade-Copper/snSwPortInfoLinkStatus[{#IFDESCRCOP}],#2))=1</p><p>**Recovery expression**: </p>|average|
 |Operational status was changed on {HOST.NAME} interface {#IFDESCRCOP} (LLD)|<p>-</p>|<p>**Expression**: (last(/SNMP Brocade-Copper/snSwPortInfoLinkStatus[{#IFDESCRCOP}],#1)<>last(/SNMP Brocade-Copper/snSwPortInfoLinkStatus[{#IFDESCRCOP}],#2))=1</p><p>**Recovery expression**: </p>|average|
+
+
 # SNMP Brocade-Fiber
 
 ## Overview
@@ -208,6 +222,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |PortDiscover|<p>-</p>|`SNMP agent`|snSwIfInfoConnectorTypeFiber<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -217,6 +233,8 @@ There are no template links in this template.
 |Incoming traffic on interface $1|<p>The total number of packets transmitted out of the interface.</p>|`SNMP agent`|snSwIfStatsInFrames[{#IFDESCRFIB}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>The total number of packets received on the interface.</p>|`SNMP agent`|snSwIfStatsOutFrames[{#IFDESCRFIB}]<p>Update: 60</p><p>LLD</p>|
 |Status of interface $1|<p>The current operational state of the interface. The testing(3) state indicates that no operational packets can be passed.</p>|`SNMP agent`|snSwPortInfoLinkStatus[{#IFDESCRFIB}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -38,17 +38,23 @@ P.V. Galonza
 |----|-----------|-------|----|
 |{$CRITICAL_BATTERY_TIME}|<p>-</p>|`20m`|Text macro|
 |{$CRITYICAL_BATTERY_CAPACITY}|<p>-</p>|`50`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Traps|<p>Discovery traps</p>|`SNMP agent`|XPPC-MIB.trapsIndex<p>Update: 1h</p>|
 |Devices|<p>Discovery pluged devices</p>|`SNMP agent`|XPPC-MIB.indexOfDevice<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -178,6 +184,8 @@ P.V. Galonza
 |Device {#UPSDEVICENAME} accept|<p>An entry is added if yes, the entry is deleted if no.</p>|`SNMP agent`|XPPC-MIB[deviceAccept.{#UPSDEVICEID}]<p>Update: 5m</p><p>LLD</p>|
 |Device {#UPSDEVICENAME} id|<p>The index of the device that is plugged into the UPS.</p>|`SNMP agent`|XPPC-MIB[nameOfDevice.{#UPSDEVICEID}]<p>Update: 6h</p><p>LLD</p>|
 |Devices {#UPSDEVICENAME} rating|<p>The volt-amp rating of the device plugged into the UPS</p>|`SNMP agent`|XPPC-MIB[vaRatingOfDevice.{#UPSDEVICEID}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

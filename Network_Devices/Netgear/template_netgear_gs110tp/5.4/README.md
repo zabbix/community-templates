@@ -110,6 +110,8 @@ There are no discovery rules in this template.
 |LAG 04 Name|<p>-</p>|`SNMP agent`|lag.name.4<p>Update: 3600</p>|
 |Port 03 Speed|<p>-</p>|`SNMP agent`|ifSpeed.3<p>Update: 14400</p>|
 |Port 07 Status|<p>-</p>|`SNMP agent`|ifOperStatus.7<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

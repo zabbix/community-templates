@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |Handles requests|<p>The total number of client requests.</p>|`Zabbix agent`|nginx[requests]<p>Update: 120s</p>|
 |Writing connections|<p>The current number of connections where nginx is writing the response back to the client.</p>|`Zabbix agent`|nginx[writing]<p>Update: 120s</p>|
 |CPU Cores|<p>Number of all CPU Cores on the system</p>|`Zabbix agent`|nginx[cpu_cores]<p>Update: 24h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -69,6 +69,8 @@ Tudor Ticau
 |----|-----------|-------|----|
 |{$HAPROXY_CONFIG}|<p>-</p>|`/etc/haproxy/haproxy.cfg`|Text macro|
 |{$HAPROXY_SOCK}|<p>-</p>|`/var/lib/haproxy/stats`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -80,6 +82,8 @@ There are no template links in this template.
 |HAProxy server discovery|<p>-</p>|`Zabbix agent`|haproxy.list.discovery[{$HAPROXY_SOCK},SERVER]<p>Update: 1h</p>|
 |HAProxy backend discovery|<p>-</p>|`Zabbix agent`|haproxy.list.discovery[{$HAPROXY_SOCK},BACK]<p>Update: 1h</p>|
 |HAProxy frontend discovery|<p>-</p>|`Zabbix agent`|haproxy.list.discovery[{$HAPROXY_SOCK},FRONT]<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -124,6 +128,8 @@ There are no template links in this template.
 |HAProxy Frontend [{#FRONTEND_NAME}]: Established sessions|<p>The current number of established sessions.</p>|`Zabbix agent (active)`|haproxy.stats[{$HAPROXY_SOCK},{#FRONTEND_NAME},FRONTEND,scur]<p>Update: 60</p><p>LLD</p>|
 |HAProxy Frontend [{#FRONTEND_NAME}]: Session limits|<p>The most simultaneous sessions that are allowed, as defined by the maxconn setting in the frontend.</p>|`Zabbix agent (active)`|haproxy.stats[{$HAPROXY_SOCK},{#FRONTEND_NAME},FRONTEND,slim]<p>Update: 60</p><p>LLD</p>|
 |HAProxy Frontend [{#FRONTEND_NAME}]: Session utilization|<p>Percentage of sessions used (scur / slim * 100). For every HAProxy session, two connections are consumed—one for the client to HAProxy, and the other for HAProxy to your backend. Alerting on this metric is essential to ensure your server has sufficient capacity to handle all concurrent sessions. Unlike requests, upon reaching the session limit HAProxy will deny additional clients until resource consumption drops.</p>|`Calculated`|haproxy.stats[{$HAPROXY_SOCK},{#FRONTEND_NAME},FRONTEND,sutil]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -59,6 +59,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ONU Discovery|<p>-</p>|`SNMP agent`|fkGponOnu<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -76,6 +78,8 @@ There are no template links in this template.
 |ONU Serial [OltId.OnuId]: [{#SNMPINDEX}]|<p>Returns the Serial Number of the ONT</p>|`SNMP agent`|fkGponOnuSerial[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |ONU Status [OltId.OnuId]: [{#SNMPINDEX}]|<p>Returns the ONT activation state</p>|`SNMP agent`|fkGponOnuStatus[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |ONU SysUpTime [OltId.OnuId]: [{#SNMPINDEX}]|<p>Returns the time in seconds since the last reset of the ONT</p>|`SNMP agent`|fkGponOnuSysUpTime[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

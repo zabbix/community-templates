@@ -44,6 +44,8 @@ There are no template links in this template.
 |Discovery SFP Interfaces|<p>-</p>|`SNMP agent`|oltSFPInvDiscoveryInterfaces<p>Update: 3600</p>|
 |Discovery XFP Interfaces|<p>-</p>|`SNMP agent`|oltXFPInvDiscoveryInterfaces<p>Update: 3600</p>|
 |Discovery PON Interfaces|<p>-</p>|`SNMP agent`|oltPonInvDiscoveryInterfaces<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +110,8 @@ There are no template links in this template.
 |PON Serial Number  Interface $1|<p>-</p>|`SNMP agent`|oltPONInvSerialNumber[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |PON TX Power Interface $1|<p>-</p>|`SNMP agent`|oltPONInvTxOutputPowerValue[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |PON Vendor Name  Interface $1|<p>-</p>|`SNMP agent`|oltPONInvVendorName[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

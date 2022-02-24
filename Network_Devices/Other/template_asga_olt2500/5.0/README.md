@@ -44,6 +44,8 @@ There are no template links in this template.
 |Discovery SFP Interfaces|<p>-</p>|`SNMP agent`|oltSFPInvDiscoveryInterfaces<p>Update: 3600</p>|
 |Discovery XFP Interfaces|<p>-</p>|`SNMP agent`|oltXFPInvDiscoveryInterfaces<p>Update: 3600</p>|
 |Discovery ONUs|<p>-</p>|`SNMP agent`|onuDiscoveryONUsQTD<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +110,8 @@ There are no template links in this template.
 |Profile Name ONU  $1|<p>-</p>|`SNMP agent`|onuMngProfileName[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
 |Profile Reason ONU  $1|<p>-</p>|`SNMP agent`|onuMngProfileReason[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
 |Profile Status ONU  $1|<p>-</p>|`SNMP agent`|onuMngProfileStatus[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

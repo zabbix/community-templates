@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Drum toner level % - black|<p>-</p>|`Calculated`|black.drum.toner<p>Update: 3600</p>|
 |Current cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 3600</p>|
 |Type of cartridge - cyan|<p>-</p>|`SNMP agent`|cyan.cartridge.type<p>Update: 21600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

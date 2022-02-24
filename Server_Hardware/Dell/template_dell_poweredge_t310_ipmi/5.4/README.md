@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |Power consumption|<p>-</p>|`IPMI agent`|ipmi.power.consumption<p>Update: 300</p>|
 |Fan 1|<p>-</p>|`IPMI agent`|ipmi.fan1.rpm<p>Update: 300</p>|
 |Power State|<p>-</p>|`IPMI agent`|ipmi.power.state<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -67,6 +67,8 @@ Be sure to set the $SNMP\_COMMUNITY and $CRD\_SNMPV2\_R values. They should both
 |{$MEM_FREE_MIN_2:"I/O"}|<p>-</p>|`500000`|Text macro|
 |{$MEM_FREE_MIN_2:"SRAM"}|<p>-</p>|`1000`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`FillMeIn`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no template links in this template.
 |Cisco OSPF Discovery|<p>-</p>|`SNMP agent`|cisco.ospf.diuscovery<p>Update: 3600</p>|
 |Cisco BGP Peer Enumeration|<p>-</p>|`SNMP agent`|discovery.bgpDescr<p>Update: 3600</p>|
 |Cisco Temperature Discovery|<p>-</p>|`SNMP agent`|discovery.TempDesc<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -97,6 +101,8 @@ There are no template links in this template.
 |BGP Peer State {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.15.3.1.2.[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |BGP Admin Status {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.15.3.1.3.[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPINDEX} temperature|<p>-</p>|`SNMP agent`|1.3.6.1.4.1.9.9.13.1.3.1.3.[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

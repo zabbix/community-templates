@@ -33,6 +33,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Enclosure info|<p>-</p>|`SNMP agent`|enclosure<p>Update: 1h</p>|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Volume[{#VOLNAME}] TotalSize 64 bits|<p>-</p>|`SNMP agent`|df64TotalKBytesVol[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Volume[{#VOLNAME}] Used 64 bits|<p>-</p>|`SNMP agent`|df64UsedKBytesVol[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Pourcentage [{#VOLNAME}]  vol used|<p>-</p>|`Calculated`|Pvolused-[{#VOLNAME}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

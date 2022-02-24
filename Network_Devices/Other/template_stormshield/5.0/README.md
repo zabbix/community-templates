@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Port 01 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctets.p01<p>Update: 5</p>|
 |Port 01 Traffic OUT|<p>-</p>|`SNMP agent`|ifOutOctets.p01<p>Update: 5</p>|
 |FW Version|<p>-</p>|`SNMP agent`|fw.version<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

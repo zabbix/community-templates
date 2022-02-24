@@ -87,6 +87,8 @@ There are no template links in this template.
 |Optical Mux|<p>-</p>|`SNMP agent`|FA-port-name<p>Update: 3600</p>|
 |Fan|<p>-</p>|`SNMP agent`|fan_advaInventoryUnitName<p>Update: 3600</p>|
 |Client Port|<p>-</p>|`SNMP agent`|IF-Client-Name<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -194,6 +196,8 @@ There are no template links in this template.
 |Input Power too Low for  {#SNMPVALUE}|<p>-</p>|`SNMP trap`|snmptrap["ADVA-FSPR7-MIB::alarmOptInputPwrReceivedTooLow.* object:{#SNMPVALUE}"]<p>Update: 0</p><p>LLD</p>|
 |Output Power too high for  {#SNMPVALUE}|<p>-</p>|`SNMP trap`|snmptrap["ADVA-FSPR7-MIB::alarmOptOutputPowerTransTooHigh.* object:{#SNMPVALUE}"]<p>Update: 0</p><p>LLD</p>|
 |Output Power too low for  {#SNMPVALUE}|<p>-</p>|`SNMP trap`|snmptrap["ADVA-FSPR7-MIB::alarmOptOutputPowerTransTooLow.* object:{#SNMPVALUE}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

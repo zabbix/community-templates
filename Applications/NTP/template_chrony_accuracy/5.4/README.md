@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Version of chrony(d) running|<p>-</p>|`Zabbix agent (active)`|system.run[chronyd --version]<p>Update: 3600</p>|
 |Chrony Stratum|<p>The stratum indicates how many hops away from a computer with an attached reference clock we are. Such a computer is a stratum-1 computer, so the computer in the example is two hops away</p>|`Zabbix agent (active)`|system.run[chronyc tracking|grep "Stratum"|awk '{print $3}']<p>Update: 1800</p>|
 |Chrony synchronized server|<p>This is the reference ID and name (or IP address) if available, of the server to which the computer is currently synchronized.</p>|`Zabbix agent (active)`|system.run[chronyc tracking|grep "Reference ID"|awk '{print $4$5}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

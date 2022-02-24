@@ -88,6 +88,8 @@ There are no discovery rules in this template.
 |CYAN Developer level|<p>-</p>|`SNMP agent`|CyanDeveloperLevel<p>Update: 1800</p>|
 |Transfer Module Level|<p>-</p>|`SNMP agent`|TransferModuleLevel<p>Update: 3600</p>|
 |06 Device uptime|<p>The time since the network management portion of the system was last re-initialized.</p>|`SNMP agent`|sysUpTime<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

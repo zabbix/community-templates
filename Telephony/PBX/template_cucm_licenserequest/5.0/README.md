@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |LicenseList|<p>-</p>|`HTTP agent`|uclicense<p>Update: 300s</p>|
 |Basic|<p>-</p>|`Dependent item`|uclicense_basic<p>Update: 0</p>|
 |Enhanced|<p>-</p>|`Dependent item`|uclicense_Enhanced<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

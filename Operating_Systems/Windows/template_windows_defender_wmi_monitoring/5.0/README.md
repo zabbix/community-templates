@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Current computer state|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select ComputerState  from MSFT_MpComputerStatus"]<p>Update: 10m</p>|
 |OnAccess Protection Enabled|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select OnAccessProtectionEnabled from MSFT_MpComputerStatus"]<p>Update: 1h</p>|
 |AntiSpyware Signature age in days|<p>-</p>|`Zabbix agent`|wmi.get["root\microsoft\windows\defender","select AntispywareSignatureAge from MSFT_MpComputerStatus"]<p>Update: 3h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |System Logging|<p>-</p>|`Zabbix agent (active)`|proc.num[syslog]<p>Update: 60s</p>|
 |NTP|<p>-</p>|`Zabbix agent (active)`|proc.num[systemd-timesyncd]<p>Update: 60s</p>|
 |PVE Firewall Logger|<p>-</p>|`Zabbix agent (active)`|proc.num[pvefw-logger]<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

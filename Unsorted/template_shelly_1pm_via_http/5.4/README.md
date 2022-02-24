@@ -18,6 +18,8 @@ Leonard Winck
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SHELLYPWD}|<p>Password for admin user, if present</p>|`****`|Secret macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -73,6 +75,8 @@ There are no discovery rules in this template.
 |Temperature Self-Check State|<p>-</p>|`Dependent item`|shelly1pm.status.tmp.is_valid<p>Update: 0</p>|
 |Memory Total|<p>-</p>|`Dependent item`|shelly1pm.status.ram_total<p>Update: 0</p>|
 |Filesystem Total|<p>-</p>|`Dependent item`|shelly1pm.status.fs_size<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

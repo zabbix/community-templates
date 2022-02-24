@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 |Port S0_SU1_DS1-1|<p>-</p>|`Dependent item`|apiaxlS0_SU1_DS1-1<p>Update: 0</p>|
 |Cisco MGCP PRI Device XML|<p>-</p>|`HTTP agent`|mgcpxml<p>Update: 30s</p>|
 |Port S0_SU1_DS1-0|<p>-</p>|`Dependent item`|apiaxlS0_SU1_DS1-0<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -111,6 +111,8 @@ There are no discovery rules in this template.
 |BB P1 VR Temp|<p>-</p>|`IPMI agent`|ipmi.bb.p1.vr.temp<p>Update: 300</p>|
 |HDD 5 Status|<p>-</p>|`IPMI agent`|ipmi.hdd.5.status<p>Update: 300</p>|
 |PS1 Curr Out %|<p>-</p>|`IPMI agent`|ipmi.ps1.curr.out<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

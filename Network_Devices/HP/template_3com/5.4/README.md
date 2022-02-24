@@ -230,6 +230,8 @@ There are no discovery rules in this template.
 |Port 21 Last Changed|<p>-</p>|`SNMP agent`|ifLastChange.4227786<p>Update: 30</p>|
 |Port 10 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctects.4227698<p>Update: 30</p>|
 |Port 9 Traffic OUT Errors|<p>-</p>|`SNMP agent`|ifOutErrors.4227690<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

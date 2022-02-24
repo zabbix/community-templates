@@ -39,6 +39,8 @@ Vincent MATIAS
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no discovery rules in this template.
 |Trap Current Critical|<p>Current has exceeded the breaker rating level. The addition of any new load could overload or trip the breaker</p>|`SNMP trap`|snmptrap["Current Critical"]<p>Update: 0</p>|
 |Percent Load Segment 1|<p>-</p>|`SNMP agent`|breakerPercentLoad.1.1<p>Update: 30s</p>|
 |Total Load|<p>-</p>|`SNMP agent`|pduOutputLoad.1<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

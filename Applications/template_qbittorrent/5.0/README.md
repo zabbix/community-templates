@@ -44,6 +44,8 @@ Antony Peronio
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$URLQBITTORRENT}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -53,6 +55,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discovery Torrents|<p>-</p>|`HTTP agent`|torrents.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -67,6 +71,8 @@ There are no template links in this template.
 |Download Speed|<p>-</p>|`Dependent item`|qbittorrent.download<p>Update: 0</p>|
 |Download Data|<p>-</p>|`Dependent item`|qbittorrent.dwldata<p>Update: 0</p>|
 |Upload Speed|<p>-</p>|`Dependent item`|qbittorrent.upload<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

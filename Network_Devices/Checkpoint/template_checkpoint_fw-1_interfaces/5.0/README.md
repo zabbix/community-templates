@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces Discovery|<p>-</p>|`External check`|advsnmp.discovery[{HOSTNAME},"-v2c -c{$SNMP_COMMUNITY}",1.3.6.1.4.1.2620.1.1.25.5.1.2,1.3]<p>Update: 900</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -25,6 +27,8 @@ There are no template links in this template.
 |Interface {#ADVSNMPVALUE} fwDropPcktsOut|<p>-</p>|`SNMP agent`|fwDropPcktsOut["{#ADVSNMPVALUE}"]<p>Update: 120</p><p>LLD</p>|
 |Interface {#ADVSNMPVALUE} fwRejectPcktsIn|<p>-</p>|`SNMP agent`|fwRejectPcktsIn["{#ADVSNMPVALUE}"]<p>Update: 120</p><p>LLD</p>|
 |Interface {#ADVSNMPVALUE} fwRejectPcktsOut|<p>-</p>|`SNMP agent`|fwRejectPcktsOut["{#ADVSNMPVALUE}"]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

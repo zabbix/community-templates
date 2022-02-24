@@ -211,6 +211,8 @@ There are no discovery rules in this template.
 |Tráfico de Salida GigabitEthernet1/0/01|<p>-</p>|`SNMP agent`|ifOutOctets.1<p>Update: 60</p>|
 |Velocidad de puerto GigaEthernet 0/20 MTU|<p>-</p>|`SNMP agent`|ifMtu.20<p>Update: 60</p>|
 |Paquetes de entrada con errores GigabitEthernet1/0/12|<p>-</p>|`SNMP agent`|ifInErrors.12<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

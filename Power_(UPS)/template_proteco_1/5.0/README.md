@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Bateria Carregando|<p>-</p>|`SNMP agent`|alarmeBateriaCarga<p>Update: 1m</p>|
 |CA Anormal|<p>-</p>|`SNMP agent`|alarmeCaAnormal<p>Update: 1m</p>|
 |Sistema Corrente UR2|<p>-</p>|`SNMP agent`|sistemaCorrenteUR2<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

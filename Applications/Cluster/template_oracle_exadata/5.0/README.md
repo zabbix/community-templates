@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |sunHwTrapDriveControllerFault|<p>-</p>|`SNMP trap`|snmptrap[".42.2.175.103.2.0.74"]<p>Update: 0</p>|
 |sunHwTrapPowerSupplyFault|<p>-</p>|`SNMP trap`|snmptrap[".42.2.175.103.2.0.31"]<p>Update: 0</p>|
 |sunHwTrapFanFault|<p>-</p>|`SNMP trap`|snmptrap[".42.2.175.103.2.0.34"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

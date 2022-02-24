@@ -21,6 +21,8 @@ There are no template links in this template.
 |Descoberta LLD Informacoes Processador Firewall|<p>-</p>|`SNMP agent`|fgHaStatsCpuUsages.discovery<p>Update: 84600</p>|
 |Descoberta LLD Informacoes Memoria Firewall|<p>-</p>|`SNMP agent`|fgHaStatsMemUsage2.discovery<p>Update: 84600</p>|
 |Descoberta LLD de Inteface de Rede do Firewall|<p>-</p>|`SNMP agent`|FwIfName.discovery<p>Update: 84600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Trafego de Saida na interface $1|<p>-</p>|`SNMP agent`|ifOutOctets.[{#SNMPVALUE}]<p>Update: 600;60s/1-5,07:00-19:00</p><p>LLD</p>|
 |Mac Address da Interface de Rede $1|<p>-</p>|`SNMP agent`|ifPhysAddress.[{#SNMPINDEX}]<p>Update: 84600</p><p>LLD</p>|
 |Tipo de Interface de Rede $1|<p>-</p>|`SNMP agent`|ifType.[{#SNMPINDEX}]<p>Update: 84600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

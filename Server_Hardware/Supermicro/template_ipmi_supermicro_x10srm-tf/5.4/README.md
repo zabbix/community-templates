@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Fan 1|<p>-</p>|`IPMI agent`|ipmi.supermicro.fan1<p>Update: 240</p>|
 |Fan 3|<p>-</p>|`IPMI agent`|ipmi.supermicro.fan3<p>Update: 240</p>|
 |DIMMB1 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.p1.dimmb1.temp<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

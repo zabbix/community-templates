@@ -35,6 +35,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template SNMP Generic|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no macros links in this template.
 |DetailCounters|<p>-</p>|`SNMP agent`|DetailCountersID<p>Update: 300</p>|
 |Trays|<p>-</p>|`SNMP agent`|TraysID<p>Update: 300</p>|
 |Toners|<p>-</p>|`SNMP agent`|TonersID<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -56,6 +60,8 @@ There are no macros links in this template.
 |Tray {#SNMPVALUE} Current Level|<p>-</p>|`SNMP agent`|TrayCurrentLevel[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Tray {#SNMPVALUE} Max Level|<p>-</p>|`SNMP agent`|TrayMaxLevel[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Tonor {#SNMPVALUE} Level|<p>-</p>|`SNMP agent`|TonerLevel[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

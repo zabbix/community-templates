@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Power Consumption|<p>-</p>|`IPMI agent`|Pwr_Consumption<p>Update: 1m</p>|
 |Power Current|<p>-</p>|`IPMI agent`|Pwr_Current<p>Update: 1m</p>|
 |Ambient Temperature|<p>-</p>|`IPMI agent`|Inlet_Temp<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

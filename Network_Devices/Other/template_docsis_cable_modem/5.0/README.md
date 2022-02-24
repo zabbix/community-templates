@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Limit-SNR|<p>-</p>|`Calculated`|limit<p>Update: 300</p>|
 |CM-SNR3|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.10.127.1.1.4.1.5.49<p>Update: 300</p>|
 |Download Traffic|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.2.2.1.16.1<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

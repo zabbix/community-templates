@@ -199,6 +199,8 @@ There are no discovery rules in this template.
 |Instance2-PGM1b-outlm|<p>Instance 2 Program 1b loudness dB LKFS / LUFS.</p>|`SNMP agent`|aero.inst2-pgm1b-outlm<p>Update: 15s</p>|
 |Instance8-PGM1b-silence|<p>Instance 8 Program 1b silence.</p>|`SNMP agent`|aero.inst8-pgm1b-silence<p>Update: 5s</p>|
 |CPU-Fan-speed|<p>CPU fan speed (RPM).</p>|`SNMP agent`|aero.cpu-fan-speed<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

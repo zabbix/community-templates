@@ -29,6 +29,8 @@ AlKosmos
 |{$FIRSTPATFLAG:part0}|<p>-</p>|`1`|Text macro|
 |{$FIRSTPATFLAG:part1}|<p>-</p>|`0`|Text macro|
 |{$FIRSTPATFLAG:part2}|<p>-</p>|`0`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Mikrotik Partition Table|<p>-</p>|`SNMP agent`|mktPartitionTable.discovery<p>Update: 6h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +50,8 @@ There are no template links in this template.
 |mtxrPartitionRunning.[{#MKTPARTITIONNAME}]|<p>-</p>|`SNMP agent`|mtxrPartitionRunning.[{#MKTPARTITIONNAME}]<p>Update: 1h</p><p>LLD</p>|
 |mtxrPartitionSize.[{#MKTPARTITIONNAME}]|<p>-</p>|`SNMP agent`|mtxrPartitionSize.[{#MKTPARTITIONNAME}]<p>Update: 1h</p><p>LLD</p>|
 |mtxrPartitionVersion.[{#MKTPARTITIONNAME}]|<p>-</p>|`SNMP agent`|mtxrPartitionVersion.[{#MKTPARTITIONNAME}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

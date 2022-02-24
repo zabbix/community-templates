@@ -44,6 +44,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -110,6 +112,8 @@ There are no discovery rules in this template.
 |Programmed Power|<p>Value programmed of forward Power.</p>|`SNMP agent`|system.current.alarm<p>Update: 15s</p>|
 |1 PPS Input|<p>Alarm of 1 PPS Input Expected values Integer: - 0 - notPresent; - 1 - error; - 2 - present</p>|`SNMP agent`|multiplexer.Sfn.1PPsInput<p>Update: 15s</p>|
 |Status Power 4|<p>Status of power 4.</p>|`SNMP agent`|system.power4<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

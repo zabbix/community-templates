@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Internal Sensor|<p>-</p>|`SNMP agent`|intsensorname<p>Update: 30</p>|
 |uptime|<p>-</p>|`SNMP agent`|sysUpTime<p>Update: 30</p>|
 |Switch Sensor Read|<p>-</p>|`SNMP agent`|switchsensorread<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

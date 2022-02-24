@@ -97,6 +97,8 @@ There are no discovery rules in this template.
 |Tengigabitethernet 1/0/2 - out|<p>-</p>|`SNMP agent`|ifHCOutOctets106<p>Update: 20</p>|
 |Tengigabitethernet 1/0/4 - out|<p>-</p>|`SNMP agent`|ifHCOutOctets108<p>Update: 20</p>|
 |Port-channel 3 - out|<p>-</p>|`SNMP agent`|ifOutOctets1002<p>Update: 20</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

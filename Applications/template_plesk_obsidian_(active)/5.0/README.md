@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Number of Bind process|<p>-</p>|`Zabbix agent (active)`|proc.num[named,named]<p>Update: 1m</p>|
 |Number of Xinetd process|<p>-</p>|`Zabbix agent (active)`|proc.num[xinetd]<p>Update: 1m</p>|
 |Number of PHP-FPM 7.1 process|<p>-</p>|`Zabbix agent (active)`|proc.num[php-fpm,root,,7.1]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

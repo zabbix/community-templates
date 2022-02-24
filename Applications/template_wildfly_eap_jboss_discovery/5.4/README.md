@@ -49,6 +49,8 @@ Tomas Hermanek
 |{$JMX.PROTOCOL}|<p>-</p>|`remote`|Text macro|
 |{$WILDFLY.PASS}|<p>-</p>|`heslo`|Text macro|
 |{$WILDFLY.USER}|<p>-</p>|`zabbix`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -62,6 +64,8 @@ There are no template links in this template.
 |Server|<p>-</p>|`JMX agent`|jmx.get[attributes,"jboss.as:management-root=server,*"]<p>Update: 30m</p>|
 |Datasource POOL|<p>-</p>|`JMX agent`|jmx.get[beans,"jboss.as:subsystem=datasources,data-source=*,statistics=pool"]<p>Update: 30m</p>|
 |Datasource JDBC|<p>-</p>|`JMX agent`|jmx.get[beans,"jboss.as:subsystem=datasources,data-source=*,statistics=jdbc"]<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -176,6 +180,8 @@ There are no template links in this template.
 |{#JMXDATA_SOURCE} Cache Delete Count|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},PreparedStatementCacheDeleteCount]<p>Update: 30s</p><p>LLD</p>|
 |{#JMXDATA_SOURCE} Cache Hit Count|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},PreparedStatementCacheHitCount]<p>Update: 30s</p><p>LLD</p>|
 |{#JMXDATA_SOURCE} Cache Miss Count|<p>{#JMXDESC}</p>|`JMX agent`|jmx[{#JMXOBJ},PreparedStatementCacheMissCount]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

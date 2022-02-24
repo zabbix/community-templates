@@ -51,6 +51,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discovery Node|<p>-</p>|`Zabbix agent`|graylog.discovery.node<p>Update: 3m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -74,6 +76,8 @@ There are no template links in this template.
 |GrayLog: Node Max Memory|<p>-</p>|`Zabbix agent`|graylog.node.men[{#NODEID},max_memory]<p>Update: 3m</p><p>LLD</p>|
 |GrayLog: Node Total Memory|<p>-</p>|`Zabbix agent`|graylog.node.men[{#NODEID},total_memory]<p>Update: 3m</p><p>LLD</p>|
 |GrayLog: Node Used Memory|<p>-</p>|`Zabbix agent`|graylog.node.men[{#NODEID},used_memory]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

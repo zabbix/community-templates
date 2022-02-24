@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Uso de CPU do sistema|<p>-</p>|`SNMP agent`|fgSysCpuUsage<p>Update: 10</p>|
 |Numero de Processadores|<p>-</p>|`SNMP agent`|fgProcessorCount<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -102,6 +104,8 @@ There are no discovery rules in this template.
 |Uso de Disco|<p>-</p>|`SNMP agent`|fgSysDiskUsage<p>Update: 600</p>|
 |Versão do banco de dados de assinatura de vírus|<p>-</p>|`SNMP agent`|fgSysVersionAv<p>Update: 600</p>|
 |Fabricante|<p>-</p>|`SNMP agent`|mib-2.47.1.2.1.1.2.1<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -169,6 +173,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces de Rede|<p>-</p>|`SNMP agent`|ifname<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -176,6 +182,8 @@ There are no template links in this template.
 |Upload $1|<p>-</p>|`SNMP agent`|ifHCOutOctets[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
 |Velocidade do Link $1|<p>-</p>|`SNMP agent`|ifHighSpeed[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |Download $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -263,6 +271,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Uso da memória do sistema (%)|<p>-</p>|`SNMP agent`|fgSysMemUsage<p>Update: 10</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

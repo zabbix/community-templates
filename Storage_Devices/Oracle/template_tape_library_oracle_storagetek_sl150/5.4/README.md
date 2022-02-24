@@ -100,6 +100,8 @@ There are no template links in this template.
 |[Drive] Discovery of Drive Command Clean|<p>Signal to clean/cancel cleaning of the drive enable(1), cancel(2)</p>|`SNMP agent`|slDriveCommandClean<p>Update: 1h</p>|
 |[Controller] Discovery of Field Replaceable Unit (FRU)|<p>The controller's Field Replaceable Unit (FRU) based serial number</p>|`SNMP agent`|slControllerFru<p>Update: 1h</p>|
 |[Controller] Discovery of Code Version|<p>The controller's code version</p>|`SNMP agent`|slControllerCodeVer<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -220,6 +222,8 @@ There are no template links in this template.
 |Drive {#SNMPINDEX} Command Clean|<p>Signal to clean/cancel cleaning of the drive enable(1), cancel(2)</p>|`SNMP agent`|slDriveCommandClean[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Controller {#SNMPINDEX} Field Replaceable Unit (FRU)|<p>The controller's Field Replaceable Unit (FRU) based serial number</p>|`SNMP agent`|slControllerFru[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Controller {#SNMPINDEX} Code Version|<p>The controller's code version</p>|`SNMP agent`|slControllerCodeVer[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

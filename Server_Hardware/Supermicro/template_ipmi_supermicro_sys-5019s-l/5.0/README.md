@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |3.3VCC|<p>-</p>|`IPMI agent`|3.3VCC<p>Update: 60</p>|
 |VBAT|<p>-</p>|`IPMI agent`|VBAT<p>Update: 60</p>|
 |12V|<p>-</p>|`IPMI agent`|12V<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

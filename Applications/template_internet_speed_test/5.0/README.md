@@ -36,6 +36,8 @@ There are no discovery rules in this template.
 |Download Speed|<p>-</p>|`Dependent item`|Xspeedtest_download<p>Update: 0</p>|
 |Latency|<p>-</p>|`Dependent item`|Xspeedtest_latency<p>Update: 0</p>|
 |ISP Provider|<p>-</p>|`Dependent item`|Xspeedtest_isp<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

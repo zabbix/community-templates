@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Tamanho em Mega, dos e-mails enviados|<p>-</p>|`Zabbix agent`|system.run[awk '/bytes delivered/{print $1}' /tmp/report.txt]<p>Update: 0;h23m50</p>|
 |Zimbra Status|<p>-</p>|`Zabbix agent`|zimbra.service.status<p>Update: 3m</p>|
 |Status MTA Zimbra|<p>-</p>|`Zabbix agent`|zimbra.mta.status<p>Update: 3m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

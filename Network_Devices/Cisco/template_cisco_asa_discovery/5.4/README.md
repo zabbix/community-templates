@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ASA Interfaces discovery|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |$1 OutOctets|<p>The number of octets transmitted in MAC frames on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |$1 OutUcastPkts|<p>-</p>|`SNMP agent`|ifOutUcastPkts[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |$1 Speed|<p>-</p>|`SNMP agent`|ifSpeed[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

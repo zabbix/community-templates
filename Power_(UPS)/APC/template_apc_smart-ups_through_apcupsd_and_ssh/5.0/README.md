@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |apc device serial number|<p>-</p>|`Dependent item`|apc_device.sn<p>Update: 0</p>|
 |apc battery charge level|<p>-</p>|`Dependent item`|apc_battery.chargelevel<p>Update: 0</p>|
 |apc device model|<p>-</p>|`Dependent item`|apc_device.model<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

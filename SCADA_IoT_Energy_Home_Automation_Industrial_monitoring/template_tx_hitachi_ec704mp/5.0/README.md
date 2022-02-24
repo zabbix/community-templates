@@ -44,6 +44,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -110,6 +112,8 @@ There are no discovery rules in this template.
 |BTS Alignment|<p>Alarm of 1 PPS Input Expected values Integer: - 0 - none; - 1 - CLK; - 2 - TSP - 3 - tsPandCLK</p>|`SNMP agent`|multiplexer.sfn.bts.alignment<p>Update: 1m</p>|
 |Current Carrier|<p>Measure of Input Air Temperature for power1CurrentCarrier.</p>|`SNMP agent`|power1.current.carrier<p>Update: 1m</p>|
 |PA1 Temperature custom|<p>Measure of Power Amplifier for item power1PA1Temperature.</p>|`Calculated`|power1PA1.temperature.custom<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

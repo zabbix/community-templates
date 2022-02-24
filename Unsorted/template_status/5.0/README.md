@@ -56,6 +56,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -66,6 +68,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |SNMP Availability|<p>-</p>|`Zabbix internal`|zabbix[host,snmp,available]<p>Update: 30m</p>|
 |Device Uptime|<p>-</p>|`SNMP agent`|system.uptime[sysUpTime]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

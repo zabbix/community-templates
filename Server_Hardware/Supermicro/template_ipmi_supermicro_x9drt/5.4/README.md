@@ -63,6 +63,8 @@ There are no discovery rules in this template.
 |3.3V|<p>-</p>|`IPMI agent`|ipmi.system.3.3v<p>Update: 60</p>|
 |CPU2 Temp|<p>-</p>|`IPMI agent`|ipmi.system.temp_cpu2<p>Update: 60</p>|
 |+1.1 V|<p>-</p>|`IPMI agent`|ipmi.system.1.1v<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

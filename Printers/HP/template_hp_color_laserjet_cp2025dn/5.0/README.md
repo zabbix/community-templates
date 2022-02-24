@@ -36,6 +36,8 @@ There are no discovery rules in this template.
 |Current cartridge toner level - magenta|<p>-</p>|`SNMP agent`|ink.magenta.now<p>Update: 360</p>|
 |Cartridge type - Yellow|<p>-</p>|`SNMP agent`|type.Yellow<p>Update: 43200</p>|
 |Current cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.now<p>Update: 360</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

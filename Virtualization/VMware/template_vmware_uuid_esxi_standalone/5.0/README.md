@@ -83,6 +83,8 @@ Zabbix
 |{$URL}|<p>-</p>|`https://{ESXi}/sdk`|Text macro|
 |{$USERNAME}|<p>-</p>|`zabbix`|Text macro|
 |{$UUID}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -92,6 +94,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Datastore discovery|<p>-</p>|`Simple check`|vmware.hv.datastore.discovery[{$URL},{$UUID}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -122,6 +126,8 @@ There are no template links in this template.
 |Free space on datastore $3 (percentage)|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{$UUID},{#DATASTORE},pfree]<p>Update: 1m</p><p>LLD</p>|
 |Total size of datastore $3|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{$UUID},{#DATASTORE}]<p>Update: 1m</p><p>LLD</p>|
 |Average write latency of the datastore $3|<p>-</p>|`Simple check`|vmware.hv.datastore.write[{$URL},{$UUID},{#DATASTORE},latency]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

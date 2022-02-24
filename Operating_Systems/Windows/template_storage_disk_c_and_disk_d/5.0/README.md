@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |Disc C: module|<p>-</p>|`SNMP agent`|Cmodule<p>Update: 60s</p>|
 |Disc D: Total space|<p>-</p>|`SNMP agent`|DiscDTotalspace<p>Update: 60s</p>|
 |Disc C: Total space|<p>-</p>|`SNMP agent`|DiscCTotalspace<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

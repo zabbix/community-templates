@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Maximum_yellow_drum_level|<p>-</p>|`SNMP agent`|Maximum_yellow_drum_level<p>Update: 86400</p>|
 |Amount_of_yellow_drum_remaining|<p>-</p>|`SNMP agent`|Amount_of_yellow_drum_remaining<p>Update: 3600</p>|
 |Maximum_black_toner_level|<p>-</p>|`SNMP agent`|Maximum_black_toner_level<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

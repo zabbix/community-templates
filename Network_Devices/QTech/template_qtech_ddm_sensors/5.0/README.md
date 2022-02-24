@@ -22,6 +22,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Sensors discovery|<p>-</p>|`SNMP agent`|sensors.discovery<p>Update: 600s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -31,6 +33,8 @@ There are no template links in this template.
 |{#SNMPVALUE}({#IFDESC}) SFP Temp|<p>-</p>|`SNMP agent`|ddmsensortemp[{#SNMPINDEX}]<p>Update: 600s</p><p>LLD</p>|
 |{#SNMPVALUE}({#IFDESC}) SFP TX Power|<p>-</p>|`SNMP agent`|ddmsensortxpower[{#SNMPINDEX}]<p>Update: 600s</p><p>LLD</p>|
 |{#SNMPVALUE}({#IFDESC}) SFP Voltage|<p>-</p>|`SNMP agent`|ddmsensorvoltage[{#SNMPINDEX}]<p>Update: 600s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -131,6 +131,8 @@ There are no discovery rules in this template.
 |APC Time on Battery remaining|<p>-</p>|`SNMP agent`|apc_battery.time.remaining<p>Update: 30s</p>|
 |APC Battery Temperature|<p>-</p>|`SNMP agent`|apc_battery.temperature<p>Update: 30s</p>|
 |Test Last Diagnostics Date|<p>-</p>|`SNMP agent`|apc_diagnostics.testDate<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

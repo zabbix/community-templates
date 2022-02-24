@@ -39,6 +39,8 @@ Hudson Teixeira
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifName<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -58,6 +62,8 @@ There are no template links in this template.
 |Name of interface $1|<p>-</p>|`SNMP agent`|ifName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 |Operational status of interface $1|<p>The current operational state of the interface.</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>The number of octets transmitted in MAC frames on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 10</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

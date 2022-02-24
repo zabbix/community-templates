@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |CPU2 Temp|<p>-</p>|`IPMI agent`|impi.system.cpu2_temp<p>Update: 60</p>|
 |FAN 5|<p>-</p>|`IPMI agent`|ipmi.system.fan_5<p>Update: 60</p>|
 |P1-DIMMC1|<p>-</p>|`IPMI agent`|ipmi.system.p1_dimmc1<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

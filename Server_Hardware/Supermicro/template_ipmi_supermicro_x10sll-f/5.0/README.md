@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Battery Voltage|<p>-</p>|`IPMI agent`|ipmi.volts.vbat<p>Update: 300</p>|
 |5Vcc Voltage|<p>-</p>|`IPMI agent`|ipmi.volts.5vcc<p>Update: 300</p>|
 |1.05V PCH Voltage|<p>-</p>|`IPMI agent`|ipmi.volts.105vpch<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |upsStartupAfterDelay.0|<p>-</p>|`SNMP agent`|upsStartupAfterDelay.0<p>Update: 30</p>|
 |upsConfigLowBattTime.0|<p>-</p>|`SNMP agent`|upsConfigLowBattTime.0<p>Update: 30</p>|
 |upsConfigOutputFreq.0|<p>-</p>|`SNMP agent`|upsConfigOutputFreq.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

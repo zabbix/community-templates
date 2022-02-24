@@ -25,6 +25,8 @@ There are no discovery rules in this template.
 |yellowTonerLevel|<p>-</p>|`SNMP agent`|yellowTonerLevel<p>Update: 30</p>|
 |colorPrints|<p>-</p>|`SNMP agent`|colorPrints<p>Update: 30</p>|
 |magentaTonerLevel|<p>-</p>|`SNMP agent`|magentaTonerLevel<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

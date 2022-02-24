@@ -206,6 +206,8 @@ There are no discovery rules in this template.
 |Uptime|<p>This variable indicates the number of seconds since the server was last restarted. This value is useful to analyze server uptime, as well as to generate reports on overall system performance. A consistent low value indicates that the server is being frequently restarted, thereby causing frequent interruptions to client service.</p>|`Zabbix agent`|mysql-stats[Uptime,{$PORT}]<p>Update: 60</p>|
 |MySQL: local_infile|<p>This variable controls server-side LOCAL capability for LOAD DATA statements. Depending on the local_infile setting, the server refuses or permits local data loading by clients that have LOCAL enabled on the client side. To explicitly cause the server to refuse or permit LOAD DATA LOCAL statements (regardless of how client programs and libraries are configured at build time or runtime), start mysqld with local_infile disabled or enabled, respectively. local_infile can also be set at runtime. For more information, see Section 6.1.6, “Security Issues with LOAD DATA LOCAL”. Default Value ON "MySQL Manual: Security Issues with LOAD DATA LOCAL MySQL Manual: Security-Related mysqld Options"</p>|`Zabbix agent`|mysql-stats[local_infile,{$PORT}]<p>Update: 6h</p>|
 |Handler_savepoint|<p>The number of requests for a storage engine to place a savepoint.</p>|`Zabbix agent`|mysql-stats[Handler_savepoint,{$PORT}]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

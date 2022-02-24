@@ -95,6 +95,8 @@ There are no discovery rules in this template.
 |imapHits|<p>-</p>|`SNMP agent`|imapHits<p>Update: 300</p>|
 |networkService|<p>-</p>|`SNMP agent`|networkService<p>Update: 300</p>|
 |appExpiryDate|<p>-</p>|`SNMP agent`|appExpiryDate<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

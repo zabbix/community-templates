@@ -25,11 +25,15 @@ Serpentarius Software
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_TIMEOUT}|<p>-</p>|`3m`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -40,6 +44,8 @@ Serpentarius Software
 |Fans Status|<p>-</p>|`SNMP agent`|snmp.discovery.fans<p>Update: 15m</p>|
 |Voltage|<p>-</p>|`SNMP agent`|snmp.discovery.vsensors<p>Update: 15m</p>|
 |Components errors|<p>-</p>|`SNMP agent`|components.errors.discovery<p>Update: 15m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +65,8 @@ Serpentarius Software
 |{#FAN} - Status|<p>-</p>|`SNMP agent`|fan.status.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#VSENSOR} - Status|<p>-</p>|`SNMP agent`|voltage.sensor.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Components {#NAME} - Errors|<p>-</p>|`SNMP agent`|component.errors.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

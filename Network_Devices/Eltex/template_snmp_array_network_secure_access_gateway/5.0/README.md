@@ -31,6 +31,8 @@ There are no discovery rules in this template.
 |最大会话数|<p>-</p>|`SNMP agent`|array.max.sessions<p>Update: 1m</p>|
 |总入流量|<p>-</p>|`SNMP agent`|array.total.bytes.in<p>Update: 1m</p>|
 |会话数|<p>-</p>|`SNMP agent`|array.sessions<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

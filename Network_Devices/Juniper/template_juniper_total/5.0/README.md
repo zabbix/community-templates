@@ -72,6 +72,8 @@ Also IKE discovery does not seem to work on JunOS pre 12.3. Everything else seem
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`FillMeIn`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -85,6 +87,8 @@ There are no template links in this template.
 |Juniper IPSec Tunnel State Enumeration|<p>-</p>|`SNMP agent`|discovery.IPSec<p>Update: 3600</p>|
 |Juniper OSPF Neighbor State Enumeration|<p>-</p>|`SNMP agent`|discovery.ospf.nbr<p>Update: 3600</p>|
 |Juniper Interface enumeration|<p>-</p>|`SNMP agent`|discovery.ifDescr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -105,6 +109,8 @@ There are no template links in this template.
 |{#SNMPVALUE} - Outbound traffic|<p>-</p>|`SNMP agent`|1.3.6.1.2.1.2.2.1.16.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |{#SNMPVALUE} - Outbound discarded packets|<p>-</p>|`SNMP agent`|1.3.6.1.2.1.2.2.1.19.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |{#SNMPVALUE} - Outbound error packets|<p>-</p>|`SNMP agent`|1.3.6.1.2.1.2.2.1.20.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

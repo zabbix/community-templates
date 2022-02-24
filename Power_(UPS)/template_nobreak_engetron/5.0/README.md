@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |UpsEstimatedChargeRemaining|<p>-</p>|`SNMP agent`|UpsEstimatedChargeRemaining<p>Update: 2m</p>|
 |SysName|<p>-</p>|`SNMP agent`|SysName<p>Update: 10h</p>|
 |UpsInputCurrent.3|<p>-</p>|`SNMP agent`|UpsInputCurrent.3<p>Update: 2m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

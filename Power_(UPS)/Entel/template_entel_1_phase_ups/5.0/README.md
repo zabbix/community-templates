@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |Режим работы|<p>-</p>|`SNMP agent`|upsOutputSource<p>Update: 10</p>|
 |Напряжение выхода|<p>-</p>|`SNMP agent`|upsOutputVoltage<p>Update: 30</p>|
 |Время работы от АКБ|<p>-</p>|`SNMP agent`|upsSecondsOnBattery<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -56,6 +56,8 @@ There are no template links in this template.
 |LLD Json 3parDisk data|<p>-</p>|`Zabbix agent`|3parPDCheck<p>Update: 30m</p>|
 |LLD Json 3parVV data|<p>-</p>|`Zabbix agent`|3parVVCheck<p>Update: 1h</p>|
 |LLD Json 3parVlun data|<p>-</p>|`Zabbix agent`|StatVlunCheck<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -86,6 +88,8 @@ There are no template links in this template.
 |3parVV USED B {#ID} {#PROV} {#NAME}|<p>-</p>|`Dependent item`|3parVVUSEDB["{#ID}","{#PROV}","{#NAME}"]<p>Update: 0</p><p>LLD</p>|
 |3parVLun B/s {#NAMEVLUN}|<p>-</p>|`Dependent item`|3parVLunB["{#NAMEVLUN}"]<p>Update: 0</p><p>LLD</p>|
 |3parVLun IO/s {#NAMEVLUN}|<p>-</p>|`Dependent item`|3parVLunIO["{#NAMEVLUN}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -32,6 +32,8 @@ Instuctions is on github page
 |{$PD_THROTTLING_HB_PERIOD}|<p>Physical disk throttling heartbeat period</p>|`3h`|Text macro|
 |{$PD_WARNING_SEVERITY_STATES}|<p>Physicall disks warning severity states (using in regex of triggers)</p>|`Verify|Rebuilding`|Text macro|
 |{$STOR_CTRL_REQUEST_PERIOD}|<p>Time interval for getting all information from storage contrroller</p>|`5m`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -42,6 +44,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Physical disks discovery|<p>-</p>|`Dependent item`|pdlld<p>Update: 0</p>|
 |Logical disks discovery|<p>-</p>|`Dependent item`|ldlld<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +61,8 @@ There are no template links in this template.
 |Logical disk "{#LDNAME}" level|<p>-</p>|`Dependent item`|irst.raid.level.[{#LDNAME}]<p>Update: 0</p><p>LLD</p>|
 |Logical disk "{#LDNAME}" disks count|<p>-</p>|`Dependent item`|irst.raid.pdcount.[{#LDNAME}]<p>Update: 0</p><p>LLD</p>|
 |Logical disk "{#LDNAME}" state|<p>-</p>|`Dependent item`|irst.raid.state.[{#LDNAME}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

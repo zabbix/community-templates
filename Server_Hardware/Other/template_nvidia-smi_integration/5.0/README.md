@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |GPU Free Memory|<p>-</p>|`Zabbix agent`|gpu.free<p>Update: 30</p>|
 |GPU Total Memory|<p>-</p>|`Zabbix agent`|gpu.memtotal<p>Update: 30</p>|
 |GPU Utilisation|<p>-</p>|`Zabbix agent`|gpu.utilisation<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

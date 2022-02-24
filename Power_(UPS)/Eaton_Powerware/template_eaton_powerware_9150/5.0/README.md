@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |upsOutputCurrent.1|<p>-</p>|`SNMP agent`|upsOutputCurrent.1<p>Update: 30</p>|
 |upsTestElapsedTime.0|<p>-</p>|`SNMP agent`|upsTestElapsedTime.0<p>Update: 30</p>|
 |upsInputVoltage.1|<p>-</p>|`SNMP agent`|upsInputVoltage.1<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

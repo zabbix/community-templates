@@ -71,6 +71,8 @@ Evren Yurtesen
 |----|-----------|-------|----|
 |{$XFS.PROJECT.PUSED.MAX.CRIT}|<p>-</p>|`90`|Text macro|
 |{$XFS.PROJECT.PUSED.MAX.WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -80,6 +82,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |XFS project discovery|<p>Discovery of XFS projects using /etc/projects file</p>|`Zabbix agent`|xfs.quota.projects<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -87,6 +91,8 @@ There are no template links in this template.
 |{#XFSNAME}: Space utilization|<p>-</p>|`Zabbix agent`|xfs.quota.project.pused[{#XFSNAME}]<p>Update: 1m</p><p>LLD</p>|
 |{#XFSNAME}: Total space|<p>-</p>|`Zabbix agent`|xfs.quota.project.total[{#XFSNAME}]<p>Update: 1m</p><p>LLD</p>|
 |{#XFSNAME}: Used space|<p>-</p>|`Zabbix agent`|xfs.quota.project.used[{#XFSNAME}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

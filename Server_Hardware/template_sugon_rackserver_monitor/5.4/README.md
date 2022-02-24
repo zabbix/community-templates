@@ -40,6 +40,8 @@ zhangzhefeng
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CLOUD_SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -61,6 +63,8 @@ There are no discovery rules in this template.
 |Fan Health Status|<p>-</p>|`SNMP agent`|fanHealthAllStatus<p>Update: 10m</p>|
 |Memory Health Status|<p>-</p>|`SNMP agent`|memHealthAllStatus<p>Update: 10m</p>|
 |NIC Health Status|<p>-</p>|`SNMP agent`|nicHealthAllStatus<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

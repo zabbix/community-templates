@@ -56,6 +56,8 @@ There are no template links in this template.
 |LLD Json 3parVV data|<p>-</p>|`Zabbix agent`|3parVVCheck<p>Update: 1h</p>|
 |LLD Json 3parVlun data|<p>-</p>|`Zabbix agent`|StatVlunCheck<p>Update: 30m</p>|
 |LLD Json 3parPortCheck data|<p>-</p>|`Zabbix agent`|3parPortCheck<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -86,6 +88,8 @@ There are no template links in this template.
 |3parPort STATE {#PROTOCOL} {#DEVICE} {#LABEL} Port {#PORTWWN} Node {#NODEWWN}|<p>-</p>|`Dependent item`|3parPortSTATE["{#PROTOCOL}","{#DEVICE}","{#LABEL}","{#PORTWWN}"]<p>Update: 0</p><p>LLD</p>|
 |3parPort SvtCur {#PROTOCOL} {#DEVICE} {#LABEL}|<p>-</p>|`Dependent item`|3parPortSvtCur["{#DEVICE}"]<p>Update: 0</p><p>LLD</p>|
 |3parPort TYPE {#PROTOCOL} {#DEVICE} {#LABEL} Port {#PORTWWN} Node {#NODEWWN}|<p>-</p>|`Dependent item`|3parPortTYPE["{#PROTOCOL}","{#DEVICE}","{#LABEL}","{#PORTWWN}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

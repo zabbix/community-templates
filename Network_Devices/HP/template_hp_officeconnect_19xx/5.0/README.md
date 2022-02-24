@@ -52,6 +52,8 @@ There are no template links in this template.
 |Temperature Discovery|<p>Discovering modules temperature (same filter as in Module Discovery) plus and temperature sensors</p>|`SNMP agent`|temp.discovery<p>Update: 3600</p>|
 |Memory Useage|<p>-</p>|`SNMP agent`|memoryusage.discovery<p>Update: 3600</p>|
 |CPU|<p>-</p>|`SNMP agent`|cpu.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -76,6 +78,8 @@ There are no template links in this template.
 |Memory Useage|<p>-</p>|`Calculated`|memoryusage.calc[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Memory Usage %|<p>-</p>|`SNMP agent`|memoryusage.perc[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |CPU Percent Utilization|<p>-</p>|`SNMP agent`|cpu[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

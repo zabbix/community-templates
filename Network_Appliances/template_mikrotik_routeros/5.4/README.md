@@ -83,6 +83,8 @@ There are no template links in this template.
 |Descubra a interface NIC local|<p>NICs de expressão regular 1-10 ^ ([1,2,3,4,5,6,7,8,9] | 10) $</p>|`SNMP agent`|discoverylocal<p>Update: 30s</p>|
 |Descubra automaticamente estatísticas de tráfego da NIC local|<p>-</p>|`SNMP agent`|net.if.discoveryStatisticslocal<p>Update: 30s</p>|
 |Descubra as estatísticas de tráfego da interface|<p>-</p>|`SNMP agent`|net.if.discoveryStatistics<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -110,6 +112,8 @@ There are no template links in this template.
 |{#IFNAME}Obter o valor total enviado pela placa de rede local|<p>-</p>|`SNMP agent`|net.if[localinterface.out{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#IFNAME}Recebendo aquisição total|<p>-</p>|`SNMP agent`|net.if[interface.in.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#IFNAME}Obter o valor total|<p>-</p>|`SNMP agent`|net.if[interface.out.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

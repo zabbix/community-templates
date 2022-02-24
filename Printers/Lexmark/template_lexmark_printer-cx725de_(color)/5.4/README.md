@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Toner Level MAGENTA|<p>-</p>|`SNMP agent`|prtMagentaTonerLevel<p>Update: 60</p>|
 |Toner capacity CYAN|<p>-</p>|`SNMP agent`|prtCyanTonerMaxCapacity<p>Update: 3600</p>|
 |01 Device model|<p>-</p>|`SNMP agent`|deviceModel<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

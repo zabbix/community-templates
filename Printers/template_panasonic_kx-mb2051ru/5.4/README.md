@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Текущий Тонер картридж - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 30s</p>|
 |Драм Юнит % - black|<p>-</p>|`Calculated`|black.drum<p>Update: 30s</p>|
 |Модель МФУ|<p>-</p>|`SNMP agent`|model<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

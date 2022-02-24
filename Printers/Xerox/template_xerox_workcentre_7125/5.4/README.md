@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Cartridge toner level % - cyan|<p>-</p>|`Calculated`|cyan.Cartridge.toner<p>Update: 3600</p>|
 |Cartridge toner level % - black|<p>-</p>|`Calculated`|black.cartridge.toner<p>Update: 3600</p>|
 |Drum toner level % - black|<p>-</p>|`Calculated`|black.drum.toner<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

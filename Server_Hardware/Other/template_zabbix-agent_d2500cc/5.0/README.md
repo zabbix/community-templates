@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |+12V voltage|<p>-</p>|`Zabbix agent`|sensor[w83627uhg-isa-0290,in4]<p>Update: 60</p>|
 |CPU core1 temp|<p>-</p>|`Zabbix agent`|sensor[coretemp-isa-0000,temp3]<p>Update: 60</p>|
 |5VSB Voltage|<p>-</p>|`Zabbix agent`|sensor[w83627uhg-isa-0290,in7]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

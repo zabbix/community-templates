@@ -39,6 +39,8 @@ There are no template links in this template.
 |Temperature sensor|<p>-</p>|`SNMP agent`|enviro.tempf[tempSensor]<p>Update: 1m</p>|
 |Onboard sensor|<p>-</p>|`SNMP agent`|enviro.tempf[climateAirflow]<p>Update: 1m</p>|
 |Airflow sensor|<p>-</p>|`SNMP agent`|enviro.tempf[airflowSensor]<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -63,6 +65,8 @@ There are no template links in this template.
 |{#DESC} relative humidity (%)|<p>-</p>|`SNMP agent`|enviro.tempf[airFlowSensorHumidity.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |{#DESC} temperature (C)|<p>-</p>|`SNMP agent`|enviro.tempf[airflowSensorTempC.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |{#DESC} temperature (F)|<p>-</p>|`SNMP agent`|enviro.tempf[airflowSensorTempF.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

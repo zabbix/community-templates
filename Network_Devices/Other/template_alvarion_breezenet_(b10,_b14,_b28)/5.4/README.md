@@ -18,11 +18,15 @@ Asert
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`private`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -57,6 +61,8 @@ There are no discovery rules in this template.
 |Device uptime|<p>-</p>|`SNMP agent`|system.uptime<p>Update: 6h</p>|
 |FastEtehernet  :Inbound packets with errors|<p>-</p>|`SNMP agent`|ifInErrors.2<p>Update: 300</p>|
 |Device location|<p>-</p>|`SNMP agent`|system.location<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

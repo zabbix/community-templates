@@ -126,6 +126,8 @@ There are no template links in this template.
 |Memory Usage|<p>-</p>|`SNMP agent`|fgStatsMemUsage<p>Update: 300</p>|
 |Serial Number|<p>-</p>|`SNMP agent`|fgStatsSerial<p>Update: 300</p>|
 |CPU Usage|<p>-</p>|`SNMP agent`|fgStatsCpuUsage<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -142,6 +144,8 @@ There are no template links in this template.
 |Memory Usage $1|<p>-</p>|`SNMP agent`|fgStatsMemUsage.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Unit $1 Serial Number|<p>-</p>|`SNMP agent`|fgStatsSerial.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |CPU $1 Usage|<p>-</p>|`SNMP agent`|fgStatsCpuUsage.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

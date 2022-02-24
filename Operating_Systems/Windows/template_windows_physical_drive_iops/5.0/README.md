@@ -49,6 +49,8 @@ Cédric MARCOUX
 |{$DISCOVERDISK3}|<p>-</p>|`MAKQB7AGkAZgAgACgAJABpAGQAeAAgAC0AbAB0ACAAJABkAHIAaQB2AGUAcwAuAEMAbwB1AG4AdAApAHsAIAAgACAAIAAgACAAIAAkAGwAaQBuAGUAPQAgACIAewAgAGAAIgB7ACMARABJAFMASwBOAFUATQBMAEUAVAB9AGAAIgAgADoAIABgACIAIgAgACsAIAAkAHAAZQByAGYARAByAGkAdgBlAHMALgBOAGEAbQBlACAAKwAgACIAYAAiA`|Text macro|
 |{$DISCOVERDISK4}|<p>-</p>|`CAAfQAsACIAOwB3AHIAaQB0AGUALQBoAG8AcwB0ACAAJABsAGkAbgBlADsAfQBlAGwAcwBlAGkAZgAgACgAJABpAGQAeAAgAC0AZwBlACAAJABkAHIAaQB2AGUAcwAuAEMAbwB1AG4AdAApAHsAJABsAGkAbgBlAD0AIAAiAHsAIABgACIAewAjAEQASQBTAEsATgBVAE0ATABFAFQAfQBgACIAIAA6ACAAYAAiACIAIAArACAAJABwAGUAcgBm`|Text macro|
 |{$DISCOVERDISK5}|<p>-</p>|`AEQAcgBpAHYAZQBzAC4ATgBhAG0AZQAgACsAIAAiAGAAIgAgAH0AIgA7AHcAcgBpAHQAZQAtAGgAbwBzAHQAIAAkAGwAaQBuAGUAOwB9ACQAaQBkAHgAKwArADsAfQA7AHcAcgBpAHQAZQAtAGgAbwBzAHQAOwB3AHIAaQB0AGUALQBoAG8AcwB0ACAAIgAgAF0AIgA7AHcAcgBpAHQAZQAtAGgAbwBzAHQAIAAiAH0AIgA7AA0ACgA=`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -58,6 +60,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discover PhysicalDisk|<p>Encoded command splitted in 5 macro: $drives = Get-WmiObject win32_PerfFormattedData_PerfDisk_PhysicalDisk | ?{$_.name -ne "_Total"} | Select Name;$idx = 1;write-host "{";write-host " `"data`":[`n";foreach ($perfDrives in $drives){if ($idx -lt $drives.Count){ $line= "{ `"{#DISKNUMLET}`" : `"" + $perfDrives.Name + "`" },";write-host $line;}elseif ($idx -ge $drives.Count){$line= "{ `"{#DISKNUMLET}`" : `"" + $perfDrives.Name + "`" }";write-host $line;}$idx++;};write-host;write-host " ]";write-host "}";</p>|`Zabbix agent (active)`|system.run[%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -executionpolicy ByPass -nologo -EncodedCommand {$DISCOVERDISK1}{$DISCOVERDISK2}{$DISCOVERDISK3}{$DISCOVERDISK4}{$DISCOVERDISK5}]<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -72,6 +76,8 @@ There are no template links in this template.
 |Disk ({#DISKNUMLET}) - Average Disk Bytes Write|<p>-</p>|`Zabbix agent (active)`|perf_counter["\234({#DISKNUMLET})\228"]<p>Update: 15s</p><p>LLD</p>|
 |Disk ({#DISKNUMLET}) - Avg. Disk Queue Length|<p>-</p>|`Zabbix agent (active)`|perf_counter["\234({#DISKNUMLET})\1400"]<p>Update: 15s</p><p>LLD</p>|
 |Disk ({#DISKNUMLET}) - % Idle Time|<p>-</p>|`Zabbix agent (active)`|perf_counter["\234({#DISKNUMLET})\1482"]<p>Update: 15s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

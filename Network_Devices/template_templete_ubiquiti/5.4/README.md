@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |Sinal UBNT|<p>-</p>|`SNMP agent`|ubntWlStatSignal<p>Update: 30s</p>|
 |Ping - Perda|<p>-</p>|`Simple check`|icmppingloss<p>Update: 30s</p>|
 |Porta Lan|<p>-</p>|`SNMP agent`|porta.lan<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

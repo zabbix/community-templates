@@ -51,6 +51,8 @@ Bernhard Linz
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`TeraStation`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -85,6 +87,8 @@ There are no discovery rules in this template.
 |Disk 2: Disk Status|<p>-</p>|`SNMP agent`|nasDiskStatus.2<p>Update: 900</p>|
 |Service Status: SMB|<p>-</p>|`SNMP agent`|nasServiceStatusSMB.0<p>Update: 300</p>|
 |Disk 4: SMART Status|<p>-</p>|`SNMP agent`|nasDiskSMARTStatus.4<p>Update: 900</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

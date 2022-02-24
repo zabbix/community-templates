@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |Dahua - System VERSION|<p>-</p>|`SNMP agent`|systemVersion.0<p>Update: 8h</p>|
 |Dahua - Device TYPE|<p>-</p>|`SNMP agent`|deviceType.0<p>Update: 8h</p>|
 |Dahua - Device CLASS|<p>-</p>|`SNMP agent`|deviceClass.0<p>Update: 8h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

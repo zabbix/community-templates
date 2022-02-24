@@ -88,6 +88,8 @@ There are no discovery rules in this template.
 |05 Device Serial Number|<p>-</p>|`SNMP agent`|serialNumber<p>Update: 3600</p>|
 |Toner capacity CYAN|<p>-</p>|`SNMP agent`|prtCyanTonerMaxCapacity<p>Update: 3600</p>|
 |YELLOW Photoconductor capacity|<p>-</p>|`SNMP agent`|YellowPhotoconductorCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

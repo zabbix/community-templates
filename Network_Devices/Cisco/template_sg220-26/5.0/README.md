@@ -114,6 +114,8 @@ There are no discovery rules in this template.
 |Port GE04 Status|<p>-</p>|`SNMP agent`|ifOperStatus.4<p>Update: 60</p>|
 |Port GE07 Status|<p>-</p>|`SNMP agent`|ifOperStatus.7<p>Update: 60</p>|
 |Port GE08 Status|<p>-</p>|`SNMP agent`|ifOperStatus.8<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

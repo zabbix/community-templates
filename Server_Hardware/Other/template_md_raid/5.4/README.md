@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |MD Discovery|<p>-</p>|`Zabbix agent`|md.discover<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -20,6 +22,8 @@ There are no template links in this template.
 |MD $1 degraded|<p>Get number of degraded disks</p>|`Zabbix agent`|md.degraded[{#MDNAME}]<p>Update: 5m</p><p>LLD</p>|
 |MD $1 raid disks|<p>Get number of all disks</p>|`Zabbix agent`|md.raid_disks[{#MDNAME}]<p>Update: 3600</p><p>LLD</p>|
 |MD $1 sync action|<p>Get current sync action</p>|`Zabbix agent`|md.sync_action[{#MDNAME}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

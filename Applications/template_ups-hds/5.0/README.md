@@ -80,6 +80,8 @@ Carlos Eduardo
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -103,6 +105,8 @@ There are no discovery rules in this template.
 |Voltagem Entrada de Energia|<p>-</p>|`SNMP agent`|upsInputVoltage.1<p>Update: 120</p>|
 |Name Device|<p>Informa nome do Dispositivo</p>|`SNMP agent`|sysName<p>Update: 86400</p>|
 |Voltagem Bateria|<p>Informa a voltagem da Bateria</p>|`SNMP agent`|upsBatteryVoltage.0<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

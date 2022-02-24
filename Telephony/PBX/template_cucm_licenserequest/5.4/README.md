@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |Enhanced|<p>-</p>|`Dependent item`|uclicense_Enhanced<p>Update: 0</p>|
 |EnhancedPlus|<p>-</p>|`Dependent item`|uclicense_enhp<p>Update: 0</p>|
 |Essential|<p>-</p>|`Dependent item`|uclicense_Essential<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

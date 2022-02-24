@@ -44,6 +44,8 @@ Igor Novgorodov
 |{$CH_MAX_PARTS}|<p>-</p>|`50`|Text macro|
 |{$CH_MAX_REPLICA_QUEUE}|<p>-</p>|`5`|Text macro|
 |{$CH_URL}|<p>-</p>|`http://127.0.0.1:8123`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -78,6 +80,8 @@ There are no discovery rules in this template.
 |Clickhouse AsyncMetrics - Uptime|<p>-</p>|`Dependent item`|metrics.async.Uptime<p>Update: 0</p>|
 |Clickhouse Metrics - InterserverConnection|<p>-</p>|`Dependent item`|metrics.InterserverConnection<p>Update: 0</p>|
 |Clickhouse Ping|<p>-</p>|`Zabbix agent`|web.page.regexp[{$CH_URL}/ping,,,HTTP/1.1 (\d+),,\1]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

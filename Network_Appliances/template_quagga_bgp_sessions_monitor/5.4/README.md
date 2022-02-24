@@ -27,11 +27,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |BGP discovery|<p>-</p>|`Zabbix agent`|bgpdiscovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Peer {#BGPPEER}|<p>-</p>|`Zabbix agent`|bgpmon[{#BGPPEER}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

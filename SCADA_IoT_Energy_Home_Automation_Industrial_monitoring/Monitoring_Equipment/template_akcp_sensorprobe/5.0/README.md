@@ -30,6 +30,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |temperaturesensor|<p>-</p>|`SNMP agent`|TempDescr<p>Update: 60</p>|
 |humiditysensor|<p>-</p>|`SNMP agent`|HumiDescr<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -40,6 +42,8 @@ There are no template links in this template.
 |temperature $1|<p>-</p>|`SNMP agent`|TempValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |humiditysensor $1|<p>-</p>|`SNMP agent`|HumiDescr[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |humidity $1|<p>-</p>|`SNMP agent`|HumiValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Версия ПО|<p>-</p>|`SNMP agent`|hwUpsDeviceSoftVersion<p>Update: 60m</p>|
 |Статус питания|<p>-</p>|`SNMP agent`|hwUpsDevicePowerSupplyMethod<p>Update: 5s</p>|
 |Выходящая активная мощность|<p>-</p>|`SNMP agent`|hwUpsOutputActivePowerA<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

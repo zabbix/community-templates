@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Почтовый ящик банка данных MSExchange Средняя задержка RPC|<p>Indicates the RPC latency, in ms, averaged for all operations in the last 1,024 packets. Shouldn't be higher than 100 ms on average.</p>|`Zabbix agent`|perf_counter["\Почтовый ящик банка данных MSExchange(*)\Средняя задержка RPC"]<p>Update: 30</p>|
 |Microsoft Exchange Server Extension for Windows Server Backup|<p>Enables Windows Server Backup users to back up and recover application data for Microsoft Exchange. This service has no dependencies.</p>|`Zabbix agent`|service_state[WSBExchange]<p>Update: 30</p>|
 |Exchange Mailbox IS Клиент: неудачных RPC/с|<p>Shows the client-reported rate of failed RPCs (since the store was started). Should be 0 at all times. Higher values may indicate RPC threads are exhausted or client throttling is occurring for clients running versions of Outlook earlier than Office Outlook 2007.</p>|`Zabbix agent`|perf_counter["\MSExchangeIS\Клиент: неудачных RPC/с"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

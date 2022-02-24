@@ -35,6 +35,8 @@ Tiago TT
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`e3b56dd2ad99199`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Details Discovery|<p>-</p>|`SNMP agent`|pdu.details<p>Update: 1m</p>|
 |Temperature Sensor Discovery|<p>-</p>|`SNMP agent`|pdu.sensor.temperature<p>Update: 1m</p>|
 |System Discovery|<p>-</p>|`SNMP agent`|pdu.system<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +92,8 @@ There are no template links in this template.
 |Temperature Sensor|<p>PDU Temperature Sensor details: Name: {#PDU_SENSOR_NAME} Serial number: {#PDU_SENSOR_SERIAL}</p>|`SNMP agent`|pdu.sensor.temperature.sensor[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Temperature State|<p>PDU Temperature State details: Name: {#PDU_SENSOR_NAME} Serial number: {#PDU_SENSOR_SERIAL}</p>|`SNMP agent`|pdu.sensor.temperature.state[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |System {#PDU_SYSTEM_NAME} Uptime|<p>System uptime of device with the following system properties: Name: {#PDU_SYSTEM_NAME} Location: {#PDU_SYSTEM_LOCATION} Contact: {#PDU_SYSTEM_CONTACT} Description: {#PDU_SYSTEM_DESCRIPTION}</p>|`SNMP agent`|pdu.system.uptime[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

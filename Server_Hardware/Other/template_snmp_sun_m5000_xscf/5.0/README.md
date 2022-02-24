@@ -50,6 +50,8 @@ There are no template links in this template.
 |Fan discovery|<p>-</p>|`SNMP agent`|scfComponentTable.fan<p>Update: 86400</p>|
 |Memory Board discovery|<p>-</p>|`SNMP agent`|scfComponentTable.memb<p>Update: 86400</p>|
 |PSU discovery|<p>-</p>|`SNMP agent`|scfComponentTable.psu<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -65,6 +67,8 @@ There are no template links in this template.
 |Fan #{#BOARDID} status|<p>-</p>|`SNMP agent`|fan.status[{#BOARDID}]<p>Update: 60</p><p>LLD</p>|
 |Memory Board #{#ID} status|<p>-</p>|`SNMP agent`|memb.status[{#ID}]<p>Update: 60</p><p>LLD</p>|
 |Power Supply #{#BOARDID} status|<p>-</p>|`SNMP agent`|psu.status[{#BOARDID}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

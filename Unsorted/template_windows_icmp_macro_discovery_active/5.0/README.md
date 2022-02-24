@@ -18,6 +18,8 @@ Maxim M. Demichev
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$ICMP_DEVICES}|<p>-</p>|`127.0.0.1,localhost ! 127.0.1.1,camera1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ICMP Macro Discovery|<p>-</p>|`Zabbix agent (active)`|system.run["echo {$ICMP_DEVICES} && break"]<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -36,6 +40,8 @@ There are no template links in this template.
 |Response for ICMP agent ping {#ICMPDEVICENAME}|<p>-</p>|`Zabbix agent (active)`|system.run["ping -n 4 {#ICMPDEVICEIP}"]<p>Update: 5m</p><p>LLD</p>|
 |{#ICMPDEVICENAME} ICMP availability|<p>-</p>|`Zabbix agent (active)`|system.run["ping -n 4 {#ICMPDEVICEIP} | find /v /c \"\""]<p>Update: 1m</p><p>LLD</p>|
 |{#ICMPDEVICENAME} ICMP packet loss|<p>-</p>|`Zabbix agent (active)`|system.run["ping -n 4 {#ICMPDEVICEIP} | findstr [0-9]"]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

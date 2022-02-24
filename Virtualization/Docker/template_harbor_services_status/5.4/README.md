@@ -50,6 +50,8 @@ Yioda
 |{$HARBOR_PASSWORD}|<p>-</p>|`****`|Secret macro|
 |{$HARBOR_URL}|<p>-</p>|`127.0.0.1`|Text macro|
 |{$HARBOR_USERNAME}|<p>-</p>|`****`|Secret macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -95,6 +97,8 @@ There are no discovery rules in this template.
 |Status of Jobservice|<p>1: healthy 0: unhealthy</p>|`Dependent item`|harbor.status.jobservice<p>Update: 0</p>|
 |Registry URL|<p>-</p>|`Dependent item`|harbor.system.info.registry_url<p>Update: 0</p>|
 |Private Repository Count|<p>-</p>|`Dependent item`|harbor.statistics.private_repo_count<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

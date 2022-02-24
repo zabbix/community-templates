@@ -78,6 +78,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Number of CPU Cores|<p>Discovery number of CPU cores</p>|`SNMP agent`|numOfcore<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -110,6 +112,8 @@ There are no template links in this template.
 |Memory Pool Largest Free|<p>-</p>|`SNMP agent`|ciscoMemoryPoolLargestFree<p>Update: 1m</p>|
 |Core {#SNMPINDEX} 1min|<p>-</p>|`SNMP agent`|cpmCPUTotal1minRev[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Core {#SNMPINDEX} 5min|<p>-</p>|`SNMP agent`|cpmCPUTotal5minRev[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

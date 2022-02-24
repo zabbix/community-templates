@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |SYS_FAN 4|<p>-</p>|`IPMI agent`|ipmi.system.sys_fan_4<p>Update: 60</p>|
 |DIMM B0 Temp|<p>-</p>|`IPMI agent`|ipmi.system.cpu_dimm_b0<p>Update: 60</p>|
 |DIMM A0 Temp|<p>-</p>|`IPMI agent`|ipmi.system.cpu_dimm_a0<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

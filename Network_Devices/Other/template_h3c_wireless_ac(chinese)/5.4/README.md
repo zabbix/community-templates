@@ -41,6 +41,8 @@ thuhak
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$DHCP_POOL_H}|<p>-</p>|`95`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -51,6 +53,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |DHCP Server Discovery|<p>-</p>|`SNMP agent`|dhcpserver<p>Update: 1200</p>|
 |AP Discovery|<p>-</p>|`SNMP agent`|AP<p>Update: 1200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -79,6 +83,8 @@ There are no template links in this template.
 |AP $1 mac认证在线用户数|<p>-</p>|`SNMP agent`|ap.mac[{#APNAME}]<p>Update: 30</p><p>LLD</p>|
 |AP $1 在线时间|<p>-</p>|`SNMP agent`|ap.onlinetime[{#APNAME}]<p>Update: 120</p><p>LLD</p>|
 |AP $1 portal认证在线用户数|<p>-</p>|`SNMP agent`|ap.portal[{#APNAME}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -53,6 +53,8 @@ There are no template links in this template.
 |Power units|<p>-</p>|`SNMP agent`|snmp.discovery_power<p>Update: 43200</p>|
 |Onboard Administrator modules|<p>-</p>|`SNMP agent`|snmp.discovery_mgr<p>Update: 43200</p>|
 |Temperature sensors|<p>The filter on this item prototype excludes temperature sensors with a threshold of -1.</p>|`SNMP agent`|snmp.discovery_env<p>Update: 43200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +82,8 @@ There are no template links in this template.
 |OA {#MGR_INDEX} Serial Number|<p>-</p>|`SNMP agent`|cpqRackCommonEnclosureManagerSerialNum[{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
 |Temperature ({#SNMPVALUE}, ID: {#SNMPINDEX})|<p>-</p>|`SNMP agent`|cpqRackCommonEnclosureTempCurrent[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Critical temperature ({#SNMPVALUE} ID: {#SNMPINDEX})|<p>-</p>|`SNMP agent`|cpqRackCommonEnclosureTempThreshold[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

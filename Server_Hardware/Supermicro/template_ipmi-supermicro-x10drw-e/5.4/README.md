@@ -150,6 +150,8 @@ There are no discovery rules in this template.
 |P1-DIMMC1 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.p1.dimmc1.temp<p>Update: 30</p>|
 |P2-DIMMG1 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.p2.dimmg1.temp<p>Update: 30</p>|
 |P2-DIMME2 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.p2.dimme2.temp<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

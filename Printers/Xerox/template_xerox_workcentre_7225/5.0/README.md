@@ -48,6 +48,8 @@ There are no discovery rules in this template.
 |Type of cartridge - black|<p>-</p>|`SNMP agent`|black.cartridge.type<p>Update: 21600</p>|
 |Type of drum - yellow|<p>-</p>|`SNMP agent`|yellow.drum.type<p>Update: 21600</p>|
 |Max cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.max<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

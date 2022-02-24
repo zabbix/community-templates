@@ -16,6 +16,8 @@ There are no template links in this template.
 |Storage|<p>-</p>|`SNMP agent`|hrStorageDescr<p>Update: 300</p>|
 |Interfaces|<p>-</p>|`SNMP agent`|snmp.discovery<p>Update: 300</p>|
 |Interfaces Totals|<p>-</p>|`SNMP agent`|snmp.discoverytotal<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +63,8 @@ There are no template links in this template.
 |Multicast packets incoming on interface $1|<p>-</p>|`SNMP agent`|ifInMulticastPkts[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Broadcast packets outgoing on interface $1|<p>-</p>|`SNMP agent`|ifOutBroadcastPkts[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Multicast packets outgoing on interface $1|<p>-</p>|`SNMP agent`|ifOutMulticastPkts[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

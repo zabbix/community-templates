@@ -26,6 +26,8 @@ citrix24
 |----|-----------|-------|----|
 |{$CTX_LIC_SRV}|<p>-</p>|`add your host name`|Text macro|
 |{$DB_SRV}|<p>-</p>|`add your host name`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -67,6 +69,8 @@ There are no discovery rules in this template.
 |Broker_CitrixStorefront|<p>-</p>|`Zabbix agent`|service.info[CitrixStorefront]<p>Update: 1m</p>|
 |Broker_CitrixOrchestration|<p>-</p>|`Zabbix agent`|service.info[CitrixOrchestration]<p>Update: 1m</p>|
 |Broker_CitrixConnector|<p>-</p>|`Zabbix agent`|service.info[CitrixConnector]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

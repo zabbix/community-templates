@@ -137,6 +137,8 @@ There are no discovery rules in this template.
 |Total TEMPS Cliente|<p>-</p>|`Zabbix agent`|system.run[cat /etc/zabbix/oracle/TEMP_f3ipro.txt 2>/dev/null | wc -l]<p>Update: 30s</p>|
 |bond0 - Total|<p>-</p>|`Zabbix agent`|net.if.total[bond0,bytes]<p>Update: 30s</p>|
 |Tamanho Total Diretorio Log Listener|<p>-</p>|`Zabbix agent`|system.run[du -sb /oracle/disco1/produtos/diag/tnslsnr/oracle/listener/ | awk {'print $1'}]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

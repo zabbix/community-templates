@@ -48,6 +48,8 @@ There are no discovery rules in this template.
 |Transfer Belt Cleaner %|<p>-</p>|`SNMP agent`|transfer.belt.cleaner.percent<p>Update: 3600</p>|
 |Current drum unit level % - cyan|<p>-</p>|`SNMP agent`|drum.cyan.now<p>Update: 3600</p>|
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

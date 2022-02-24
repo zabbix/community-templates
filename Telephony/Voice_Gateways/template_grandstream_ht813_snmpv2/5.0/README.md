@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |FXS Hook|<p>-</p>|`SNMP agent`|fxs.hook<p>Update: 1m</p>|
 |FXO Hook|<p>-</p>|`SNMP agent`|fxo.hook<p>Update: 1m</p>|
 |FXO Registry|<p>-</p>|`SNMP agent`|fxo.registry<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

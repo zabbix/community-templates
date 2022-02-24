@@ -41,6 +41,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |IOSTAT: Hard disk drive discovery|<p>-</p>|`Zabbix agent`|iostat[]<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |iostat: KBps $1 on $2|<p>The total number of kilobytes written per second. SSD has until 400 Mb/s, HDD until 60 Mb/s</p>|`Zabbix agent`|iostat[write,{#HDNAME}]<p>Update: 60</p><p>LLD</p>|
 |iostat: Merged write IOPS on $2|<p>The number of write requests merged per second that were queued to the device. Reads and writes which are adjacent to each other may be merged for efficiency. Thus two 4K reads may become one 8K read before it is ultimately handed to the disk, and so it will be counted (and queued) as only one I/O. This field lets you know how often this was done.</p>|`Zabbix agent`|iostat[wrqm,{#HDNAME}]<p>Update: 60</p><p>LLD</p>|
 |iostat: Write IOPS on $2|<p>The number of write requests that were issued to the device per second. In other words, how many IOPS per second are read. SSD can handle until 10 000 IOPS, HDD - 170</p>|`Zabbix agent`|iostat[ws,{#HDNAME}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

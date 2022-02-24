@@ -28,11 +28,15 @@ Helmut Leonhardt
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
 |{$SNMP_PRIVPASS}|<p>-</p>|``|Text macro|
 |{$SNMP_USERNAME}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +50,8 @@ Helmut Leonhardt
 |Synology RAID Volume(s)|<p>-</p>|`SNMP agent`|synoRaid.raidTable.raidEntry<p>Update: 1h</p>|
 |Disk|<p>-</p>|`SNMP agent`|host.hrStorage.hrStorageTable.hrStorageEntry<p>Update: 1h</p>|
 |Synology Service(s)|<p>An entry containing Service information.</p>|`SNMP agent`|synologyService.serviceTable.serviceEntry<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +113,8 @@ Helmut Leonhardt
 |Storage Used on {#IFDESCR} (%)|<p>% of disk space used.</p>|`Calculated`|host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageUsed[{#IFINDEX},pct]<p>Update: 5m</p><p>LLD</p>|
 |Storage Used on {#IFDESCR}|<p>The amount of the storage represented by this entry.</p>|`SNMP agent`|host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageUsed[{#IFINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |{#SNMPVALUE} Users|<p>Number of users using this service.</p>|`SNMP agent`|synologyService.serviceTable.serviceEntry.serviceUsers.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

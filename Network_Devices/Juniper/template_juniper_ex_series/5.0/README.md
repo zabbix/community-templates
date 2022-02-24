@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |JunOS Interfaces|<p>-</p>|`SNMP agent`|discovery.ifDescr<p>Update: 300</p>|
 |JunOS Hardware|<p>-</p>|`SNMP agent`|jnxRedundancyL1Index<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -32,6 +34,8 @@ There are no template links in this template.
 |Switch {#SNMPVALUE} - Memory usage|<p>-</p>|`SNMP agent`|jnxOperatingBuffer.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Switch {#SNMPVALUE} - CPU usage|<p>-</p>|`SNMP agent`|jnxOperatingCPU.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Switch {#SNMPVALUE} - Routing engine temperature|<p>-</p>|`SNMP agent`|jnxOperatingTemp.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

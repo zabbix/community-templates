@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |FiberChannel Ports|<p>-</p>|`SNMP agent`|swFCPortIndex<p>Update: 300</p>|
 |Interface|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -40,6 +42,8 @@ There are no template links in this template.
 |WWN of port $1|<p>"The World_wide_Name of the Fibre Channel port. The contents of an instance are in the IEEE extended format as specified in FC-PH; the 12-bit port identifier represents the port number within the switch."</p>|`SNMP agent`|swFCPortWwn[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Incoming traffic on $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -91,6 +91,8 @@ https://github.com/flaviojunior1995/Zabbix-Templates
 |----|-----------|-------|----|
 |{$MAXIMUM_PREFIX_ALARM}|<p>% maximum prefix limit alarm to reach 100%</p>|`80`|Text macro|
 |{$PEER_LOW_TIME}|<p>time in sec alarm for uptime bgp session</p>|`14400`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -101,6 +103,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |BGPv4 Peers Discovery|<p>-</p>|`SNMP agent`|cbgpPeer2RemoteAs["BGPv4"]<p>Update: 1h</p>|
 |BGPv6 Peers Discovery|<p>-</p>|`SNMP agent`|cbgpPeer2LocalAddr["BGPv6"]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -120,6 +124,8 @@ There are no template links in this template.
 |Operational status for peer "$1" ASN "$2"|<p>-</p>|`SNMP agent`|cbgp6Peer2State["{#SNMPINDEX}","{#SNMPASN}"]<p>Update: 1m</p><p>LLD</p>|
 |BGP peer last error "$1" ASN "$2"|<p>-</p>|`SNMP agent`|cbgpPeer2LastError["{#SNMPINDEX}","{#SNMPASN}"]<p>Update: 10m</p><p>LLD</p>|
 |Remote IPv6 Peer "$1"|<p>-</p>|`External check`|oid_to_ipv6["{#SNMPINDEX}"]<p>Update: 1d</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

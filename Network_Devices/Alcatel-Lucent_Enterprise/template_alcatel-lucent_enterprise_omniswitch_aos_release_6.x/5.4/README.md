@@ -77,6 +77,8 @@ Changelog
 |{$SNMP_V3_AUTHPASSPHRASE}|<p>-</p>|`password_auth`|Text macro|
 |{$SNMP_V3_PRIVPASSPHRASE}|<p>-</p>|`password_priv`|Text macro|
 |{$SNMP_V3_USER}|<p>-</p>|`user`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -89,6 +91,8 @@ There are no template links in this template.
 |Discover Ethernet Interfaces|<p>-</p>|`SNMP agent`|ifDescription<p>Update: 3600</p>|
 |Discover ALE OmniSwitch Entity AOS Release 6.x|<p>ENTITY-MIB::entPhysicalContainedIn.X - X is the slot number (element of the stack) and VALUE is Entity-value</p>|`SNMP agent`|slotindex<p>Update: 3600</p>|
 |Discover ALE OmniSwitch AOS Release 6.x|<p>ALCATEL-IND1-PORT-MIB::esmSlotNumber.X - X is the slot number (element of the stack)</p>|`SNMP agent`|esmSlotNumber<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -112,6 +116,8 @@ There are no template links in this template.
 |Memory usage 1 min avg slot {#SNMPVALUE}|<p>-</p>|`SNMP agent`|memory1minavg.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |RXTX usage 1 hr max slot {#SNMPVALUE}|<p>-</p>|`SNMP agent`|rxtx1hrmax.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |RXTX usage 1 min avg slot {#SNMPVALUE}|<p>-</p>|`SNMP agent`|rxtx1minavg.slot.[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

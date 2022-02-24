@@ -15,6 +15,8 @@ Theo Castelo
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -25,6 +27,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Nodes|<p>Nome dos Nodes</p>|`SNMP agent`|ltmNodeAddrName<p>Update: 43200</p>|
 |Pools|<p>-</p>|`SNMP agent`|ltmPoolName<p>Update: 43200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +54,8 @@ There are no template links in this template.
 |Total de Conexões em $1|<p>-</p>|`SNMP agent`|ltmPoolStatServerTotConns.["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
 |Status de Disponibilidade do Pool $1|<p>-</p>|`SNMP agent`|ltmPoolStatusAvailState.["{#SNMPVALUE}"]<p>Update: 120</p><p>LLD</p>|
 |Status de Disponibilidade $1|<p>-</p>|`SNMP agent`|ltmPoolStatusDetailReason.["{#SNMPVALUE}"]<p>Update: 60;50/1-7,00:00-24:00</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

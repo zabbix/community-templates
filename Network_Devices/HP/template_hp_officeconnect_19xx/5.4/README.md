@@ -52,6 +52,8 @@ There are no template links in this template.
 |Fan Discovery|<p>Discovering all entities of PhysicalClass - 7: fan(7)</p>|`SNMP agent`|fan.discovery<p>Update: 3600</p>|
 |Entity Discovery|<p>-</p>|`SNMP agent`|entity.discovery<p>Update: 3600</p>|
 |PSU Discovery|<p>Discovering all entities of PhysicalClass - 6: powerSupply(6)</p>|`SNMP agent`|psu.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -76,6 +78,8 @@ There are no template links in this template.
 |Hardware version(revision)|<p>-</p>|`SNMP agent`|system.hw.version[entPhysicalHardwareRev.{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Operating system|<p>-</p>|`SNMP agent`|system.sw.os[entPhysicalSoftwareRev.{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |{#ENT_NAME}: Power supply status|<p>MIB: HH3C-ENTITY-EXT-MIB Indicate the error state of this entity object. psuError(51) means that the Power Supply Unit is in the state of fault. rpsError(61) means the Redundant Power Supply is in the state of fault.</p>|`SNMP agent`|sensor.psu.status[hh3cEntityExtErrorStatus.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

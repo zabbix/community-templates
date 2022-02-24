@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |Voltage|<p>电压</p>|`IPMI agent`|Voltage<p>Update: 300</p>|
 |Ambient Temp|<p>-</p>|`IPMI agent`|ipmi.sensor.Ambient_Temp<p>Update: 300</p>|
 |FAN MOD 2B RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_MOD_2B_RPM<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -16,6 +16,8 @@ This is the fixed template for Zabbix PyOra to work on 3.0. I remove the unsuppo
 |{$ZABBIXPASSWORD}|<p>-</p>|``|Text macro|
 |{$ZABBIXURL}|<p>-</p>|``|Text macro|
 |{$ZABBIXUSER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -28,6 +30,8 @@ There are no template links in this template.
 |Discovery Oracle tablespaces|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_tablespaces]<p>Update: 3600</p>|
 |Discovery Oracle ASM volumes|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_asm_volumes]<p>Update: 3600</p>|
 |Discovery Oracle users|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_users]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +88,8 @@ There are no template links in this template.
 |ASM Volume Size on {#ASMVOLUME}|<p>-</p>|`Zabbix trapper`|asm_volume_size[{#ASMVOLUME}]<p>Update: 0</p><p>LLD</p>|
 |ASM Volume Use on {#ASMVOLUME}|<p>-</p>|`Zabbix trapper`|asm_volume_use[{#ASMVOLUME}]<p>Update: 0</p><p>LLD</p>|
 |{#DBUSER} user status|<p>-</p>|`Zabbix trapper`|user_status[{#DBUSER}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

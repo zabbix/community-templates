@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |upsInputNumLines.0|<p>-</p>|`SNMP agent`|upsInputNumLines.0<p>Update: 30</p>|
 |upsEstimatedChargeRemaining.0|<p>-</p>|`SNMP agent`|upsEstimatedChargeRemaining.0<p>Update: 30</p>|
 |upsIdentAttachedDevices.0|<p>-</p>|`SNMP agent`|upsIdentAttachedDevices.0<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

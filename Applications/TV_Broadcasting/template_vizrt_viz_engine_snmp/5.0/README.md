@@ -226,6 +226,8 @@ There are no discovery rules in this template.
 |Vizrt Video In 5 Status|<p>-</p>|`SNMP agent`|VizrtVideoIn5Status<p>Update: 30s</p>|
 |Vizrt Video In 4 Status|<p>-</p>|`SNMP agent`|VizrtVideoIn4Status<p>Update: 30s</p>|
 |Vizrt Video In 6 Status|<p>-</p>|`SNMP agent`|VizrtVideoIn6Status<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

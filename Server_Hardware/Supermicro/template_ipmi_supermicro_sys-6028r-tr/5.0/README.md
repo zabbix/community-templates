@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |P2-DIMME1 Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-6028r-tr.p2.dimme1.temp<p>Update: 240</p>|
 |P2-DIMMF1 Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-6028r-tr.p2.dimmf1.temp<p>Update: 240</p>|
 |5VCC|<p>-</p>|`IPMI agent`|ipmi.supermicro.sys-6028r-tr.5VCC<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -18,6 +18,8 @@ Leonard Winck
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SHELLYPWD}|<p>Password for admin user, if present</p>|`****`|Secret macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -73,6 +75,8 @@ There are no discovery rules in this template.
 |Current Time|<p>-</p>|`Dependent item`|shelly1pm.status.time<p>Update: 0</p>|
 |Status gatherer|<p>This gatherer gathers all the data for the different items from the Rest-API Interface of the Shelly device.</p>|`HTTP agent`|shelly1pm.status<p>Update: 1m</p>|
 |Relay Timer Started|<p>-</p>|`Dependent item`|shelly1pm.status.relays0.timer_started<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

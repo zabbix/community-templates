@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |LAN3 Исх. скорость, бит/c|<p>-</p>|`SNMP agent`|ifinoctets3<p>Update: 30</p>|
 |LAN3 Вх. скорость, бит/c|<p>-</p>|`SNMP agent`|ifOutOctets3<p>Update: 30</p>|
 |LAN4 Исх. скорость, бит/c|<p>-</p>|`SNMP agent`|ifinoctets4<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

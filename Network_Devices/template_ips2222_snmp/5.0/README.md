@@ -60,6 +60,8 @@ There are no discovery rules in this template.
 |Temp Upper Sensor1|<p>-</p>|`SNMP agent`|temp1Upper<p>Update: 1d</p>|
 |Name Agent|<p>-</p>|`SNMP agent`|name<p>Update: 1d</p>|
 |Name Sensor 1|<p>-</p>|`SNMP agent`|sens1Name<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

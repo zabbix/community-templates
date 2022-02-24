@@ -29,6 +29,8 @@ Yihai Duan
 |{$SNMPV3_AUTHPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_PRIVPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_SECURITYNAME}|<p>-</p>|`sysadmin`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |MICROCONTROLLER  Discovery|<p>-</p>|`SNMP agent`|inspur.server.microcontroller.dicovery<p>Update: 300s</p>|
 |MANAGEMENT SUBSYSTEM HEALTH  Discovery|<p>-</p>|`SNMP agent`|inspur.server.management.subsystem.health.dicovery<p>Update: 300s</p>|
 |PROCESSOR Discovery|<p>-</p>|`SNMP agent`|inspur.server.processor.dicovery<p>Update: 300s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -67,6 +71,8 @@ There are no template links in this template.
 |MICROCONTROLLER STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.microcontroller.status.[{#SNMPVALUE}]<p>Update: 300s</p><p>LLD</p>|
 |MANAGEMENT SUBSYSTEM HEALTH STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.management.subsystem.health.status.[{#SNMPVALUE}]<p>Update: 300s</p><p>LLD</p>|
 |PROCESSOR STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.processor.status.[{#SNMPVALUE}]<p>Update: 300s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

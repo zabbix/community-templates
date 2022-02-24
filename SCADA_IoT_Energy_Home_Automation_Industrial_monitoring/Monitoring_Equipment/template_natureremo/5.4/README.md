@@ -45,6 +45,8 @@ nakaring
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$REMO_BEARER}|<p>-</p>|`empty`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -54,6 +56,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |NatureRemo Discovery|<p>-</p>|`Zabbix agent (active)`|natureremo.discovery[{$REMO_BEARER}]<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +65,8 @@ There are no template links in this template.
 |{#REMONAME} 湿度|<p>-</p>|`Zabbix agent`|natureremo.humi[{#REMONAME}]<p>Update: 30s</p><p>LLD</p>|
 |{#REMONAME} 照度|<p>-</p>|`Zabbix agent`|natureremo.illumi[{#REMONAME}]<p>Update: 30s</p><p>LLD</p>|
 |{#REMONAME} 室温|<p>-</p>|`Zabbix agent`|natureremo.temp[{#REMONAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

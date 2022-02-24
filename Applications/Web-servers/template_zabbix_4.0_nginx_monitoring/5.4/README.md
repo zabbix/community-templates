@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |Current open file descriptors|<p>-</p>|`Zabbix agent`|nginx[open_file_descriptors]<p>Update: 240s</p>|
 |Number of perfork Nginx processes|<p>-</p>|`Zabbix agent`|nginx[worker_processes]<p>Update: 12h</p>|
 |Handles requests|<p>The total number of client requests.</p>|`Zabbix agent`|nginx[requests]<p>Update: 120s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

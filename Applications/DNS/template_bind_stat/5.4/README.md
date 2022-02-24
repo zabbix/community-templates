@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |Queries in PTR|<p>-</p>|`Zabbix agent`|bind.queries.in[PTR]<p>Update: 30</p>|
 |Queries in AAAA|<p>-</p>|`Zabbix agent`|bind.queries.in[AAAA]<p>Update: 30</p>|
 |Queries out SPF|<p>-</p>|`Zabbix agent`|bind.queries.out[SPF]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

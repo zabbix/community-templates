@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Реактивная мощность фазы L1|<p>Power sensor reactive power</p>|`SNMP agent`|pSensorReactivePowerX1000L1<p>Update: 1m</p>|
 |Полная мощность фазы L3|<p>Power sensor apparent power</p>|`SNMP agent`|pSensorApparentPowerX1000L3<p>Update: 1m</p>|
 |Активная мощность фаз L1-3|<p>Power sensor real power</p>|`SNMP agent`|pSensorRealPowerX1000L1-3<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

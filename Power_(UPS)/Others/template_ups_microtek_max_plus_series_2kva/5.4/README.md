@@ -77,11 +77,15 @@ Charles M Atkinson (c |at| charlesmatkinson |dot| org)
 |----|-----------|-------|----|
 |{$UPS_BATT_VOLT_LOW}|<p>95.8% of 72</p>|`69`|Text macro|
 |{$UPS_BATT_VOLT_VERY_LOW}|<p>91.7% of 72</p>|`66`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -103,6 +107,8 @@ There are no discovery rules in this template.
 |Device Location|<p>-</p>|`SNMP agent`|sysLocation<p>Update: 24h</p>|
 |UPS output load (%)|<p>-</p>|`SNMP agent`|upsAdvOutputLoad<p>Update: 60</p>|
 |UPS input voltage|<p>-</p>|`SNMP agent`|upsAdvInputVoltage<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

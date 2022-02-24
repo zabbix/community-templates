@@ -29,6 +29,8 @@ Leo Cardao
 |----|-----------|-------|----|
 |{$CPU_USAGE_MAX}|<p>-</p>|`90`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |Interfaces|<p>Found interface information.</p>|`SNMP agent`|net.snmp.ifDescr<p>Update: 1d</p>|
 |CPU|<p>Found CPU information.</p>|`SNMP agent`|net.snmp.cpuDiscovery<p>Update: 1d</p>|
 |Fan|<p>Found fan information.</p>|`SNMP agent`|net.snmp.cefcFanTrayOperStatus<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -128,6 +132,8 @@ There are no template links in this template.
 |CPU Memory Used|<p>Get the overall CPU wide system memory which is currently under use.</p>|`SNMP agent`|net.cpu.cpmCPUMemoryUsed.["{#SNMPVALUE}"]<p>Update: 1m</p><p>LLD</p>|
 |CPU Total pourcentage (1min)|<p>Get the overall CPU busy percentage in the last 1 minute period.</p>|`SNMP agent`|net.cpu.cpmCPUTotal1minRev.["{#SNMPINDEX}"]<p>Update: 1m</p><p>LLD</p>|
 |Fan {#SNMPVALUE} status|<p>Get the fan status of this entity.</p>|`SNMP agent`|cefcFanTrayOperStatus.["{#SNMPINDEX}"]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

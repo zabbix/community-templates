@@ -26,6 +26,8 @@ Yihai Duan
 |{$SNMPV3_AUTHPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_PRIVPASSPHRASE}|<p>-</p>|`rootuser`|Text macro|
 |{$SNMPV3_SECURITYNAME}|<p>-</p>|`sysadmin`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -45,6 +47,8 @@ There are no template links in this template.
 |MICROCONTROLLER  Discovery|<p>-</p>|`SNMP agent`|inspur.server.microcontroller.dicovery<p>Update: 300</p>|
 |WATCHDOG Discovery|<p>-</p>|`SNMP agent`|inspur.server.watchdog.dicovery<p>Update: 300</p>|
 |VOLTAGE Discovery|<p>-</p>|`SNMP agent`|inspur.server.voltage.dicovery<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -64,6 +68,8 @@ There are no template links in this template.
 |WATCHDOG STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.watchdog.status.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |VOLTAGE STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.voltage.status.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |VOLTAGE VALUE: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.voltage.value.[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

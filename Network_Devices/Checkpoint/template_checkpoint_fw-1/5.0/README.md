@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |HA Status|<p>-</p>|`External check`|advsnmp.discovery[{HOSTNAME},"-v2c -c{$SNMP_COMMUNITY}",1.3.6.1.4.1.2620.1.5.13.1.2,1.3]<p>Update: 240</p>|
 |Processor Discovery|<p>-</p>|`External check`|advsnmp.discovery[{HOSTNAME},"-v2c -c{$SNMP_COMMUNITY}",1.3.6.1.4.1.2620.1.6.7.5.1.1,1.3]<p>Update: 240</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -31,6 +33,8 @@ There are no template links in this template.
 |Processor {#ADVSNMPVALUE} Idle Time|<p>-</p>|`SNMP agent`|multiProcIdleTime[{#ADVSNMPVALUE}]<p>Update: 90</p><p>LLD</p>|
 |Processor {#ADVSNMPVALUE} System Time|<p>-</p>|`SNMP agent`|multiProcSystemTime[{#ADVSNMPVALUE}]<p>Update: 90</p><p>LLD</p>|
 |Processor {#ADVSNMPVALUE} User Time|<p>-</p>|`SNMP agent`|multiProcUserTime[{#ADVSNMPVALUE}]<p>Update: 90</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

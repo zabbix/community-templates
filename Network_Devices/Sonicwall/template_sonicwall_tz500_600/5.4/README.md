@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |X9 Bytes Out/sec|<p>-</p>|`SNMP agent`|ifOutOctets.10<p>Update: 60</p>|
 |X1 Bytes Out/sec|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 60</p>|
 |X4 Bytes In/sec|<p>-</p>|`SNMP agent`|ifInOctets.5<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

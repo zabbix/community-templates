@@ -20,6 +20,8 @@ Disk, Enclosure, Battery, Enclosure Canister, PSU, Mdisk, Pool, PortFibreChannel
 |{$STORWIZE_PORT}|<p>-</p>|`22`|Text macro|
 |{$STORWIZE_USER}|<p>-</p>|``|Text macro|
 |{$SUBSCRIBED_PERCENT}|<p>-</p>|`91`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Pool|<p>-</p>|`Zabbix trapper`|lsmdiskgrp<p>Update: 0</p>|
 |Volume|<p>-</p>|`Zabbix trapper`|lsvdisk<p>Update: 0</p>|
 |Disk|<p>-</p>|`Zabbix trapper`|lsdrive<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -66,6 +70,8 @@ There are no template links in this template.
 |Virtual capacity of a Pool "{#NAME}"|<p>-</p>|`Zabbix trapper`|virtual.lsmdiskgrp.[{#NAME}]<p>Update: 0</p><p>LLD</p>|
 |Health status of Volume "{#NAME}"|<p>-</p>|`Zabbix trapper`|health.lsvdisk.[{#NAME}]<p>Update: 0</p><p>LLD</p>|
 |Health status of disk "{#SLOT_ID}" in enclosure "{#ENCLOSURE_ID}"|<p>online - which indicates that the drive is available through all drive ports degraded - which indicates that the drive is available but not through all drive ports offline - which indicates that the drive is unavailable</p>|`Zabbix trapper`|health.lsdrive.[{#ENCLOSURE_ID}.{#SLOT_ID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

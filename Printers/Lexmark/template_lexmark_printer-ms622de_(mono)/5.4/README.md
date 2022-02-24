@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |01 Device model|<p>-</p>|`SNMP agent`|deviceModel<p>Update: 30</p>|
 |Ping Printer|<p>-</p>|`Simple check`|icmpping[,5,,,]<p>Update: 120s</p>|
 |Page Counter|<p>-</p>|`SNMP agent`|prtMarkerLifeCount<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

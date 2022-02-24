@@ -104,6 +104,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |[Oracle] Tablespaces|<p>-</p>|`Zabbix agent`|zabbix-oci-dbaas.discovery[{$ORACLE_SID},tb_list,1,ORACLE_TBS]<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -123,6 +125,8 @@ There are no template links in this template.
 |[Oracle] Locks count|<p>-</p>|`Zabbix agent`|zabbix-oci-dbaas[{$ORACLE_SID},db_lock,1]<p>Update: 60</p>|
 |[Oracle] Connections available|<p>-</p>|`Zabbix agent`|zabbix-oci-dbaas[{$ORACLE_SID},db_connection,1]<p>Update: 300</p>|
 |[Oracle] Tablespace $3 percentage used|<p>-</p>|`Zabbix agent`|zabbix-oci-dbaas[{$ORACLE_SID},tb_size,{#ORACLE_TBS}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

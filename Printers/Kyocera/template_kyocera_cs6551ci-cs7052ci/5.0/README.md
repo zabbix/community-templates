@@ -23,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |KyoceraPrint|<p>-</p>|`SNMP agent`|KyoceraPrint<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Magenta Toner: current count|<p>-</p>|`SNMP agent`|MagentaTonerCurrent<p>Update: 1800</p>|
 |Toner: the maximum number of Black|<p>-</p>|`SNMP agent`|BlackTonerMax<p>Update: 1800</p>|
 |Toner: the maximum number of Cyan|<p>-</p>|`SNMP agent`|CyanTonerMax<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

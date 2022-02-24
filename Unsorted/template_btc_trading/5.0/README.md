@@ -45,6 +45,8 @@ Rickk Barbosa
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$TRADER_API_URL}|<p>-</p>|`https://www.mercadobitcoin.net/api`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -69,6 +71,8 @@ There are no discovery rules in this template.
 |[ETH] - High|<p>Higher exchange price on the last 24 hours</p>|`Dependent item`|currency.trade[ETH,high]<p>Update: 0</p>|
 |[ETH] - Low|<p>Lowest exchange price on the last 24 hours</p>|`Dependent item`|currency.trade[ETH,low]<p>Update: 0</p>|
 |[LTC] - Low|<p>Lowest exchange price on the last 24 hours</p>|`Dependent item`|currency.trade[LTC,low]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

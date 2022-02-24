@@ -27,6 +27,8 @@ There are no template links in this template.
 |ONU Info Table|<p>-</p>|`SNMP agent`|onuPonInfoTable<p>Update: 12h;1m/1-7,12:00-12:01</p>|
 |Card Info Table|<p>-</p>|`SNMP agent`|card.info.discovery<p>Update: 2h</p>|
 |Network interfaces 64|<p>-</p>|`SNMP agent`|ifDescr_64<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -53,6 +55,8 @@ There are no template links in this template.
 |Card Type Slot ["{#SNMPINDEX}"]|<p>Column Description: 260:EC2 724:EC2-X 16384:AC16 the other type could see the card type table</p>|`SNMP agent`|cardType.["{#SNMPINDEX}"]<p>Update: 1d</p><p>LLD</p>|
 |Incoming traffic on interface $1 64bits|<p>-</p>|`SNMP agent`|ifHCInOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on interface $1 64bits|<p>-</p>|`SNMP agent`|ifHCOutOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

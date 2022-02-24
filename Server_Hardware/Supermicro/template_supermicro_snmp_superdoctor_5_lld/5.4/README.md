@@ -82,6 +82,8 @@ There are no template links in this template.
 |Memory|<p>-</p>|`SNMP agent`|supermicro_memory_id<p>Update: {$SUPERMICRO_DISCOVERY_TIME}</p>|
 |Physical disk|<p>-</p>|`SNMP agent`|supermicro_diskmodel<p>Update: {$DISC_DISCOVERY_TIME}</p>|
 |Temperatures|<p>-</p>|`SNMP agent`|supermicro_tempmonitemid<p>Update: {$SUPERMICRO_DISCOVERY_TIME}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -101,6 +103,8 @@ There are no template links in this template.
 |Supermicro disk {#SNMPINDEX} smart status|<p>-</p>|`SNMP agent`|supermicro_disk_smart[{#SNMPINDEX}]<p>Update: {$PD_REQUEST_PERIOD}</p><p>LLD</p>|
 |Supermicro disk {#SNMPINDEX} serial number|<p>-</p>|`SNMP agent`|supermicro_disk_sn[{#SNMPINDEX}]<p>Update: {$PD_REQUEST_PERIOD}</p><p>LLD</p>|
 |Supermicro $1|<p>-</p>|`SNMP agent`|supermicro_temp[{#MONITEMNAME}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

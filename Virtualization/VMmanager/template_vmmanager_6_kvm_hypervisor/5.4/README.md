@@ -26,6 +26,8 @@ UserParameter=vm.running,sudo virsh -q list | wc -l
 |{$VM6_URL}|<p>Please fill your domain</p>|`https://__VM_DOMAIN__/vm/v3`|Text macro|
 |{$TASK_MAX_RUNNING}|<p>Max running time for tasks in minutes</p>|30|Text macro|
 |{$TASK_MAX_WAITING}|<p>Max waiting time for tasks in minutes</p>|5|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -35,6 +37,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |VMmanager Services|<p>Watch for essential VMmanager 6 services on cluster node</p>|`Zabbix agent`|systemd.unit.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|

@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Number of SwCollectd process|<p>-</p>|`Zabbix agent (active)`|proc.num[sw-collectd]<p>Update: 1m</p>|
 |Number of SwCpServer process|<p>-</p>|`Zabbix agent (active)`|proc.num[sw-cp-serverd]<p>Update: 1m</p>|
 |HTTPS 7081 service is running (tcp check)|<p>-</p>|`Simple check`|net.tcp.service[tcp,,7081]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

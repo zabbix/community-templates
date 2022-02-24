@@ -60,6 +60,8 @@ There are no discovery rules in this template.
 |Disk reads|<p>mitelResPerfDiskReads OBJECT-TYPE SYNTAX Unsigned32 MAX-ACCESS read-only STATUS current DESCRIPTION "The number of read accesses to this disk since the system reset. " ::= { mitelResDiskPerfEntry 1 }</p>|`SNMP agent`|mitelResPerfDiskReads.1<p>Update: 2m</p>|
 |User licenses purchased|<p>-</p>|`SNMP agent`|mitelIpera3000IPUsrLicPurchased<p>Update: 2m</p>|
 |1 minute CPU average|<p>DESCRIPTION "The average, over the last minute, the percentage of time that this processor was processing calls. Percentage value (from 0.0 to 100.0) including a single decimal place."</p>|`SNMP agent`|mitelResSystemCallLoad.0<p>Update: 2m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

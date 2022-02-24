@@ -40,6 +40,8 @@ There are no template links in this template.
 |Groove-Q-Factor-Table|<p>qFactorInstant {#MACRO1} qFactorAvg {#MACRO2} qFactorMin {#MACRO3} qFactorMax {#MACRO4}</p>|`SNMP agent`|qFactorEntry<p>Update: 30s</p>|
 |OmsTX-RX Optical Power|<p>omsAliasName {#MACRO1} omsTxOpticalPower {#MACRO2} omsRxOpticalPower {#MACRO3}</p>|`SNMP agent`|OmsTX-RX<p>Update: 30s</p>|
 |Port Tx Rx Optical Power|<p>portName {#MACRO1} portRxOpticalPower {#MACRO2} portTxOpticalPower {#MACRO3}</p>|`SNMP agent`|Port-Tx-Rx<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +61,8 @@ There are no template links in this template.
 |Groove-omsTxOpticalPower: {#MACRO2}|<p>-</p>|`SNMP agent`|omsTxOpticalPower[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Groove-Port-RxOpticalPower: {#MACRO2}|<p>-</p>|`SNMP agent`|PortRxOpticalPower[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Groove-Port-TxOpticalPower: {#MACRO3}|<p>-</p>|`SNMP agent`|PortTxOpticalPower[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

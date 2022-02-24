@@ -50,6 +50,8 @@ There are no discovery rules in this template.
 |Temperatura Sonda|<p>-</p>|`SNMP agent`|sonda<p>Update: 30</p>|
 |Temperatura Principal|<p>-</p>|`SNMP agent`|Temperatura<p>Update: 30</p>|
 |umidade|<p>-</p>|`SNMP agent`|umidade<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

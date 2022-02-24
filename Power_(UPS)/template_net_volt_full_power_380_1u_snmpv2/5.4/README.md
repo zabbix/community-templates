@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |Status de controle da Saída da Fonte|<p>-</p>|`SNMP agent`|statusSaida<p>Update: 60s</p>|
 |Fabricante|<p>-</p>|`SNMP agent`|sysName<p>Update: 30s</p>|
 |Versao do Hardware|<p>-</p>|`SNMP agent`|version<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -78,6 +78,8 @@ There are no template links in this template.
 |UPS Input Phases|<p>-</p>|`SNMP agent`|upsInputFrequency<p>Update: 1h</p>|
 |UPS Output Phses|<p>-</p>|`SNMP agent`|upsOutputPower<p>Update: 1h</p>|
 |UPS Bypass Phases|<p>-</p>|`SNMP agent`|upsBypassCurrent<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -106,6 +108,8 @@ There are no template links in this template.
 |Bypass Current Phase {#SNMPINDEX}|<p>-</p>|`SNMP agent`|upsBypassCurrent.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Bypass Power Phase {#SNMPINDEX}|<p>-</p>|`SNMP agent`|upsBypassPower.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Bypass Voltage Phase {#SNMPINDEX}|<p>-</p>|`SNMP agent`|upsBypassVoltage.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

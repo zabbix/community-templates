@@ -38,6 +38,8 @@ There are no template links in this template.
 |ARR dsvr|<p>-</p>|`SNMP agent`|arrdsvr<p>Update: 3600</p>|
 |FAN dsvr|<p>-</p>|`SNMP agent`|fandsvr<p>Update: 3600</p>|
 |DSK dsvr|<p>-</p>|`SNMP agent`|dskdsvr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -48,6 +50,8 @@ There are no template links in this template.
 |{#SNMPVALUE} array status|<p>-</p>|`SNMP agent`|arrstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} status|<p>-</p>|`SNMP agent`|fanstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} disk status|<p>-</p>|`SNMP agent`|diskstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

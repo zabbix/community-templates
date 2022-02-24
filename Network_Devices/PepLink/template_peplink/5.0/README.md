@@ -36,6 +36,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery_WAN|<p>-</p>|`SNMP agent`|wanName<p>Update: 30s</p>|
 |Discovery_VPN|<p>-</p>|`SNMP agent`|pepVpnStatusId<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no template links in this template.
 |Health Check on {#WANNAME}|<p>-</p>|`SNMP agent`|wanHealthCheckState[{#WANNAME}]<p>Update: 30s</p><p>LLD</p>|
 |Status on {#WANNAME}|<p>-</p>|`SNMP agent`|wanState[{#WANNAME}]<p>Update: 1m</p><p>LLD</p>|
 |Status on {#PEPVPNNAME}|<p>-</p>|`SNMP agent`|pepVpnStatusConnectionState[{#PEPVPNNAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

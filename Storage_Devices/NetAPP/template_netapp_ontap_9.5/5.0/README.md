@@ -42,6 +42,8 @@ There are no template links in this template.
 |Nodes|<p>-</p>|`SNMP agent`|node<p>Update: 12h</p>|
 |Aggregates|<p>-</p>|`SNMP agent`|aggr<p>Update: 12h</p>|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 12h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -114,6 +116,8 @@ There are no template links in this template.
 |Volume[{#VOLNAME}] State|<p>-</p>|`SNMP agent`|volState[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Volume[{#VOLNAME}] Type|<p>Type of this volume, older volumes are traditional while newer volumes contained in aggregates are flexible.</p>|`SNMP agent`|volType[{#SNMPINDEX}]<p>Update: 3h</p><p>LLD</p>|
 |Volume[{#VOLNAME}] Vserver|<p>-</p>|`SNMP agent`|volVserver[{#SNMPINDEX}]<p>Update: 3h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

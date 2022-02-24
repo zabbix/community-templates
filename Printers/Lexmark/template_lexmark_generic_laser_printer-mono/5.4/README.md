@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |Maintenance Kit level|<p>-</p>|`SNMP agent`|MaintenanceKitCurrentLevel<p>Update: 60</p>|
 |Printer Status|<p>-</p>|`SNMP agent`|prtConsoleDescription<p>Update: 60</p>|
 |03 Device contact|<p>The textual identification of the contact person for this managed node, together with information on how to contact this person. If no contact information is known, the value is the zero-length string.</p>|`SNMP agent`|sysContact<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

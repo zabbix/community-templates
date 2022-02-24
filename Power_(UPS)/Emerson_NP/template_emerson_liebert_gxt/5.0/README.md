@@ -63,6 +63,8 @@ Luiz Fernando Gondin
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -72,6 +74,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |UPS Load Output|<p>Output Load Discovery</p>|`SNMP agent`|upsOutputPercentLoad<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -95,6 +99,8 @@ There are no template links in this template.
 |System Model|<p>-</p>|`SNMP agent`|upsIdenModel<p>Update: 1m</p>|
 |System Location|<p>-</p>|`SNMP agent`|sysLocation<p>Update: 1m</p>|
 |Output Load at Line {#SNMPINDEX}|<p>Discovered Output Load Percentual</p>|`SNMP agent`|ups.Output.Percentload.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

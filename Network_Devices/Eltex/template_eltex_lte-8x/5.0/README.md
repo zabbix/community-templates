@@ -23,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |lte8stONTStateMac|<p>-</p>|`SNMP agent`|lte8stONTStateMac<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +71,8 @@ There are no template links in this template.
 |{#SNMPVALUE} - State OLT ID|<p>-</p>|`SNMP agent`|StateOLTID.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |{#SNMPVALUE} - State OLT Port|<p>-</p>|`SNMP agent`|StateOLTPort.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |{#SNMPVALUE} - Status|<p>-</p>|`SNMP agent`|StateState.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

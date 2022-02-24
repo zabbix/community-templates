@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Drive Status - F00|<p>-</p>|`SNMP agent`|driveStatusf00<p>Update: 15m</p>|
 |Drive Status - F10|<p>-</p>|`SNMP agent`|driveStatusf10<p>Update: 15m</p>|
 |Drive Status - F01|<p>-</p>|`SNMP agent`|driveStatusf01<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

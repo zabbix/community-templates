@@ -52,6 +52,8 @@ There are no discovery rules in this template.
 |Vol|<p>-</p>|`SNMP agent`|mikrotik.voltage<p>Update: 60s</p>|
 |Ether 4 out|<p>-</p>|`SNMP agent`|ifOutOctets.4<p>Update: 15s</p>|
 |Ether 3 In|<p>-</p>|`SNMP agent`|ifInOctets.3<p>Update: 15s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

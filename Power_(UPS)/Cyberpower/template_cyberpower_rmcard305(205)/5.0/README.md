@@ -52,6 +52,8 @@ Sergey Romanov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -68,6 +70,8 @@ There are no template links in this template.
 |Configuration Discovery #2|<p>Discovery because CPS-MIB::upsAdvanceConfigRechargedCapacity returns NULL on OR-series UPSes.</p>|`SNMP agent`|config.discovery.2<p>Update: 30s</p>|
 |Configuration Discovery #5|<p>Discovery because CPS-MIB::upsAdvanceConfigSleepDelay returns NULL on OR-series UPSes.</p>|`SNMP agent`|config.discovery.5<p>Update: 30s</p>|
 |Configuration Discovery #4|<p>Discovery because CPS-MIB::upsAdvanceConfigShutoffDelay returns NULL on OR-series UPSes.</p>|`SNMP agent`|config.discovery.4<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +112,8 @@ There are no template links in this template.
 |Power Restore - Recharged Capacity|<p>CPS-MIB::upsAdvanceConfigRechargedCapacity - when the utility power restores, the UPS will start to recharge until the specified battery capacity in percentage is met before restoring output power. The possible values are 0, 15, 30, 45, 60, 75, and 90. If a value other than a possible value is set, it will not be accepted.</p>|`SNMP agent`|config.rechargedCapacity.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
 |Timers - Sleep Delay|<p>CPS-MIB::upsAdvanceConfigSleepDelay - the delay time the UPS will enter sleep mode after receiving a sleep command. The possible values are between 60 to 5940 seconds. If a value other than a supported value is set, the value will not be accepted.</p>|`SNMP agent`|config.sleepDelay.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
 |Timers - ShutOff Delay|<p>CPS-MIB::upsAdvanceConfigShutoffDelay - the delay time the UPS will remain on after receiving a turn off command. The possible values are between 60 to 5940 seconds. If a value other than a supported value is set, the value will not be accepted.</p>|`SNMP agent`|config.shutoffDelay.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

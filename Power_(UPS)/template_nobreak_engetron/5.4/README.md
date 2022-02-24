@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |UpsOutputVoltage.1|<p>-</p>|`SNMP agent`|UpsOutputVoltage.1<p>Update: 2m</p>|
 |UpsInputCurrent.1|<p>-</p>|`SNMP agent`|UpsInputCurrent.1<p>Update: 2m</p>|
 |UpsInputVoltage.2|<p>-</p>|`SNMP agent`|UpsInputVoltage.2<p>Update: 2m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -148,6 +148,8 @@ There are no discovery rules in this template.
 |Errors Tx port 16|<p>-</p>|`SNMP agent`|ifOutErrors.16<p>Update: 120</p>|
 |Errors Tx port 15|<p>-</p>|`SNMP agent`|ifOutErrors.15<p>Update: 120</p>|
 |Errors Tx port 14|<p>-</p>|`SNMP agent`|ifOutErrors.14<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -158,6 +158,8 @@ There are no discovery rules in this template.
 |InErrorsFa0/19|<p>-</p>|`SNMP agent`|ifInErrors.19<p>Update: 120</p>|
 |InErrorsFa0/20|<p>-</p>|`SNMP agent`|ifInErrors.20<p>Update: 120</p>|
 |InErrorsFa0/21|<p>-</p>|`SNMP agent`|ifInErrors.21<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

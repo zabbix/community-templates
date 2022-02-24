@@ -83,6 +83,8 @@ There are no template links in this template.
 |Verificar automaticamente a conta de discagem VPN|<p>-</p>|`SNMP agent`|net.if.discoveryppp<p>Update: 30s</p>|
 |Descubra interfaces de rede|<p>Expressão regular 2-3 dígitos ^ d{2,3}$</p>|`SNMP agent`|net.if.discovery<p>Update: 30s</p>|
 |Descubra a interface NIC local|<p>NICs de expressão regular 1-10 ^ ([1,2,3,4,5,6,7,8,9] | 10) $</p>|`SNMP agent`|discoverylocal<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -110,6 +112,8 @@ There are no template links in this template.
 |{#IFNAME}Envio de tráfego|<p>-</p>|`SNMP agent`|net.if.out[ifHCOutOctets.{#SNMPINDEX}]<p>Update: 1s</p><p>LLD</p>|
 |{#IFNAME}Recepção de tráfego da placa de rede|<p>-</p>|`SNMP agent`|net.if.in[localin.{#SNMPINDEX}]<p>Update: 1s</p><p>LLD</p>|
 |{#IFNAME}Envio de tráfego NIC|<p>-</p>|`SNMP agent`|net.if.out[localout.{#SNMPINDEX}]<p>Update: 1s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

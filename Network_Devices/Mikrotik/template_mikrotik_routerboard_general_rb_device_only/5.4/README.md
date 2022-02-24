@@ -61,6 +61,8 @@ There are no template links in this template.
 |自动检查CPU|<p>-</p>|`SNMP agent`|system.discoverycpu<p>Update: 3s</p>|
 |自动检查VPN拨出帐号|<p>-</p>|`SNMP agent`|net.if.discoveryppp<p>Update: 30s</p>|
 |自动发现本地网卡流量统计|<p>-</p>|`SNMP agent`|net.if.discoveryStatisticslocal<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +86,8 @@ There are no template links in this template.
 |{#IFNAME}流量发送|<p>-</p>|`SNMP agent`|net.if.out[ifHCOutOctetsppp.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#IFNAME}本地网卡接收总量获取|<p>-</p>|`SNMP agent`|net.if[localinterface.in.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#IFNAME}本地网卡发送总量获取|<p>-</p>|`SNMP agent`|net.if[localinterface.out{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

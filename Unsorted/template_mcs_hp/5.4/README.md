@@ -28,6 +28,8 @@ Thanks
 |{$SNMP_COMMUNITY}|<p>-</p>|`sig1read`|Text macro|
 |{$TEMP.CRITICAL}|<p>-</p>|`32`|Text macro|
 |{$TEMP.WARNING}|<p>-</p>|`28`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no discovery rules in this template.
 |{HOST.NAME} ping|<p>-</p>|`Simple check`|icmpping[]<p>Update: 30s</p>|
 |{HOST.NAME} alarmSensorInternal|<p>-</p>|`SNMP trap`|snmptrap["alarmSensorInternal"]<p>Update: 0</p>|
 |{HOST.NAME} Room temperature|<p>-</p>|`SNMP agent`|waterCoolUnitSensorValue.1<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

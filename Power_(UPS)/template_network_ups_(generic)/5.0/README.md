@@ -37,6 +37,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |Device Location|<p>-</p>|`SNMP agent`|sysLocation<p>Update: 60</p>|
 |UPS time on battery|<p>-</p>|`SNMP agent`|upsBasicBatteryTimeOnBattery<p>Update: 60</p>|
 |UPS battery temperature|<p>-</p>|`SNMP agent`|upsAdvBatteryTemperature<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

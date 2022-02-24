@@ -70,16 +70,22 @@ Ceillian
 |{$MAX_OUTPUTCURRENT_WARNING}|<p>-</p>|`10`|Text macro|
 |{$MIN_INPUTVOLTAGE}|<p>-</p>|`115`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`zabbix`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Outlets|<p>-</p>|`SNMP agent`|tlpAtsOutletIndex<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +113,8 @@ Ceillian
 |Outlet - Shed action of outlet $1|<p>The shed action to take on the Outlet.</p>|`SNMP agent`|tlpAtsOutletShedAction[{#SNMPVALUE}]<p>Update: 1d</p><p>LLD</p>|
 |Outlet - Shed action data type of outlet $1|<p>The type of data associated with shed action.</p>|`SNMP agent`|tlpAtsOutletShedDataType[{#SNMPVALUE}]<p>Update: 1d</p><p>LLD</p>|
 |Outlet - State of outlet $1|<p>The current state of the Outlet.</p>|`SNMP agent`|tlpAtsOutletState[{#SNMPVALUE}]<p>Update: 2m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

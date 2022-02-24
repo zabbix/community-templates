@@ -21,6 +21,8 @@ Slawek Glebocki
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -46,6 +48,8 @@ There are no discovery rules in this template.
 |Magenta Toner|<p>-</p>|`SNMP agent`|toner.lvl.magneta[available]<p>Update: 600</p>|
 |Magenta Drum|<p>-</p>|`SNMP agent`|magenta.drum<p>Update: 600</p>|
 |Yellow Drum|<p>-</p>|`SNMP agent`|yellow.drum<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

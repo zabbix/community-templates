@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Temperature 2|<p>Sensor TEMP-2</p>|`SNMP agent`|system.temperature.2<p>Update: 30s</p>|
 |Temperature PoE 1|<p>Sensor PoE-01</p>|`SNMP agent`|system.temperature.poe1<p>Update: 30s</p>|
 |Temperature 1|<p>Sensor TEMP-1</p>|`SNMP agent`|system.temperature.1<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

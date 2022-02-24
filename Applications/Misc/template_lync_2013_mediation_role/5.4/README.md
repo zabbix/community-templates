@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Service: Lync Server Replica Replicator Agent|<p>-</p>|`Zabbix agent`|service.info["Lync Server Replica Replicator Agent", state]<p>Update: 300</p>|
 |Total failed calls caused by unexpected interaction from the Proxy|<p>This component monitor returns the number of calls that failed because of an unexpected response from the Front End Server. The returned value should be as low as possible.</p>|`Zabbix agent`|perf_counter["\LS:MediationServer - Global Counters\- Total failed calls caused by unexpected interaction from the Proxy"]<p>Update: 60</p>|
 |Media Relay: Media Connectivity Check Failure|<p>This component monitor returns the number of calls where media connectivity between the Mediation Server and the remote endpoints could not be established. The returned value should be as low as possible.</p>|`Zabbix agent`|perf_counter["\LS:MediationServer - Media Relay\- Media Connectivity Check Failure"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

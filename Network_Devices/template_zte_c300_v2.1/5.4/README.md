@@ -29,12 +29,16 @@ There are no macros links in this template.
 |Name|
 |----|
 |ICMP Ping GPON|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 1d</p>|
 |ONUs|<p>-</p>|`SNMP agent`|onuAlias<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -53,6 +57,8 @@ There are no macros links in this template.
 |Operational status of interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |ONU $1 DOWNSTREAM SIGNAL|<p>-</p>|`SNMP agent`|onuDwRx[{#SNMPVALUE}]<p>Update: 600s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -61,6 +67,8 @@ There are no macros links in this template.
 |ONU {#SNMPVALUE} LOW SIGNAL|<p>-</p>|<p>**Expression**: last(/SNMP Device GPON PARKS/onuDwRx[{#SNMPVALUE}])>28</p><p>**Recovery expression**: </p>|information|
 |Interface {#SNMPVALUE} operational status changed (LLD)|<p>-</p>|<p>**Expression**: (last(/SNMP Device GPON PARKS/ifOperStatus[{#SNMPVALUE}],#1)<>last(/SNMP Device GPON PARKS/ifOperStatus[{#SNMPVALUE}],#2))=1</p><p>**Recovery expression**: </p>|average|
 |ONU {#SNMPVALUE} LOW SIGNAL (LLD)|<p>-</p>|<p>**Expression**: last(/SNMP Device GPON PARKS/onuDwRx[{#SNMPVALUE}])>28</p><p>**Recovery expression**: </p>|information|
+
+
 # SNMP Device GPON ZTE fw 2.1
 
 ## Overview
@@ -102,6 +110,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |ICMP Ping GPON|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -109,6 +119,8 @@ There are no macros links in this template.
 |Network interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 1d;wd1-5h4</p>|
 |OLT Cards|<p>-</p>|`SNMP agent`|cardindex<p>Update: 1d;wd1-5h3</p>|
 |ONUs|<p>-</p>|`SNMP agent`|onuindex<p>Update: 1d;wd1-5h2</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -148,6 +160,8 @@ There are no macros links in this template.
 |OLT CARD STANDBY STATUS {#SNMPVALUE} $1|<p>-</p>|`SNMP agent`|cardstandby[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |rx 1310nm {#ONUDESC}|<p>-</p>|`SNMP agent`|rx1310[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |rx 1490nm {#ONUDESC}|<p>-</p>|`SNMP agent`|rx1490[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -166,6 +180,8 @@ There are no macros links in this template.
 |CARD {#SNMPVALUE} standby status changed (LLD)|<p>-</p>|<p>**Expression**: last(/SNMP Device GPON ZTE fw 2.1/cardstandby[{#SNMPINDEX}])<>1 and last(/SNMP Device GPON ZTE fw 2.1/cardstandby[{#SNMPINDEX}])<>2</p><p>**Recovery expression**: </p>|high|
 |SIGNAL LOW rx 1310nm {#ONUDESC} (LLD)|<p>-</p>|<p>**Expression**: last(/SNMP Device GPON ZTE fw 2.1/rx1310[{#SNMPINDEX}])<=-30 and last(/SNMP Device GPON ZTE fw 2.1/rx1310[{#SNMPINDEX}])<>-80</p><p>**Recovery expression**: </p>|information|
 |SIGNAL LOW rx 1490nm {#ONUDESC} (LLD)|<p>-</p>|<p>**Expression**: last(/SNMP Device GPON ZTE fw 2.1/rx1490[{#SNMPINDEX}])<=6 and last(/SNMP Device GPON ZTE fw 2.1/rx1490[{#SNMPINDEX}])<>131.07</p><p>**Recovery expression**: </p>|information|
+
+
 # ICMP Ping GPON
 
 ## Overview
@@ -197,6 +213,8 @@ There are no discovery rules in this template.
 |ICMP response time|<p>-</p>|`Simple check`|icmppingsec<p>Update: 1s</p>|
 |ICMP ping|<p>-</p>|`Simple check`|icmpping<p>Update: 1s</p>|
 |ICMP loss|<p>-</p>|`Simple check`|icmppingloss<p>Update: 1s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

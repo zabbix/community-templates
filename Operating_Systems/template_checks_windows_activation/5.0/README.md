@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Ativacao do Windows|<p>-</p>|`Zabbix agent`|system.run[c:\Windows\System32\cscript.exe /nologo c:\Windows\System32\slmgr.vbs /xpr]<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

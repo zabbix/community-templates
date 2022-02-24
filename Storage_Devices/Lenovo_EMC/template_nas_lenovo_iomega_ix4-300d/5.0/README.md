@@ -78,6 +78,8 @@ André Luis Soares
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -134,6 +136,8 @@ There are no discovery rules in this template.
 |Descrição do processador|<p>-</p>|`SNMP agent`|hrDeviceDescr.768<p>Update: 30</p>|
 |MTU tap0|<p>-</p>|`SNMP agent`|ifMtu.4<p>Update: 30</p>|
 |Admin Status lo|<p>-</p>|`SNMP agent`|ifadminStatus.1<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

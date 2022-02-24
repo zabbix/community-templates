@@ -21,6 +21,8 @@ Vitaly Chekryzhev
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$WMI_AUTHFILE}|<p>-</p>|`/etc/zabbix/wmi.pw`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Find drive|<p>Find local disk drive</p>|`External check`|zbxwmi["-action","discover","-k","DeviceID","-fields","VolumeName","-filter","MediaType=12","Win32_LogicalDisk","{$WMI_AUTHFILE}",{HOST.HOST}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +54,8 @@ There are no template links in this template.
 |Disk info {#WMI.DEVICEID}|<p>-</p>|`External check`|zbxwmi["-action","json","-k","DeviceID","-fields","FreeSpace,Size","-item","{#WMI.DEVICEID}","Win32_LogicalDisk","{$WMI_AUTHFILE}","{HOST.HOST}"]<p>Update: 5m</p><p>LLD</p>|
 |Free Space {#WMI.DEVICEID}|<p>-</p>|`Dependent item`|FreeSpace[{#WMI.DEVICEID}]<p>Update: 0</p><p>LLD</p>|
 |Size {#WMI.DEVICEID}|<p>-</p>|`Dependent item`|Size[{#WMI.DEVICEID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

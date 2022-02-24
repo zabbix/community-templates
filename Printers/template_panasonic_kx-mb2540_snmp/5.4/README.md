@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |ADF_Scan_Page|<p>-</p>|`SNMP agent`|ADF_Scan_Page<p>Update: 7200</p>|
 |Fax_Receive_Page|<p>-</p>|`SNMP agent`|Fax_Receive_Page<p>Update: 7200</p>|
 |PC_Print_Page|<p>-</p>|`SNMP agent`|PC_Print_Page<p>Update: 7200</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

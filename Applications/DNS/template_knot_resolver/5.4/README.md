@@ -40,6 +40,8 @@ Václav Nováček
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$KRESD_STATS_URL}|<p>-</p>|`https://localhost:8453/stats`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -116,6 +118,8 @@ There are no discovery rules in this template.
 |worker.queries|<p>-</p>|`Dependent item`|kresd.stats[worker.queries]<p>Update: 0</p>|
 |answer.tc|<p>-</p>|`Dependent item`|kresd.stats[answer.tc]<p>Update: 0</p>|
 |worker.csw|<p>-</p>|`Dependent item`|kresd.stats[worker.csw]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

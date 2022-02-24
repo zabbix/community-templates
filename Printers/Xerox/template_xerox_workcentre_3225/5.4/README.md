@@ -26,6 +26,8 @@ There are no discovery rules in this template.
 |Pages printed - total|<p>-</p>|`SNMP agent`|Pages_printed_total<p>Update: 30</p>|
 |Cartridge drum level % - black|<p>-</p>|`Calculated`|drum.cartridge.procents<p>Update: 30</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

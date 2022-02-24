@@ -51,6 +51,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Kyocera Detect|<p>-</p>|`SNMP agent`|find.device<p>Update: 15</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +75,8 @@ There are no template links in this template.
 |Отсканировано страниц|<p>-</p>|`SNMP agent`|scan.device<p>Update: 1800</p>|
 |Версия программного обеспеченгия|<p>-</p>|`SNMP agent`|firmware.device<p>Update: 86400</p>|
 |Модель картриджа|<p>-</p>|`SNMP agent`|tonerbox.device<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

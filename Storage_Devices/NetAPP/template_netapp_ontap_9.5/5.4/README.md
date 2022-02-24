@@ -42,6 +42,8 @@ There are no template links in this template.
 |LIFs|<p>-</p>|`SNMP agent`|lif<p>Update: 12h</p>|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 12h</p>|
 |Aggregates|<p>-</p>|`SNMP agent`|aggr<p>Update: 12h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -114,6 +116,8 @@ There are no template links in this template.
 |Aggregate Used Size[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|df64UsedKBytes[{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |Aggregate Size Free (%)[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|dfPerCentKBytesCapacity[{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |Aggregate Filesystem Status[{#AGGRNAME}]|<p>-</p>|`SNMP agent`|dfStatus[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

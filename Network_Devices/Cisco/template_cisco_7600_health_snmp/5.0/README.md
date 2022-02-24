@@ -137,6 +137,8 @@ Flavio Camacho Junior
 |{$CPU_HIGH_WARNING}|<p>% cpu alarm</p>|`70`|Text macro|
 |{$MEMORY_HIGH_ALARM}|<p>% memory alarm</p>|`80`|Text macro|
 |{$MEMORY_HIGH_WARNING}|<p>% memoty warning</p>|`70`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -152,6 +154,8 @@ There are no template links in this template.
 |FAN Discovery|<p>CISCO-ENVMON-MIB The table of fan status maintained by the environmental monitor.</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr["FAN"]<p>Update: 1h</p>|
 |Memory Pool Discovery|<p>CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName A textual name assigned to the memory pool.</p>|`SNMP agent`|ciscoMemoryPoolName["Memory"]<p>Update: 1h</p>|
 |Power Supply Discovery|<p>CISCO-ENVMON-MIB::ciscoEnvMonSupplyStatusDescr Textual description of the power supply being instrumented.</p>|`SNMP agent`|ciscoEnvMonSupplyStatusDescr["Power Supply"]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -172,6 +176,8 @@ There are no template links in this template.
 |Total Memory Pool "$1"|<p>-</p>|`Calculated`|ciscoMemoryPoolTotal["{#SNMPVALUE}"]<p>Update: 1h</p><p>LLD</p>|
 |Used memory on Memory Pool "$1"|<p>CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolUsed Indicates the number of bytes from the memory pool that are currently in use by applications on the managed device.</p>|`SNMP agent`|ciscoMemoryPoolUsed["{#SNMPVALUE}"]<p>Update: 5m</p><p>LLD</p>|
 |Status "$1"|<p>CISCO-ENVMON-MIB::ciscoEnvMonSupplyState The current state of the power supply being instrumented.</p>|`SNMP agent`|ciscoEnvMonSupplyState["{#SNMPVALUE}"]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

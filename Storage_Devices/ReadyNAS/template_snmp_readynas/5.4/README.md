@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery_Volume|<p>-</p>|`SNMP agent`|Volume<p>Update: 30</p>|
 |Discovery_Disk|<p>-</p>|`SNMP agent`|Disk<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -33,6 +35,8 @@ There are no template links in this template.
 |[{#SNMPVALUE}]_DiskSerial|<p>-</p>|`SNMP agent`|DiskSerial[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |[{#SNMPVALUE}]_DiskState|<p>-</p>|`SNMP agent`|DiskState[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |[{#SNMPVALUE}]_DiskTemperature|<p>-</p>|`SNMP agent`|DiskTemperature[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

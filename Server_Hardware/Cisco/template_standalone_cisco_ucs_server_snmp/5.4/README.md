@@ -66,6 +66,8 @@ There are no template links in this template.
 |ARR dsvr|<p>-</p>|`SNMP agent`|arrdsvr<p>Update: 180</p>|
 |RAID controller dsvr|<p>-</p>|`SNMP agent`|raiddsvr<p>Update: 180</p>|
 |FAN dsvr|<p>-</p>|`SNMP agent`|fandsvr<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -81,6 +83,8 @@ There are no template links in this template.
 |{#SNMPVALUE} array status|<p>-</p>|`SNMP agent`|arrstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} status|<p>-</p>|`SNMP agent`|raidstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} status|<p>-</p>|`SNMP agent`|fanstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

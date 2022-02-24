@@ -26,6 +26,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces|<p>-</p>|`SNMP agent`|snmp.discovery<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |ifOutOctets.{#SNMPVALUE}|<p>-</p>|`SNMP agent`|IF-MIB_ifHCOutOctets.["{#SNMPINDEX}"]<p>Update: 30</p><p>LLD</p>|
 |Состояние порта.{#SNMPVALUE}|<p>-</p>|`SNMP agent`|IF-MIB_ifOperStatus.["{#SNMPINDEX}"]<p>Update: 30</p><p>LLD</p>|
 |ifAlias.{#SNMPVALUE}|<p>-</p>|`SNMP agent`|str.IF-MIB_ifAlias.["{#SNMPINDEX}"]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

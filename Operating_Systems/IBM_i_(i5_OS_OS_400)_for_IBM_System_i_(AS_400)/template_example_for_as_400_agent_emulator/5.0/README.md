@@ -34,11 +34,15 @@ Constantin Oshmyan
 |{$MAX_QEZ_INCREASE}|<p>-</p>|`400`|Text macro|
 |{$MAX_QEZ_SIZE}|<p>-</p>|`50000`|Text macro|
 |{$MAX_QPRINT_SIZE}|<p>-</p>|`15000`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template App Zabbix Agent|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +50,8 @@ Constantin Oshmyan
 |ASP discovery|<p>-</p>|`Zabbix agent (active)`|vfs.fs.discovery<p>Update: 3600</p>|
 |Processes discovery|<p>-</p>|`Zabbix agent (active)`|proc.cpu.util.discovery[{$MAX_CPU_FOR_DISCOVERY}]<p>Update: 60</p>|
 |Disks discovery|<p>-</p>|`Zabbix agent (active)`|as400.disk.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +79,8 @@ Constantin Oshmyan
 |Disk {#DSK_ID}: {#DSK_NAME} capacity|<p>-</p>|`Zabbix agent (active)`|as400.disk.size[{#DSK_SN},total]<p>Update: 3600</p><p>LLD</p>|
 |Disk {#DSK_ID}: {#DSK_NAME} used space|<p>-</p>|`Zabbix agent (active)`|as400.disk.size[{#DSK_SN},used]<p>Update: 300</p><p>LLD</p>|
 |Disk {#DSK_ID}: {#DSK_NAME} ({#DSK_TYPE} {#DSK_MODEL}, {#DSK_SN}) status|<p>-</p>|`Zabbix agent (active)`|as400.disk.state[{#DSK_SN}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

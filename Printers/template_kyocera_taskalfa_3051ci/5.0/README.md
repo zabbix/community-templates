@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Couleur|<p>-</p>|`SNMP agent`|imprimante.couleur<p>Update: 60</p>|
 |MAC carte|<p>-</p>|`SNMP agent`|mac.carte<p>Update: 3600</p>|
 |Nom copieur|<p>-</p>|`SNMP agent`|nom.copieur<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

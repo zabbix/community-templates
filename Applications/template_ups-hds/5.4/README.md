@@ -80,6 +80,8 @@ Carlos Eduardo
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -103,6 +105,8 @@ There are no discovery rules in this template.
 |Status saída nobreak|<p>Informa o status atual da UPS</p>|`SNMP agent`|upsBaseOutputStatus.0<p>Update: 900</p>|
 |Voltagem Entrada de Energia|<p>-</p>|`SNMP agent`|upsInputVoltage.1<p>Update: 120</p>|
 |Uptime|<p>Informa à quanto tempo está on-line</p>|`SNMP agent`|sysUpTime<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

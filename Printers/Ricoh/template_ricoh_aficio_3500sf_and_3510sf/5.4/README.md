@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |Total Printed Pages|<p>-</p>|`SNMP agent`|pageprintedtotal<p>Update: 30</p>|
 |Total Copy Pages|<p>-</p>|`SNMP agent`|pagecopytotal<p>Update: 30</p>|
 |Total Pages|<p>-</p>|`SNMP agent`|pagecountertotal<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

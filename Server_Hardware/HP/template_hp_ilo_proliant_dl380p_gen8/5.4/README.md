@@ -28,6 +28,8 @@ Federico Coppola
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -79,6 +81,8 @@ There are no discovery rules in this template.
 |Disk Four Status|<p>Status physical drive 1=Other 2=Ok 3=Failed 4=Predictive Failure</p>|`SNMP agent`|status.disk.four<p>Update: 30s</p>|
 |Bank Ram Twenty|<p>Bank Ram number twenty</p>|`SNMP agent`|status.ram.twenty<p>Update: 30s</p>|
 |Temp CPU Two|<p>Temperature of CPU Two</p>|`SNMP agent`|temp.cpu.two<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -65,6 +65,8 @@ Roman Ermakov
 |{$OID_PATH}|<p>-</p>|`iso.org.dod.internet.private.enterprises.tlsCorp`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -75,6 +77,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |srcEntry Discovery|<p>An entry containing management information applicable to a particular source port.</p>|`SNMP agent`|TLS-LIVEWIRE-MIB.srcEntry<p>Update: 3600</p>|
 |dstEntry Discovery|<p>An entry containing management information applicable to a particular destination.</p>|`SNMP agent`|TLS-LIVEWIRE-MIB.dstEntry<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -100,6 +104,8 @@ There are no template links in this template.
 |dstName for {#SNMPINDEX}|<p>A textual string containing label of the destination port.</p>|`SNMP agent`|dstName[{#SNMPINDEX}]<p>Update: 6h</p><p>LLD</p>|
 |dstNumberOfChannels for {#SNMPINDEX}|<p>A number of audio channels. Which values are accepted depends on the other port configuration. Some ports are bundled as stereo or surround groups. 0 - port not available 1 - mono 2 - stereo 8 - 8-channel surround (5.1 + stereo)</p>|`SNMP agent`|dstNumberOfChannels[{#SNMPINDEX}]<p>Update: 6h</p><p>LLD</p>|
 |dstOutputMode for {#SNMPINDEX}|<p>Channel ouput mode. Default mode is apassing all channels. Mono destinations can be left-only, right-only or left+righ sum.</p>|`SNMP agent`|dstOutputMode[{#SNMPINDEX}]<p>Update: 6h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

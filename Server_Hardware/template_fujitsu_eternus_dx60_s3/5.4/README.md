@@ -28,17 +28,23 @@ Serpentarius Software
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 |{$SNMP_TIMEOUT}|<p>-</p>|`3m`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Disks|<p>Discover raid group and status<</p>|`SNMP agent`|snmp.discovery.disks<p>Update: 30s</p>|
 |RAID Group|<p>Discover raid group and status</p>|`SNMP agent`|snmp.discovery.raid.group<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -59,6 +65,8 @@ Serpentarius Software
 |RAID №{#RAID_GROUP} - Capacity|<p>-</p>|`SNMP agent`|raid.group.capacity.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |RAID №{#RAID_GROUP} - Level|<p>-</p>|`SNMP agent`|raid.group.level.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |RAID №{#RAID_GROUP} - Status|<p>-</p>|`SNMP agent`|raid.group.status.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -29,6 +29,8 @@ The template uses Zabbix dependent items to reduce the number of API calls made 
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$DEVICE_ID}|<p>-</p>|`1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -79,6 +81,8 @@ There are no discovery rules in this template.
 |Power Generated Phase 2 inverter|<p>Voltage and current measurements supplied by inverter are only available when inverter is active (i.e. doesn't work at night time). Use the equivalent meter readings if you have one</p>|`Dependent item`|fronius.va_generated_p2_inverter<p>Update: 0</p>|
 |Voltage Phase 1 meter|<p>Smart meter voltage measurement</p>|`Dependent item`|fronius.Voltage_AC_Phase_1_meter<p>Update: 0</p>|
 |DC Voltage|<p>DC Voltage for inverter {$DEVICE_ID}</p>|`Dependent item`|fronius.udc<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

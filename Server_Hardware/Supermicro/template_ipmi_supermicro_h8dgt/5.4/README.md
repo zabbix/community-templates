@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |PS Status|<p>-</p>|`IPMI agent`|ipmi.system.ps_status<p>Update: 60</p>|
 |FAN 2|<p>-</p>|`IPMI agent`|ipmi.system.fan_2<p>Update: 60</p>|
 |+1.1 V|<p>-</p>|`IPMI agent`|ipmi.system.1.1v<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

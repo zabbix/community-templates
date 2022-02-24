@@ -38,6 +38,8 @@ There are no template links in this template.
 |Outlets|<p>-</p>|`SNMP agent`|pduOutlet<p>Update: 3600</p>|
 |Inlets|<p>-</p>|`SNMP agent`|pduInlet<p>Update: 3600</p>|
 |Sensors|<p>-</p>|`SNMP agent`|externalSensor<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -97,6 +99,8 @@ There are no template links in this template.
 |RAW Value of Sensor $1|<p>-</p>|`SNMP agent`|measurementsExternalSensorRAWValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |State of External Sensor $1|<p>-</p>|`SNMP agent`|measurementsExternalSensorState[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Value of Sensor {#SNMPVALUE}|<p>-</p>|`Calculated`|measurementsExternalSensorUsableValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -140,16 +140,22 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |AP Discovery|<p>-</p>|`SNMP agent`|hh3cDot11CurrAPTemplateName<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |number of current associations on $1|<p>-</p>|`SNMP agent`|hh3cDot11ApStationCurAssocSum[{#APNAME}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

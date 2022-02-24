@@ -88,6 +88,8 @@ There are no discovery rules in this template.
 |CYAN Developer level|<p>-</p>|`SNMP agent`|CyanDeveloperLevel<p>Update: 1800</p>|
 |Toner Level BLACK|<p>-</p>|`SNMP agent`|prtBlackTonerLevel<p>Update: 60</p>|
 |ADF Kit capacity|<p>-</p>|`SNMP agent`|ADFKitCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

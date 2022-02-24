@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Input Freq|<p>Input frequency at CPS</p>|`SNMP agent`|upsInputFreq<p>Update: 30</p>|
 |Input Voltage|<p>-</p>|`SNMP agent`|upsInputVoltage<p>Update: 30</p>|
 |Model Ident|<p>-</p>|`SNMP agent`|upsBasicIdentModel<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

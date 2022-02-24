@@ -24,6 +24,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interface Discovery|<p>-</p>|`SNMP agent`|net.if.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no template links in this template.
 |Interface {#IFDESCR}: Interface last change|<p>-</p>|`SNMP agent`|net.if.type[ifLastChange.{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |Interface {#IFDESCR}: Interface MAC address|<p>-</p>|`SNMP agent`|net.if.type[ifPhysAddress.{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Interface {#IFDESCR}: Interface type|<p>-</p>|`SNMP agent`|net.if.type[ifType.{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

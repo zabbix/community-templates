@@ -31,6 +31,8 @@ There are no discovery rules in this template.
 |np.inputbitrate|<p>-</p>|`HTTP agent`|np.inputbitrate<p>Update: 30s</p>|
 |np.totalchannels|<p>-</p>|`HTTP agent`|np.totalchannels<p>Update: 30s</p>|
 |np.transcodingchannels|<p>-</p>|`HTTP agent`|np.transcodingchannels<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

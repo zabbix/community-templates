@@ -38,6 +38,8 @@ There are no template links in this template.
 |XTM Series::Equipment Status::Board Configuration and Status|<p>-</p>|`SNMP agent`|equipmentBoardName<p>Update: 300</p>|
 |XTM Series::DCN::CU SFP/II::Optical Supervisory Channel|<p>-</p>|`SNMP agent`|dcnIfName<p>Update: 300</p>|
 |XTM Series::Equipment Status::Subrack Status|<p>-</p>|`SNMP agent`|equipmentSubrackName<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -112,6 +114,8 @@ There are no template links in this template.
 |XTM Series | equipmentSubrackTempHighExceeded on $1|<p>-</p>|`SNMP agent`|equipmentSubrackTempHighExceeded[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |XTM Series | Equipment Subrack Temperature Threshold on $1|<p>-</p>|`SNMP agent`|equipmentSubrackTempThreshold[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |XTM Series | Equipment Subrack Temperature on $1|<p>-</p>|`SNMP agent`|equipmentSubrackTemp[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

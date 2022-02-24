@@ -27,6 +27,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discover Block Devices|<p>-</p>|`Dependent item`|linux.diskstats.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +51,8 @@ There are no template links in this template.
 |{#DEVICE_NAME}: I/Os currently in progress|<p>Number of I/Os currently in progress.</p>|`Dependent item`|linux.diskstats[{#DEVICE_NAME},iOsCurrentlyInProgress]<p>Update: 0</p><p>LLD</p>|
 |{#DEVICE_NAME}: flush requests completed|<p>This is the number of flush requests completed successfully per second. Block layer combines flush requests and executes at most one at a time. This counts flush requests executed by disk. Not tracked for partitions. Linux 5.5+</p>|`Dependent item`|linux.diskstats[{#DEVICE_NAME},flushRequestsCompleted]<p>Update: 0</p><p>LLD</p>|
 |{#DEVICE_NAME}: writes merged|<p>This is the total number of writes merged per second.</p>|`Dependent item`|linux.diskstats[{#DEVICE_NAME},writesMerged]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

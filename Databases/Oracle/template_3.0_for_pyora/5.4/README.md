@@ -16,6 +16,8 @@ This is the fixed template for Zabbix PyOra to work on 3.0. I remove the unsuppo
 |{$ZABBIXPASSWORD}|<p>-</p>|``|Text macro|
 |{$ZABBIXURL}|<p>-</p>|``|Text macro|
 |{$ZABBIXUSER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -28,6 +30,8 @@ There are no template links in this template.
 |Discovery Oracle ASM volumes|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_asm_volumes]<p>Update: 3600</p>|
 |Discovery Oracle tablespaces|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_tablespaces]<p>Update: 3600</p>|
 |Discovery Oracle temp tablespaces|<p>-</p>|`Zabbix agent`|pyora-discovery[{$ADDRESS},{$DATABASE},show_tablespaces_temp]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +88,8 @@ There are no template links in this template.
 |Tablespace percentual use on {#TABLESPACE}|<p>-</p>|`Zabbix trapper`|tablespace[{#TABLESPACE}]<p>Update: 0</p><p>LLD</p>|
 |Tablespace free on {#TABLESPACE}|<p>-</p>|`Zabbix trapper`|tablespace_abs[{#TABLESPACE}]<p>Update: 0</p><p>LLD</p>|
 |Temp Tablespace Use on {#TABLESPACE_TEMP}|<p>-</p>|`Zabbix trapper`|tablespace_temp[{#TABLESPACE_TEMP}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

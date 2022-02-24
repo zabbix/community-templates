@@ -28,6 +28,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Arista BGP4|<p>-</p>|`SNMP agent`|arista-snmp-discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -37,6 +39,8 @@ There are no template links in this template.
 |Peer accepted Prefixes $2|<p>-</p>|`SNMP agent`|arista-bgp-prf-acc[{#ASNUM}, {#PEERNAME}]<p>Update: 5m</p><p>LLD</p>|
 |Peer recieved Prefixes $2|<p>-</p>|`SNMP agent`|arista-bgp-prf-rcv[{#ASNUM}, {#PEERNAME}]<p>Update: 5m</p><p>LLD</p>|
 |Peer announced Prefixes $2|<p>-</p>|`SNMP agent`|arista-bgp-prf-snd[{#ASNUM}, {#PEERNAME}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

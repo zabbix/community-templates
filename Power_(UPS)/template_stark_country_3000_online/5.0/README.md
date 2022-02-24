@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Battery status|<p>The indication of the capacity remaining in the UPS system's batteries. A value of batteryNormal indicates that the remaining run-time is greater than upsConfigLowBattTime. A value of batteryLow indicates that the remaining battery run-time is less than or equal to upsConfigLowBattTime. A value of batteryDepleted indicates that the UPS will be unable to sustain the present load when and if the utility power is lost (including the possibility that the utility power is mandatoryly absent and the UPS is unable to sustain the output). unknown(1), batteryNormal(2), batteryLow(3), batteryDepleted(4), batteryDischarging(5), batteryFailure(6), batteryReplace(7), batterysilence(8)</p>|`SNMP agent`|upsAdvBatteryReplaceIndicator<p>Update: 180</p>|
 |UPS model|<p>-</p>|`SNMP agent`|upsBasicIdentModel<p>Update: 3600</p>|
 |Extend work temperature|<p>The ambient temperature at or near the UPS Battery casing.</p>|`SNMP agent`|iemStatusProbeCurrentTemp<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

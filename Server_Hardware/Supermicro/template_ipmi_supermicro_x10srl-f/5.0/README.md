@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |DIMMD1 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.p1.dimmd1.temp<p>Update: 240</p>|
 |DIMMD2 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.p1.dimmd2.temp<p>Update: 240</p>|
 |5VSB|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10srl-f.5VSB<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

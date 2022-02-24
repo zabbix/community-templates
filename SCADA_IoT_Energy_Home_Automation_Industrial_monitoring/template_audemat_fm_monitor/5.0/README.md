@@ -23,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |AudematFM|<p>-</p>|`SNMP agent`|Audemat.disco<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Frecuencia Radio {#INDEX}|<p>-</p>|`SNMP agent`|RadioF[{#INDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Nombre Radio {#INDEX}|<p>-</p>|`SNMP agent`|RadioN[{#INDEX}]<p>Update: 30s</p><p>LLD</p>|
 |RF Level - {#NAME}|<p>-</p>|`SNMP agent`|RFLvl[{#INDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

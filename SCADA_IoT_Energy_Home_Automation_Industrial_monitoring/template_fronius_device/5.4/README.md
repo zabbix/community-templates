@@ -29,6 +29,8 @@ The template uses Zabbix dependent items to reduce the number of API calls made 
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$DEVICE_ID}|<p>-</p>|`1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -79,6 +81,8 @@ There are no discovery rules in this template.
 |Power Consumed meter|<p>Smart meter power consumption</p>|`Dependent item`|fronius.power_consumed_meter<p>Update: 0</p>|
 |Power Consumed|<p>-</p>|`Dependent item`|fronius.P_Load<p>Update: 0</p>|
 |InverterRealtimeDataAPI|<p>GetInverterRealtimeData API call. Use dependent items to parse this</p>|`HTTP agent`|fronius.GetInverterRealtimeData<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -25,6 +25,8 @@ SSHエージェントによりASUS-RT-AC87UのCPU使用率を取得するテン�
 |----|-----------|-------|----|
 |{$SSH_PASS}|<p>-</p>|`****`|Secret macro|
 |{$SSH_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -46,6 +48,8 @@ There are no discovery rules in this template.
 |top|<p>-</p>|`SSH agent`|ssh.run[top]<p>Update: 10s</p>|
 |CPU(usr)|<p>-</p>|`Dependent item`|cpu.usr<p>Update: 0</p>|
 |CPU(idle)|<p>-</p>|`Dependent item`|cpu.idle<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Windows Security (ID4715)|<p>The audit policy (SACL) on an object was changed.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4715$]<p>Update: 5m</p>|
 |Windows Security (ID4675)|<p>SIDs were filtered.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4675$]<p>Update: 5m</p>|
 |Windows Security (ID4794)|<p>An attempt was made to set the Directory Services Restore Mode.</p>|`Zabbix agent (active)`|eventlog[Security,,,,^4794$]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

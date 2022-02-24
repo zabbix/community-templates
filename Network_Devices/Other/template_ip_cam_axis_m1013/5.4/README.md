@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |Скорость исходящего трафика на порту|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 60</p>|
 |ifOperStatus|<p>-</p>|`SNMP agent`|ifOperStatus.2<p>Update: 900</p>|
 |Cостояние порта|<p>-</p>|`SNMP agent`|ifAdminStatus.2<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

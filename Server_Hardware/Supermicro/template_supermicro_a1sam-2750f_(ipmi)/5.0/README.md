@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |System Temp|<p>-</p>|`IPMI agent`|ipmi.system.system_temp<p>Update: 300</p>|
 |12 V|<p>-</p>|`IPMI agent`|ipmi.system.12v<p>Update: 300</p>|
 |3.3VCC|<p>-</p>|`IPMI agent`|ipmi.system.3.3vcc<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

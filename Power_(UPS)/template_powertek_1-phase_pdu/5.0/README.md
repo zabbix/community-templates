@@ -22,6 +22,8 @@ Joakim Kingström
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -34,6 +36,8 @@ There are no template links in this template.
 |SPSv1-MIB::pduSnmpTrapsReceiversTable|<p>A list of managers to send traps to. The number of entries is given by the value of pduSnmpNumTrapReceivers</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.4.4<p>Update: 3600</p>|
 |SPSv1-MIB::pduPwrMonitoringInletStatusTable|<p>A list to display status of Inlet.</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.6.1.2<p>Update: 3600</p>|
 |SPSv1-MIB::pduEmailReceiversTable|<p>A list of managers to send email notification to.</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.5.8<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -94,6 +98,8 @@ There are no template links in this template.
 |SPSv1-MIB::mailRecvEmailType[{#SNMPINDEX}]|<p>The Email Type of email notification receivers.</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.5.8.1.3.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |SPSv1-MIB::mailRecvEventLevel[{#SNMPINDEX}]|<p>The severity level of email notification to be received by this manager.</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.5.8.1.4.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |SPSv1-MIB::mailRecvDescription[{#SNMPINDEX}]|<p>Description of email notification receivers</p>|`SNMP agent`|.1.3.6.1.4.1.42610.1.4.4.1.5.8.1.5.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

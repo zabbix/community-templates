@@ -23,6 +23,8 @@ There are no discovery rules in this template.
 |Current cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 1h</p>|
 |Printer location|<p>-</p>|`SNMP agent`|printer.location<p>Update: 1h</p>|
 |Cartridge toner level % - black|<p>-</p>|`Calculated`|black.cartridge.toner<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

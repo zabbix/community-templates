@@ -43,6 +43,8 @@ Events
 |----|-----------|-------|----|
 |{$ADDB_PATH}|<p>-</p>|`c:\windows\ntds\ntds.dit`|Text macro|
 |{$ADLOG_PATH}|<p>-</p>|`c:\windows\ntds\edb.log`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -88,6 +90,8 @@ There are no discovery rules in this template.
 |State of service "LanmanWorkstation" (Workstation)|<p>-</p>|`Zabbix agent`|service.info[LanmanWorkstation,state]<p>Update: 1m</p>|
 |State of service "W32Time" (Windows Time)|<p>-</p>|`Zabbix agent`|service.info[W32Time,state]<p>Update: 1m</p>|
 |DNS Server Events|<p>-</p>|`Zabbix agent (active)`|eventlog[DNS Server,,"Warning|Error"]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

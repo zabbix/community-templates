@@ -48,6 +48,8 @@ There are no discovery rules in this template.
 |Upload Traffic|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.2.2.1.16.4<p>Update: 300</p>|
 |Download Traffic|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.2.2.1.16.1<p>Update: 300</p>|
 |Downstream Power5|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.10.127.1.1.1.1.6.51<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -82,6 +82,8 @@ There are no template links in this template.
 |Physical disk|<p>-</p>|`SNMP agent`|supermicro_diskmodel<p>Update: {$DISC_DISCOVERY_TIME}</p>|
 |Memory|<p>-</p>|`SNMP agent`|supermicro_memory_id<p>Update: {$SUPERMICRO_DISCOVERY_TIME}</p>|
 |Power Supply Input voltages|<p>-</p>|`SNMP agent`|supermicro_inpvoltageid<p>Update: {$SUPERMICRO_DISCOVERY_TIME}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -101,6 +103,8 @@ There are no template links in this template.
 |Supermicro memory $1 model|<p>-</p>|`SNMP agent`|supermicro_memory_model[{#SNMPVALUE}]<p>Update: 1d</p><p>LLD</p>|
 |Supermicro memory $1 sn|<p>-</p>|`SNMP agent`|supermicro_memory_sn[{#SNMPVALUE}]<p>Update: 1d</p><p>LLD</p>|
 |Supermicro $1|<p>-</p>|`SNMP agent`|supermicro_acinp[{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

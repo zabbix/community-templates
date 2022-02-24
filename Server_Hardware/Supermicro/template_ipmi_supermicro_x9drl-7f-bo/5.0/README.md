@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |+5VSB|<p>-</p>|`IPMI agent`|ipmi.system.5vsb<p>Update: 60</p>|
 |+1.1 V|<p>-</p>|`IPMI agent`|ipmi.system.1.1v<p>Update: 60</p>|
 |+3.3VSB|<p>-</p>|`IPMI agent`|ipmi.system.3.3vsb<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

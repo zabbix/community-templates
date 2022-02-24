@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |Service Status Microsoft Exchange Unified Messaging Call Router|<p>-</p>|`Zabbix agent`|service_state[MSExchangeUMCR]<p>Update: 30</p>|
 |Service Status Microsoft Exchange Compliance Service|<p>-</p>|`Zabbix agent`|service_state[MSExchangeCompliance]<p>Update: 30</p>|
 |Service Status Microsoft Exchange Replication|<p>-</p>|`Zabbix agent`|service_state[MSExchangeRepl]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

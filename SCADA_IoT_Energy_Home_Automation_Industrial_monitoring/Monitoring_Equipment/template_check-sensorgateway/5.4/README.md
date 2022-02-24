@@ -86,6 +86,8 @@ There are no discovery rules in this template.
 |productnetip|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.1.6.0<p>Update: 30</p>|
 |productname|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.1.1.0<p>Update: 30</p>|
 |sensor1LastErrMsg|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17095.3.3.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Temperatura|<p>-</p>|`SNMP agent`|temp.C<p>Update: 60s</p>|
 |Umidade|<p>-</p>|`SNMP agent`|umidade.percent<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

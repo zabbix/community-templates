@@ -97,6 +97,8 @@ There are no discovery rules in this template.
 |Gigabitethernet 1/0/3 - in|<p>-</p>|`SNMP agent`|ifHCInOctets51<p>Update: 20</p>|
 |Gigabitethernet 1/0/6 - in|<p>-</p>|`SNMP agent`|ifHCInOctets54<p>Update: 20</p>|
 |Tengigabitethernet 1/0/2 - out|<p>-</p>|`SNMP agent`|ifHCOutOctets106<p>Update: 20</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

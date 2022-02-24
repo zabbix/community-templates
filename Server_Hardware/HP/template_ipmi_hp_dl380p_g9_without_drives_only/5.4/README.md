@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Fan 4|<p>-</p>|`IPMI agent`|Fan4<p>Update: 3600</p>|
 |PwrMeter Output|<p>-</p>|`IPMI agent`|PwrMeterOutput<p>Update: 3600</p>|
 |Fan 1|<p>-</p>|`IPMI agent`|Fan1<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

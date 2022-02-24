@@ -15,6 +15,8 @@ There are no template links in this template.
 |OSPF Neighbors|<p>OSPF-MIB::ospfNbrIpAddr The IP address this neighbor is using in its IP source address. Note that, on addressless links, this will not be 0.0.0.0 but the address of another of the neighbor's interfaces.</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 300</p>|
 |BGP Peers|<p>BGP4-MIB::bgpPeerIdentifier</p>|`SNMP agent`|bgpPeerIdentifier<p>Update: 300</p>|
 |OSPF Interfaces|<p>OSPF-MIB::ospfIfIpAddress The IP address of this OSPF interface.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -23,6 +25,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}" State|<p>-</p>|`SNMP trap`|snmptrap["(bgpEstablished|bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState\.{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"]<p>Update: 0</p><p>LLD</p>|
 |BGP Peer "{#SNMPINDEX}" State|<p>-</p>|`SNMP trap`|snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState\.{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"]<p>Update: 0</p><p>LLD</p>|
 |OSPF Interface "{SNMPVALUE}" State|<p>-</p>|`SNMP trap`|snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -35,6 +39,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}"->"{#SNMPVALUE}" State changed (LLD)|<p>-</p>|<p>**Expression**: {Template Cisco General:snmptrap["(bgpEstablished|bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState .{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"].nodata(10m)}=0</p><p>**Recovery expression**: </p>|average|
 |BGP Peer "{#SNMPINDEX}"->"{#SNMPVALUE}" State changed (LLD)|<p>-</p>|<p>**Expression**: {Template Cisco General:snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState .{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"].nodata(10m)}=0</p><p>**Recovery expression**: </p>|average|
 |OSPF Interface "{#SNMPVALUE}" State has been changed (LLD)|<p>-</p>|<p>**Expression**: {Template Cisco General:snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"].nodata(10m)}=0</p><p>**Recovery expression**: </p>|average|
+
+
 # Template_Cisco_Traps
 
 ## Macros used
@@ -66,6 +72,8 @@ There are no discovery rules in this template.
 |MPLS L3 State|<p>MPLS-L3VPN-STD-MIB::mplsL3VpnVrfUp MPLS-L3VPN-STD-MIB::mplsL3VpnVrfDown</p>|`SNMP trap`|snmptrap["mplsL3VpnVrf[Up|Down]"]<p>Update: 0</p>|
 |Attack Filter changes|<p>The system generates this notification to indicate that the cscaFilterStatus of the attack filter for cscaType has changed due to the reason determined by cscaDescription. The system limits the generation of this notifications for the same cscaType to a five-second interval.</p>|`SNMP trap`|snmptrap["cscaFilterChange"]<p>Update: 0</p>|
 |OSP TX Retransmits|<p>-</p>|`SNMP trap`|snmptrap["ospfTxRetransmit"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -82,6 +90,8 @@ There are no macros links in this template.
 |----|
 |Template Cisco General|
 |Template_Cisco_Traps|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -94,6 +104,8 @@ There are no macros links in this template.
 |OSPF Interfaces|<p>OSPF-MIB::ospfIfIpAddress The IP address of this OSPF interface.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 300</p>|
 |FAN|<p>CISCO-ENVMON-MIB::ciscoEnvMonFanStatusDescr Textual description of the fan being instrumented.</p>|`SNMP agent`|ciscoEnvMonFanStatusDescr<p>Update: 300</p>|
 |Power Supplies|<p>CISCO-ENVMON-MIB::ciscoEnvMonSupplyStatusDescr Textual description of the power supply being instrumented.</p>|`SNMP agent`|ciscoEnvMonSupplyStatusDescr<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -116,6 +128,8 @@ There are no macros links in this template.
 |OSPF Interface "{SNMPVALUE}" State|<p>-</p>|`SNMP trap`|snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"]<p>Update: 0</p><p>LLD</p>|
 |Status of FAN "$1"|<p>CISCO-ENVMON-MIB::ciscoEnvMonFanState The current state of the fan being instrumented.</p>|`SNMP agent`|ciscoEnvMonFanState["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
 |Status of Power Supply "$1"|<p>CISCO-ENVMON-MIB::ciscoEnvMonSupplyState The current state of the power supply being instrumented.</p>|`SNMP agent`|ciscoEnvMonSupplyState["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

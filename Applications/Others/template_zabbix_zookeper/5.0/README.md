@@ -40,6 +40,8 @@ Patrick Fouquet
 |----|-----------|-------|----|
 |{$ZOO_IP}|<p>-</p>|`127.0.0.1`|Text macro|
 |{$ZOO_PORT}|<p>-</p>|`2181`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -69,6 +71,8 @@ There are no discovery rules in this template.
 |zk - $1|<p>-</p>|`Zabbix agent (active)`|echo2nc[mntr,{$ZOO_IP},{$ZOO_PORT}]<p>Update: 5m</p>|
 |zk - $1|<p>Number of ZooKeeper network packets received by second</p>|`Dependent item`|zookeeper[Packets Received / second]<p>Update: 0</p>|
 |zk - $1|<p>Number of outstanding requests that need to be processed by the cluster.</p>|`Dependent item`|zookeeper[Outstanding requests]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

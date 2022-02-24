@@ -37,6 +37,8 @@ It will use the chrony template.
 |----|-----------|-------|----|
 |{$NTP_OFFSET}|<p>-</p>|`50`|Text macro|
 |{$NTP_OFFSET_LARGE}|<p>-</p>|`5000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -62,6 +64,8 @@ There are no discovery rules in this template.
 |NTP stratum|<p>The stratum of the this server</p>|`Dependent item`|Stratum<p>Update: 0</p>|
 |chronyc tracking|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc tracking]<p>Update: 10m</p>|
 |chrony Version|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc -v]<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

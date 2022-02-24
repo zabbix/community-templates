@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |Tempo de Atividade Link Wireless|<p>Displays wireless link uptime for device</p>|`SNMP agent`|mimosaWanUpTime.0<p>Update: 5m</p>|
 |Endereço MAC|<p>Displays wireless mac for device</p>|`SNMP agent`|mimosaWanMac.0<p>Update: 1d</p>|
 |Wireless Rx Power 2|<p>Displays wireless Rx Power 2 for device</p>|`SNMP agent`|mimosaRxPower.2<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

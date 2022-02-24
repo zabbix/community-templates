@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |Toner print level (black cartridge)|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevel<p>Update: 60</p>|
 |04 Device name|<p>An administratively-assigned name for this managed node. By convention, this is the node's fully-qualified domain name. If the name is unknown, the value is the zero-length string.</p>|`SNMP agent`|sysName<p>Update: 3600</p>|
 |Imaging Unit capacity|<p>-</p>|`SNMP agent`|ImagingUnitMaxCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

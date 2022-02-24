@@ -60,6 +60,8 @@ There are no template links in this template.
 |Logical Disks|<p>-</p>|`SNMP agent`|ldDiscovery<p>Update: 1m</p>|
 |UPSs|<p>-</p>|`SNMP agent`|upsDiscovery<p>Update: 1h</p>|
 |Physical Disks|<p>-</p>|`SNMP agent`|pdDiscovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -86,6 +88,8 @@ There are no template links in this template.
 |Disk SN in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.SN[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Disk temperature in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.temperature[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Disk vendor in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.Vendor[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

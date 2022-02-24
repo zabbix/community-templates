@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`CMPublic`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -32,6 +34,8 @@ There are no discovery rules in this template.
 |High_2_Load_Point|<p>High Load Threshold by Phase</p>|`SNMP agent`|High2Load.rPDU<p>Update: 3600</p>|
 |High_1_Load_Point|<p>High Load Threshold by Phase</p>|`SNMP agent`|High1Load.rPDU<p>Update: 3600</p>|
 |Near_High_2_Load_Point|<p>Near High Load Threshold by Phase</p>|`SNMP agent`|NHigh2Load.rPDU<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

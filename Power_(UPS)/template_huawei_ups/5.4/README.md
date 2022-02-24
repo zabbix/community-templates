@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Выходящее напряжение|<p>-</p>|`SNMP agent`|hwUpsOutputVoltageA<p>Update: 10s</p>|
 |Модель|<p>-</p>|`SNMP agent`|hwUpsCtrlModelType<p>Update: 2800s</p>|
 |Версия ПО|<p>-</p>|`SNMP agent`|hwUpsDeviceSoftVersion<p>Update: 60m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

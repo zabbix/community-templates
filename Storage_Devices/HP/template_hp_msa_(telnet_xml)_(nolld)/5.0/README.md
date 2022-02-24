@@ -849,6 +849,8 @@ There are no discovery rules in this template.
 |Физ. диск (1.14) - использование|<p>-</p>|`Dependent item`|hp.msa.disks.1.14.state<p>Update: 0</p>|
 |Физ. диск (1.11)|<p>-</p>|`Telnet agent`|telnet.run[hp-msa-disks-1_11,{HOST.CONN},23,utf8]<p>Update: 1h</p>|
 |Физ. диск (1.24) - использование|<p>-</p>|`Dependent item`|hp.msa.disks.1.24.state<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

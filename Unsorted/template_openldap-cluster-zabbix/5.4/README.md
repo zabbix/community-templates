@@ -25,6 +25,8 @@ You should:
 |----|-----------|-------|----|
 |{$BASE_DN}|<p>-</p>|`"dc=modulus,dc=gr"`|Text macro|
 |{$LDAP_HOST}|<p>-</p>|`172.17.172.51`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |LDAP Cluster status|<p>-</p>|`Zabbix agent`|ldap.clusterstatus[172.17.172.51]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

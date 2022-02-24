@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |UPS-Name|<p>-</p>|`SNMP agent`|UPS-Name<p>Update: 12h</p>|
 |UPS-TimeOnBattery|<p>-</p>|`SNMP agent`|UPS-TimeOnBattery<p>Update: 30s</p>|
 |UPS-BatteryReplaceStatus|<p>-</p>|`SNMP agent`|UPS-BatteryReplaceStatus<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

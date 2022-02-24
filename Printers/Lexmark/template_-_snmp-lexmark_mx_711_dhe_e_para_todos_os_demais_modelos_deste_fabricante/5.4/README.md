@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |Printer Status|<p>-</p>|`SNMP agent`|prtConsoleDescription<p>Update: 60</p>|
 |Maintenance Kit level|<p>-</p>|`SNMP agent`|MaintenanceKitCurrentLevel<p>Update: 60s</p>|
 |Toner print capacity|<p>-</p>|`SNMP agent`|prtMarkerSuppliesMaxCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -199,6 +199,8 @@ There are no discovery rules in this template.
 |Instance1-PGM1b-silence|<p>Instance 1 Program 1b silence.</p>|`SNMP agent`|aero.inst1-pgm1b-silence<p>Update: 5s</p>|
 |Instance4-PGM1-silence|<p>Instance 4 Program 1 silence.</p>|`SNMP agent`|aero.inst4-pgm1-silence<p>Update: 5s</p>|
 |Instance8-PGM1-outlm-alarm|<p>Instance 8 Program 1 silence.</p>|`SNMP agent`|aero.inst8-pgm1-outlm_alarm<p>Update: 15s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

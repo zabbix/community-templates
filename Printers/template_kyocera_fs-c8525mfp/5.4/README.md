@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |MAC address|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.2.2.1.6.1<p>Update: 6000</p>|
 |Cyan toner %|<p>-</p>|`Calculated`|cyan.percentage<p>Update: 180</p>|
 |Magenta toner level|<p>-</p>|`SNMP agent`|magenta.level<p>Update: 180</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -31,6 +31,8 @@ Valentin Weber
 |{$MEM_FREE_MIN_2}|<p>-</p>|`1000000`|Text macro|
 |{$MEM_FREE_MIN_2:"I/O"}|<p>-</p>|`500000`|Text macro|
 |{$MEM_FREE_MIN_2:"SRAM"}|<p>-</p>|`1000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -41,12 +43,16 @@ There are no template links in this template.
 |----|-----------|----|----|
 |LLD of memory pools|<p>{#MEMNAME} --> A textual name assigned to the memory pool. This object is suitable for output to a human operator, and may also be used to distinguish among the various pool types, especially among dynamic pools.</p>|`SNMP agent`|ciscoMemoryPoolTable<p>Update: 86400</p>|
 |LLD of CPU|<p>{#CPUID} --> The physical entity can be a CPU chip, a group of CPUs, a CPU card etc. The exact type of this entity is described by its entPhysicalVendorType value.</p>|`SNMP agent`|cpmCPUTotalTable<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Memory - free in pool '{#MEMNAME}'|<p>Indicates the number of bytes from the memory pool that are currently unused on the managed device.</p>|`SNMP agent`|ciscoMemoryPoolFree[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
 |CPU - usage on core '{#CPUID}'|<p>The overall CPU busy percentage in the last 5 minute period.</p>|`SNMP agent`|cpmCPUTotal5minRev[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

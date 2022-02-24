@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Fan 3 Speed|<p>-</p>|`IPMI agent`|ipmi.fans.fan3<p>Update: 300</p>|
 |PCH Temp|<p>-</p>|`IPMI agent`|ipmi.temp.pch<p>Update: 30</p>|
 |Fan 2 Speed|<p>-</p>|`IPMI agent`|ipmi.fans.fan2<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

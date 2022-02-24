@@ -39,6 +39,8 @@ Vincent MATIAS
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no discovery rules in this template.
 |{HOST.NAME} Status|<p>-</p>|`SNMP agent`|pduStatus.1<p>Update: 1m</p>|
 |Percent Load Segment 3|<p>-</p>|`SNMP agent`|breakerPercentLoad.1.3<p>Update: 30s</p>|
 |Load Segment 2|<p>-</p>|`SNMP agent`|breakerCurrent.1.2<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

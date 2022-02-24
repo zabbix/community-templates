@@ -370,6 +370,8 @@ There are no discovery rules in this template.
 |Velocidade Porta GigaEthernet 0/14 MTU|<p>-</p>|`SNMP agent`|ifMtu.14<p>Update: 60</p>|
 |Velocidade Porta GigaEthernet 0/13 MTU|<p>-</p>|`SNMP agent`|ifMtu.13<p>Update: 60</p>|
 |Velocidade Porta GigaEthernet 0/12 MTU|<p>-</p>|`SNMP agent`|ifMtu.12<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

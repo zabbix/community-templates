@@ -103,6 +103,8 @@ Alex Gluck
 |{$NGINX_PORT}|<p>-</p>|`80`|Text macro|
 |{$NGINX_REQ_NUM}|<p>-</p>|`600`|Text macro|
 |{$NGINX_STATS_URI}|<p>-</p>|`nginx-stats`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -124,6 +126,8 @@ There are no discovery rules in this template.
 |Nginx: Number of processes $1|<p>-</p>|`Zabbix agent`|proc.num[nginx]<p>Update: 60s</p>|
 |Nginx: connects active|<p>-</p>|`Dependent item`|nginx.active.connect<p>Update: 0</p>|
 |Nginx: requests per sec|<p>-</p>|`Dependent item`|nginx.requests<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

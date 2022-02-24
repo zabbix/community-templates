@@ -110,6 +110,8 @@ There are no discovery rules in this template.
 |Port 02 Traffic OUT|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 60</p>|
 |Port 09 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctets.9<p>Update: 60</p>|
 |LAG 04 Traffic OUT|<p>-</p>|`SNMP agent`|lag04.traffic.out<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

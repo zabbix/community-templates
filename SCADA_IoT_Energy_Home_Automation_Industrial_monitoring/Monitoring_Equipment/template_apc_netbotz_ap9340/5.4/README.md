@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Sensor 1 Name|<p>-</p>|`SNMP agent`|memSensorsStatusSensorName1<p>Update: 3600</p>|
 |Sensor 2 Humidity|<p>-</p>|`SNMP agent`|memSensorsHumidity2<p>Update: 30s</p>|
 |Sensor 2 Name|<p>-</p>|`SNMP agent`|memSensorsStatusSensorName2<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

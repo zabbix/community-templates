@@ -62,6 +62,8 @@
 |----|-----------|-------|----|
 |{$HOST.NGINX}|<p>-</p>|`127.0.0.1:8080`|Text macro|
 |{$PROTO}|<p>-</p>|`http`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -83,6 +85,8 @@ There are no discovery rules in this template.
 |Number of nginx running|<p>-</p>|`Zabbix agent (active)`|proc.num[nginx]<p>Update: 90</p>|
 |Nginx: number of connections in writing state|<p>-</p>|`Dependent item`|nginx.connections.writing<p>Update: 0</p>|
 |Nginx: number of connections in reading state|<p>-</p>|`Dependent item`|nginx.connections.reading<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

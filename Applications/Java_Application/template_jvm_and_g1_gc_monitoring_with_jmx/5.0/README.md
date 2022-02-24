@@ -93,6 +93,8 @@ There are no discovery rules in this template.
 |gc G1 Young collection count|<p>-</p>|`JMX agent`|jmx["java.lang:type=GarbageCollector,name=G1 Young Generation",CollectionCount]<p>Update: 20</p>|
 |gc G1 Old collection count|<p>-</p>|`JMX agent`|jmx["java.lang:type=GarbageCollector,name=G1 Old Generation",CollectionCount]<p>Update: 20</p>|
 |gc ParNew number of collections per second|<p>-</p>|`JMX agent`|jmx["java.lang:type=GarbageCollector,name=ParNew",CollectionCount]<p>Update: 20</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

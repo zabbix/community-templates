@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |The status of input frequency (Source 2)|<p>-</p>|`SNMP agent`|ats2InputStatusFrequency_source2<p>Update: 1m</p>|
 |The present time in hh:mm:ss text format|<p>-</p>|`SNMP agent`|ats2ConfigTimeTextTime<p>Update: 5m</p>|
 |Device model name|<p>-</p>|`SNMP agent`|ats2IdentModel<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

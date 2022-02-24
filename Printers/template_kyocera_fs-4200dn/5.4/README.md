@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Nombre impressions total|<p>-</p>|`SNMP agent`|nbr.impressions.total<p>Update: 10</p>|
 |Pourcentage toner|<p>-</p>|`Calculated`|pourcentage.toner<p>Update: 10</p>|
 |Numéro série|<p>-</p>|`SNMP agent`|num.serie<p>Update: 43200</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

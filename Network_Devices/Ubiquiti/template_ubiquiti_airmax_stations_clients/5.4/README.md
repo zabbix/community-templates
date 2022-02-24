@@ -37,6 +37,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Airmax Discovery|<p>-</p>|`SNMP agent`|ubntStaEntry<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |Rx Rate|<p>-</p>|`SNMP agent`|ubntStaRxRate.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Sinal|<p>-</p>|`SNMP agent`|ubntStaSignal.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Tx Rate|<p>-</p>|`SNMP agent`|ubntStaTxRate.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

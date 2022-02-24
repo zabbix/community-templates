@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |iRMC 1.8V STBY|<p>-</p>|`IPMI agent`|ipmi.iRMC18VSTBY<p>Update: 300</p>|
 |PCH 1.05V|<p>-</p>|`IPMI agent`|ipmi.PCH105V<p>Update: 300</p>|
 |LAN 0.9V|<p>-</p>|`IPMI agent`|ipmi.LAN09V<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

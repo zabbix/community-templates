@@ -11,6 +11,8 @@
 |{$ZPOOL_AVERAGE_ALERT}|<p>-</p>|`85`|Text macro|
 |{$ZPOOL_DISASTER_ALERT}|<p>-</p>|`99`|Text macro|
 |{$ZPOOL_HIGH_ALERT}|<p>-</p>|`90`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -22,6 +24,8 @@ There are no template links in this template.
 |Zfs Dataset discovery|<p>Discover ZFS dataset. Dataset names must contain a "/" else it's a zpool.</p>|`Zabbix agent (active)`|zfs.fileset.discovery<p>Update: 30m</p>|
 |Zfs Pool discovery|<p>-</p>|`Zabbix agent (active)`|zfs.pool.discovery<p>Update: 1h</p>|
 |Zfs vdev discovery|<p>-</p>|`Zabbix agent (active)`|zfs.vdev.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +73,8 @@ There are no template links in this template.
 |vdev {#VDEV}: READ error counter|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Zabbix agent (active)`|zfs.vdev.error_counter.read[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
 |vdev {#VDEV}: WRITE error counter|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Zabbix agent (active)`|zfs.vdev.error_counter.write[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
 |vdev {#VDEV}: total number of errors|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Calculated`|zfs.vdev.error_total[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

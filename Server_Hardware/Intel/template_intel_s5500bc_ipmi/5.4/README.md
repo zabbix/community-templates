@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Voltage +1.8V AUX|<p>-</p>|`IPMI agent`|BB_1.8V_AUX<p>Update: 1m</p>|
 |Processor 1 FAN|<p>-</p>|`IPMI agent`|Processor_1_FAN<p>Update: 1m</p>|
 |Power Status|<p>-</p>|`IPMI agent`|power<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

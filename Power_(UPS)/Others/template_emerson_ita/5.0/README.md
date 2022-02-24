@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |Fator de potência de saída - Fase 1|<p>-</p>|`SNMP agent`|outputPowerFactorfase1<p>Update: 300</p>|
 |Carga de saída - Fase 3|<p>-</p>|`SNMP agent`|OutputLoadfase3<p>Update: 300</p>|
 |Device reachability using ICMP|<p>-</p>|`Simple check`|icmpping<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

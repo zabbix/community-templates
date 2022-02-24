@@ -52,6 +52,8 @@ There are no discovery rules in this template.
 |Ether 8 In|<p>-</p>|`SNMP agent`|ifInOctets.9<p>Update: 15s</p>|
 |Ether 2 out|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 15s</p>|
 |Uptime|<p>-</p>|`SNMP agent`|uptime<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

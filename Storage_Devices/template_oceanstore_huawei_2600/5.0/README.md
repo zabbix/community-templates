@@ -25,6 +25,8 @@ There are no template links in this template.
 |Detection Performance LUN|<p>-</p>|`SNMP agent`|hwPerformanceLun<p>Update: 1d</p>|
 |Detection Fan BP|<p>-</p>|`SNMP agent`|hwinfoFANPower<p>Update: 1d</p>|
 |Detection Performance Port|<p>-</p>|`SNMP agent`|hwPortPerformance<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |LUN {$LUNID{#LUNPID}} Write bandwidth MB/s|<p>-</p>|`SNMP agent`|hwPerfLunWriteTraffic.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Fan condition: {#FANLOCATION}|<p>-</p>|`SNMP agent`|hwInfoFanHealthStatus.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Port: {#PORTLOCATION} I/O latancy|<p>-</p>|`SNMP agent`|hwPerfPortDelay.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

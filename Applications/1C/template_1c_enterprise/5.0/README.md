@@ -35,6 +35,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Infobases|<p>-</p>|`Zabbix agent`|1cEnt.infobases<p>Update: 2m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Thick clients in {#NAME}, cluster {#CLUSTER_NAME}|<p>-</p>|`Dependent item`|1cEnt.sessions.thickClient[{#INFOBASE}, {#CLUSTER}]<p>Update: 0</p><p>LLD</p>|
 |Thin clients in {#NAME}, cluster {#CLUSTER_NAME}|<p>-</p>|`Dependent item`|1cEnt.sessions.thinClient[{#INFOBASE}, {#CLUSTER}]<p>Update: 0</p><p>LLD</p>|
 |Web clients in {#NAME}, {#CLUSTER_NAME}|<p>-</p>|`Dependent item`|1cEnt.sessions.webclients[{#INFOBASE}, {#CLUSTER}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

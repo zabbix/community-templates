@@ -22,6 +22,8 @@ Bori$
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -31,6 +33,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interfaces Discovery|<p>-</p>|`SNMP agent`|net.If<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +61,8 @@ There are no template links in this template.
 |Interface Name:{#IFNAME} Alias:({#IFALIAS}): Bits sent|<p>-</p>|`SNMP agent`|net.if.out[ifHCOutOctets.{#SNMPINDEX}]<p>Update: 3s</p><p>LLD</p>|
 |Interface Name:{#IFNAME} Alias:({#IFALIAS}): Admin status|<p>-</p>|`SNMP agent`|net.if.status[ifAdminStatus.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Interface Name:{#IFNAME} Alias:({#IFALIAS}): Operational status|<p>-</p>|`SNMP agent`|net.if.status[ifOperStatus.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Microsoft Exchange Replication Service|<p>Provides replication functionality for mailbox databases on Mailbox servers in a database availability group (DAG) and database mount functionality for all Mailbox servers. This service is dependent upon the Microsoft Exchange Active Directory Topology service.</p>|`Zabbix agent`|service_state[MSExchangeRepl]<p>Update: 30</p>|
 |База данных MSExchange ==> Экземпляры(*)\Средняя задержка при записи в процессе ввода-вывода для (прикрепленной) базы данных|<p>Shows the average length of time, in ms, per database write operation. Should be 50 ms on average. Spikes of up to 100 ms are acceptable if not accompanied by database page fault stalls.</p>|`Zabbix agent`|perf_counter["\База данных MSExchange ==> Экземпляры(*)\Средняя задержка при записи в процессе ввода-вывода для (прикрепленной) базы данных"]<p>Update: 30</p>|
 |Microsoft Exchange Throttling|<p>Limits the rate of user operations. This service is dependent upon the Microsoft Exchange Active Directory Topology service.</p>|`Zabbix agent`|service_state[MSExchangeThrottling]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

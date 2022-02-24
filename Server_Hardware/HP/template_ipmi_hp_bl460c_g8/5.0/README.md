@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |Power Meter|<p>-</p>|`IPMI agent`|PowerMeter<p>Update: 3600</p>|
 |Virtual Fan|<p>-</p>|`IPMI agent`|VirtualFan<p>Update: 3600</p>|
 |Enclosure Status|<p>-</p>|`IPMI agent`|EnclosureStatus<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

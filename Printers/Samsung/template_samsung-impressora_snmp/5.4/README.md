@@ -105,6 +105,8 @@ There are no discovery rules in this template.
 |Nível toner Black (%)|<p>-</p>|`SNMP agent`|tonerBk<p>Update: 15m</p>|
 |Status|<p>-</p>|`SNMP agent`|sysStatus<p>Update: 30s</p>|
 |Número de série|<p>-</p>|`SNMP agent`|sysSn<p>Update: 1s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

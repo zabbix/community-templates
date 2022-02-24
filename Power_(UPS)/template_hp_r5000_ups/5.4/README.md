@@ -19,6 +19,8 @@ Ennio
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -64,6 +66,8 @@ There are no discovery rules in this template.
 |S/N|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.232.165.1.2.7.0<p>Update: 1d</p>|
 |Ambient Temperature|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.232.165.3.6.1.0<p>Update: 1m</p>|
 |Running On Battery|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.33.1.2.2.0<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

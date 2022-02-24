@@ -247,6 +247,8 @@ There are no discovery rules in this template.
 |PortSpeed te1/0/11|<p>-</p>|`SNMP agent`|ifSpeed.11<p>Update: 60</p>|
 |Traffic outgoing Interface te1/0/12|<p>-</p>|`SNMP agent`|ifOutOctets.12<p>Update: 30s</p>|
 |Traffic incomming Interface te2/0/2|<p>-</p>|`SNMP agent`|ifInOctets.54<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

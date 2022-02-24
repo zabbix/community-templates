@@ -47,6 +47,8 @@ You must add values on MACRO for each supervising protocol
 |{$STRING_SERVICE_SSH}|<p>-</p>|`--as scb_ssh --threads 1500 --stack-size 256 --process-mode safe-background --verbose 4 --log-tags --log-escape --uid zorp --gid`|Text macro|
 |{$STRING_SERVICE_TELNET}|<p>-</p>|`--as scb_telnet --threads 1500 --stack-size 256 --process-mode safe-background --verbose 4 --log-tags --log-escape --uid zorp --`|Text macro|
 |{$STRING_SERVICE_VNC}|<p>-</p>|`--as scb_vnc --threads 1500 --stack-size 256 --process-mode safe-background --verbose 4 --log-tags --log-escape --uid zorp --gid`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -58,6 +60,8 @@ There are no template links in this template.
 |Network|<p>-</p>|`SNMP agent`|snmp.network.discovery<p>Update: 60</p>|
 |File System|<p>-</p>|`SNMP agent`|snmp.filesystem.discovery<p>Update: 60</p>|
 |CPU|<p>-</p>|`SNMP agent`|snmp.CPU.discovery<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -109,6 +113,8 @@ There are no template links in this template.
 |CPU {#SNMPINDEX} - Charge|<p>-</p>|`SNMP agent`|SNMP-Charge-CPU-[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |CPU {#SNMPINDEX} - Etat|<p>-</p>|`SNMP agent`|SNMP-Etat-CPU-[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |CPU {#SNMPINDEX} - Name|<p>-</p>|`SNMP agent`|SNMP-Name-CPU-[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

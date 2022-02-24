@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Mount Point|<p>0 = Yes 1 = No</p>|`Zabbix agent`|vfs.fs.mounted[your_mount_point]<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

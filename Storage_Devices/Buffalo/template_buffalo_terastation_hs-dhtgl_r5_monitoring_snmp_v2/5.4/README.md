@@ -104,6 +104,8 @@ There are no discovery rules in this template.
 |CPU user|<p>-</p>|`SNMP agent`|ssCpuRawUser.0<p>Update: 1m</p>|
 |Available memory|<p>Available memory is defined as free+cached+buffers memory.</p>|`SNMP agent`|memAvailReal.0<p>Update: 1m</p>|
 |Processor load (15 min average per core)|<p>The processor load is calculated as system CPU load divided by number of CPU cores.</p>|`SNMP agent`|laLoad.3<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

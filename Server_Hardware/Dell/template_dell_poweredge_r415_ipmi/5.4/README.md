@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Voltage (Secondary)|<p>-</p>|`IPMI agent`|ipmi.sensor.Voltage_2<p>Update: 1m</p>|
 |IOB Temp|<p>-</p>|`IPMI agent`|ipmi.sensor.IOB_Temp<p>Update: 1m</p>|
 |Current (Secondary)|<p>-</p>|`IPMI agent`|ipmi.sensor.Current_2<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

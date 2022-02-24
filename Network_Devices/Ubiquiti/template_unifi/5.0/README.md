@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Modelo|<p>Informa o modelo do aparelho</p>|`SNMP agent`|unifiApSystemModel.0<p>Update: 1d</p>|
 |SSID 2.4Ghz|<p>-</p>|`SNMP agent`|unifiVapEssId.1<p>Update: 12h</p>|
 |Padrão Wi-Fi|<p>-</p>|`SNMP agent`|unifiRadioRadio.1<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -49,6 +49,8 @@ There are no template links in this template.
 |PSU|<p>-</p>|`SNMP agent`|cucsEquipmentPsuDn<p>Update: 30s</p>|
 |NetworkRx|<p>-</p>|`SNMP agent`|cucsEtherRxStatsRn<p>Update: 30s</p>|
 |Temp|<p>-</p>|`SNMP agent`|cucsComputeMbTempStatsRn<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +110,8 @@ There are no template links in this template.
 |{#SNMPINDEX}:Blade Temp Stats|<p>-</p>|`SNMP agent`|cucsComputeMbTempStatsFmTempSenIo[{#SNMPINDEX}]<p>Update: 10s</p><p>LLD</p>|
 |{#SNMPINDEX}: Temp Stats Rare Avg|<p>-</p>|`SNMP agent`|cucsComputeMbTempStatsFmTempSenRearAvg[{#SNMPINDEX}]<p>Update: 120s</p><p>LLD</p>|
 |{#SNMPINDEX}: Temp Stats Rare|<p>-</p>|`SNMP agent`|cucsComputeMbTempStatsFmTempSenRear[{#SNMPINDEX}]<p>Update: 120s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

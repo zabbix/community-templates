@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |Status X2|<p>-</p>|`SNMP agent`|ifOperStatus.3<p>Update: 60</p>|
 |X10 Bytes In/sec|<p>-</p>|`SNMP agent`|ifInOctets.11<p>Update: 60</p>|
 |X7 Bytes Out/sec|<p>-</p>|`SNMP agent`|ifOutOctets.8<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

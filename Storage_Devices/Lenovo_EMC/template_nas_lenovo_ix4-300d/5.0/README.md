@@ -28,6 +28,8 @@ Hamdi Ben Abdallah
 |----|-----------|-------|----|
 |{$SNMP_AUTH}|<p>-</p>|`pass`|Text macro|
 |{$SNMP_SECNAME}|<p>-</p>|`user`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -44,6 +46,8 @@ There are no template links in this template.
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs.</p>|`SNMP agent`|ifDescr<p>Update: 3600</p>|
 |Fan Sensors|<p>Name of the fan sensor.</p>|`SNMP agent`|fanName<p>Update: 3600</p>|
 |Disk Names|<p>An entry of one disk I/O performance.</p>|`SNMP agent`|diskName<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +92,8 @@ There are no template links in this template.
 |IO write merges per second of $1|<p>Write merges per second.</p>|`SNMP agent`|ioMgws[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |IO read requests per second of $1|<p>Read io requests per second.</p>|`SNMP agent`|ioReqrs[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |IO write requests per second of $1|<p>Write io requests per second.</p>|`SNMP agent`|ioReqws[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

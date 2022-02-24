@@ -1,8 +1,11 @@
 # Template IPMI ASUS ASMB4
 
-ASUS ASMB4-iKVM/ASMB4-SOL PLUS
-Hardware Monitor / System Sensor related
-Autor template: m.beloglazov@gmail.com
+ASUS ASMB4-iKVM/ASMB4-SOL PLUS
+
+Hardware Monitor / System Sensor related
+
+Autor template: m.beloglazov@gmail.com
+
 Version Zabbix: 3.0## Macros used
 
 There are no macros links in this template.
@@ -34,8 +37,10 @@ There are no discovery rules in this template.
 |+12V|<p>-</p>|`IPMI agent`|asmb4.plus12v<p>Update: 120</p>|
 |FRNT_FAN6|<p>-</p>|`IPMI agent`|asmb4.frnt_fan6<p>Update: 120</p>|
 |VCORE2|<p>-</p>|`IPMI agent`|asmb4.vcore2<p>Update: 120</p>|
-|+3.3VSB|<p>-</p>|`IPMI agent`|asmb4.plus3.3vsb<p>Update: 120</p>|
-|+5VSB|<p>-</p>|`IPMI agent`|asmb4.plus5vsb<p>Update: 120</p>|
+|+3.3VSB|<p>-</p>|`IPMI agent`|asmb4.plus3.3vsb<p>Update|
+
+
+#+5VSB|<p>-</p>|`IPMI agent`|asmb4.plus5vsb<p>Update: 120</p>|
 |FRNT_FAN4|<p>-</p>|`IPMI agent`|asmb4.frnt_fan4<p>Update: 120</p>|
 |VBAT|<p>-</p>|`IPMI agent`|asmb4.vbat<p>Update: 120</p>|
 ## Triggers

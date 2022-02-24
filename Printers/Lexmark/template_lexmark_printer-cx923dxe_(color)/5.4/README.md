@@ -88,6 +88,8 @@ There are no discovery rules in this template.
 |Hole Punch Box capacity|<p>-</p>|`SNMP agent`|HolePunchBoxCapacity<p>Update: 3600</p>|
 |Hole Punch Box Level|<p>-</p>|`SNMP agent`|HolePunchBoxLevel<p>Update: 3600</p>|
 |YELLOW Photoconductor level|<p>-</p>|`SNMP agent`|YellowPhotoconductorLevel<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

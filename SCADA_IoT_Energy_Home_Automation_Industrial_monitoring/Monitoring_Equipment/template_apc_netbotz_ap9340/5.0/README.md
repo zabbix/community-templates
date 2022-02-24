@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Sensor 2 Location|<p>The sensor's current temperature reading. Units are displayed in the scale shown in the memSensorsStatusSysTempUnits OID (Celsius or Fahrenheit).</p>|`SNMP agent`|memSensorsStatusSensorLocation2<p>Update: 3600</p>|
 |Sensor 2 Temperature|<p>The sensor's current temperature reading. Units are displayed in the scale shown in the memSensorsStatusSysTempUnits OID (Celsius or Fahrenheit).</p>|`SNMP agent`|memSensorsTemperature2<p>Update: 30s</p>|
 |Sensor 1 Name|<p>-</p>|`SNMP agent`|memSensorsStatusSensorName1<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

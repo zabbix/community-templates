@@ -253,6 +253,8 @@ There are no template links in this template.
 |Discover POWER SUPPLY|<p>-</p>|`SNMP agent`|powerSupply<p>Update: 1h</p>|
 |Discovety SYSTEM BOARD|<p>-</p>|`SNMP agent`|systemBoard<p>Update: 1h</p>|
 |Discovety VOLTAGE|<p>-</p>|`SNMP agent`|voltages<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -288,6 +290,8 @@ There are no template links in this template.
 |{#SNMPVALUE} Voltage Current Value|<p>Voltage current value. This object returns 0;if the agent can not get the value.(1/100V)</p>|`SNMP agent`|voltages.5.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |{#SNMPVALUE} Voltage Minimum Level|<p>Voltage minimum level (1/100V)</p>|`SNMP agent`|voltages.7.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |{#SNMPVALUE} Voltage Maximum Level|<p>Voltage maximum level (1/100V)</p>|`SNMP agent`|voltages.8.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

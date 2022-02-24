@@ -110,6 +110,8 @@ There are no discovery rules in this template.
 |Number of Virus Quarantined From SMTP E-mail|<p>Number of Virus Quarantined E-mail</p>|`SNMP agent`|smtp-quarantined<p>Update: 1m</p>|
 |POP3 State|<p>The health of the POP3 protocol</p>|`SNMP agent`|pop3-state<p>Update: 1m</p>|
 |Total of SMTP E-mail Messages|<p>Total number of e-mail messages</p>|`SNMP agent`|smtp-messages<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

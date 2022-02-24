@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Asigra Backup Completed with Errors - SNMP Traps|<p>-</p>|`SNMP trap`|snmptrap["SNMPv2-SMI::enterprises.15538.1.1.0.2"]<p>Update: 0</p>|
 |Asigra Backup Completed with Warnings - SNMP Traps|<p>-</p>|`SNMP trap`|snmptrap["SNMPv2-SMI::enterprises.15538.1.1.0.11"]<p>Update: 0</p>|
 |Asigra Backup Client is running on low database Space - SNMP Traps|<p>-</p>|`SNMP trap`|snmptrap["SNMPv2-SMI::enterprises.15538.1.1.0.6"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

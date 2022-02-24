@@ -33,6 +33,8 @@ There are no discovery rules in this template.
 |Contador Total|<p>-</p>|`SNMP agent`|Counter<p>Update: 120</p>|
 |Numero de Serie|<p>-</p>|`SNMP agent`|mib-2.43.5.1.1.17.1<p>Update: 120</p>|
 |Tempo de Funcionamento|<p>-</p>|`SNMP agent`|sysUpTimeInstance<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

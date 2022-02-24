@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |Current cartridge ink level - Magenta|<p>-</p>|`SNMP agent`|ink.magenta.now<p>Update: 3600</p>|
 |Current cartridge ink level - Cyan|<p>-</p>|`SNMP agent`|ink.cyan.now<p>Update: 3600</p>|
 |Current cartridge ink level - Yellow|<p>-</p>|`SNMP agent`|ink.yellow.now<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

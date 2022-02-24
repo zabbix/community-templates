@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Service State - TSM Journal Service|<p>-</p>|`Zabbix agent`|service_state[TSM Journal Service]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

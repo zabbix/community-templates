@@ -85,6 +85,8 @@ There are no discovery rules in this template.
 |Time on Battery|<p>-</p>|`SNMP agent`|upsSecondsOnBattery.0<p>Update: 30s</p>|
 |Output Percent Load L1|<p>-</p>|`SNMP agent`|upsOutputPercentLoad.1<p>Update: 30s</p>|
 |Model|<p>-</p>|`SNMP agent`|upsIdentModel.0<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

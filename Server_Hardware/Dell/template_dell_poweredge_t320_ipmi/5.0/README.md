@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Current 1|<p>-</p>|`IPMI agent`|ipmi.current.1<p>Update: 300</p>|
 |Inlet Temp|<p>-</p>|`IPMI agent`|ipmi.inlet.temp<p>Update: 300</p>|
 |Voltage 1|<p>-</p>|`IPMI agent`|ipmi.voltage.1<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

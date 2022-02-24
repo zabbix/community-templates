@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Alarme Sobre Corrente|<p>-</p>|`SNMP agent`|alarmeSobreCorrente<p>Update: 1m</p>|
 |Sistema Corrente UR4|<p>-</p>|`SNMP agent`|sistemaCorrenteUR4<p>Update: 1m</p>|
 |Sistema Corrente UR3|<p>-</p>|`SNMP agent`|sistemaCorrenteUR3<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

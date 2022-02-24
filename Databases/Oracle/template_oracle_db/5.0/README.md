@@ -70,6 +70,8 @@ SuNova
 |{$MIN_WRITE_BPS}|<p>-</p>|`1048576`|Text macro|
 |{$ORACLE_BACKUP_HOUR}|<p>-</p>|`0`|Text macro|
 |{$TB_USAGE_THRESHOLD}|<p>-</p>|`1.0`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -88,6 +90,8 @@ There are no template links in this template.
 |Tablespace discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[Tablespace Discovery,{$DSN}]<p>Update: 1h</p>|
 |Schema discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[Schema Discovery,{$DSN}]<p>Update: 6h</p>|
 |Scheduler jobs discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[job discovery,{$DSN}]<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -155,6 +159,8 @@ There are no template links in this template.
 |Tablespace: {#TABLESPACE_NAME}: pct_used|<p>-</p>|`Calculated`|db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]<p>Update: 4m</p><p>LLD</p>|
 |Tablespace: {#TABLESPACE_NAME}: size|<p>-</p>|`Calculated`|db.oracle.tablespace.size[{#TABLESPACE_NAME}]<p>Update: 4m</p><p>LLD</p>|
 |Schema {#OWNER}: size|<p>SIze of the schema.</p>|`Database monitor`|db.odbc.select[Schema {#OWNER} size,{$DSN}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

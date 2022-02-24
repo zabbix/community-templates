@@ -43,6 +43,8 @@ Exported from Zabbix 5.0
 |{$NETAPP.VOL.FREE.WARN}|<p>-</p>|`80`|Text macro|
 |{$NETAPP.VOL.INODE.FREE.ERR}|<p>-</p>|`90`|Text macro|
 |{$NETAPP.VOL.INODE.FREE.WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -57,6 +59,8 @@ There are no template links in this template.
 |LIFs|<p>-</p>|`SNMP agent`|lif<p>Update: 43200</p>|
 |Nodes|<p>-</p>|`SNMP agent`|node<p>Update: 43200</p>|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 43200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -129,6 +133,8 @@ There are no template links in this template.
 |Volume[{#VOLNAME}] State|<p>-</p>|`SNMP agent`|volState[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Volume[{#VOLNAME}] Type|<p>Type of this volume, older volumes are traditional while newer volumes contained in aggregates are flexible.</p>|`SNMP agent`|volType[{#SNMPINDEX}]<p>Update: 10800</p><p>LLD</p>|
 |Volume[{#VOLNAME}] Vserver|<p>-</p>|`SNMP agent`|volVserver[{#SNMPINDEX}]<p>Update: 10800</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |CPU 1 Minute Average|<p>-</p>|`SNMP agent`|AirFiber1MinuteCpu<p>Update: 30s</p>|
 |RadioLinkRemoteRXChain1Overload|<p>-</p>|`SNMP agent`|AirFiberRemoteRXPoweChain1Overload<p>Update: 30s</p>|
 |RadioLinkTXFrequency|<p>-</p>|`SNMP agent`|AirFiberRadioTXFrequency<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

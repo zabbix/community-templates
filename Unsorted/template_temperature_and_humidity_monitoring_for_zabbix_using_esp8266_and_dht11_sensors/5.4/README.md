@@ -36,22 +36,30 @@ Michał Sternadel
 |{$LOSTPERIOD}|<p>-</p>|`10m`|Text macro|
 |{$TRENDSP}|<p>-</p>|`365d`|Text macro|
 |{$UPINTERVALLLD}|<p>-</p>|`5m`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discovery Sensors|<p>Discovery Data Raw All</p>|`HTTP agent`|discovery.sensors<p>Update: {$INTERVALLLDHTTP}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |{#NAME} Humidity|<p>-</p>|`HTTP agent`|sensor.humidity[{#INDEX}]<p>Update: {$UPINTERVALLLD}</p><p>LLD</p>|
 |{#NAME} Temperature|<p>-</p>|`HTTP agent`|sensor.temperature[{#INDEX}]<p>Update: {$UPINTERVALLLD}</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

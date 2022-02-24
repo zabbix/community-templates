@@ -35,6 +35,8 @@ There are no template links in this template.
 |discovery service|<p>Обнаружение служб Windows</p>|`Zabbix agent`|service.discovery<p>Update: 24h</p>|
 |discovery local disk|<p>Обнаружение дисков</p>|`Zabbix agent`|vfs.fs.discovery<p>Update: 24h</p>|
 |discovery Interface|<p>Обнаружение сетевых интрефейсов</p>|`Zabbix agent`|net.if.discovery<p>Update: 24h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -63,6 +65,8 @@ There are no template links in this template.
 |Interface:{#IFNAME}, Received Bytes/sec|<p>-</p>|`Zabbix agent`|perf_counter["\510({#IFNAME})\898",60]<p>Update: 1m</p><p>LLD</p>|
 |Interface:{#IFNAME}, Utilization Received|<p>-</p>|`Calculated`|UtilizationReceived.[{#IFNAME}]<p>Update: 1m</p><p>LLD</p>|
 |Interface:{#IFNAME}, Utilization Sent|<p>-</p>|`Calculated`|UtilizationSent.[{#IFNAME}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

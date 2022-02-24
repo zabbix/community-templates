@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |Velocidade Porta GigaEthernet 0/1|<p>-</p>|`SNMP agent`|ifSpeed.2<p>Update: 30</p>|
 |Tráfego de Saida GigabitEthernet 0/1|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 60</p>|
 |Disponibilidade|<p>-</p>|`Simple check`|icmpping<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

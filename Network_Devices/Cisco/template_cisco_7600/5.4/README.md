@@ -15,6 +15,8 @@ There are no template links in this template.
 |BGP Peers|<p>BGP4-MIB::bgpPeerIdentifier</p>|`SNMP agent`|bgpPeerIdentifier<p>Update: 300</p>|
 |OSPF Neighbors|<p>OSPF-MIB::ospfNbrIpAddr The IP address this neighbor is using in its IP source address. Note that, on addressless links, this will not be 0.0.0.0 but the address of another of the neighbor's interfaces.</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 300</p>|
 |OSPF Interfaces|<p>OSPF-MIB::ospfIfIpAddress The IP address of this OSPF interface.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -23,6 +25,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}" State|<p>-</p>|`SNMP trap`|snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState\.{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"]<p>Update: 0</p><p>LLD</p>|
 |OSPF "{#SNMPVALUE}" Neighbour State|<p>-</p>|`SNMP trap`|snmptrap["(ospfNbrStateChange).*ospfNbrIpAddr[[:space:]]{#SNMPVALUE}[[:space:]].*[[:space:]][a-zA-Z]+[[:space:]]$"]<p>Update: 0</p><p>LLD</p>|
 |OSPF Interface "{SNMPVALUE}" State|<p>-</p>|`SNMP trap`|snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -35,6 +39,8 @@ There are no template links in this template.
 |BGP Peer "{#SNMPINDEX}"->"{#SNMPVALUE}" State changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["(bgpBackwardTransition|cbgpFsmStateChange).*bgpPeerState .{#SNMPINDEX}[[:space:]][a-zA-Z]+[[:space:]]"],10m)=0</p><p>**Recovery expression**: </p>|average|
 |OSPF Neighbor {#SNMPVALUE} has been changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["(ospfNbrStateChange).*ospfNbrIpAddr[[:space:]]{#SNMPVALUE}[[:space:]].*[[:space:]][a-zA-Z]+[[:space:]]$"],10m)=0</p><p>**Recovery expression**: </p>|average|
 |OSPF Interface "{#SNMPVALUE}" State has been changed (LLD)|<p>-</p>|<p>**Expression**: nodata(/Template Cisco General/snmptrap["ospfIfStateChange.+ospfIfIpAddress[[:space:]]{#SNMPVALUE}[[:space:]].+ospfIfState[[:space:]][a-zA-Z]+"],10m)=0</p><p>**Recovery expression**: </p>|average|
+
+
 # Cisco_7600
 
 ## Overview
@@ -89,6 +95,8 @@ There are no macros links in this template.
 |----|
 |Template Cisco General|
 |Template_Cisco_Traps|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +115,8 @@ There are no macros links in this template.
 |$1 Sensors|<p>The textual name of the physical entity.</p>|`SNMP agent`|entPhysicalName[Amperage]<p>Update: 300</p>|
 |Flash Devices|<p>CISCO-FLASH-MIB::ciscoFlashDeviceDescr Description of a Flash device. The description is meant to explain what the Flash device and its purpose is. Current values are: System flash - for the primary Flash used to store full system images. Boot flash - for the secondary Flash used to store bootstrap images. The device description will always be available for a removable device, even when the device has been removed.</p>|`SNMP agent`|ciscoFlashDeviceDescr<p>Update: 300</p>|
 |$1 Sensors|<p>The textual name of the physical entity.</p>|`SNMP agent`|entPhysicalName[Load]<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -142,6 +152,8 @@ There are no macros links in this template.
 |Size of Flash Device "$1"|<p>CISCO-FLASH-MIB::ciscoFlashDeviceSize Total size of the Flash device.</p>|`SNMP agent`|ciscoFlashDeviceSize["{#SNMPVALUE}"]<p>Update: 3600</p><p>LLD</p>|
 |Status of $2 Sensor "$1"|<p>CISCO-ENTITY-SENSOR-MIB::entSensorStatus This variable indicates the present operational status of the sensor.</p>|`SNMP agent`|entSensorStatus["{#SNMPVALUE}",Load]<p>Update: 60</p><p>LLD</p>|
 |Value of $2 Sensor "$1"|<p>CISCO-ENTITY-SENSOR-MIB::entSensorValue This variable reports the most recent measurement seen by the sensor.</p>|`SNMP agent`|entSensorValue["{#SNMPVALUE}",Load]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -198,6 +210,8 @@ There are no macros links in this template.
 |Amperage Sensor "{#SNMPVALUE}" is unavailable (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7600/entSensorStatus["{#SNMPVALUE}",Amperage])=2</p><p>**Recovery expression**: </p>|average|
 |Load Sensor "{#SNMPVALUE}" is nonoperational (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7600/entSensorStatus["{#SNMPVALUE}",Load])=3</p><p>**Recovery expression**: </p>|high|
 |Load Sensor "{#SNMPVALUE}" is unavailable (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco_7600/entSensorStatus["{#SNMPVALUE}",Load])=2</p><p>**Recovery expression**: </p>|average|
+
+
 # Template_Cisco_Traps
 
 ## Macros used
@@ -229,6 +243,8 @@ There are no discovery rules in this template.
 |OSP TX Retransmits|<p>-</p>|`SNMP trap`|snmptrap["ospfTxRetransmit"]<p>Update: 0</p>|
 |OSPF neighbour state|<p>1 : down 2 : attempt 3 : init 4 : twoWay 5 : exchangeStart 6 : exchange 7 : loading 8 : full</p>|`SNMP trap`|snmptrap["ospfNbrStateChange.*ospfNbrState[[:space:]]"]<p>Update: 0</p>|
 |BFD Sessions|<p>CISCO-IETF-BFD-MIB::ciscoBfdSessDown and ciscoBfdSessUp</p>|`SNMP trap`|snmptrap["ciscoBfdSess(Up|Down)"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

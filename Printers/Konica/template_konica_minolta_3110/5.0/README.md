@@ -62,6 +62,8 @@ There are no discovery rules in this template.
 |Toner (Cyan) - FULL|<p>-</p>|`SNMP agent`|tonercyan.full<p>Update: 30m</p>|
 |Fuser Unit - FULL|<p>-</p>|`SNMP agent`|fuserunit.full<p>Update: 1h</p>|
 |Imaging Unit (Cyan) - FULL|<p>-</p>|`SNMP agent`|imagingcyan.full<p>Update: 30m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

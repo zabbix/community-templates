@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Potência Saída Fase 1|<p>-</p>|`SNMP agent`|upsOutputPower1<p>Update: 30s</p>|
 |Corrente Entrada Fase 2|<p>-</p>|`SNMP agent`|upsInputCurrent2<p>Update: 30s</p>|
 |Temperatura|<p>-</p>|`SNMP agent`|upsBatteryTemperature<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

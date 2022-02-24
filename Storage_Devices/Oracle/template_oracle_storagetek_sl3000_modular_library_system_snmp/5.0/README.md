@@ -81,6 +81,8 @@ Vsevolod Sidorov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`snmpTech50`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -91,6 +93,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Drive|<p>-</p>|`SNMP agent`|DriveIndex<p>Update: 30</p>|
 |Robot|<p>-</p>|`SNMP agent`|Robotindex<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -106,6 +110,8 @@ There are no template links in this template.
 |DriveType[{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|DriveType[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |State of the robot [{#SNMPVALUE}] hand (cartridge =1, no cartridge =0)|<p>State of the robot hand regarding a cartridge (cartridge =1, no cartridge =0)</p>|`SNMP agent`|RobotHandCartStatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |RobotState[{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|RobotState[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

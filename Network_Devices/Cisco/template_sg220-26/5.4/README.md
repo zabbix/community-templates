@@ -114,6 +114,8 @@ There are no discovery rules in this template.
 |Port GE23 Traffic OUT|<p>-</p>|`SNMP agent`|ifHCOutOctets.23<p>Update: 60</p>|
 |Port GE12 Traffic IN|<p>-</p>|`SNMP agent`|ifHCInOctets.12<p>Update: 60</p>|
 |Port GE14 Traffic IN|<p>-</p>|`SNMP agent`|ifHCInOctets.14<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

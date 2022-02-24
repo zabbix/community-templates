@@ -29,6 +29,8 @@ There are no template links in this template.
 |AP/STA|<p>-</p>|`SNMP agent`|h3cDot11RadioStaCurAssocSum<p>Update: 30s</p>|
 |Client Signal|<p>-</p>|`SNMP agent`|h3cDot11StationSignalStrength<p>Update: 10m</p>|
 |SSID/STA|<p>-</p>|`SNMP agent`|h3cDot11APConfigPortalStaNum<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |当前在线客户端数量/AP - {#APNAME}|<p>-</p>|`SNMP agent`|h3cDot11ApStationCurAssocSum[{#APNAME}]<p>Update: 30s</p><p>LLD</p>|
 |$1 - 客户端信号强度|<p>-</p>|`SNMP agent`|hos.clising[{#CLIENTIP}]<p>Update: 5m</p><p>LLD</p>|
 |SSID/客户端- {#SSIDNAME}|<p>-</p>|`SNMP agent`|h3cDot11APConfigPortalStaNum[{#SSIDNAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

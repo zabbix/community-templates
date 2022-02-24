@@ -21,6 +21,8 @@ Adapted from the layout https://www.zabbix.com/forum/attachment.php?attachmentid
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -229,6 +231,8 @@ There are no discovery rules in this template.
 |Port 19 Last Changed|<p>Port 19 Last Changed</p>|`SNMP agent`|ifLastChange.2822<p>Update: 120</p>|
 |Port 11 Traffic IN|<p>Port 11 Traffic IN</p>|`SNMP agent`|ifInOctects.1798<p>Update: 120</p>|
 |Port 20 Traffic IN|<p>Port 20 Traffic IN</p>|`SNMP agent`|ifInOctects.2950<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

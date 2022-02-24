@@ -30,6 +30,8 @@ There are no macros links in this template.
 |Template Module Interfaces SNMP|
 |Template Module Generic SNMP|
 |Template SNMP Processors|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -41,6 +43,8 @@ There are no macros links in this template.
 |Fan Discovery|<p>-</p>|`SNMP agent`|mbgLtNgSysFanIndex<p>Update: 1h</p>|
 |Processors|<p>{$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|hrProcessorLoad<p>Update: 3600</p>|
 |Reference Clock Discovery|<p>-</p>|`SNMP agent`|mbgLtNgRefclockTable<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -103,6 +107,8 @@ There are no macros links in this template.
 |Reference Clock - {#SNMPVALUE} - Substate|<p>More detailed state depending on refclock type 0:no substate available gps:1-4 long waves (PZF,WWVB,MSF,...):50-52 (not supported by all types) irig:100-101</p>|`SNMP agent`|mbgLtNgRefclockSubstate[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Reference Clock - {#SNMPVALUE} - Type|<p>Type of refclock</p>|`SNMP agent`|mbgLtNgRefclockType[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Reference Clock - {#SNMPVALUE} - Usage|<p>what this refclock is used for</p>|`SNMP agent`|mbgLtNgRefclockUsage[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

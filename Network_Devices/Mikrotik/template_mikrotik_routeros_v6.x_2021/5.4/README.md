@@ -56,6 +56,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Interfaces|<p>-</p>|`SNMP agent`|interfaces<p>Update: 1h</p>|
 |CPU|<p>-</p>|`SNMP agent`|cpu<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +82,8 @@ There are no template links in this template.
 |{#SNMPVALUE} In|<p>-</p>|`SNMP agent`|interface.in.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |{#SNMPVALUE} Out|<p>-</p>|`SNMP agent`|interface.out.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |CPU {#SNMPINDEX}|<p>-</p>|`SNMP agent`|cpu.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |mp CMS Old Gen used|<p>-</p>|`JMX agent`|jmx["java.lang:type=MemoryPool,name=CMS Old Gen",Usage.used]<p>Update: 1m</p>|
 |mp CMS Perm Gen committed|<p>-</p>|`JMX agent`|jmx["java.lang:type=MemoryPool,name=CMS Perm Gen",Usage.committed]<p>Update: 1m</p>|
 |th Total Started Thread Count|<p>-</p>|`JMX agent`|jmx["java.lang:type=Threading",TotalStartedThreadCount]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

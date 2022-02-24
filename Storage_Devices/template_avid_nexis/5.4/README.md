@@ -46,6 +46,8 @@ Danielle
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -78,6 +80,8 @@ There are no discovery rules in this template.
 |AvidNEXIS-MIB::AvidNEXISSystemDirectorStateString|<p>This variable shows the state of the System Director in string format.</p>|`SNMP agent`|.1.3.6.1.4.1.526.20.2.2.0<p>Update: 1h</p>|
 |AvidNEXIS-MIB::AvidNEXISActiveClientCount|<p>This variable shows the active client count</p>|`SNMP agent`|.1.3.6.1.4.1.526.20.3.6.0<p>Update: 1h</p>|
 |AvidNEXIS-MIB::AvidNEXISProductName|<p>This variable shows the name of the Avid NEXIS product line</p>|`SNMP agent`|.1.3.6.1.4.1.526.20.1.1.0<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

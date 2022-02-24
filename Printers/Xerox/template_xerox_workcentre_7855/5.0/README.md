@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |Current cartridge toner level - magenta|<p>-</p>|`SNMP agent`|ink.magenta.now<p>Update: 600</p>|
 |Max cartridge toner level - magenta|<p>-</p>|`SNMP agent`|ink.magenta.max<p>Update: 3600</p>|
 |Type of toner waste Container|<p>-</p>|`SNMP agent`|waste.toner.type<p>Update: 21600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

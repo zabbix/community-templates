@@ -28,6 +28,8 @@ Federico Coppola
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -79,6 +81,8 @@ There are no discovery rules in this template.
 |Bank Ram Twenty|<p>Bank Ram number twenty</p>|`SNMP agent`|status.ram.twenty<p>Update: 30s</p>|
 |CPU One Status|<p>Status CPU One If the status is different from 2 there is problem</p>|`SNMP agent`|status.cpu.one<p>Update: 30s</p>|
 |Temp Inlet|<p>interfaces.ifTable.ifEntry.ifInOctets.1</p>|`SNMP agent`|temp.inlet.ambient<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

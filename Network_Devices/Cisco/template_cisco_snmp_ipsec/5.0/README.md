@@ -14,6 +14,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |IPSec Phase1  Tunnel discovery|<p>-</p>|`SNMP agent`|cikeTunIndex<p>Update: 60</p>|
 |IPSec Phase2 Tunnel discovery|<p>The IP address of the remote endpoint for the IPsec Phase-2 Tunnel.</p>|`SNMP agent`|cipSecTunIndex<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Phase2 Peer {#SNMPVALUE} tunnel local address|<p>The IP address of the local endpoint for the IPsec Phase-2 Tunnel.</p>|`SNMP agent`|cipSecTunLocalAddr[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Phase2 Peer {#SNMPVALUE} outbound traffic|<p>The total number of octets sent by this IPsec Phase-2 Tunnel. This value is accumulated AFTER determining whether or not the packet should be compressed. See also cipSecTunOutOctWraps for the number of times this counter has wrapped.</p>|`SNMP agent`|cipSecTunOutOctets[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Phase2 Peer {#SNMPVALUE} tunnel remoteaddress|<p>The IP address of the remote endpoint for the IPsec Phase-2 Tunnel.</p>|`SNMP agent`|cipSecTunRemoteAddr[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

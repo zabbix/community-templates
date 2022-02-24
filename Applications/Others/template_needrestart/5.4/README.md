@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Kernel ABI update available|<p>-</p>|`Zabbix agent`|needrestart.kernel<p>Update: 14400</p>|
 |Services using old libs|<p>-</p>|`Zabbix agent`|needrestart.libs<p>Update: 14400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

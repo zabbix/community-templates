@@ -34,6 +34,8 @@ There are no template links in this template.
 |Volume discovery|<p>-</p>|`SNMP agent`|volumeDiscovery<p>Update: 1h</p>|
 |Net discovery|<p>-</p>|`SNMP agent`|netDiscovery<p>Update: 1h</p>|
 |Fan discovery|<p>-</p>|`SNMP agent`|fanDiscovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +77,8 @@ There are no template links in this template.
 |Net #{#SNMPINDEX} Received|<p>Входящие пакеты в килобайтах (КБ)</p>|`SNMP agent`|netPacketReceived[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Net #{#SNMPINDEX} Sent|<p>Исходящие пакеты в килобайтах (КБ)</p>|`SNMP agent`|netPacketSent[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Fan #{#SNMPINDEX} speed|<p>Скорость вращения вентилятора, об/м</p>|`SNMP agent`|fanSpeed[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

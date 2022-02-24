@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |SYS_FAN 6|<p>-</p>|`IPMI agent`|ipmi.system.sys_fan_6<p>Update: 60</p>|
 |SAS Area Temp|<p>-</p>|`IPMI agent`|ipmi.sas.temp<p>Update: 60</p>|
 |SYS_FAN 5|<p>-</p>|`IPMI agent`|ipmi.system.sys_fan_5<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

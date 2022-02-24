@@ -46,6 +46,8 @@ There are no template links in this template.
 |Ruckus APs|<p>-</p>|`SNMP agent`|AP-[{#SNMPVALUE}]<p>Update: 3600</p>|
 |ssids|<p>-</p>|`SNMP agent`|ssid-[{#SNMPVALUE}]<p>Update: 3600</p>|
 |Ruckus APs NN|<p>Not normalized discovery, to use with Grafana.</p>|`SNMP agent`|APNN-[{#SNMPVALUE}]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -74,6 +76,8 @@ There are no template links in this template.
 |SSID $1 : Rx Bytes|<p>-</p>|`SNMP agent`|ruckusZDWLANRxBytes[{#SNMPVALUE}]<p>Update: 1200</p><p>LLD</p>|
 |SSID $1 : Tx Bytes|<p>-</p>|`SNMP agent`|ruckusZDWLANTxBytes[{#SNMPVALUE}]<p>Update: 1200</p><p>LLD</p>|
 |AP $1#{#GROUP}#{#DESCRIPTION}#{#NAME} : Auth Clients|<p>-</p>|`SNMP agent`|ruckusZDWLANAPNumStaNN[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

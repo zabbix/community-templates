@@ -44,6 +44,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ONU Status|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1012.3.28.1.1.2<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |OLT RX Signal - {#SNMPVALUE}|<p>-</p>|`SNMP agent`|zxoltrxsignal.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |OLT TX Signal - {#SNMPVALUE}|<p>-</p>|`SNMP agent`|zxolttxsignal.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |ONU Status {#SNMPVALUE}|<p>-</p>|`SNMP agent`|zxonustatus.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

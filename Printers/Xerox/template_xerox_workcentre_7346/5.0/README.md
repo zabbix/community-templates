@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |ink.black.max|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 30</p>|
 |Location|<p>-</p>|`SNMP agent`|Location<p>Update: 30</p>|
 |Желтый тонер-картридж|<p>-</p>|`SNMP agent`|yellow.cartridge.type<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

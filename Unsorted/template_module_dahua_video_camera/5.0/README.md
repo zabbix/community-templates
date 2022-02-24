@@ -45,6 +45,8 @@ There are no discovery rules in this template.
 |Device uptime|<p>MIB: SNMPv2-MIB The time (in hundredths of a second) since the network management portion of the system was last re-initialized.</p>|`SNMP agent`|systeme.uptime[sysUpTime]<p>Update: 5m</p>|
 |Dahua - CPU Usage|<p>-</p>|`SNMP agent`|cpuUsage.0<p>Update: 30s</p>|
 |Dahua - IP Adress|<p>-</p>|`SNMP agent`|ipAddr.0<p>Update: 8h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

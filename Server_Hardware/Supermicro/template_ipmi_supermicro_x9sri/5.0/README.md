@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |System Temp|<p>-</p>|`IPMI agent`|ipmi.system.temp<p>Update: 60s</p>|
 |FAN A|<p>-</p>|`IPMI agent`|ipmi.system.fan_a<p>Update: 60s</p>|
 |VSB|<p>-</p>|`IPMI agent`|ipmi.system.vsb<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

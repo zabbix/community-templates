@@ -63,6 +63,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Fortigate Wifi Access Points|<p>-</p>|`SNMP agent`|fgWcWtpSessionWtpId<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -79,6 +81,8 @@ There are no template links in this template.
 |Number of clients currently connected to this WTP $1|<p>-</p>|`SNMP agent`|fgWcWtpSessionWtpStationCount[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Sw Version of this WTP $1|<p>-</p>|`SNMP agent`|fgWcWtpSessionWtpSwVersion[{#SNMPVALUE}]<p>Update: 1h</p><p>LLD</p>|
 |Uptime of this WTP $1|<p>-</p>|`SNMP agent`|fgWcWtpSessionWtpUpTime[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

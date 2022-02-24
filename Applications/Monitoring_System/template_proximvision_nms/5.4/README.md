@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |PostgreSQL service status|<p>-</p>|`Zabbix agent`|service.info[postgresql-9.2]<p>Update: 60</p>|
 |PVServer service status|<p>-</p>|`Zabbix agent`|service.info[PVServer]<p>Update: 60</p>|
 |PVMonitor service status|<p>-</p>|`Zabbix agent`|service.info[PVMonitor]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

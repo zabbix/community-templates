@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Power Supply 2|<p>-</p>|`IPMI agent`|PowerSupply2<p>Update: 3600</p>|
 |02-CPU 1|<p>-</p>|`IPMI agent`|02-CPU1<p>Update: 3600</p>|
 |Fan 5|<p>-</p>|`IPMI agent`|Fan5<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

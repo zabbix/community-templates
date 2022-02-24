@@ -35,6 +35,8 @@ Notes
 |{$INTERNAL_ITEMS_HISTORY_PEIOD}|<p>-</p>|`0`|Text macro|
 |{$LD_THROTTLING_HB_PERIOD}|<p>-</p>|`10800`|Text macro|
 |{$PD_THROTTLING_HB_PERIOD}|<p>-</p>|`10800`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -46,6 +48,8 @@ There are no template links in this template.
 |Controllers discovery|<p>-</p>|`Zabbix agent`|lsi.ctllld<p>Update: {$ADAP_DISCOVERY_PERIOD}</p>|
 |Physical disks discovery|<p>-</p>|`Zabbix agent`|lsi.pdlld<p>Update: {$PD_DISCOVERY_PERIOD}</p>|
 |Logical disks discovery|<p>-</p>|`Zabbix agent`|lsi.ldlld<p>Update: {$LD_DISCOVERY_PERIOD}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -78,6 +82,8 @@ There are no template links in this template.
 |Physical disk "{#PDID}" state|<p>-</p>|`Dependent item`|lsi.pd.state.["{#PDID}"]<p>Update: 0</p><p>LLD</p>|
 |Logical disk "{#LDNAME}" (id {#LDID}) level|<p>-</p>|`Dependent item`|lsi.ld.level.["{#LDID}"]<p>Update: 0</p><p>LLD</p>|
 |Logical disk "{#LDNAME}" (id {#LDID})  state|<p>-</p>|`Dependent item`|lsi.ld.state.["{#LDID}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

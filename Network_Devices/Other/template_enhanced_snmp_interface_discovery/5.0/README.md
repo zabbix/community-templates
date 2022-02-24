@@ -69,6 +69,8 @@ Twan Kamans
 |{$INT_NO_TRIGGER_STRING}|<p>-</p>|`^(EDGEPORT)$`|Text macro|
 |{$INT_PRIO_STRING}|<p>-</p>|`UPLINK`|Text macro|
 |{$SEARCH_FOR_INACTIVE_PORTS}|<p>-</p>|`0`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no template links in this template.
 |Network Interfaces Discovery - Virtual|<p>-</p>|`SNMP agent`|net.if.virt.discovery<p>Update: {$INT_LLD_UPDATE_INTERVAL}</p>|
 |Network Interfaces Discovery - Normal|<p>-</p>|`SNMP agent`|net.if.discovery<p>Update: {$INT_LLD_UPDATE_INTERVAL}</p>|
 |Network Interfaces Discovery - Disabled|<p>-</p>|`SNMP agent`|net.if.down.discovery<p>Update: {$INT_LLD_UPDATE_INTERVAL}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -112,6 +116,8 @@ There are no template links in this template.
 |Interface {#IFNAME}: Bits sent|<p>-</p>|`SNMP agent`|net.if.status[ifOutOctets.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |Interface {#IFNAME}: Speed|<p>Speed of the interface</p>|`SNMP agent`|net.if.status[ifSpeed.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Interface {#IFNAME}: Admin status|<p>Shows if interface is administrative disabled.</p>|`SNMP agent`|net.if.down.status[ifAdminStatus.{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

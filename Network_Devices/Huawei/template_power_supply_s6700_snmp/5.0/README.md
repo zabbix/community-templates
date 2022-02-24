@@ -23,11 +23,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Power Supply Status|<p>-</p>|`SNMP agent`|hwPowerSupplyStatus<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Status Power Supply|<p>-</p>|`SNMP agent`|Status[hwPowerSupplyStatus.{#ENT_NAME}]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

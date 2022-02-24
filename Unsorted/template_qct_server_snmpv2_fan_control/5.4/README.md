@@ -65,12 +65,16 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Fan Index|<p>-</p>|`SNMP agent`|fan.index<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |{#FANNAME} Fan RPM|<p>-</p>|`SNMP agent`|fan.rpm.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |{#FANNAME} Fan Status|<p>-</p>|`SNMP agent`|fan.status.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

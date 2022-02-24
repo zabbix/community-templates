@@ -65,6 +65,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Conditioners|<p>-</p>|`SNMP agent`|sbr01.conditioners<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -96,6 +98,8 @@ There are no template links in this template.
 |Uptime|<p>-</p>|`SNMP agent`|sbr01.system.localTimeSec<p>Update: 3h</p>|
 |Conditioner3 temperature IN|<p>-</p>|`SNMP agent`|sbr01.conditioners.conditioner3.tempIn<p>Update: 2m</p>|
 |Conditioner number|<p>-</p>|`SNMP agent`|sbr01.conditioners.conditioner[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -38,17 +38,23 @@ P.V. Galonza
 |----|-----------|-------|----|
 |{$CRITICAL_BATTERY_TIME}|<p>-</p>|`20m`|Text macro|
 |{$CRITYICAL_BATTERY_CAPACITY}|<p>-</p>|`50`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Devices|<p>Discovery pluged devices</p>|`SNMP agent`|XPPC-MIB.indexOfDevice<p>Update: 1h</p>|
 |Traps|<p>Discovery traps</p>|`SNMP agent`|XPPC-MIB.trapsIndex<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -178,6 +184,8 @@ P.V. Galonza
 |Receiver {#TRAPID} community string|<p>The community name to use in the trap when sent to the manager.</p>|`SNMP agent`|XPPC-MIB[receiverCommunityString.{#TRAPID}]<p>Update: 6h</p><p>LLD</p>|
 |Severity level {#TRAPID}|<p>The severity threshold of traps to send to the manager. Traps are labeled in severity as informational(1), warning(2), severe(3). Only traps of equal or greater severity than this value are sent to the manager.</p>|`SNMP agent`|XPPC-MIB[severityLevel.{#TRAPID}]<p>Update: 5m</p><p>LLD</p>|
 |Trap {#TRAPID} receiver address|<p>The IP address of the manager to send a trap to.</p>|`SNMP agent`|XPPC-MIB[trapsReceiverAddr.{#TRAPID}]<p>Update: 6h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

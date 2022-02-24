@@ -49,6 +49,8 @@ There are no template links in this template.
 |FAN|<p>-</p>|`SNMP agent`|cucsEquipmentFanModuleDn<p>Update: 10s</p>|
 |Temp|<p>-</p>|`SNMP agent`|cucsComputeMbTempStatsRn<p>Update: 30s</p>|
 |NetworkTx|<p>-</p>|`SNMP agent`|cucsEtherTxStatsRn<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -108,6 +110,8 @@ There are no template links in this template.
 |{#SNMPINDEX}:Tx Multicast Packets|<p>-</p>|`SNMP agent`|cucsEtherTxStatsMulticastPackets[{#SNMPINDEX}]<p>Update: 5s</p><p>LLD</p>|
 |{#SNMPINDEX}:Tx Total Bytes|<p>-</p>|`SNMP agent`|cucsEtherTxStatsTotalBytes[{#SNMPINDEX}]<p>Update: 5s</p><p>LLD</p>|
 |{#SNMPINDEX}:Tx Unicast Packets|<p>-</p>|`SNMP agent`|cucsEtherTxStatsUnicastPackets[{#SNMPINDEX}]<p>Update: 5s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

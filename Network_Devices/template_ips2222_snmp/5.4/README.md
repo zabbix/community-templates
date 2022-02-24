@@ -60,6 +60,8 @@ There are no discovery rules in this template.
 |MAC Address|<p>-</p>|`SNMP agent`|deviceMACAddress<p>Update: 1d</p>|
 |Temp Sensor1|<p>-</p>|`SNMP agent`|temperature1<p>Update: 30</p>|
 |Name Sensor 1|<p>-</p>|`SNMP agent`|sens1Name<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

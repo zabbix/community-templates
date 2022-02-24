@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Cartridge toner level % - cyan|<p>-</p>|`Calculated`|cyan.cartridge.toner<p>Update: 3600</p>|
 |Type of drum - black|<p>-</p>|`SNMP agent`|black.drum.type<p>Update: 21600</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 21600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

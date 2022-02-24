@@ -36,6 +36,8 @@ It will use the chrony template.
 |----|-----------|-------|----|
 |{$NTP_OFFSET}|<p>-</p>|`50`|Text macro|
 |{$NTP_OFFSET_LARGE}|<p>-</p>|`5000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -61,6 +63,8 @@ There are no discovery rules in this template.
 |chronyc tracking|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc tracking]<p>Update: 600</p>|
 |NTP offset (long term average)|<p>Time deviation between the NTP server (long term average)</p>|`Zabbix agent (active)`|system.run[chronyc tracking |grep "RMS offset"|awk '{print$4}']<p>Update: 600</p>|
 |Network total delay|<p>Network total delay up to stratum-1.</p>|`Zabbix agent (active)`|system.run[chronyc tracking |grep "Root delay"|awk '{print$4}']<p>Update: 10</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

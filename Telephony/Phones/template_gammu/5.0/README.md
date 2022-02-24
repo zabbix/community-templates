@@ -31,6 +31,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |smsd_outbox|<p>-</p>|`Database monitor`|db.odbc.select[smsd_outbox,smsd]<p>Update: 1m</p>|
 |smsd_sentitems|<p>-</p>|`Database monitor`|db.odbc.select[smsd_sentitems,smsd]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

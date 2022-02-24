@@ -20,6 +20,8 @@ There are no template links in this template.
 |Drive Array Spare Controller discovery|<p>Drive Array Spare Controller Index. This index maps the spare drive back to the controller to which it is attached. The value of this index is the same as the one used under the controller group.</p>|`SNMP agent`|cpqDaSpareCntlrIndex-[{#SNMPVALUE}]<p>Update: 1h</p>|
 |Temp discovery|<p>A number that uniquely specifies this temperature sensor description.</p>|`SNMP agent`|cpqHeTemperatureIndex[{#SNMPVALUE}]<p>Update: 1h</p>|
 |Power Supply Bay|<p>The bay number to index within this chassis.</p>|`SNMP agent`|cpqHeFltTolPowerSupplyBay-[{#SNMPVALUE}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +59,8 @@ There are no template links in this template.
 |Power Supply $1 Presence|<p>Indicates whether the power supply is present in the chassis.</p>|`SNMP agent`|cpqHeFltTolPowerSupplyPresent[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Power Supply $1 Redundancy|<p>The redundancy state of the power supply. This value will be one of the following: other(1) The redundancy state could not be determined. notRedundant(2) The power supply is not operating in a redundant state. redundant(3) The power supply is operating in a redundant state.</p>|`SNMP agent`|cpqHeFltTolPowerSupplyRedundant[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Power Supply $1 Status|<p>The status of the power supply.</p>|`SNMP agent`|cpqHeFltTolPowerSupplyStatus[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -51,6 +51,8 @@ Alex Moura
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -60,6 +62,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Wifi Interfaces|<p>-</p>|`SNMP agent`|unifiVapName<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +84,8 @@ There are no template links in this template.
 |Users on $1|<p>-</p>|`SNMP agent`|unifiVapNumStations[{#UNIFIVAPNAME}]<p>Update: 30s</p><p>LLD</p>|
 |Traffic Incoming on $1|<p>-</p>|`SNMP agent`|unifiVapRxBytes[{#UNIFIVAPNAME}]<p>Update: 30s</p><p>LLD</p>|
 |Traffic Outgoing on $1|<p>-</p>|`SNMP agent`|unifiVapTxBytes[{#UNIFIVAPNAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

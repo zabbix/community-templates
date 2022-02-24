@@ -27,6 +27,8 @@ Fedor Katilov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$COMMUNITY_NAME}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -36,6 +38,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs.</p>|`SNMP agent`|ifDescr<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -212,6 +216,8 @@ There are no template links in this template.
 |Errors TX port GE10|<p>-</p>|`SNMP agent`|ifOutErrors.4227697<p>Update: 30s</p>|
 |Number of interfaces|<p>-</p>|`SNMP agent`|ifNumber.0<p>Update: 3600s</p>|
 |Admin Status port GE15|<p>-</p>|`SNMP agent`|ifAdminStatus.4227737<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

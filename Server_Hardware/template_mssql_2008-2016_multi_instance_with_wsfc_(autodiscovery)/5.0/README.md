@@ -33,6 +33,8 @@ There are no template links in this template.
 |SQL Error Log|<p>-</p>|`Zabbix agent`|mssql.errorlog<p>Update: 1h</p>|
 |Instance Discovery|<p>-</p>|`Zabbix agent`|mssql.instance.discovery<p>Update: 1h</p>|
 |Services Discovery|<p>-</p>|`Zabbix agent`|mssql.service.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -114,6 +116,8 @@ There are no template links in this template.
 |SQL Server, Instance {#INST}:Page IO latch waits/Waits started per second|<p>-</p>|`Zabbix agent`|perf_counter["\{#PERFCOUNTERNAME}:Wait Statistics(Waits started per second)\Page IO latch waits"]<p>Update: 1m</p><p>LLD</p>|
 |SQL Server {#INST} Service State - {#INST}|<p>-</p>|`Zabbix agent`|service_state[MSSQL${#INST}]<p>Update: 10s</p><p>LLD</p>|
 |SQL Agent {#INST} Service State - {#INST}|<p>-</p>|`Zabbix agent`|service_state[SQLAgent${#INST}]<p>Update: 10s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

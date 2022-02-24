@@ -23,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Disk Discovery|<p>-</p>|`Zabbix agent`|system.run["iostat -d | awk 'BEGIN {check=0;count=0;array[0]=0;} {if(check==1 && $1 != \"\"){array[count]=$1;count=count+1;}if($1~\"^Device\"){check=1;}} END {printf(\"{\n\t\\"data\\":[\n\");for(i=0;i<count;++i){printf(\"\t\t{\n\t\t\t\\"{#HARDDISK}\\":\\"%s\\"}\", array[i]); if(i+1<count){printf(\",\n\");}} printf(\"]}\n\");}'"]<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Disk {#HARDDISK} discard data per second|<p>The number of sectors (megabytes) discarded for the device per second.</p>|`Dependent item`|iostat.summary[{#HARDDISK},dMB/s]<p>Update: 0</p><p>LLD</p>|
 |Disk {#HARDDISK} average size of the discard requests|<p>The average size (in kilobytes) of the discard requests that were issued to the device.</p>|`Dependent item`|iostat.summary[{#HARDDISK},dareq-sz]<p>Update: 0</p><p>LLD</p>|
 |Disk {#HARDDISK} read data per second|<p>The number of sectors (megabytes) read from the device per second.</p>|`Dependent item`|iostat.summary[{#HARDDISK},rMB/s]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

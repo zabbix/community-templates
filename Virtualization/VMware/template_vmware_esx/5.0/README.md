@@ -9,6 +9,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template VM VMware macros|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -16,6 +18,8 @@ There are no macros links in this template.
 |Discover VMware hypervisors|<p>Discovery of hypervisors.</p>|`Simple check`|vmware.hv.discovery[{$URL}]<p>Update: 1h</p>|
 |Discover VMware VMs|<p>Discovery of guest virtual machines.</p>|`Simple check`|vmware.vm.discovery[{$URL}]<p>Update: 1h</p>|
 |Discover VMware clusters|<p>Discovery of clusters</p>|`Simple check`|vmware.cluster.discovery[{$URL}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -24,6 +28,8 @@ There are no macros links in this template.
 |Event log|<p>-</p>|`Simple check`|vmware.eventlog[{$URL}]<p>Update: 1m</p>|
 |Version|<p>-</p>|`Simple check`|vmware.version[{$URL}]<p>Update: 1h</p>|
 |Status of "{#CLUSTER.NAME}" cluster|<p>-</p>|`Simple check`|vmware.cluster.status[{$URL},{#CLUSTER.NAME}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -39,6 +45,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template VM VMware macros|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +54,8 @@ There are no macros links in this template.
 |Network device discovery|<p>Discovery of all network devices.</p>|`Simple check`|vmware.vm.net.if.discovery[{$URL},{HOST.HOST}]<p>Update: 1h</p>|
 |Mounted filesystem discovery|<p>Discovery of all guest file systems.</p>|`Simple check`|vmware.vm.vfs.fs.discovery[{$URL},{HOST.HOST}]<p>Update: 1h</p>|
 |Disk device discovery|<p>Discovery of all disk devices.</p>|`Simple check`|vmware.vm.vfs.dev.discovery[{$URL},{HOST.HOST}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -81,6 +91,8 @@ There are no macros links in this template.
 |Average number of reads from the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.read[{$URL},{HOST.HOST},{#DISKNAME},ops]<p>Update: 1m</p><p>LLD</p>|
 |Average number of bytes written to the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.write[{$URL},{HOST.HOST},{#DISKNAME},bps]<p>Update: 1m</p><p>LLD</p>|
 |Average number of writes to the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.write[{$URL},{HOST.HOST},{#DISKNAME},ops]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -96,11 +108,15 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template VM VMware macros|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Datastore discovery|<p>-</p>|`Simple check`|vmware.hv.datastore.discovery[{$URL},{HOST.HOST}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -133,6 +149,8 @@ There are no macros links in this template.
 |Free space on datastore {#DATASTORE} (percentage)|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{HOST.HOST},{#DATASTORE},pfree]<p>Update: 1m</p><p>LLD</p>|
 |Total size of datastore {#DATASTORE}|<p>-</p>|`Simple check`|vmware.hv.datastore.size[{$URL},{HOST.HOST},{#DATASTORE}]<p>Update: 1m</p><p>LLD</p>|
 |Average write latency of the datastore {#DATASTORE}|<p>-</p>|`Simple check`|vmware.hv.datastore.write[{$URL},{HOST.HOST},{#DATASTORE},latency]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

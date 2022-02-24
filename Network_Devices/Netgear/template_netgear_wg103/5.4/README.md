@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |WLAN IN|<p>-</p>|`SNMP agent`|wlan.in<p>Update: 5</p>|
 |WLAN OUT|<p>-</p>|`SNMP agent`|wlan.out<p>Update: 5</p>|
 |LAN MAC address|<p>-</p>|`SNMP agent`|mac.pa.lan<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

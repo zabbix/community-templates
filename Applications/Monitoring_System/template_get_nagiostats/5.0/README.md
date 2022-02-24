@@ -148,6 +148,8 @@ There are no discovery rules in this template.
 |Active Service Execution Time (Max)|<p>-</p>|`Zabbix trapper`|act_srv_exec_time_max<p>Update: 0</p>|
 |Passive Host Checks Last (15min)|<p>-</p>|`Zabbix trapper`|psv_hst_checks_last_15min<p>Update: 0</p>|
 |Passive Host State Change (Average)|<p>-</p>|`Zabbix trapper`|psv_hst_state_change_ave<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

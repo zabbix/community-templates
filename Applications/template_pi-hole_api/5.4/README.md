@@ -136,6 +136,8 @@ There are no discovery rules in this template.
 |Ads percentage today|<p>-</p>|`Dependent item`|json.pihole.ads_percentage_today<p>Update: 0</p>|
 |Domains being blocked|<p>-</p>|`Dependent item`|json.pihole.domains_being_blocked<p>Update: 0</p>|
 |Reply NODATA|<p>-</p>|`Dependent item`|json.pihole.reply_NODATA<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

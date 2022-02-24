@@ -52,6 +52,8 @@ LAHOUZE Olivier
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
 |{$VERSIONPOSTGRES}|<p>-</p>|`9.3`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no template links in this template.
 |CPU|<p>-</p>|`SNMP agent`|snmp.CPU.discovery<p>Update: 3600</p>|
 |File System|<p>-</p>|`SNMP agent`|snmp.filesystem.discovery<p>Update: 60</p>|
 |Network|<p>-</p>|`SNMP agent`|snmp.network.discovery<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -174,6 +178,8 @@ There are no template links in this template.
 |Interface [{#SNMPVALUE}] Operation Status|<p>-</p>|`SNMP agent`|SNMP-Interface-Operation-Status.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Interface [{#SNMPVALUE}] OUT Octets|<p>-</p>|`SNMP agent`|SNMP-Interface-OUT-Octets.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Interface [{#SNMPVALUE}] Type|<p>-</p>|`SNMP agent`|SNMP-Interface-Type.[{#SNMPVALUE}]<p>Update: 1800</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

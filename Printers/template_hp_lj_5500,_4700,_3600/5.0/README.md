@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |Printer model Number|<p>Shows printer model number for firmware upgrade.</p>|`SNMP agent`|printer_model_number<p>Update: 86400</p>|
 |HP_PaperJam|<p>HP paper Jam</p>|`SNMP agent`|HP_PaperJam<p>Update: 30</p>|
 |Magenta toner paper print remaining value|<p>Shows how many paper you can print out with Magenta supply.</p>|`SNMP agent`|Magenta_toner_paper_print_remaining_value<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

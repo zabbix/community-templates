@@ -15,6 +15,8 @@ There are no template links in this template.
 |Connectivity unit info|<p>A display string containing a name for this connectivity unit. This object value should be persistent between boots.</p>|`SNMP agent`|connUnitName<p>Update: 24h</p>|
 |Connectivity unit sensor info|<p>A textual identification of the sensor intended primarily for operator use.</p>|`SNMP agent`|connUnitSensorName<p>Update: 24h</p>|
 |Connectivity unit port info|<p>A user-defined name for this port. This means that up to DisplayString characters may be supported. If less than, then the name will be truncated in the connunit.</p>|`SNMP agent`|connUnitPortName<p>Update: 24h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Connectivity unit sensor {#CONNUNITSENSORNAME} status|<p>The status indicated by the sensor.</p>|`SNMP agent`|connUnitSensorStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Connectivity unit port {#CONNUNITPORTNAME} state|<p>The user selected state of the port hardware.</p>|`SNMP agent`|connUnitPortState[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Connectivity unit port {#CONNUNITPORTNAME} status|<p>An overall protocol status for the port. This value of connUnitPortState is not online, then this is reported Unknown.</p>|`SNMP agent`|connUnitPortStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

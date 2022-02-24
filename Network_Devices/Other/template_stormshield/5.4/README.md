@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Port 04 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctets.p04<p>Update: 5</p>|
 |Port 08 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctets.p08<p>Update: 5</p>|
 |Port 03 Traffic IN|<p>-</p>|`SNMP agent`|ifInOctets.p03<p>Update: 5</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

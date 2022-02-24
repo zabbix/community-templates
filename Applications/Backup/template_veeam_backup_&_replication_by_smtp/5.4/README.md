@@ -51,6 +51,8 @@ Raynald de Lahondès
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$BACKUP_PERIODICITY}|<p>-</p>|`52h`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -60,12 +62,16 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Job Discovery|<p>-</p>|`Zabbix trapper`|smtp.trap.subject.discovery[veeamjob]<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Job {#VEEAMJOB} message|<p>-</p>|`Zabbix trapper`|smtp.trap.subject.match.body[veeamjob,{#VEEAMJOB}]<p>Update: 0</p><p>LLD</p>|
 |Job {#VEEAMJOB} status|<p>-</p>|`Zabbix trapper`|smtp.trap.subject.match[veeamjob,{#VEEAMJOB},status]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

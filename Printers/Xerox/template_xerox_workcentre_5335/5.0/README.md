@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |Current cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 15m</p>|
 |Max cartridge Drum level - black|<p>-</p>|`SNMP agent`|drum.black.max<p>Update: 15m</p>|
 |Type of drum - black|<p>-</p>|`SNMP agent`|black.drum.type<p>Update: 6h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

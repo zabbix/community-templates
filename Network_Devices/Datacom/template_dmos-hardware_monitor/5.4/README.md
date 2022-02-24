@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |DM4610 - FAN3 Speed|<p>-</p>|`SNMP agent`|fanSpeed.1.51<p>Update: 300</p>|
 |DM4050 - CPU Core Temperature|<p>-</p>|`SNMP agent`|temperatureSensorCurrentTemperature.CPUCore<p>Update: 300</p>|
 |DM4050 - Switch Fabric Temperature|<p>-</p>|`SNMP agent`|temperatureSensorCurrentTemperature.1.1.SENSOR1<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

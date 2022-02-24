@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |Queries in NS|<p>-</p>|`Zabbix agent`|bind.queries.in[NS]<p>Update: 30</p>|
 |Queries out CNAME|<p>-</p>|`Zabbix agent`|bind.queries.out[CNAME]<p>Update: 30</p>|
 |Queries out SPF|<p>-</p>|`Zabbix agent`|bind.queries.out[SPF]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

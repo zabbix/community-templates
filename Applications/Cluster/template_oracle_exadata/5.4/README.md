@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |sunHwTrapStorageVolumeError|<p>-</p>|`SNMP trap`|snmptrap[".42.2.175.103.2.0.79"]<p>Update: 0</p>|
 |sunHwTrapProcessorFault|<p>-</p>|`SNMP trap`|snmptrap[".42.2.175.103.2.0.37"]<p>Update: 0</p>|
 |ilomSystemTrapFallback|<p>-</p>|`SNMP trap`|snmptrap.fallback<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

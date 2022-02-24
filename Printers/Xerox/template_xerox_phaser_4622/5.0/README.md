@@ -23,6 +23,8 @@ There are no discovery rules in this template.
 |Current cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 30</p>|
 |Cartridge toner level % - black|<p>-</p>|`Calculated`|black.cartridge.toner<p>Update: 30</p>|
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

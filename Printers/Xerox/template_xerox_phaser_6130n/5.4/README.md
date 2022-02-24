@@ -35,6 +35,8 @@ There are no discovery rules in this template.
 |Max cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.max<p>Update: 30</p>|
 |Cartridge toner level % - magenta|<p>-</p>|`Calculated`|magenta.cartridge.toner<p>Update: 30</p>|
 |Current cartridge toner level - yellow|<p>-</p>|`SNMP agent`|ink.yellow.now<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

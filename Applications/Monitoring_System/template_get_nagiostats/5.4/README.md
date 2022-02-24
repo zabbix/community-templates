@@ -148,6 +148,8 @@ There are no discovery rules in this template.
 |Passive Host Latency (Average)|<p>-</p>|`Zabbix trapper`|psv_hst_latency_ave<p>Update: 0</p>|
 |Active Service Latency (Average)|<p>-</p>|`Zabbix trapper`|act_srv_latency_ave<p>Update: 0</p>|
 |Passive Services Last (1min)|<p>-</p>|`Zabbix trapper`|psv_srvs_last_1min<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

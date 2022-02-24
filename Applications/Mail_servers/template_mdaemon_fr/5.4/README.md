@@ -84,6 +84,8 @@ There are no discovery rules in this template.
 |Messages SMTP (entrant)/Sec|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Messages SMTP (entrant)/Sec"]<p>Update: 30</p>|
 |Sessions POP3 (entrant) actives|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Sessions POP3 (entrant) actives"]<p>Update: 30</p>|
 |Sessions SMTP (entrant)/Sec|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Sessions SMTP (entrant)/Sec"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

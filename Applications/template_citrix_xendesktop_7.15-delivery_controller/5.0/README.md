@@ -26,6 +26,8 @@ citrix24
 |----|-----------|-------|----|
 |{$CTX_LIC_SRV}|<p>-</p>|`add your host name`|Text macro|
 |{$DB_SRV}|<p>-</p>|`add your host name`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -67,6 +69,8 @@ There are no discovery rules in this template.
 |Broker_Event_3500|<p>The Citrix Broker Service has detected that the issue with communication with the database has been resolved and will resume normal brokering activity using configuration in the main site database.</p>|`Zabbix agent (active)`|eventlog[Application,,Information,,3500,,]<p>Update: 1m</p>|
 |Broker_Event_1200|<p>The connection between the Citrix Broker Service and the database has been restored.</p>|`Zabbix agent (active)`|eventlog[Application,,Information,"Citrix Broker Service",1200,,]<p>Update: 1m</p>|
 |Broker_CitrixMachineCreationService|<p>-</p>|`Zabbix agent`|service.info[CitrixMachineCreationService]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

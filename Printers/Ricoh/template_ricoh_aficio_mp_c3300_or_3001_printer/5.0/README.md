@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |2#输入纸盘打印纸余量|<p>返回值为0表示余量充足，返回值为9表示纸张已用尽。</p>|`SNMP agent`|printer.tray.status[2]<p>Update: 180</p>|
 |青色碳粉余量|<p>返回值范围0-100（类似百分比），0表示碳粉用尽，100表示碳粉余量充足。</p>|`SNMP agent`|prints.toner.status[cyan]<p>Update: 180</p>|
 |设备序列号|<p>-</p>|`SNMP agent`|print.serial<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

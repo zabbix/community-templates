@@ -75,6 +75,8 @@ There are no discovery rules in this template.
 |PowerStatusInputInternalFailure2|<p>-</p>|`SNMP agent`|PowerStatusInputInternalFailure2<p>Update: 30</p>|
 |PowerOutputCurrent|<p>-</p>|`SNMP agent`|PowerOutputCurrent<p>Update: 15</p>|
 |DeviceStatusTransferTest|<p>-</p>|`SNMP agent`|DeviceStatusTransferTest<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

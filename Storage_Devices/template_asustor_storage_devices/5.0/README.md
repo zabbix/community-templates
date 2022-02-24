@@ -27,6 +27,8 @@ Jonatan Gobbato
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -37,6 +39,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Volume Discovery|<p>-</p>|`SNMP agent`|volume.discovery<p>Update: 5m</p>|
 |Disk Discovery|<p>-</p>|`SNMP agent`|disk.discovery<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -57,6 +61,8 @@ There are no template links in this template.
 |Disk {#DISKINDEX} Model|<p>-</p>|`SNMP agent`|DiskModel[{#DISKINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Disk {#DISKINDEX} Status|<p>-</p>|`SNMP agent`|DiskStatus[{#DISKINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Disk {#DISKINDEX} Temperature|<p>-</p>|`SNMP agent`|DiskTemperature[{#DISKINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

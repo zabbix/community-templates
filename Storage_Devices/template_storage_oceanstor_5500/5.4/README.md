@@ -19,6 +19,8 @@
 |{$SNMPV3_AUTHPASS}|<p>-</p>|`пароль`|Text macro|
 |{$SNMPV3_PRIVPASS}|<p>-</p>|`пароль`|Text macro|
 |{$SNMPV3_SECNAME}|<p>-</p>|`логин`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -35,6 +37,8 @@ There are no template links in this template.
 |Обнаружение БП|<p>-</p>|`SNMP agent`|hwinfoPower<p>Update: 1d</p>|
 |Обнаружение Disk Domain|<p>-</p>|`SNMP agent`|hwInfoDiskDomain<p>Update: 1d</p>|
 |Обнаружение LUN|<p>-</p>|`SNMP agent`|hwInfoLun<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -62,6 +66,8 @@ There are no template links in this template.
 |LUN {#LUNNAME} Allocated Capacity в %|<p>-</p>|`Calculated`|hwInfoLunCapacityProc.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |Состояние LUN {#LUNNAME}|<p>-</p>|`SNMP agent`|hwInfoLunHealthStatus.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |LUN {#LUNNAME} Allocated Capacity в байтах|<p>-</p>|`SNMP agent`|hwInfoLunSubscribedCapacity.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

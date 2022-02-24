@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |Tensão de Byppas C-N|<p>-</p>|`SNMP agent`|xupsBypassVoltagec<p>Update: 30</p>|
 |Frequência de Saída|<p>-</p>|`SNMP agent`|xupsOutputFrequency<p>Update: 30</p>|
 |Potência de Saída Fase C|<p>-</p>|`SNMP agent`|xupsOutputWattsc<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

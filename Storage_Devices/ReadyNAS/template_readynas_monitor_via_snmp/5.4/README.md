@@ -7,6 +7,8 @@
 |{$FAN_MINIMUM_RPM}|<p>-</p>|`800`|Text macro|
 |{$TEMPERATURE_LIMIT}|<p>-</p>|`85`|Text macro|
 |{$TEMPERATURE_MAXIMUM}|<p>-</p>|`60`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -36,6 +38,8 @@ There are no discovery rules in this template.
 |volumeFreeSpace|<p>-</p>|`SNMP agent`|volumeFreeSpace<p>Update: 60</p>|
 |diskState.4|<p>-</p>|`SNMP agent`|diskState.4<p>Update: 30</p>|
 |fanRPM|<p>-</p>|`SNMP agent`|fanRPM<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

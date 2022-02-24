@@ -101,6 +101,8 @@ Aleksey Omelyanovich
 |----|-----------|-------|----|
 |{$CPU_UTIL_MAX}|<p>-</p>|`90`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -113,6 +115,8 @@ There are no template links in this template.
 |VCSA Services|<p>-</p>|`External check`|vcsa_discovery<p>Update: 1h</p>|
 |File System|<p>-</p>|`SNMP agent`|snmp.filesystem.discovery<p>Update: 180</p>|
 |Network|<p>-</p>|`SNMP agent`|snmp.network.discovery<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -140,6 +144,8 @@ There are no template links in this template.
 |Interface [{#SNMPVALUE}] Operation Status|<p>-</p>|`SNMP agent`|SNMP-Interface-Operation-Status.[{#SNMPVALUE}]<p>Update: 120</p><p>LLD</p>|
 |Interface [{#SNMPVALUE}] Bytes send|<p>-</p>|`SNMP agent`|SNMP-Interface-OUT-Octets.[{#SNMPVALUE}]<p>Update: 180</p><p>LLD</p>|
 |Interface [{#SNMPVALUE}] Type|<p>-</p>|`SNMP agent`|SNMP-Interface-Type.[{#SNMPVALUE}]<p>Update: 1800</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

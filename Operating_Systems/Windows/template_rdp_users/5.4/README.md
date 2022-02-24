@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Logged Users|<p>http://serverfault.com/questions/511120/getting-just-the-active-remote-desktop-sessions</p>|`Zabbix agent (active)`|RDPUsers<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

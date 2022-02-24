@@ -51,6 +51,8 @@ There are no discovery rules in this template.
 |Pwr Consumption|<p>-</p>|`IPMI agent`|ipmi.pwr.consumption<p>Update: 300</p>|
 |Power|<p>-</p>|`IPMI agent`|power<p>Update: 300</p>|
 |Inlet Temp|<p>-</p>|`IPMI agent`|ipmi.inlet.temp<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

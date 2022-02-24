@@ -32,6 +32,8 @@ Please enjoy and vote!
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -41,6 +43,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Outlets|<p>-</p>|`SNMP agent`|rPDU2Outlet<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -68,12 +72,16 @@ There are no template links in this template.
 |Outlet $1 Name|<p>-</p>|`SNMP agent`|rPDU2OutletSwitchedConfigName[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Outlet $1 Bank|<p>-</p>|`SNMP agent`|rPDU2OutletSwitchedPropertiesBank[{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
 |Outlet $1 State|<p>-</p>|`SNMP agent`|rPDU2OutletSwitchedStatusState[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
 |Outlet {#SNMPVALUE} State Change|<p>-</p>|<p>**Expression**: {SNMP APC PDU:rPDU2OutletSwitchedStatusState[{#SNMPINDEX}].diff()}=1</p><p>**Recovery expression**: </p>|information|
 |Outlet {#SNMPVALUE} State Change (LLD)|<p>-</p>|<p>**Expression**: {SNMP APC PDU:rPDU2OutletSwitchedStatusState[{#SNMPINDEX}].diff()}=1</p><p>**Recovery expression**: </p>|information|
+
+
 # SNMP Tripplite
 
 ## Overview
@@ -169,6 +177,8 @@ There are no discovery rules in this template.
 |upsIdentAgentSoftwareVersion|<p>-</p>|`SNMP agent`|upsIdentAgentSoftwareVersion<p>Update: 600</p>|
 |upsOutputCurrent.1|<p>-</p>|`SNMP agent`|upsOutputCurrent.1<p>Update: 30</p>|
 |upsOutputFrequency|<p>-</p>|`SNMP agent`|upsOutputFrequency<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

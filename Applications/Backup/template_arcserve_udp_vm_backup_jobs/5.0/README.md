@@ -37,6 +37,8 @@ R.P.Wimmer
 |{$ARCSERVE_HOST}|<p>-</p>|``|Text macro|
 |{$ARCSERVE_PASS}|<p>-</p>|``|Text macro|
 |{$ARCSERVE_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -66,6 +68,8 @@ There are no discovery rules in this template.
 |ArcserveBackup: Arcserve UDP-Verwaltungsdienst|<p>-</p>|`Zabbix agent`|service_state[CAARCAppSvc]<p>Update: 2m</p>|
 |Arcserve UDP JobIdleCount|<p>Arcserve UDP JobIdleCount from VM Backups</p>|`Zabbix agent`|custom.arcserveudpvm[{$ARCSERVE_DOMAIN},{$ARCSERVE_USER},{$ARCSERVE_PASS},"JobIdleCount",{$ARCSERVE_HOST}]<p>Update: 5m</p>|
 |ArcserveBackup: Arcserve UDP-Identitätsdienst|<p>-</p>|`Zabbix agent`|service_state[ArcserveUDPIS]<p>Update: 2m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

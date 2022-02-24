@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Bloqueio Lista psbl.surriel.com|<p>Retorna quantidade de e-mails diários bloqueados pela lista psbl.surriel.com.</p>|`Zabbix agent`|system.run[awk '/blocked using psbl.surriel.com/{print $5}' /tmp/report.txt]<p>Update: 0;h23m50</p>|
 |Fila de e-mails entregues|<p>Quando o e-mail é entregue na caixa do usuário com sucesso.</p>|`Zabbix agent`|zimbra.mailq.incoming<p>Update: 1m</p>|
 |Status Zmconfigd Zimbra|<p>-</p>|`Zabbix agent`|zimbra.zmconfigd.status<p>Update: 3m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

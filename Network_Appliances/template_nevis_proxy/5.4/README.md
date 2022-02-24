@@ -33,6 +33,8 @@ There are no template links in this template.
 |nevisAuthInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceAuth.discovery<p>Update: 1m</p>|
 |nevisProxyInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceProxy.discovery<p>Update: 1m</p>|
 |nevisKeyboxInstance Discovery|<p>-</p>|`SNMP agent`|nevisInstanceKeybox.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -90,6 +92,8 @@ There are no template links in this template.
 |#{#SNMPINDEX}: nevisinstanceKeyboxKeystoreExp|<p>Number of own certificates expiring within 30 days</p>|`SNMP agent`|nevisinstanceKeyboxKeystoreExp[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |#{#SNMPINDEX}: nevisinstanceKeyboxName|<p>The instance name we're counting/checking on.</p>|`SNMP agent`|nevisinstanceKeyboxName[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |#{#SNMPINDEX}: nevisinstanceKeyboxTruststoreExp|<p>Number of trusted certificates expiring within 30 days.</p>|`SNMP agent`|nevisinstanceKeyboxTruststoreExp[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

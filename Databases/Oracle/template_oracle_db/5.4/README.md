@@ -70,6 +70,8 @@ SuNova
 |{$MIN_WRITE_BPS}|<p>-</p>|`1048576`|Text macro|
 |{$ORACLE_BACKUP_HOUR}|<p>-</p>|`0`|Text macro|
 |{$TB_USAGE_THRESHOLD}|<p>-</p>|`1.0`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -88,6 +90,8 @@ There are no template links in this template.
 |Waiting session discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[waiting session discovery,{$DSN}]<p>Update: 5m</p>|
 |Archive destination discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[Archive destination discovery,{$DSN}]<p>Update: 1h</p>|
 |Top lasting SQLs discovery|<p>-</p>|`Database monitor`|db.odbc.discovery[Top lasting SQLs discovery,{$DSN}]<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -155,6 +159,8 @@ There are no template links in this template.
 |Top SQL {#SQL_ID} total CPU time|<p>-</p>|`Database monitor`|db.odbc.select[Top SQL {#SQL_ID} total CPU time,{$DSN}]<p>Update: 30m</p><p>LLD</p>|
 |Top SQL {#SQL_ID} total physical read bytes|<p>-</p>|`Database monitor`|db.odbc.select[Top SQL {#SQL_ID} total physical read bytes,{$DSN}]<p>Update: 30m</p><p>LLD</p>|
 |Top SQL {#SQL_ID} total physical write bytes|<p>-</p>|`Database monitor`|db.odbc.select[Top SQL {#SQL_ID} total physical write bytes,{$DSN}]<p>Update: 30m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

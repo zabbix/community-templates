@@ -44,6 +44,8 @@ There are no discovery rules in this template.
 |CPU Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.cpu.temp<p>Update: 240</p>|
 |Fan 2|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.fan2<p>Update: 240</p>|
 |5VCC|<p>-</p>|`IPMI agent`|ipmi.supermicro.x9sclx9scm.5VCC<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

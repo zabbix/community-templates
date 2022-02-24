@@ -30,6 +30,8 @@ It will trigger on the following:
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`nriedaedc`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -52,6 +54,8 @@ There are no discovery rules in this template.
 |Camera Name|<p>OID name in MIB: cameraName Description: Camera name as set in the Quick Installation wizard or in the Ethernet Interface dialog in the Camera name field</p>|`SNMP agent`|camera.name<p>Update: 6h</p>|
 |Storage Remaining Time|<p>OID Name in MIB: storageArchiveBufferRemainingTime Description: Estimated remaining time (in minutes) until overflow of the intermediate buffer (SD card) for archiving. Returns -1 if this data is not available</p>|`SNMP agent`|camera.storage.remainingtime<p>Update: 10m</p>|
 |Storage Percent Used Space|<p>OID in MIB: storageArchiveBufferFillLevel Description: Indicates the fill level of the SD card (in percent) when used as an intermediate buffer for archiving. If it is at 100% there is a threat of data loss. Returns -1 if this data is not available</p>|`SNMP agent`|camera.storage.usedspace<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

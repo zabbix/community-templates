@@ -42,6 +42,8 @@ There are no discovery rules in this template.
 |02-CPU 1|<p>-</p>|`IPMI agent`|02-CPU1<p>Update: 3600</p>|
 |01-Inlet Ambient|<p>-</p>|`IPMI agent`|01-InletAmbient<p>Update: 3600</p>|
 |System Board temp|<p>-</p>|`IPMI agent`|30-SystemBoard<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

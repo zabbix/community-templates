@@ -48,6 +48,8 @@ There are no template links in this template.
 |Fan Enumeration|<p>-</p>|`SNMP agent`|FanEnumeration<p>Update: 1d</p>|
 |Network Enumeration|<p>-</p>|`SNMP agent`|NetworkEnum<p>Update: 1d</p>|
 |Memory Enumeration|<p>-</p>|`SNMP agent`|MemoryEnum<p>Update: 1d;50s/1-7,00:00-24:00</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -114,6 +116,8 @@ There are no template links in this template.
 |Memory Slot {#SNMPVALUE} Size|<p>-</p>|`SNMP agent`|MemSize.[{#SNMPINDEX}]<p>Update: 1d</p><p>LLD</p>|
 |Memory Slot {#SNMPVALUE} Speed|<p>-</p>|`SNMP agent`|MemSpeed.[{#SNMPINDEX}]<p>Update: 1d</p><p>LLD</p>|
 |Memory Slot {#SNMPVALUE} Status|<p>-</p>|`SNMP agent`|MemStatus.[{#SNMPINDEX}]<p>Update: 30m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

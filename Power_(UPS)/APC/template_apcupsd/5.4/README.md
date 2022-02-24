@@ -60,6 +60,8 @@ There are no discovery rules in this template.
 |Текущий статус ИБП|<p>-</p>|`Zabbix agent`|STATUS<p>Update: 3600</p>|
 |Напряжение на входе ИБП|<p>-</p>|`Zabbix agent`|LINEV<p>Update: 600</p>|
 |Текущий статус ИБП 2|<p>-</p>|`Zabbix agent`|STATUS_2<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -40,6 +40,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -70,6 +72,8 @@ There are no discovery rules in this template.
 |UPS battery capacity (%)|<p>-</p>|`SNMP agent`|upsAdvBatteryCapacity<p>Update: 60</p>|
 |UPS output power L2|<p>-</p>|`SNMP agent`|upsAdvOutputPower2<p>Update: 60</p>|
 |Contact|<p>-</p>|`SNMP agent`|sysContact<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

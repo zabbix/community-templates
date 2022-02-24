@@ -25,6 +25,8 @@ There are no template links in this template.
 |Services|<p>-</p>|`SNMP agent`|snmp.services.discovery<p>Update: 1m</p>|
 |Interfaces|<p>-</p>|`SNMP agent`|snmp.interfaces.discovery<p>Update: 1m</p>|
 |Vservers|<p>-</p>|`SNMP agent`|snmp.vservers.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -74,6 +76,8 @@ There are no template links in this template.
 |Vserver {#SNMPVALUE} vsvrCurServicesUp|<p>-</p>|`SNMP agent`|vsvr.vsvrCurServicesUp.[{#SNMPVALUE}]<p>Update: 15s</p><p>LLD</p>|
 |Vserver {#SNMPVALUE} RxBytesRate|<p>The total number of established client connections.</p>|`SNMP agent`|vsvr.vsvrRxBytesRate.[{#SNMPVALUE}]<p>Update: 15s</p><p>LLD</p>|
 |Vserver {#SNMPVALUE} TxBytesRate|<p>This represents the response rate in bytes per second for this service/vserver.</p>|`SNMP agent`|vsvr.vsvrTxBytesRate.[{#SNMPVALUE}]<p>Update: 15s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

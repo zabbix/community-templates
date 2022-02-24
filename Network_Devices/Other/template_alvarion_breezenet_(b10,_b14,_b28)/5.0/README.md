@@ -18,11 +18,15 @@ Asert
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`private`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -57,6 +61,8 @@ There are no discovery rules in this template.
 |Transmit Power|<p>-</p>|`SNMP agent`|transmit.power<p>Update: 1d</p>|
 |Defined Frequency|<p>-</p>|`SNMP agent`|freq.def<p>Update: 1d</p>|
 |FastEtehernet : Outbound packets discarded|<p>-</p>|`SNMP agent`|net.if.out.discards[ifOutDiscards.2]<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

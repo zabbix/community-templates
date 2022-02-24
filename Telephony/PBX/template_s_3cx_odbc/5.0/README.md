@@ -77,6 +77,8 @@ Trunks:
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$DSN3CX}|<p>-</p>|`3CXDB`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -87,6 +89,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery Gateways|<p>-</p>|`Database monitor`|db.odbc.discovery[discovery.gws,{$DSN3CX}]<p>Update: 1h</p>|
 |Discovery Users|<p>-</p>|`Database monitor`|db.odbc.discovery[discovery.users,{$DSN3CX}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -103,6 +107,8 @@ There are no template links in this template.
 |User Extension Last Register|<p>-</p>|`Database monitor`|db.odbc.select[user-last-resgister-{#FKIDEXTENSION},{$DSN3CX}]<p>Update: 1m</p><p>LLD</p>|
 |User Extension Status|<p>-</p>|`Database monitor`|db.odbc.select[user-last-status-{#FKIDEXTENSION},{$DSN3CX}]<p>Update: 1m</p><p>LLD</p>|
 |User Mail|<p>-</p>|`Database monitor`|db.odbc.select[user.mail-{#FKIDEXTENSION},{$DSN3CX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

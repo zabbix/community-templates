@@ -57,6 +57,8 @@ There are no template links in this template.
 |ONU discovery on pon5|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1012.3.28.1.1.2.5<p>Update: 1800</p>|
 |ONU discovery on pon2/7|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1012.3.28.1.1.2.23<p>Update: 1800</p>|
 |ONU discovery on pon2/10|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1012.3.28.1.1.2.26<p>Update: 1800</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -125,6 +127,8 @@ There are no template links in this template.
 |onu_1/2/7:{#SNMPINDEX}  {#SNMPVALUE} onu signal (dbm)|<p>-</p>|`Calculated`|pon.onu.1.2.7.[{#SNMPINDEX}]<p>Update: 900</p><p>LLD</p>|
 |{#SNMPINDEX} Onu-rx|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.3902.1012.3.50.12.1.1.10.268569088.[{#SNMPINDEX}]<p>Update: 900</p><p>LLD</p>|
 |onu_1/2/10:{#SNMPINDEX}  {#SNMPVALUE} onu signal (dbm)|<p>-</p>|`Calculated`|pon.onu.1.2.10.[{#SNMPINDEX}]<p>Update: 900</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

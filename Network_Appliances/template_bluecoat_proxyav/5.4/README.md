@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Number of infected files detected using all protocols|<p>Sum of number of infected files detected using all protocols. A file containing multiple infections will count as one infected file.</p>|`SNMP agent`|avVirusesDetected<p>Update: 60</p>|
 |Number of files scanned using the ICAP protocol|<p>Number of files scanned using the ICAP protocol. An archive containing multiple files will count as one file.</p>|`SNMP agent`|avICAPFilesScanned<p>Update: 60</p>|
 |Version published on the automatic update location|<p>ProxyAV version published on the automatic update location.</p>|`SNMP agent`|avPublishedFirmwareVersion<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -69,6 +69,8 @@ Oleg Kostikov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$PING_LIST}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -78,6 +80,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ICMP ping discovery|<p>-</p>|`Dependent item`|icmpping.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -87,6 +91,8 @@ There are no template links in this template.
 |ping status {#ADDR}|<p>-</p>|`Dependent item`|ping.status[{#ADDR}]<p>Update: 0</p><p>LLD</p>|
 |resolution status {#ADDR}|<p>-</p>|`Dependent item`|resolution.status[{#ADDR}]<p>Update: 0</p><p>LLD</p>|
 |response time {#ADDR}|<p>-</p>|`Dependent item`|response.time[{#ADDR}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

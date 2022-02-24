@@ -36,6 +36,8 @@ It will use the chrony template.
 |----|-----------|-------|----|
 |{$NTP_OFFSET}|<p>-</p>|`50`|Text macro|
 |{$NTP_OFFSET_LARGE}|<p>-</p>|`5000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -61,6 +63,8 @@ There are no discovery rules in this template.
 |NTP synchronized server|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc sources|grep \* |awk '{print$2}']<p>Update: 600</p>|
 |chronyc sources|<p>-</p>|`Zabbix agent (active)`|system.run[chronyc sources]<p>Update: 600</p>|
 |Leap status|<p>Leap status Normal Insert second Delete second Not synchronized</p>|`Zabbix agent (active)`|system.run[chronyc tracking |grep "Leap status"|awk '{print$4}']<p>Update: 600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

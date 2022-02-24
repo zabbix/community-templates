@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |Current drum unit level % - cyan|<p>-</p>|`SNMP agent`|drum.cyan.now<p>Update: 60</p>|
 |Current cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.now<p>Update: 60</p>|
 |Tray 1 - Media name|<p>-</p>|`SNMP agent`|tray.1.media.name<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

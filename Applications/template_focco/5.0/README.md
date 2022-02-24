@@ -137,6 +137,8 @@ There are no discovery rules in this template.
 |Tamanho Usado - F3I_DATA|<p>-</p>|`Zabbix agent`|system.run[cat /etc/zabbix/oracle/DATAFILES_f3ipro.txt | grep -w F3I_DATA | awk -F ';' {'print $3'}]<p>Update: 30s</p>|
 |bond0 - OUT|<p>-</p>|`Zabbix agent`|net.if.out[bond0,bytes]<p>Update: 30s</p>|
 |Tamanho Usado - SYSTEM|<p>-</p>|`Zabbix agent`|system.run[cat /etc/zabbix/oracle/DATAFILES_f3ipro.txt | grep SYSTEM | awk -F ';' {'print $3'}]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

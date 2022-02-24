@@ -12,6 +12,8 @@ Mikhail Norenberg
 |{$LOG_DISK_USAGE_MAX}|<p>-</p>|`90`|Text macro|
 |{$MAIL_DISK_USAGE_MAX}|<p>-</p>|`90`|Text macro|
 |{$MEMORY_USAGE_MAX}|<p>-</p>|`90`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -21,6 +23,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Mail Queue|<p>-</p>|`SNMP agent`|fmlMailQueueName<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -38,6 +42,8 @@ There are no template links in this template.
 |System Load|<p>-</p>|`SNMP agent`|fmlSysSysLoad<p>Update: 30s</p>|
 |[{#FMLMAILQUEUENAME}] Mail Count|<p>-</p>|`SNMP agent`|fmlMailQueueMailCount.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |[{#FMLMAILQUEUENAME}] Mail Size|<p>-</p>|`SNMP agent`|fmlMailQueueMailSize.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

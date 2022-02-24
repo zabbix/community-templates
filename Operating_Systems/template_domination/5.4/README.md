@@ -24,6 +24,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |DnDiskNum|<p>-</p>|`SNMP agent`|DnDiskNum<p>Update: 5m</p>|
 |DnCamNo|<p>-</p>|`SNMP agent`|DnCamNo<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +51,8 @@ There are no template links in this template.
 |Состояние канала $1|<p>-</p>|`SNMP agent`|DnCamEnabled.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Количество FPS 1-го потока камеры $1|<p>-</p>|`SNMP agent`|DnCamFramerate.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
 |Статус второго потока Камера $1|<p>-</p>|`SNMP agent`|DnCamHasSubstream.[{#SNMPINDEX}]<p>Update: 2m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

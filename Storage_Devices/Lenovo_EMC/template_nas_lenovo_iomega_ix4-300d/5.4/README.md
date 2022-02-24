@@ -78,6 +78,8 @@ André Luis Soares
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -134,6 +136,8 @@ There are no discovery rules in this template.
 |Oper Status ethernet 0|<p>-</p>|`SNMP agent`|ifOperStatus.2<p>Update: 30</p>|
 |Download interface ethernet 0|<p>-</p>|`SNMP agent`|ifInOctets.2<p>Update: 30</p>|
 |Oper Status ethernet 1|<p>-</p>|`SNMP agent`|ifOperStatus.3<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |Carga Cpu MK|<p>-</p>|`SNMP agent`|carga.cpumk<p>Update: 30s</p>|
 |Estações no AP|<p>-</p>|`SNMP agent`|station.listubnt<p>Update: 30s</p>|
 |CCQ|<p>-</p>|`SNMP agent`|ccq.status<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

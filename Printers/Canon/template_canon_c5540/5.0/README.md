@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 |Main counter 112 (Total B&W/Large)|<p>-</p>|`SNMP agent`|C5540.112<p>Update: 3h</p>|
 |Main counter 124 (Full color +Single color 2)|<p>-</p>|`SNMP agent`|C5540.124<p>Update: 3h</p>|
 |Main counter 301 (Print Total 1)|<p>-</p>|`SNMP agent`|C5540.301<p>Update: 3h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

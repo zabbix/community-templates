@@ -20,6 +20,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |cpu multiple discovery|<p>-</p>|`Zabbix agent`|system.cpu.discovery<p>Update: 30s</p>|
 |UE Discovery|<p>-</p>|`Zabbix trapper`|ue.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -89,6 +91,8 @@ There are no template links in this template.
 |UE{#NUMBER} UL MCS|<p>-</p>|`Zabbix trapper`|ue.ul.mcs[{#NUMBER}]<p>Update: 0</p><p>LLD</p>|
 |UE{#NUMBER} UL SR_BSR|<p>-</p>|`Zabbix trapper`|ue.ul.sr_bsr[{#NUMBER}]<p>Update: 0</p><p>LLD</p>|
 |UE{#NUMBER} UL|<p>-</p>|`Zabbix trapper`|ue.ul[{#NUMBER}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

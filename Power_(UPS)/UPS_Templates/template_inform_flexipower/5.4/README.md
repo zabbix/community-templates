@@ -51,6 +51,8 @@ There are no discovery rules in this template.
 |Battery temperature|<p>-</p>|`SNMP agent`|upsAdvBatteryTemperature<p>Update: 30</p>|
 |Battery replacement status|<p>-</p>|`SNMP agent`|upsAdvBatteryReplaceIndicator<p>Update: 180</p>|
 |UPS software version|<p>-</p>|`SNMP agent`|upsIdentUPSSoftwareVersion<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

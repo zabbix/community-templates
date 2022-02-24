@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Topology Mapping|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,com.emc.srm.topology.processor.TopoMappingServiceApp]<p>Update: 30s</p>|
 |Scheduler|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,com.watch4net.apg.scheduler.Bootstrap]<p>Update: 30s</p>|
 |Alerting|<p>-</p>|`Zabbix agent`|proc.num[java,vnx,,com.watch4net.alerting.engine.AlertingEngine]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -86,6 +86,8 @@ There are no discovery rules in this template.
 |MAGENTA Photoconductor capacity|<p>-</p>|`SNMP agent`|MagentaPhotoconductorCapacity<p>Update: 3600</p>|
 |Waste Toner Bottle Level|<p>-</p>|`SNMP agent`|WasteTonerBottleLevel<p>Update: 3600</p>|
 |Toner capacity CYAN|<p>-</p>|`SNMP agent`|prtCyanTonerMaxCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |Power Supply 2|<p>-</p>|`IPMI agent`|PowerSupply2<p>Update: 300</p>|
 |Sys Health LED|<p>-</p>|`IPMI agent`|SysHealthLED<p>Update: 300</p>|
 |UIDLight|<p>-</p>|`IPMI agent`|UIDLight<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

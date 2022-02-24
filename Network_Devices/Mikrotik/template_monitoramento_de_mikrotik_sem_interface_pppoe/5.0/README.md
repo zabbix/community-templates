@@ -48,6 +48,8 @@ Renato Severino
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`sksnmp`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -59,6 +61,8 @@ There are no template links in this template.
 |Network Interfaces Discovery|<p>.</p>|`SNMP agent`|net.if.discovery<p>Update: 60s</p>|
 |Verificar CPU|<p>-</p>|`SNMP agent`|system.discoverycpu<p>Update: 3s</p>|
 |Storage discovery|<p>HOST-RESOURCES-MIB::hrStorage discovery with storage filter</p>|`SNMP agent`|storage.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -91,6 +95,8 @@ There are no template links in this template.
 |Disk-{#SNMPINDEX}: Space utilization|<p>Space utilization in % for Disk-{#SNMPINDEX}</p>|`Calculated`|vfs.fs.pused[hrStorageSize.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Disk-{#SNMPINDEX}: Total space|<p>MIB: HOST-RESOURCES-MIB The size of the storage represented by this entry, in units of hrStorageAllocationUnits. This object is writable to allow remote configuration of the size of the storage area in those cases where such an operation makes sense and is possible on the underlying system. For example, the amount of main memory allocated to a buffer pool might be modified or the amount of disk space allocated to virtual memory might be modified.</p>|`SNMP agent`|vfs.fs.total[hrStorageSize.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Disk-{#SNMPINDEX}: Used space|<p>MIB: HOST-RESOURCES-MIB The amount of the storage represented by this entry that is allocated, in units of hrStorageAllocationUnits.</p>|`SNMP agent`|vfs.fs.used[hrStorageSize.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

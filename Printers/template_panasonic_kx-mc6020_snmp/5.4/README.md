@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |FB_Scan_Page|<p>-</p>|`SNMP agent`|FB_Scan_Page<p>Update: 7200</p>|
 |Type_of_cartridge_7|<p>-</p>|`SNMP agent`|Type_of_cartridge_7<p>Update: 86400</p>|
 |Type_of_cartridge_6|<p>-</p>|`SNMP agent`|Type_of_cartridge_6<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |Всего отклонено сообщений DNSBL|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Всего отклонено сообщений DNSBL"]<p>Update: 120</p>|
 |Активные сеансы SMTP (исх)|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Активные сеансы SMTP (исх)"]<p>Update: 30</p>|
 |Заморозка очереди входящих|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Заморозка очереди входящих"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

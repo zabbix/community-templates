@@ -73,6 +73,8 @@ Zabbix
 |{$URL}|<p>-</p>|`https://{ESXi}/sdk`|Text macro|
 |{$USERNAME}|<p>-</p>|`zabbix`|Text macro|
 |{$UUID}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -84,6 +86,8 @@ There are no template links in this template.
 |Network device discovery|<p>Discovery of all network devices.</p>|`Simple check`|vmware.vm.net.if.discovery[{$URL},{$UUID}]<p>Update: 1h</p>|
 |Mounted filesystem discovery|<p>Discovery of all guest file systems.</p>|`Simple check`|vmware.vm.vfs.fs.discovery[{$URL},{$UUID}]<p>Update: 1h</p>|
 |Disk device discovery|<p>Discovery of all disk devices.</p>|`Simple check`|vmware.vm.vfs.dev.discovery[{$URL},{$UUID}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -119,6 +123,8 @@ There are no template links in this template.
 |Average number of reads from the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.read[{$URL},{$UUID},{#DISKNAME},ops]<p>Update: 1m</p><p>LLD</p>|
 |Average number of bytes written to the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.write[{$URL},{$UUID},{#DISKNAME},bps]<p>Update: 1m</p><p>LLD</p>|
 |Average number of writes to the disk {#DISKDESC}|<p>-</p>|`Simple check`|vmware.vm.vfs.dev.write[{$URL},{$UUID},{#DISKNAME},ops]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

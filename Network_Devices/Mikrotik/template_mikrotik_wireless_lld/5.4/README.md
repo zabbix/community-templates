@@ -125,6 +125,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Wireless APs|<p>-</p>|`SNMP agent`|Wireless-APs<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -137,6 +139,8 @@ There are no template links in this template.
 |Wireless AP - RxRate|<p>-</p>|`SNMP agent`|Wireless-AP-RxRate.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless AP - TxCCQ|<p>-</p>|`SNMP agent`|Wireless-AP-TxCCQ.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless AP -  TxRate|<p>-</p>|`SNMP agent`|Wireless-AP-TxRate.[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -380,6 +384,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Wireless Registration Table|<p>-</p>|`SNMP agent`|Wireless-Registration-Table<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -391,6 +397,8 @@ There are no template links in this template.
 |Wireless Registration Table {#SNMPVALUE} - TxRate|<p>-</p>|`SNMP agent`|WirelessRegistrationTable-TxRatel[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless Registration Table {#SNMPVALUE} - Uptime|<p>-</p>|`SNMP agent`|WirelessRegistrationTable-Uptimel[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless Registration Table {#SNMPVALUE} - Name|<p>-</p>|`SNMP agent`|WirelessRegistrationTable[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -746,6 +754,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Wireless Station|<p>-</p>|`SNMP agent`|Wireless-Station<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -754,6 +764,8 @@ There are no template links in this template.
 |Wireless Station - RxRate|<p>-</p>|`SNMP agent`|Wireless-Station-RxRate[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless Station - Sinal|<p>-</p>|`SNMP agent`|Wireless-Station-Siinal[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
 |Wireless Station - TxRate|<p>-</p>|`SNMP agent`|Wireless-Station-TxRate[{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

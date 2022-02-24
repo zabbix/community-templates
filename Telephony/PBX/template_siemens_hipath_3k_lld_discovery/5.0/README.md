@@ -9,6 +9,8 @@ Cesar Buffulin
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -19,6 +21,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery Siemens Card|<p>-</p>|`SNMP agent`|h150eCards<p>Update: 60s</p>|
 |Discovery Siemens Port on TMCAS2|<p>-</p>|`SNMP agent`|h150ePorts<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -32,6 +36,8 @@ There are no template links in this template.
 |Slot Card Number {#CARDTYPE}|<p>-</p>|`SNMP agent`|cardSlotNum[{#CARDTYPE}]<p>Update: 60s</p><p>LLD</p>|
 |Slot Card State {#CARDTYPE}|<p>-</p>|`SNMP agent`|cardState[{#CARDTYPE}]<p>Update: 60s</p><p>LLD</p>|
 |StatusPort {#PORTTYPE}|<p>-</p>|`SNMP agent`|portStatusIndex.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

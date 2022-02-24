@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Device Name|<p>Host Meter Label plus Nameplate</p>|`SNMP agent`|midDeviceName<p>Update: 3600</p>|
 |Peak Current Date [Phase B]|<p>-</p>|`SNMP agent`|cdPeakDateTimeL2<p>Update: 30s</p>|
 |Peak Current Date [Phase A]|<p>Host Meter Peak Current Demand Date and Time</p>|`SNMP agent`|cdPeakDateTimeL1<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

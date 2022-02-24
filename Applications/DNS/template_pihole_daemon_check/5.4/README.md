@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |pihole-FTL service is running|<p>service.info[{#SERVICE.NAME},<парам>]</p>|`Zabbix agent (active)`|proc.num[pihole-FTL]<p>Update: 5</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

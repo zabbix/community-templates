@@ -33,6 +33,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Clientes Online|<p>-</p>|`SNMP agent`|PPPoE<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

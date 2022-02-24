@@ -29,6 +29,8 @@ There are no template links in this template.
 |Stack port Info|<p>A unique value for each interface. Its value ranges between 1 and the value of ifNumber. The value for each interface must remain constant at least from one re-initialization of the entity's network management system to the next re- initialization.</p>|`SNMP agent`|extremeStackingPortIfIndex<p>Update: 3600</p>|
 |Memory Discovery|<p>-</p>|`SNMP agent`|memory.discovery<p>Update: 3600</p>|
 |PSU Discovery|<p>Table of status of all power supplies in the system.</p>|`SNMP agent`|psu.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |#{#SNMPVALUE}: Memory utilization|<p>Memory utilization in %</p>|`Calculated`|vm.memory.pused[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |#{#SNMPVALUE}: Total memory|<p>MIB: EXTREME-SOFTWARE-MONITOR-MIB Total amount of DRAM in Kbytes in the system.</p>|`SNMP agent`|vm.memory.total[extremeMemoryMonitorSystemTotal.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |PSU {#SNMPVALUE}: Power supply status|<p>MIB: EXTREME-SYSTEM-MIB Status of the power supply {#SNMPVALUE}</p>|`SNMP agent`|sensor.psu.status[extremePowerSupplyStatus.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

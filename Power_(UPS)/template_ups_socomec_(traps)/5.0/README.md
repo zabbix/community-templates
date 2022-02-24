@@ -33,6 +33,8 @@ Vincent MATIAS
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |{HOST.NAME} est sur batterie|<p>WARNING: The UPS has switched to battery backup power.</p>|`SNMP trap`|snmptrap["upsTrapOnBatteryPower"]<p>Update: 0</p>|
 |{HOST.NAME} redundancy lost|<p>SEVERE: Redoundancy is lost.</p>|`SNMP trap`|snmptrap["upsTrapRedoundancyLost"]<p>Update: 0</p>|
 |{HOST.NAME} ping|<p>-</p>|`Simple check`|icmpping[]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

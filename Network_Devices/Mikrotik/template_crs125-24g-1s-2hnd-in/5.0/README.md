@@ -31,6 +31,8 @@ Antonio Forster
 |----|-----------|-------|----|
 |{$MIKROTIK.CPUCORE.LOAD.MAX}|<p>-</p>|`80`|Text macro|
 |{$MIKROTIK.MAX.TRAF}|<p>-</p>|`838860800`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -42,6 +44,8 @@ There are no template links in this template.
 |Disk partitions|<p>-</p>|`SNMP agent`|hrStorageDescr<p>Update: 5m</p>|
 |Processors|<p>-</p>|`SNMP agent`|hrProcessorLoad<p>Update: 5m</p>|
 |Interfaces|<p>-</p>|`SNMP agent`|MikInterfaces<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -71,6 +75,8 @@ There are no template links in this template.
 |Interface {#SNMPVALUE} bps out|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.31.1.1.1.10.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Interface {#SNMPVALUE} packets out|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.31.1.1.1.11.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Interface {#SNMPVALUE} admin status|<p>1 — administratively enabled 2 — administratively disabled</p>|`SNMP agent`|MIkAdminStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

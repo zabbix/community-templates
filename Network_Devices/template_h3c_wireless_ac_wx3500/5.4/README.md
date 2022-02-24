@@ -29,6 +29,8 @@ There are no template links in this template.
 |SSID/STA|<p>-</p>|`SNMP agent`|h3cDot11APConfigPortalStaNum<p>Update: 30s</p>|
 |Radio/STA|<p>-</p>|`SNMP agent`|h3cDot11APMacAddress<p>Update: 30s</p>|
 |Client Signal|<p>-</p>|`SNMP agent`|h3cDot11StationSignalStrength<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |AP $1 - 射频2客户端数|<p>-</p>|`SNMP agent`|hos.radio2[{#APNAME}]<p>Update: 30s</p><p>LLD</p>|
 |AP $1 - 射频3客户端数|<p>-</p>|`SNMP agent`|hos.radio3[{#APNAME}]<p>Update: 30s</p><p>LLD</p>|
 |$1 - 客户端信号强度|<p>-</p>|`SNMP agent`|hos.clising[{#CLIENTIP}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

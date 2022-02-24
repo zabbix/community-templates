@@ -18,6 +18,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Serial Ports|<p>-</p>|`SNMP agent`|opengear.snmp.serialport<p>Update: 3600</p>|
 |Network Interfaces|<p>-</p>|`SNMP agent`|opengear.snmp.if<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -36,6 +38,8 @@ There are no template links in this template.
 |Interface {#IFNAME} Outbound Errors|<p>-</p>|`SNMP agent`|opengear.snmp.netif.outerr[{#IFNAME}]<p>Update: 60</p><p>LLD</p>|
 |Interface {#IFNAME} Outbound Traffic|<p>-</p>|`SNMP agent`|opengear.snmp.netif.out[{#IFNAME}]<p>Update: 60</p><p>LLD</p>|
 |Interface {#IFNAME} Operational Status|<p>-</p>|`SNMP agent`|opengear.snmp.netif.status[{#IFNAME}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

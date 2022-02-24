@@ -27,6 +27,8 @@ There are no discovery rules in this template.
 |Velocidade Porta GigaEthernet 0/1 MTU|<p>-</p>|`SNMP agent`|ifMtu.2<p>Update: 30</p>|
 |Tráfego de Saida GigabitEthernet 0/1|<p>-</p>|`SNMP agent`|ifOutOctets.2<p>Update: 60</p>|
 |Latencia|<p>-</p>|`Simple check`|icmppingsec<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

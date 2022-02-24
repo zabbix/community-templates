@@ -20,6 +20,8 @@ Requirements:
 |{$STUB_STATUS_PATH}|<p>-</p>|`server-status?auto`|Text macro|
 |{$STUB_STATUS_PORT}|<p>-</p>|`80`|Text macro|
 |{$STUB_STATUS_PROT}|<p>-</p>|`http`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -42,6 +44,8 @@ There are no discovery rules in this template.
 |Apache2 server version|<p>-</p>|`Dependent item`|apache2.Version<p>Update: 0</p>|
 |Apache2 total accesses|<p>-</p>|`Dependent item`|apache2.Accesses<p>Update: 0</p>|
 |Apache2 total requests size|<p>-</p>|`Dependent item`|apache2.kBytes<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

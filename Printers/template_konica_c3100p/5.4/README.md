@@ -83,6 +83,8 @@ There are no discovery rules in this template.
 |Imaging Unit (Cyan)|<p>-</p>|`SNMP agent`|imagingcyan<p>Update: 30m</p>|
 |Serial|<p>-</p>|`SNMP agent`|printerserial<p>Update: 1h</p>|
 |Toner (Yellow)|<p>-</p>|`SNMP agent`|toneryellow<p>Update: 30m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

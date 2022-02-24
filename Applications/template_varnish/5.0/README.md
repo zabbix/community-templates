@@ -22,6 +22,8 @@ Dave Humphrey (dave@uesp.net)
 |{$VARNISH.RESPONSE_TIME.MAX.WARN}|<p>Max response time before a warning is given.</p>|`5`|Text macro|
 |{$VARNISH.STATUS.HOST}|<p>IP or hostname of the Varnish server.</p>|`127.0.0.1`|Text macro|
 |{$VARNISH.STATUS.PORT}|<p>Port of the Varnish server.</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |Varnish: Uptime|<p>Service uptime in seconds</p>|`Dependent item`|varnish.uptime<p>Update: 0</p>|
 |Varnish: Service response time|<p>-</p>|`Zabbix agent`|net.tcp.service.perf[http,"{$VARNISH.STATUS.HOST}","{$VARNISH.STATUS.PORT}"]<p>Update: 1m</p>|
 |Varnish: CPU utilization|<p>Process CPU utilization percentage.</p>|`Zabbix agent`|proc.cpu.util["{$VARNISH.PROCESS_NAME}"]<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

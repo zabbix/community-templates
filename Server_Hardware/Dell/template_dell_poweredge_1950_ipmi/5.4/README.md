@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |FAN MOD 4B RPM|<p>-</p>|`IPMI agent`|ipmi.fan.4b.rpm<p>Update: 300</p>|
 |FAN MOD 3D RPM|<p>-</p>|`IPMI agent`|ipmi.fan.3d.rpm<p>Update: 300</p>|
 |FAN MOD 2C RPM|<p>-</p>|`IPMI agent`|ipmi.fan.2c.rpm<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

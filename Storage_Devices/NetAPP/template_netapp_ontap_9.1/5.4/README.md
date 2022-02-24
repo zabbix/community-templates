@@ -33,6 +33,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Volumes|<p>-</p>|`SNMP agent`|volume<p>Update: 3600</p>|
 |Enclosure info|<p>-</p>|`SNMP agent`|enclosure<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Enclosure {#SNMPINDEX} sensors fail|<p>-</p>|`SNMP agent`|SensorFail.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Enclosure {#SNMPINDEX} temp over|<p>-</p>|`SNMP agent`|TempOver.[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Enclosure {#SNMPINDEX} power fail|<p>-</p>|`SNMP agent`|TempWarn.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

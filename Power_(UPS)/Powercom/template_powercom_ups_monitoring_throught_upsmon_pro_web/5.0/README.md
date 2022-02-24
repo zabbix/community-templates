@@ -62,6 +62,8 @@ Ilias Aidar
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$URL}|<p>Here should be your UPSMON Pro URL</p>|`http://rd-kirovsk.gencoindustry.com:8000/ups.txt`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -81,6 +83,8 @@ There are no discovery rules in this template.
 |Battery Level|<p>-</p>|`Dependent item`|UPS.Battery<p>Update: 0</p>|
 |Input|<p>-</p>|`Dependent item`|UPS.Input<p>Update: 0</p>|
 |Temperature|<p>-</p>|`Dependent item`|UPS.Temperature<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

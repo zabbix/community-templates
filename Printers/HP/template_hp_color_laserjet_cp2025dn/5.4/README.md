@@ -36,6 +36,8 @@ There are no discovery rules in this template.
 |Cartridge type - Magenta|<p>-</p>|`SNMP agent`|type.Magenta<p>Update: 43200</p>|
 |Pages printed - total|<p>-</p>|`SNMP agent`|pages.printed.total<p>Update: 360</p>|
 |Cartridge type - Cyan|<p>-</p>|`SNMP agent`|type.cyan<p>Update: 43200</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

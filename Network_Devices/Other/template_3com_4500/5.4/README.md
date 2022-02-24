@@ -396,6 +396,8 @@ There are no discovery rules in this template.
 |Port 12 Speed|<p>-</p>|`SNMP agent`|ifspeed.4227714<p>Update: 30</p>|
 |Port 13 Last Changed|<p>-</p>|`SNMP agent`|ifLastChange.4227722<p>Update: 30</p>|
 |Port 4 Speed|<p>-</p>|`SNMP agent`|ifspeed.4227650<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

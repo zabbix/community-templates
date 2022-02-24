@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Internal Sensor Temp|<p>-</p>|`SNMP agent`|intsensortemp<p>Update: 30</p>|
 |Switch Sensor Read|<p>-</p>|`SNMP agent`|switchsensorread<p>Update: 30</p>|
 |Digital sensor Temperature|<p>-</p>|`SNMP agent`|digitalsensortemp<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

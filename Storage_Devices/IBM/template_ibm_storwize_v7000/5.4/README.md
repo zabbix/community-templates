@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |Volumes Write Speed|<p>-</p>|`Zabbix trapper`|ibm.volumes.w.speed<p>Update: 0</p>|
 |IOPS Total|<p>-</p>|`Zabbix trapper`|ibm.iops.total<p>Update: 0</p>|
 |MDisk Read Latency|<p>-</p>|`Zabbix trapper`|ibm.mdisk.read.latency<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

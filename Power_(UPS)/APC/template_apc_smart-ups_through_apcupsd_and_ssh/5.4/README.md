@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |apc device info|<p>-</p>|`SSH agent`|ssh.run[apc_device.info]<p>Update: {$UPS_GET_MAININFO_PERIOD}</p>|
 |apc device numxfers|<p>-</p>|`Dependent item`|apc_device.numxfers<p>Update: 0</p>|
 |apc device name|<p>-</p>|`Dependent item`|apc_device.name<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

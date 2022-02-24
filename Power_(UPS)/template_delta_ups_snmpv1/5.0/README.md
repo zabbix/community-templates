@@ -33,6 +33,8 @@ There are no template links in this template.
 |UPS Bypass Line Discovery|<p>-</p>|`SNMP agent`|UPSBypassLineDiscovery<p>Update: 7200</p>|
 |UPS Input Line Discovery|<p>-</p>|`SNMP agent`|UPSInputLineDiscovery<p>Update: 7200</p>|
 |UPS Output Line Discovery|<p>-</p>|`SNMP agent`|UPSOutputLineDiscovery<p>Update: 7200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -66,6 +68,8 @@ There are no template links in this template.
 |UPS Line {#SNMPINDEX} Output Percent Load|<p>-</p>|`SNMP agent`|upsOutputPercentLoad.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |UPS Line {#SNMPINDEX} Output Power|<p>-</p>|`SNMP agent`|upsOutputPower.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |UPS Line {#SNMPINDEX} Output Current|<p>-</p>|`SNMP agent`|upsOutputVoltage.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

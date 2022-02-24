@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |P1-DIMMD2 Temp|<p>-</p>|`IPMI agent`|ipmi.p1-dimmd2.temp<p>Update: 300</p>|
 |1.5V PCH|<p>-</p>|`IPMI agent`|ipmi.1.5v.pch<p>Update: 300</p>|
 |VDIMMAB|<p>-</p>|`IPMI agent`|ipmi.vdimmab<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -40,6 +40,8 @@ Perhaps works at versions 2.*.
 |{$TEMPERATURE_DISK_C_HIGH_TSRNT}|<p>-</p>|`75`|Text macro|
 |{$TEMPERATURE_DISK_C_TSRNT}|<p>-</p>|`50`|Text macro|
 |{$TSNMPGT_NODATA}|<p>-</p>|`240m`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Disks discovery|<p>HDD discovery in the device</p>|`SNMP agent`|diskNumber<p>Update: 3600</p>|
 |Volumes discovery|<p>-</p>|`SNMP agent`|volumeNumber<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -70,6 +74,8 @@ There are no template links in this template.
 |Volume $1 RAID Level|<p>Volume RAID level</p>|`SNMP agent`|volumeraidlevel[{#VOLUMENUMBER}]<p>Update: 3600</p><p>LLD</p>|
 |Volume $1 size|<p>Volume size</p>|`SNMP agent`|volumesize[{#VOLUMENUMBER}]<p>Update: 3600</p><p>LLD</p>|
 |Volume $1 status|<p>Volume status</p>|`SNMP agent`|volumestatus[{#VOLUMENUMBER}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Voltage +12V|<p>-</p>|`IPMI agent`|BB_12v<p>Update: 1m</p>|
 |Processor 1 FAN|<p>-</p>|`IPMI agent`|Processor_1_FAN<p>Update: 1m</p>|
 |Voltage +3.3V|<p>-</p>|`IPMI agent`|BB_3.3V<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

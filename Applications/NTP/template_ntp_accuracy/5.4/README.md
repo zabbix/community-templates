@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NTP_IP}|<p>-</p>|`127.0.0.1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -25,6 +27,8 @@ There are no discovery rules in this template.
 |NTP polling [{$NTP_IP}]|<p>Synchronization period with the NTP server</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$6}']<p>Update: 1800</p>|
 |NTP stratum [{$NTP_IP}]|<p>Stratum of the NTP server that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$3}']<p>Update: 1800</p>|
 |NTP offset [{$NTP_IP}]|<p>Time deviation between the NTP server</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$9}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -57,6 +61,8 @@ There are no discovery rules in this template.
 |NTP stratum|<p>Stratum of the NTP server that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$3}']<p>Update: 1800</p>|
 |NTP synchronized server|<p>NTP server name that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$1}'|sed s/*//]<p>Update: 1800</p>|
 |NTP refid|<p>The upper NTP server of the NTP server that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$2}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

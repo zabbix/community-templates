@@ -115,6 +115,8 @@ P.V. Galonza
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`Server_public!1`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -133,6 +135,8 @@ There are no template links in this template.
 |Fan|<p>Fan index.</p>|`SNMP agent`|huawei-server.fanIndex<p>Update: 1h</p>|
 |Syslog|<p>Information about syslog receiver index.</p>|`SNMP agent`|huawei-server.syslogReceiverIndex<p>Update: 1h</p>|
 |Power supply|<p>Power supply index.</p>|`SNMP agent`|huawei-server.powerSupplyIndex<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -314,6 +318,8 @@ There are no template links in this template.
 |{#DEVICENAME} status|<p>Information about power status.</p>|`SNMP agent`|huawei-server[powerSupplyStatus.{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
 |{#DEVICENAME} version|<p>Information about power version.</p>|`SNMP agent`|huawei-server[powerSupplyVersion.{#SNMPVALUE}]<p>Update: 6h</p><p>LLD</p>|
 |{#DEVICENAME} work mode|<p>power supply actual work mode.</p>|`SNMP agent`|huawei-server[powerSupplyWorkMode.{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

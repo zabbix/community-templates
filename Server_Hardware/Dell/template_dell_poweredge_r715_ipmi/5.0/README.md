@@ -51,6 +51,8 @@ There are no discovery rules in this template.
 |FAN 2 RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_2_RPM<p>Update: 300</p>|
 |Voltage (Primary)|<p>-</p>|`IPMI agent`|ipmi.sensor.Voltage_1<p>Update: 300</p>|
 |FAN 3 RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_3_RPM<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

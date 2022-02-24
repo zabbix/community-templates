@@ -39,6 +39,8 @@ Lukas Macura
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -48,6 +50,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Sensors discovery|<p>-</p>|`SNMP agent`|snmp.discoverysensors<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +73,8 @@ There are no template links in this template.
 |Sensor threshold eval 4: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|sensorte4[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Sensor threshold eval 3: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|sensorte3[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Sensor value: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|sensorvalue[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

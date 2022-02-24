@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |Voltagem Fonte A|<p>Este objeto indica a voltagem da energia. Unidade: mV</p>|`SNMP agent`|hwEntityPwrVoltage.A<p>Update: 3m</p>|
 |Energia Fonte B|<p>Presença de energia na fonte B</p>|`SNMP agent`|hwEntityPwrPresent.B<p>Update: 3m</p>|
 |Voltagem Fonte B|<p>Este objeto indica a voltagem da energia. Unidade: mV</p>|`SNMP agent`|hwEntityPwrVoltage.B<p>Update: 3m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

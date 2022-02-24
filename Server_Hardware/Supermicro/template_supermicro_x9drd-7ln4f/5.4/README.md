@@ -62,6 +62,8 @@ There are no discovery rules in this template.
 |Peripheral Temp|<p>-</p>|`IPMI agent`|ipmi.peripheral<p>Update: 300</p>|
 |PS1 Status|<p>-</p>|`IPMI agent`|ipmi.ps1.status<p>Update: 300</p>|
 |PS2 Status|<p>-</p>|`IPMI agent`|ipmi.ps2.status<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

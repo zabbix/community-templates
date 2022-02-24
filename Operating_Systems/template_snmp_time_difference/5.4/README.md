@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |System Time|<p>-</p>|`SNMP agent`|hrSystemDate<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

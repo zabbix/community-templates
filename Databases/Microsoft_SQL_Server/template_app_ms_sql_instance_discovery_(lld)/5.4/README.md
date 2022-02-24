@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |MSSQL Multi Instance Discovery|<p>Discovers multiple SQL Server Instances</p>|`Zabbix agent`|windowssqlinstances.discovery<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no template links in this template.
 |{#INSTANCES} Access Methods Page Splits/sec|<p>-</p>|`Zabbix agent`|perf_counter["\{#INSTANCES}:Access Methods\Page Splits/sec",300]<p>Update: 30</p><p>LLD</p>|
 |{#INSTANCES} Access Methods Index Searches/sec|<p>-</p>|`Zabbix agent`|perf_counter["\{#INSTANCES}:Access Methods\Index Searches/sec",300]<p>Update: 30</p><p>LLD</p>|
 |{#INSTANCES} SQL Statistics SQL Re-Compilations/sec|<p>-</p>|`Zabbix agent`|perf_counter["\{#INSTANCES}:SQL Statistics\SQL Re-Compilations/sec",300]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

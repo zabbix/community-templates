@@ -29,6 +29,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -50,6 +52,8 @@ There are no discovery rules in this template.
 |Trassir archive sub days depth|<p>Текущая глубина архива дополнительного потока, в днях</p>|`Dependent item`|trassirdisksstatsubsdays<p>Update: 0</p>|
 |Trassir channels online|<p>Количество камер, работающих без ошибок</p>|`Dependent item`|trassirchannelsonline<p>Update: 0</p>|
 |Trassir SDK connection status|<p>Статус подключения к trassir SDK</p>|`Dependent item`|trassirsdkstatus<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

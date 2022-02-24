@@ -20,6 +20,8 @@ Armagan Yaman
 |{$AMQ_DESTINATION_CONSUMER_COUNT_THRESHOLD_MIN}|<p>-</p>|`0`|Text macro|
 |{$AMQ_DESTINATION_PRODUCER_COUNT_THRESHOLD_MIN}|<p>-</p>|`0`|Text macro|
 |{$AMQ_DESTINATION_QUEUE_SIZE_THRESHOLD}|<p>-</p>|`10`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |ActiveMQ destinations|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache.activemq:type=Destination,destinationName=*"]<p>Update: 3600</p>|
 |ActiveMQ brokers|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache.activemq:type=Broker,brokerName=*"]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +55,8 @@ There are no template links in this template.
 |TotalDequeueCount per minute for {#JMXVALUE}|<p>-</p>|`JMX agent`|jmx["{#JMXOBJ}",TotalDequeueCount]<p>Update: 30</p><p>LLD</p>|
 |TotalEnqueueCount per minute for {#JMXVALUE}|<p>-</p>|`JMX agent`|jmx["{#JMXOBJ}",TotalEnqueueCount]<p>Update: 30</p><p>LLD</p>|
 |TotalMessageCount per minute for {#JMXVALUE}|<p>Number of unacknowledged messages on the broker per minute</p>|`JMX agent`|jmx["{#JMXOBJ}",TotalMessageCount]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

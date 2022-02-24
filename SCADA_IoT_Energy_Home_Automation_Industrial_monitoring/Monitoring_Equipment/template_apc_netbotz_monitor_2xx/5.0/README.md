@@ -20,6 +20,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |APC Temp/Humidity Sensor Module|<p>-</p>|`SNMP agent`|apc.enviro.sensor.module<p>Update: 15s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -45,6 +47,8 @@ There are no template links in this template.
 |{#SNMPVALUE} Humitity: Threshold - Low|<p>-</p>|`SNMP agent`|apc.enviro.sensor.module.humidity.threshold.low.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Humitity: Threshold - Hysteresis|<p>-</p>|`SNMP agent`|apc.enviro.sensor.module.humidity.threshold.hysteresis.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Temperature|<p>-</p>|`SNMP agent`|apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -65,6 +69,8 @@ There are no template links in this template.
 |{#SNMPVALUE} {ITEM.LASTVALUE} :: Temperature < Min Threshold (LLD)|<p>-</p>|<p>**Expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}<={APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.min.["{#SNMPINDEX}"].last()})</p><p>**Recovery expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}>=({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.min.["{#SNMPINDEX}"].last()}+{APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.hysteresis.["{#SNMPINDEX}"].last()}))</p>|information|
 |{#SNMPVALUE} {ITEM.LASTVALUE} :: Temperature > High Threshold (LLD)|<p>-</p>|<p>**Expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}>={APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.high.["{#SNMPINDEX}"].last()})</p><p>**Recovery expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}<=({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.high.["{#SNMPINDEX}"].last()}-{APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.hysteresis.["{#SNMPINDEX}"].last()}))</p>|average|
 |{#SNMPVALUE} {ITEM.LASTVALUE} :: Temperature > Max Threshold (LLD)|<p>-</p>|<p>**Expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}>={APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.max.["{#SNMPINDEX}"].last()})</p><p>**Recovery expression**: ({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.value.["{#SNMPINDEX}"].last()}<=({APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.max.["{#SNMPINDEX}"].last()}-{APC NetBotz Rack Monitor 200:apc.enviro.sensor.module.temperature.threshold.hysteresis.["{#SNMPINDEX}"].last()}))</p>|disaster|
+
+
 # APC NetBotz Rack Monitor 250
 
 ## Overview
@@ -86,17 +92,23 @@ There are no template links in this template.
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$HYSTERESIS}|<p>-</p>|`2`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |APC NetBotz Rack Monitor 200|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |APC Temp/Humidity Sensor Module|<p>-</p>|`SNMP agent`|apc.enviro.sensor.module<p>Update: 15s</p>|
 |Wireless APC Sensor|<p>-</p>|`SNMP agent`|apc.enviro.sensor.wireless<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -139,6 +151,8 @@ There are no template links in this template.
 |{#SNMPVALUE} Battery|<p>-</p>|`SNMP agent`|apc.enviro.sensor.wireless.battery.value.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Battery: Threshold - Min|<p>-</p>|`SNMP agent`|apc.enviro.sensor.wireless.battery.threshold.min.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Temperature|<p>-</p>|`SNMP agent`|apc.enviro.sensor.wireless.temperature.value.["{#SNMPINDEX}"]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -44,6 +44,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |DIskVolume|<p>-</p>|`SNMP agent`|hikDiskVolume<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -55,6 +57,8 @@ There are no template links in this template.
 |HDD capability on {#HIKDINDEX}|<p>-</p>|`SNMP agent`|hikDiskCapability[{#HIKDINDEX}]<p>Update: 12h</p><p>LLD</p>|
 |HDD free space on {#HIKDINDEX}|<p>-</p>|`SNMP agent`|hikDiskFreeSpace[{#HIKDINDEX}]<p>Update: 3h</p><p>LLD</p>|
 |HDD Status on {#HIKDINDEX}|<p>-</p>|`SNMP agent`|hikDiskStatus[{#HIKDINDEX}]<p>Update: 30m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

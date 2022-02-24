@@ -72,6 +72,8 @@ There are no discovery rules in this template.
 |ps|<p>Show "ps -ef f" output (First one thousand lines)</p>|`Zabbix trapper`|canary.ps[]<p>Update: 0</p>|
 |top|<p>"top" command when canary file was triggered.</p>|`Zabbix trapper`|canary.top[]<p>Update: 0</p>|
 |Canary status|<p>Status used for triggers. 1 - Canary is dead 0 - Canary is alive</p>|`Zabbix trapper`|canary.status[]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

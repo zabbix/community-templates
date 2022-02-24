@@ -99,6 +99,8 @@ There are no discovery rules in this template.
 |PDU Input Phase 3 Status Current State|<p>-</p>|`SNMP agent`|pduInputPhaseStatusCurrentState.1.3.1.3<p>Update: 10s</p>|
 |PDU Input Phase 2 Status Voltage State|<p>-</p>|`SNMP agent`|pduInputPhaseStatusVoltageState.1.4.1.2<p>Update: 10s</p>|
 |Unit Status Peak Power|<p>-</p>|`SNMP agent`|pduUnitStatusPeakPower.1.6<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

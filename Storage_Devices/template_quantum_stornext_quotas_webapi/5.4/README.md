@@ -71,6 +71,8 @@ Kirill Savin, Nikita Kuznetsov
 |{$FSNAME_VALUE_STORNEXT}|<p>-</p>|``|Text macro|
 |{$PASSWORD_VALUE_STORNEXT}|<p>-</p>|``|Text macro|
 |{$USERNAME_VALUE_STORNEXT}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -80,6 +82,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Quotas|<p>-</p>|`HTTP agent`|snquotas.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -90,6 +94,8 @@ There are no template links in this template.
 |Quota on fs {#SNQUOTAID} Grace Period|<p>-</p>|`Dependent item`|snquotas.onfs.gracePeriod.[{#SNQUOTAID}]<p>Update: 0</p><p>LLD</p>|
 |Quota on fs {#SNQUOTAID} Hard Limit|<p>-</p>|`Dependent item`|snquotas.onfs.hardLimit.[{#SNQUOTAID}]<p>Update: 0</p><p>LLD</p>|
 |Quota on fs {#SNQUOTAID} Soft Limit|<p>-</p>|`Dependent item`|snquotas.onfs.softLimit.[{#SNQUOTAID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Check ufw|<p>1= not found 0 = found</p>|`Zabbix agent`|system.run["systemctl status ufw | grep -q running;echo $?"]<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |GPU 2 Temp|<p>-</p>|`Zabbix agent`|wmi.get[root\openhardwaremonitor,SELECT Value FROM Sensor WHERE Parent="/atigpu/12" and SensorType="Temperature"]<p>Update: 60</p>|
 |GPU 3 Fan|<p>-</p>|`Zabbix agent`|wmi.get[root\openhardwaremonitor,SELECT Value FROM Sensor WHERE Parent="/atigpu/18" and SensorType="Control"]<p>Update: 60</p>|
 |GPU 3 Temp|<p>-</p>|`Zabbix agent`|wmi.get[root\openhardwaremonitor,SELECT Value FROM Sensor WHERE Parent="/atigpu/18" and SensorType="Temperature"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

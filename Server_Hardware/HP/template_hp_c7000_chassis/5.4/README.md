@@ -53,6 +53,8 @@ There are no template links in this template.
 |Interconnect modules|<p>-</p>|`SNMP agent`|snmp.discovery_net<p>Update: 43200</p>|
 |Device slots|<p>-</p>|`SNMP agent`|snmp.discovery_bays<p>Update: 43200</p>|
 |Power units|<p>-</p>|`SNMP agent`|snmp.discovery_power<p>Update: 43200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +82,8 @@ There are no template links in this template.
 |Output load on PU {#SNMPINDEX}|<p>-</p>|`SNMP agent`|cpqRackPowerSupplyCurPwrOutput[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
 |PU Input status {#SNMPINDEX}|<p>-</p>|`SNMP agent`|cpqRackPowerSupplyInputLineStatus[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
 |PU Status {#SNMPINDEX}|<p>-</p>|`SNMP agent`|cpqRackPowerSupplyStatus[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

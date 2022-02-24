@@ -29,6 +29,8 @@ There are no template links in this template.
 |Stack port Info|<p>A unique value for each interface. Its value ranges between 1 and the value of ifNumber. The value for each interface must remain constant at least from one re-initialization of the entity's network management system to the next re- initialization.</p>|`SNMP agent`|extremeStackingPortIfIndex<p>Update: 3600</p>|
 |PSU Discovery|<p>Table of status of all power supplies in the system.</p>|`SNMP agent`|psu.discovery<p>Update: 3600</p>|
 |FAN Discovery|<p>-</p>|`SNMP agent`|fan.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |PSU {#SNMPVALUE}: Power supply status|<p>MIB: EXTREME-SYSTEM-MIB Status of the power supply {#SNMPVALUE}</p>|`SNMP agent`|sensor.psu.status[extremePowerSupplyStatus.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Fan {#SNMPVALUE}: Fan speed|<p>MIB: EXTREME-SYSTEM-MIB The speed (RPM) of a cooling fan in the fantray {#SNMPVALUE}</p>|`SNMP agent`|sensor.fan.speed[extremeFanSpeed.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Fan {#SNMPVALUE}: Fan status|<p>MIB: EXTREME-SYSTEM-MIB Operational status of a cooling fan.</p>|`SNMP agent`|sensor.fan.status[extremeFanOperational.{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

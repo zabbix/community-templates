@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 120</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Incoming traffic on interface $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Operational status of interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -25,6 +25,8 @@ Martin Schroeter
 |{$JQ_DOCKER_MOUNTS}|<p>-</p>|`jq .Mounts[].Destination`|Text macro|
 |{$JQ_DOCKER_NAMES}|<p>-</p>|`jq '[ .[].Names[0]|{ "{#NAMES}": .} ]'`|Text macro|
 |{$JQ_DOCKER_VOLUMES}|<p>-</p>|`jq .Mounts[].Source`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Docker Container Discovery (by Names)|<p>-</p>|`Zabbix agent`|system.run[echo "{ \"data\": `curl -s --unix-socket /var/run/docker.sock http:/containers/json| {$JQ_DOCKER_NAMES}` }"]<p>Update: {$DISCOVERY_UPDATE_INTERVAL}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +47,8 @@ There are no template links in this template.
 |Container: {#NAMES} - Env.Branch|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_ENV_BRANCH}]<p>Update: 30s</p><p>LLD</p>|
 |Container: {#NAMES} - Mounts|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_MOUNTS}]<p>Update: 30s</p><p>LLD</p>|
 |Container: {#NAMES} - Volumes|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_VOLUMES}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -88,16 +94,22 @@ Martin Schroeter
 |{$ITEM_HISTORY_STORAGE_PERIOD}|<p>-</p>|`14d`|Text macro|
 |{$ITEM_UPDATE_INTERVAL}|<p>-</p>|`300s`|Text macro|
 |{$NETWORK_ITEM_UPDATE_INTERVAL}|<p>-</p>|`60s`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |.Docker.ContainerDetails|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Docker Container Discovery (by Names)|<p>-</p>|`Zabbix agent`|system.run[echo "{ \"data\": `curl -s --unix-socket /var/run/docker.sock http:/containers/json| {$JQ_DOCKER_NAMES}` }"]<p>Update: {$DISCOVERY_UPDATE_INTERVAL}</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +119,8 @@ Martin Schroeter
 |Container: {#NAMES} - Env.Branch|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_ENV_BRANCH}]<p>Update: 30s</p><p>LLD</p>|
 |Container: {#NAMES} - Mounts|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_MOUNTS}]<p>Update: 30s</p><p>LLD</p>|
 |Container: {#NAMES} - Volumes|<p>-</p>|`Zabbix agent`|system.run[curl -s --unix-socket /var/run/docker.sock http:/containers{#NAMES}/json| {$JQ_DOCKER_VOLUMES}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

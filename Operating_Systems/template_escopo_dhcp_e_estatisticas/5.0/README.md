@@ -29,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |DHCP scopes|<p>-</p>|`SNMP agent`|dhcp.scope<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -43,6 +45,8 @@ There are no template links in this template.
 |parDhcpTotalNoOfReleases|<p>-</p>|`SNMP agent`|1.3.6.1.4.1.311.1.3.1.4<p>Update: 60</p>|
 |Number of addresses that are free on scope {#IPSCOPE}|<p>-</p>|`SNMP agent`|ipfree[{#IPSCOPE}]<p>Update: 60</p><p>LLD</p>|
 |Number of addresses that are use on scope {#IPSCOPE}|<p>-</p>|`SNMP agent`|ipuse[{#IPSCOPE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

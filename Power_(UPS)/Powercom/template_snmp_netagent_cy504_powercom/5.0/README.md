@@ -19,6 +19,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -43,6 +45,8 @@ There are no discovery rules in this template.
 |PowerCom: Battery Capacity (%)|<p>-</p>|`SNMP agent`|BatteryCapacity<p>Update: 30s</p>|
 |PowerCom: Firmware Version Card|<p>-</p>|`SNMP agent`|FirmwareVersionCard<p>Update: 40320s</p>|
 |PowerCom: Model|<p>-</p>|`SNMP agent`|ModelUPS<p>Update: 40320s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

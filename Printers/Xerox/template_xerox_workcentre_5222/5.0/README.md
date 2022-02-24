@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 21600</p>|
 |Pages printed - color|<p>-</p>|`SNMP agent`|pages.printed.color<p>Update: 10800</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 21600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

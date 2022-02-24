@@ -33,6 +33,8 @@ There are no discovery rules in this template.
 |LAN IN|<p>-</p>|`SNMP agent`|lan.in<p>Update: 5</p>|
 |WLAN IN|<p>-</p>|`SNMP agent`|wlan.in<p>Update: 5</p>|
 |Profil name 05|<p>-</p>|`SNMP agent`|profil5.name<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

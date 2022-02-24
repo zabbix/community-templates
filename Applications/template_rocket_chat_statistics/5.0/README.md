@@ -56,6 +56,8 @@ Felipe Vieira
 |{$ROCKETCHAT_URL}|<p>-</p>|`https://rocket_chat.fqdn/api`|Text macro|
 |{$ROCKETCHAT_USERAPI_ID}|<p>-</p>|`ujjdjdhhhh7822232`|Text macro|
 |{$ROCKETCHAT_USERAPI_TOKEN}|<p>-</p>|`gf-PAT-l_W4jhddggdggsshdhdhdhkkkjfbbdbddt332`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -92,6 +94,8 @@ There are no discovery rules in this template.
 |Rocket Chat Livechats - Total|<p>-</p>|`Dependent item`|rocketchat-stats[totalLivechat]<p>Update: 0</p>|
 |Rocket Chat Direct - Total|<p>-</p>|`Dependent item`|rocketchat-stats[totalDirect]<p>Update: 0</p>|
 |Rocket Chat OS Memory Free|<p>-</p>|`Dependent item`|rocketchat-stats[os.freemem]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

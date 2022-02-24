@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |MAC Address|<p>-</p>|`SNMP agent`|mac.address<p>Update: 43200</p>|
 |Capacité toner|<p>-</p>|`SNMP agent`|capacite.toner<p>Update: 10</p>|
 |Numéro série|<p>-</p>|`SNMP agent`|num.serie<p>Update: 43200</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -68,6 +68,8 @@ There are no discovery rules in this template.
 |mono color|<p>-</p>|`SNMP agent`|monoprint<p>Update: 600;3600/1-6,19:00-24:00;3600/1-6,00:00-08:00;3600/7,00:00-24:00</p>|
 |赤インクの現在容量|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevelmagen<p>Update: 180;3600/7,00:00-24:00</p>|
 |黒インクの現在容量|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevelblack<p>Update: 180;3600/7,00:00-24:00</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

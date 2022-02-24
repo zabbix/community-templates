@@ -25,6 +25,8 @@ There are no template links in this template.
 |Services|<p>-</p>|`SNMP agent`|snmp.services.discovery<p>Update: 1m</p>|
 |Vservers|<p>-</p>|`SNMP agent`|snmp.vservers.discovery<p>Update: 1m</p>|
 |Interfaces|<p>-</p>|`SNMP agent`|snmp.interfaces.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -74,6 +76,8 @@ There are no template links in this template.
 |Interface {#SNMPVALUE} type|<p>-</p>|`SNMP agent`|type.[{#SNMPVALUE}]<p>Update: 1h</p><p>LLD</p>|
 |Interface {#SNMPVALUE} transmitted bytes|<p>-</p>|`SNMP agent`|t_bytes.[{#SNMPVALUE}]<p>Update: 15s</p><p>LLD</p>|
 |Interface {#SNMPVALUE} transmitted packets|<p>-</p>|`SNMP agent`|t_pks.[{#SNMPVALUE}]<p>Update: 15s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

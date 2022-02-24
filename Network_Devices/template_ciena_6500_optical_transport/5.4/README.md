@@ -22,6 +22,8 @@ Dustin Howard
 |----|-----------|-------|----|
 |{$OPTICAL_VARIANCE}|<p>the allowed variance from baselines in db</p>|`2`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`secret`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -37,6 +39,8 @@ There are no template links in this template.
 |Optical AMP Rx Discovery|<p>-</p>|`SNMP agent`|optical.rx.discovery<p>Update: 1d;wd1h13</p>|
 |Optical Transport Interface Discovery|<p>-</p>|`SNMP agent`|optical.transport.if.discovery<p>Update: 1d;wd1h11</p>|
 |Optical OSC Spanloss Discovery|<p>-</p>|`SNMP agent`|optical.osc.spanloss.discovery<p>Update: 1d;wd1h10</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -68,6 +72,8 @@ There are no template links in this template.
 |{#IFDESCR}: Pre-FEC bit error rate|<p>Pre-FEC bit error rate, optical channel transport unit</p>|`SNMP agent`|net.if.status[pre.fec.ber.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |{#IFDESCR}: Uncorrected FEC block|<p>Uncorrected FEC blocks, Optical Transport Unit.</p>|`SNMP agent`|net.if.status[uncorrected.fec.block.{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |{#PORTNAME} "{#CHECKNAME}"|<p>The span loss ont he receive fiber in db.</p>|`SNMP agent`|optical.osc.spanloss[{#PORTNAME}.{#CHECKNAME}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

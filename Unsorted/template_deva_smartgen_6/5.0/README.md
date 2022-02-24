@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |Device Serial Number|<p>device.serNum</p>|`SNMP agent`|device.serNum<p>Update: 86400</p>|
 |GPS Satellites In Use|<p>"Satellites in use"</p>|`SNMP agent`|mntrGPS.SatsInUse<p>Update: 1200</p>|
 |Status TP|<p>"monitor RDS TP"</p>|`SNMP agent`|mntrRDS.RDS.TP<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

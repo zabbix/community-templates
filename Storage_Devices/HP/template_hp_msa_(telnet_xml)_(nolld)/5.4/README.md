@@ -849,6 +849,8 @@ There are no discovery rules in this template.
 |Физ. диск (1.24) - ошибки|<p>-</p>|`Dependent item`|hp.msa.disk-statistics.1.24.number-of-media-errors-1<p>Update: 0</p>|
 |Физ. диск (2.11) - индикатор|<p>-</p>|`Dependent item`|hp.msa.disks.2.11.led-status-numeric<p>Update: 0</p>|
 |Физ. диск (2.7) - контроллер|<p>-</p>|`Dependent item`|hp.msa.disks.2.7.owner-numeric<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |Серийный номер|<p>-</p>|`SNMP agent`|SerialNumb<p>Update: 30s</p>|
 |Real time toner Black|<p>-</p>|`SNMP agent`|real-int-black<p>Update: 0;10s/7,08:00-18:00</p>|
 |4 Пурпурный картридж|<p>-</p>|`SNMP agent`|STRING2<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -112,6 +114,8 @@ There are no discovery rules in this template.
 |Серийный номер|<p>-</p>|`SNMP agent`|SerialNumb<p>Update: 30s</p>|
 |Название принтера|<p>-</p>|`SNMP agent`|Name<p>Update: 30s</p>|
 |Наименование картириджа|<p>-</p>|`SNMP agent`|cartrig-name<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

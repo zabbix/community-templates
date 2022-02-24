@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |Yellow toner level|<p>-</p>|`Calculated`|5550.yellow.perc<p>Update: 1800</p>|
 |hp.transfer.kit.max|<p>-</p>|`SNMP agent`|hp.transfer.kit.max<p>Update: 86400</p>|
 |hp.black.toner.max|<p>-</p>|`SNMP agent`|hp.black.toner.max<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

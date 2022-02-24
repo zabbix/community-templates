@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |DM4050 - FAN1 Control|<p>-</p>|`SNMP agent`|fanControl.1.1.1<p>Update: 300</p>|
 |DM4610 - FAN3 Speed|<p>-</p>|`SNMP agent`|fanSpeed.1.51<p>Update: 300</p>|
 |DM4610 - FAN1 Speed|<p>-</p>|`SNMP agent`|fanSpeed.1.49<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

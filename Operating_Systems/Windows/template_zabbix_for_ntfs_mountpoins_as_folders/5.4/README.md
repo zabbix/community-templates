@@ -43,6 +43,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Volume Mountpoints filesystem discovery|<p>This Rule only Discover Disk at Mountpoints without Drive-Letters</p>|`Zabbix agent (active)`|vfs.fs.customfolders.windowsmountpoints.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |Free disk space on $1 (percentage)|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[{#DISKNAME},pfree]<p>Update: 1h</p><p>LLD</p>|
 |Total disk space on $1|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[{#DISKNAME},total]<p>Update: 1h</p><p>LLD</p>|
 |Used disk space on $1|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[{#DISKNAME},used]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

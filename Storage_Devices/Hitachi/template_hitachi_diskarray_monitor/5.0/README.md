@@ -25,6 +25,8 @@ zhangzhefeng
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CLOUD_SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -34,6 +36,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |DKC Discovery|<p>-</p>|`SNMP agent`|DKCDiscovery<p>Update: 12h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -50,6 +54,8 @@ There are no template links in this template.
 |DKU Environment Condition {#SNMPVALUE}|<p>-</p>|`SNMP agent`|DKUEnvironmentCondition.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |DKU Fan Condition {#SNMPVALUE}|<p>-</p>|`SNMP agent`|DKUFanCondition.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |DKU Power Supply Condition {#SNMPVALUE}|<p>-</p>|`SNMP agent`|DKUPowerSupplyCondition.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

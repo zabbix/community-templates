@@ -131,6 +131,8 @@ There are no discovery rules in this template.
 |APC Modell|<p>Modell der APC</p>|`SNMP agent`|apc_model<p>Update: 60s</p>|
 |APC Output Current (Amperes)|<p>-</p>|`SNMP agent`|apc_output.amperes<p>Update: 30s</p>|
 |APC Battery Status|<p>-</p>|`SNMP agent`|apc_battery.status<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

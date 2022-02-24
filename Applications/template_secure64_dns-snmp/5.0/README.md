@@ -67,6 +67,8 @@ There are no discovery rules in this template.
 |CacheLatencyGT4095ms|<p>-</p>|`SNMP agent`|s64CacheLatencyGT4095ms.0<p>Update: 60</p>|
 |CacheLatency64to127ms|<p>Number of lookups performed that took more than 64 milliseconds and up to 128 milliseconds.</p>|`SNMP agent`|s64CacheLatency64to127ms.0<p>Update: 60</p>|
 |Average QPS|<p>Average number of queries per second (QPS), since the last time this value was queried. Each time this value is queried, we determine the amount of elapsed time since the last SNMP query for it, and the total number of DNS queries since the last SNMP query for it, and calculate the number of queries per second over that interval.</p>|`SNMP agent`|s64CacheQPS<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

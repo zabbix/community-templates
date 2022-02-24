@@ -26,6 +26,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template App SSH Service|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -48,6 +50,8 @@ There are no discovery rules in this template.
 |CPU Speed|<p>-</p>|`Dependent item`|CPUMHz<p>Update: 0</p>|
 |bcmstat|<p>Absolutely requires bcmstat.sh v0.5.4+. Anything before this doesn't have the J option and my workaround was crazy janky.</p>|`SSH agent`|ssh.run[bcmstat_{HOST.NAME}]<p>Update: 8s</p>|
 |CPU1 % used|<p>-</p>|`Dependent item`|cpu1<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

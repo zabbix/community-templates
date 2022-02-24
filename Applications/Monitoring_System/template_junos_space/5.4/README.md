@@ -34,6 +34,8 @@ There are no discovery rules in this template.
 |service jmp-watchdog count|<p>-</p>|`Zabbix agent`|proc.num[perl,root,,jmp-watchdog]<p>Update: 60</p>|
 |service jboss count|<p>-</p>|`Zabbix agent`|proc.num[sh,jboss,,--host-config=host.xml.master]<p>Update: 60</p>|
 |service mysql count|<p>-</p>|`Zabbix agent`|proc.num[mysqld,mysql]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

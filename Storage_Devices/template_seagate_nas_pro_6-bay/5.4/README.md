@@ -101,6 +101,8 @@ There are no discovery rules in this template.
 |Memória física total|<p>SEAGATE-NAS-SYSTEM-MIB::snMemPhysTot.0</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snMemPhysTot.0<p>Update: 60</p>|
 |Rotação atual da ventoinha|<p>SEAGATE-NAS-SYSTEM-MIB::snFanSensorCurrentRPM.1</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snFanSensorCurrentRPM.1<p>Update: 60</p>|
 |Tamanho do disco 3|<p>SEAGATE-NAS-SYSTEM-MIB::snDiskSize.3</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snDiskSize.3<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

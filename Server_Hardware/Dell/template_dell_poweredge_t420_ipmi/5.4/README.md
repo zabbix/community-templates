@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Voltage 1|<p>-</p>|`IPMI agent`|ipmi.voltage.1<p>Update: 300</p>|
 |Power|<p>-</p>|`IPMI agent`|power<p>Update: 300</p>|
 |Voltage 2|<p>-</p>|`IPMI agent`|ipmi.voltage.2<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

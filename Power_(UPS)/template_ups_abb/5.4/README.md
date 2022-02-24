@@ -42,6 +42,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -87,6 +89,8 @@ There are no discovery rules in this template.
 |UPS time on battery|<p>-</p>|`SNMP agent`|upsBasicBatteryTimeOnBattery<p>Update: 1m</p>|
 |UPS input current 2|<p>-</p>|`SNMP agent`|upsAdvInputCurrent2<p>Update: 1m</p>|
 |UPS input frequency 3|<p>-</p>|`SNMP agent`|upsAdvInputFrequency3<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -57,6 +57,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Mounted filesystem discovery|<p>Discovery of file systems of different types as defined in global regular expression "File systems for discovery".</p>|`Zabbix agent (active)`|vfs.fs.discovery<p>Update: 1h</p>|
 |CPUs discovery|<p>Discovery of CPUs of different types as defined in global regular expression "CPU for discovery".</p>|`Zabbix agent (active)`|system.cpu.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -113,6 +115,8 @@ There are no template links in this template.
 |Processor No $1 Utilization % (1 min average)|<p>CPU utilization in percent.</p>|`Zabbix agent (active)`|system.cpu.util[{#CPU.NUMBER},system,avg1]<p>Update: 30s</p><p>LLD</p>|
 |Processor No $1 Utilization % (5 min average)|<p>CPU utilization in percent.</p>|`Zabbix agent (active)`|system.cpu.util[{#CPU.NUMBER},system,avg5]<p>Update: 30s</p><p>LLD</p>|
 |Processor No $1 Utilization % (15 min average)|<p>CPU utilization in percent.</p>|`Zabbix agent (active)`|system.cpu.util[{#CPU.NUMBER},system,avg15]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

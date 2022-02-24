@@ -115,6 +115,8 @@ P.V. Galonza
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`Server_public!1`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -133,6 +135,8 @@ There are no template links in this template.
 |Raid controller|<p>Information about RAID controller index.</p>|`SNMP agent`|huawei-server.raidControllerIndex<p>Update: 1h</p>|
 |Temperature|<p>Information about temperature index.</p>|`SNMP agent`|huawei-server.temperatureIndex<p>Update: 1h</p>|
 |Fan|<p>Fan index.</p>|`SNMP agent`|huawei-server.fanIndex<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -314,6 +318,8 @@ There are no template links in this template.
 |{#DEVICENAME} speed|<p>Fan speed ratio.</p>|`SNMP agent`|huawei-server[fanSpeed.{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
 |{#DEVICENAME} speed ratio|<p>Fan speed ratio.</p>|`SNMP agent`|huawei-server[fanSpeedRatio.{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
 |{#DEVICENAME} status|<p>Information about fan health status.</p>|`SNMP agent`|huawei-server[fanStatus.{#SNMPVALUE}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

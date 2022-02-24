@@ -26,6 +26,8 @@ There are no discovery rules in this template.
 |Total of Physical Memory Space|<p>PEAKFLOW-SP-MIB::devicePhysicalMemory Total physical memeory installed (in KiB).</p>|`SNMP agent`|devicePhysicalMemory<p>Update: 3600</p>|
 |Usage of Physical Memory Space|<p>PEAKFLOW-SP-MIB::devicePhysicalMemoryInUse Physical memeory being used (in KiB).</p>|`SNMP agent`|devicePhysicalMemoryInUse<p>Update: 60</p>|
 |Disk Space Usage|<p>PEAKFLOW-SP-MIB::deviceDiskUsage Percentage of primary data partition used.</p>|`SNMP agent`|deviceDiskUsage<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

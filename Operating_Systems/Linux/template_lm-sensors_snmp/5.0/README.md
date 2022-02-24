@@ -42,6 +42,8 @@ Tested on FreeNAS and Debian should work on any Linux and FreeBSD system
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CPU_HIGH}|<p>High cpu temp for alert</p>|`60.0`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -54,6 +56,8 @@ There are no template links in this template.
 |FAN Discovery|<p>Discover Fan entities in LM Sensors</p>|`SNMP agent`|lmsensors.fan<p>Update: 1h</p>|
 |Temperature Discovery|<p>Discover non-CPU temperature entities in LM Sensors</p>|`SNMP agent`|lmsensors<p>Update: 1h</p>|
 |PSU Voltages Discovery|<p>Discover PSU Voltages in LM Sensors</p>|`SNMP agent`|lmsensors.volt<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -62,6 +66,8 @@ There are no template links in this template.
 |FAN Speed {#SNMPVALUE}|<p>-</p>|`SNMP agent`|lmsensors.fan[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Temperature Sensor {#SNMPVALUE}|<p>-</p>|`SNMP agent`|lmTempSensorsValue[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |PSU Voltage {#SNMPVALUE}|<p>-</p>|`SNMP agent`|lmsensors.volt[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

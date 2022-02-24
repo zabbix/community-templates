@@ -27,6 +27,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Windiws Backup Trouble|<p>-</p>|`Zabbix agent (active)`|eventlog[Microsoft-Windows-Backup,,"Error|Critical|Warning",,,,skip]<p>Update: 300</p>|
 |Windows Backup Successful|<p>-</p>|`Zabbix agent (active)`|eventlog[Microsoft-Windows-Backup,,"Information",,4,,skip]<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -22,6 +22,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discovery LAN Server|<p>-</p>|`Zabbix agent`|speedtest-lan.discovery<p>Update: 500s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -29,6 +31,8 @@ There are no template links in this template.
 |Speedtest {#IPERFNAME} - Download|<p>-</p>|`Zabbix agent`|speedtest-lan.download.server[{#IPERFID}]<p>Update: 600s</p><p>LLD</p>|
 |Speedtest {#IPERFNAME} - Ping|<p>-</p>|`Zabbix agent`|speedtest-lan.ping.server[{#IPERFID}]<p>Update: 600s</p><p>LLD</p>|
 |Speedtest {#IPERFNAME} - Upload|<p>-</p>|`Zabbix agent`|speedtest-lan.upload.server[{#IPERFID}]<p>Update: 600s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

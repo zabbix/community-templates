@@ -23,6 +23,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -51,6 +53,8 @@ There are no discovery rules in this template.
 |Output source|<p>The present source of output power. The enumeration none(2) indicates that there is no source of output power (and therefore no output power), for example, the system has opened the output breaker</p>|`SNMP agent`|upsOutputSource<p>Update: 1m</p>|
 |UPS test results|<p>Additional information about upsTestResultsSummary. If no additional information available, a zero length string is returned</p>|`SNMP agent`|upsTestResultsDetail<p>Update: 1m</p>|
 |Time on battery|<p>If the unit is on battery power, the elapsed time since the UPS last switched to battery power, or the time since the network management subsystem was last restarted, whichever is less. Zero shall be returned if the unit is not on battery power.</p>|`SNMP agent`|upsSecondsOnBattery<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

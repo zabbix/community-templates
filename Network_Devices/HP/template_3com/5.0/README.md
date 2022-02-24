@@ -230,6 +230,8 @@ There are no discovery rules in this template.
 |Port 12 Traffic IN Errors|<p>-</p>|`SNMP agent`|ifInErrors.4227714<p>Update: 30</p>|
 |Port 16 Traffic OUT Errors|<p>-</p>|`SNMP agent`|ifOutErrors.4227746<p>Update: 30</p>|
 |Port 17 Status|<p>-</p>|`SNMP agent`|ifOperStatus.4227754<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -35,6 +35,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -55,6 +57,8 @@ There are no discovery rules in this template.
 |UPS Battery Last Replace Date|<p>The date when the UPS system's batteries were last replaced in mm/dd/yy format. For UPS models, this value is originally set in the factory. When the UPS batteries are replaced, this value should be reset by the administrator Дата последней замены батарей системы ИБП в формате мм / дд / гг. Это значение изначально установлено на заводе. Когда батареи ИБП заменены, это значение должно быть сброшено администратором</p>|`SNMP agent`|upsBaseLBatteryLastReplaceDate<p>Update: 1h</p>|
 |UPS output load (%)|<p>The current UPS load expressed in percent of rated capacity.</p>|`SNMP agent`|upsSmartOutputLoad<p>Update: 60s</p>|
 |UPS input voltage|<p>-</p>|`SNMP agent`|upsSmartInputLineVoltage<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

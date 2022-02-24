@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |TACACS service is running|<p>-</p>|`Simple check`|net.tcp.service[tcp,,49]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

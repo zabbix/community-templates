@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |Modelo|<p>-</p>|`SNMP agent`|name<p>Update: 60s</p>|
 |Data de Criação|<p>-</p>|`SNMP agent`|date<p>Update: 60s</p>|
 |Modo de Operação|<p>-</p>|`SNMP agent`|modoOperacao<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

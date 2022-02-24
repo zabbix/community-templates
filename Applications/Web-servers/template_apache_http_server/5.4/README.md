@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Bytes per second|<p>-</p>|`Dependent item`|apache.bytessec<p>Update: 0</p>|
 |Workers keepalive (read)|<p>-</p>|`Dependent item`|apache.workers.keepalive<p>Update: 0</p>|
 |Workers closing connection|<p>-</p>|`Dependent item`|apache.workers.closing<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

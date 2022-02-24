@@ -66,6 +66,8 @@ There are no template links in this template.
 |RAID battery dsvr|<p>-</p>|`SNMP agent`|raidbatdsvr<p>Update: 180</p>|
 |MEM dsvr|<p>-</p>|`SNMP agent`|memdsvr<p>Update: 180</p>|
 |DSK dsvr|<p>-</p>|`SNMP agent`|dskdsvr<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -81,6 +83,8 @@ There are no template links in this template.
 |{#SNMPVALUE} status|<p>-</p>|`SNMP agent`|raidbatstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} status|<p>-</p>|`SNMP agent`|memstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |{#SNMPVALUE} disk status|<p>-</p>|`SNMP agent`|diskstatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

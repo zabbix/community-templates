@@ -33,6 +33,8 @@ Vincent MATIAS
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |{HOST.NAME} temperature higher than its limit|<p>SEVERE: The UPS has sensed a temperature greater than its limit.</p>|`SNMP trap`|snmptrap["upsTrapOverTemperature"]<p>Update: 0</p>|
 |{HOST.NAME} ping|<p>-</p>|`Simple check`|icmpping[]<p>Update: 30s</p>|
 |{HOST.NAME} status is normal|<p>INFORMATION: The UPS status is normal.</p>|`SNMP trap`|snmptrap["upsTrapUpsNormal"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

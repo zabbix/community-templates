@@ -94,6 +94,8 @@ There are no discovery rules in this template.
 |The RTC timer value (since 1/1/2000 00:00:00)|<p>-</p>|`SNMP agent`|atsConfigTimeRTC<p>Update: 10m</p>|
 |The status of input SCR thermal is over (Source 2)|<p>-</p>|`SNMP agent`|atsInputFailureSCRThermal_source2<p>Update: 1m</p>|
 |The link status of ModBUS communication to ATS device|<p>-</p>|`SNMP agent`|atsAgentModbusLink<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

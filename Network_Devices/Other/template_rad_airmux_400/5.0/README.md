@@ -11,11 +11,15 @@ Airmux-400 is a carrier-class, cost-effective multiple point-to-point broadband 
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`netman`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -49,6 +53,8 @@ There are no discovery rules in this template.
 |Device enterprises|<p>-</p>|`SNMP agent`|system.enterprises<p>Update: 86400</p>|
 |Port Speed|<p>-</p>|`SNMP agent`|net.if.speed<p>Update: 60</p>|
 |ESSID|<p>SELUCREH - not used</p>|`SNMP agent`|frequency.essid<p>Update: 1d</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

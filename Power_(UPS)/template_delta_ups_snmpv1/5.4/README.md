@@ -33,6 +33,8 @@ There are no template links in this template.
 |UPS Output Line Discovery|<p>-</p>|`SNMP agent`|UPSOutputLineDiscovery<p>Update: 7200</p>|
 |UPS Input Line Discovery|<p>-</p>|`SNMP agent`|UPSInputLineDiscovery<p>Update: 7200</p>|
 |UPS Bypass Line Discovery|<p>-</p>|`SNMP agent`|UPSBypassLineDiscovery<p>Update: 7200</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -66,6 +68,8 @@ There are no template links in this template.
 |UPS Input {#SNMPINDEX} Frequency|<p>-</p>|`SNMP agent`|upsInputFrequency.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |UPS Input {#SNMPINDEX} Voltage|<p>-</p>|`SNMP agent`|upsInputVoltage.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |UPS Line {#SNMPINDEX} Bypass Voltage|<p>-</p>|`SNMP agent`|upsBypassVoltage.[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

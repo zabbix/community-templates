@@ -76,6 +76,8 @@ There are no discovery rules in this template.
 |The dephasing in between Source 1 and Source 2|<p>-</p>|`SNMP agent`|ats2InputDephasing<p>Update: 5m</p>|
 |The input frequency (Source 1)|<p>-</p>|`SNMP agent`|ats2InputFrequency_source1<p>Update: 5m</p>|
 |Short circuit status|<p>-</p>|`SNMP agent`|ats2StatusShortCircuit<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

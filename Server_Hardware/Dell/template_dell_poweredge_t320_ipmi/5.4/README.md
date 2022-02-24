@@ -47,6 +47,8 @@ There are no discovery rules in this template.
 |Temp|<p>-</p>|`IPMI agent`|ipmi.temp<p>Update: 300</p>|
 |Current 2|<p>-</p>|`IPMI agent`|ipmi.current.2<p>Update: 300</p>|
 |Current 1|<p>-</p>|`IPMI agent`|ipmi.current.1<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

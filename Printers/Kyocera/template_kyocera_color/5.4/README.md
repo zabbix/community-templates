@@ -32,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |toners|<p>-</p>|`SNMP agent`|toners<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -40,6 +42,8 @@ There are no template links in this template.
 |persent_{#SNMPVALUE}|<p>-</p>|`Calculated`|percent_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |toner current {#SNMPVALUE}|<p>-</p>|`SNMP agent`|toner_current_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |toner default {#SNMPVALUE}|<p>-</p>|`SNMP agent`|toner_default_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

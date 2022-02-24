@@ -43,6 +43,8 @@ There are no discovery rules in this template.
 |Main counter 501 (Scan Total 1)|<p>-</p>|`SNMP agent`|C5540.501<p>Update: 3h</p>|
 |Main counter 102 (Total 2)|<p>-</p>|`SNMP agent`|C5540.102<p>Update: 3h</p>|
 |Main counter 301 (Print Total 1)|<p>-</p>|`SNMP agent`|C5540.301<p>Update: 3h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

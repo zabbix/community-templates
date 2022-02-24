@@ -48,6 +48,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |{#SERVICE.NAME}|<p>-</p>|`Zabbix agent`|service_state<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -84,6 +86,8 @@ There are no template links in this template.
 |Service Status Microsoft Exchange Active Directory Topology|<p>-</p>|`Zabbix agent`|service_state[MSExchangeADTopology]<p>Update: 5m</p>|
 |Service Status Microsoft Exchange Compliance Audit|<p>-</p>|`Zabbix agent`|service_state[MSComplianceAudit]<p>Update: 5m</p>|
 |State of service "{#SERVICE.NAME}" ({#SERVICE.DISPLAYNAME})|<p>-</p>|`Zabbix agent`|service_state[{#SERVICE.NAME},state]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -57,6 +57,8 @@ There are no template links in this template.
 |DISK Discovery|<p>-</p>|`SNMP agent`|inspur.server.disk.dicovery<p>Update: 20m</p>|
 |RAID Discovery|<p>-</p>|`SNMP agent`|inspur.server.raid.dicovery<p>Update: 60m</p>|
 |FAN Discovery|<p>-</p>|`SNMP agent`|inspur.server.fan.dicovery<p>Update: 20m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -107,6 +109,8 @@ There are no template links in this template.
 |RAID STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.raid.status.[{#SNMPVALUE}]<p>Update: 60m</p><p>LLD</p>|
 |FAN SPEED VALUE: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.fan.speed.value.[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |FAN STATUS: {#SNMPVALUE}|<p>-</p>|`SNMP agent`|inspur.server.fan.status.[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

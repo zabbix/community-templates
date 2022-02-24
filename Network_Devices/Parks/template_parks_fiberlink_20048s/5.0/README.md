@@ -15,6 +15,8 @@ Parks
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`parks`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -174,6 +176,8 @@ There are no discovery rules in this template.
 |Outbound errors on interface $1|<p>For packet-oriented interfaces, the number of outbound packets that could not be transmitted because of errors. For character-oriented or fixed-length interfaces, the number of outbound transmission units that could not be transmitted because of errors.</p>|`SNMP agent`|ifOutErrors[gpon1/4]<p>Update: 60</p>|
 |Incoming traffic on interface $1|<p>The number of octets in valid MAC frames received on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifInOctets[giga-ethernet0/0]<p>Update: 60</p>|
 |Inbound errors on interface $1|<p>For packet-oriented interfaces, the number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol. For character-oriented or fixed-length interfaces, the number of inbound transmission units that contained errors preventing them from being deliverable to a higher-layer protocol.</p>|`SNMP agent`|ifInErrors[10giga-ethernet1/0]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |SMTP-IN connections|<p>-</p>|`SNMP agent`|SmtpInConnections<p>Update: 60</p>|
 |IMAP response time|<p>-</p>|`Simple check`|net.tcp.service.perf[imap]<p>Update: 60</p>|
 |CLI service is running|<p>-</p>|`Zabbix agent`|net.tcp.service[tcp,,7000]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

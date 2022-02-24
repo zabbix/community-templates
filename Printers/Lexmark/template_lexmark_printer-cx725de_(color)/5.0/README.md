@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Transfer Module Level|<p>-</p>|`SNMP agent`|TransferModuleLevel<p>Update: 3600</p>|
 |Block Imaging Unit capacity|<p>-</p>|`SNMP agent`|BlockImagingUnitCapacity<p>Update: 3600</p>|
 |Toner capacity MAGENTA|<p>-</p>|`SNMP agent`|prtMagentaTonerMaxCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

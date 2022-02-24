@@ -6,6 +6,8 @@
 |----|-----------|-------|----|
 |{$HD_TEMPERATURE_ALARM}|<p>-</p>|`51`|Text macro|
 |{$HD_TEMPERATURE_WARNING}|<p>-</p>|`40`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -18,6 +20,8 @@ There are no template links in this template.
 |Network interfaces discovery|<p>-</p>|`SNMP agent`|netIfs.discovery<p>Update: 3600</p>|
 |Volumes discovery|<p>-</p>|`SNMP agent`|sysVolumes.discovery<p>Update: 3600</p>|
 |Hard disks discovery|<p>-</p>|`SNMP agent`|sysHDs.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -48,6 +52,8 @@ There are no template links in this template.
 |S.M.A.R.T. info of {#SNMPVALUE}|<p>-</p>|`SNMP agent`|HdSmartInfoEX[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Status of {#SNMPVALUE}|<p>-</p>|`SNMP agent`|HdStatusEX[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Temperature of {#SNMPVALUE}|<p>-</p>|`SNMP agent`|HdTemperatureEX[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

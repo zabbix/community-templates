@@ -42,6 +42,8 @@ Lucas Afonso Kremer
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -58,6 +60,8 @@ There are no template links in this template.
 |Firmware|<p>Walk the cpqHoFwVerDisplayName table, filter for "Lights Out", "iLO" and "System ROM" CPQHLTH-MIB:: cpqHoFwVerDisplayName OBJECT-TYPE SYNTAX DisplayString (SIZE (0..127)) ACCESS read-only STATUS mandatory DESCRIPTION "Firmware Version Device Display Name. This is the display name of the device containing the firmware." ::= { cpqHoFwVerEntry 4 }</p>|`SNMP agent`|snmp.discovery[firmware]<p>Update: 28800</p>|
 |Drive Array Accelerators|<p>Walk the cpqDaCntlrHwLocation table to get contoller locations: CPQIDA-MIB:: cpqDaAccelCntlrIndex OBJECT-TYPE SYNTAX INTEGER ACCESS read-only STATUS mandatory DESCRIPTION "Array Accelerator Board Controller Index. This value is a logical number whose meaning is OS dependent. The value has a direct mapping to the controller table index such that controller 'i' has accelerator table entry 'i'." ::= { cpqDaAccelEntry 1 }</p>|`SNMP agent`|snmp.discovery[DaAccelerators]<p>Update: 3600</p>|
 |Drive Array Controllers|<p>Walk the cpqDaCntlrHwLocation table to get contoller locations: CPQIDA-MIB:: cpqDaCntlrHwLocation OBJECT-TYPE SYNTAX DisplayString (SIZE (0..255)) ACCESS read-only STATUS mandatory DESCRIPTION "A text description of the hardware location of the controller. A NULL string indicates that the hardware location could not be determined or is irrelevant." ::= { cpqDaCntlrEntry 20 }</p>|`SNMP agent`|snmp.discovery[DaControllers]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -98,6 +102,8 @@ There are no template links in this template.
 |HP Drive Array Controller Condition {#SNMPINDEX}|<p>CPQIDA-MIB:: cpqDaCntlrCondition OBJECT-TYPE SYNTAX INTEGER { other(1), ok(2), degraded(3), failed(4) } ACCESS read-only STATUS mandatory DESCRIPTION "The condition of the device. This value represents the overall condition of this controller, and any associated logical drives, physical drives, and array accelerators." ::= { cpqDaCntlrEntry 6 }</p>|`SNMP agent`|cpqDaCntlrCondition[{#SNMPINDEX}]<p>Update: 600</p><p>LLD</p>|
 |HP Drive Array Controller Drive Write Cache State {#SNMPINDEX}|<p>CPQIDA-MIB:: cpqDaCntlrDriveWriteCacheState OBJECT-TYPE SYNTAX INTEGER { other(1), disabled(2), enabled(3) } ACCESS read-only STATUS mandatory DESCRIPTION "Array Controller Drive Write Cache State. This is the controller's drive write cache setting. The following values are valid: other (1) Indicates that the instrument agent does not recognize the value. You may need to upgrade the instrument agent. disabled (2) The controller will disable drive write cache for all drives. enabled (3) The controller will enable drive write cache for all drives." ::= { cpqDaCntlrEntry 27 }</p>|`SNMP agent`|cpqDaCntlrDriveWriteCacheState[{#SNMPINDEX}]<p>Update: 28800</p><p>LLD</p>|
 |HP Drive Array Controller Firmware Revision {#SNMPINDEX}|<p>CPQIDA-MIB:: cpqDaCntlrFWRev OBJECT-TYPE SYNTAX DisplayString (SIZE (0..5)) ACCESS read-only STATUS mandatory DESCRIPTION "Array Controller Firmware Revision. The firmware revision of the drive array controller. This value can be used to help identify a particular revision of the controller." ::= { cpqDaCntlrEntry 3 }</p>|`SNMP agent`|cpqDaCntlrFWRev[{#SNMPINDEX}]<p>Update: 28800</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

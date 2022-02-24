@@ -62,6 +62,8 @@ There are no discovery rules in this template.
 |Toner (Black) - REMAINS|<p>-</p>|`SNMP agent`|tonerblack.remains<p>Update: 30m</p>|
 |Toner (Cyan)|<p>-</p>|`Calculated`|tonercyan<p>Update: 30m</p>|
 |Imaging Unit (Cyan) - FULL|<p>-</p>|`SNMP agent`|imagingcyan.full<p>Update: 30m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

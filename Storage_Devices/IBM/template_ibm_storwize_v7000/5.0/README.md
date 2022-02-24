@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |MDisk Read IOPS|<p>-</p>|`Zabbix trapper`|ibm.mdisk.read.iops<p>Update: 0</p>|
 |MDisk Read|<p>-</p>|`Zabbix trapper`|ibm.mdisk.read<p>Update: 0</p>|
 |Volumes Write IOPS|<p>-</p>|`Zabbix trapper`|ibm.volumes.w.iops<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

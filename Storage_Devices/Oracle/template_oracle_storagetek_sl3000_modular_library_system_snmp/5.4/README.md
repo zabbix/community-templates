@@ -81,6 +81,8 @@ Vsevolod Sidorov
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`snmpTech50`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -91,6 +93,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Robot|<p>-</p>|`SNMP agent`|Robotindex<p>Update: 30</p>|
 |Drive|<p>-</p>|`SNMP agent`|DriveIndex<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -106,6 +110,8 @@ There are no template links in this template.
 |Drive[{#SNMPVALUE}]SerialNum|<p>-</p>|`SNMP agent`|DriveSerialNum[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |DriveState[{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|DriveState[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |DriveType[{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|DriveType[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

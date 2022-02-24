@@ -33,6 +33,8 @@ There are no discovery rules in this template.
 |UPS InRow Name|<p>A character string identifying the unit name.</p>|`SNMP agent`|AirirscunitIdentName<p>Update: 1h</p>|
 |UPS InRow Superheat Temp|<p>The unit superheat temperature in tenths of degrees Celsius.</p>|`SNMP agent`|AirirscunitStatusSuperheatTempMetric<p>Update: 3m</p>|
 |UPS InRow Manufacture Date|<p>A character string identifying the unit manufacture date.</p>|`SNMP agent`|AirirscunitIdentManufactureDate<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

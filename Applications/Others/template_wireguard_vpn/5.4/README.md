@@ -58,6 +58,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |WireGuard Interfaces Discovery|<p>-</p>|`Zabbix agent`|wg.list.discovery[INTERFACES]<p>Update: 3600s</p>|
 |WireGuard Peers Discovery|<p>-</p>|`Zabbix agent`|wg.list.discovery[PEERS]<p>Update: 3600s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +75,8 @@ There are no template links in this template.
 |Endpoint port for peer {#PEER}... on {#INTERFACE}|<p>-</p>|`Zabbix agent`|wg.endpoint.port[{#PEER}]<p>Update: 15m</p><p>LLD</p>|
 |Incoming traffic for peer {#PEER}... on {#INTERFACE}|<p>-</p>|`Zabbix agent`|wg.endpoint.transferdown[{#PEER}]<p>Update: 5m</p><p>LLD</p>|
 |Outgoing traffic for peer {#PEER}... on {#INTERFACE}|<p>-</p>|`Zabbix agent`|wg.endpoint.transferup[{#PEER}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -77,6 +77,8 @@ Trunks:
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$DSN3CX}|<p>-</p>|`3CXDB`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -87,6 +89,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery Users|<p>-</p>|`Database monitor`|db.odbc.discovery[discovery.users,{$DSN3CX}]<p>Update: 1h</p>|
 |Discovery Gateways|<p>-</p>|`Database monitor`|db.odbc.discovery[discovery.gws,{$DSN3CX}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -103,6 +107,8 @@ There are no template links in this template.
 |Gateway Max Calls|<p>-</p>|`Database monitor`|db.odbc.select[gw.max-calls-{#IDGATEWAY},{$DSN3CX}]<p>Update: 1h</p><p>LLD</p>|
 |Number of associated routes|<p>-</p>|`Database monitor`|db.odbc.select[gw.number-routes-{#IDGATEWAY},{$DSN3CX}]<p>Update: 1h</p><p>LLD</p>|
 |Gateway Port|<p>-</p>|`Database monitor`|db.odbc.select[gw.port-{#IDGATEWAY},{$DSN3CX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

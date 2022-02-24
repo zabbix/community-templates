@@ -101,6 +101,8 @@ There are no discovery rules in this template.
 |Status do RAID|<p>SEAGATE-NAS-SYSTEM-MIB::snPoolState.1</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snPoolState.1<p>Update: 60</p>|
 |Rotação atual da ventoinha|<p>SEAGATE-NAS-SYSTEM-MIB::snFanSensorCurrentRPM.1</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snFanSensorCurrentRPM.1<p>Update: 60</p>|
 |Número de série do disco 3|<p>SEAGATE-NAS-SYSTEM-MIB::snDiskSerial.3</p>|`SNMP agent`|SEAGATE_NAS_SYSTEM_MIB__snDiskSerial.3<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

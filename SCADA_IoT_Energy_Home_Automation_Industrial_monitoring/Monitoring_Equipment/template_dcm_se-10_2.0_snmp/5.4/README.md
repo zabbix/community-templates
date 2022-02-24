@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |Entrada 1|<p>-</p>|`SNMP agent`|entrada1<p>Update: 30s</p>|
 |Umidade|<p>-</p>|`SNMP agent`|umidade<p>Update: 30</p>|
 |Temperatura|<p>-</p>|`SNMP agent`|temperatura<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

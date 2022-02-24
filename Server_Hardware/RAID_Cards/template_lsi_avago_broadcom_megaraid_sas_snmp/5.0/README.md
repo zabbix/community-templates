@@ -83,6 +83,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |MegaRAID SAS MIB SAS adapters|<p>A List of adapter Entries containing Information/Properties about the MegaRAID related adapters on host.</p>|`SNMP agent`|adapterID<p>Update: 900</p>|
 |MegaRAID SAS MIB SAS devices|<p>A List of device Entries containing Information/Properties about the MegaRAID related devices on host.</p>|`SNMP agent`|physDevID<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -231,6 +233,8 @@ There are no template links in this template.
 |MegaRAID SAS MIB Device $1 Temperature|<p>Physical Drive temperature in Celsius</p>|`SNMP agent`|pdTemperature[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |MegaRAID SAS MIB Predictive Fail Count of Device $1|<p>Predictive fail count of the device</p>|`SNMP agent`|predFailCount[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |MegaRAID SAS MIB Type of Device $1|<p>Type of this Device. Values:disk(0),tape(1),printer(2),processor(3),cdrom(5),scanner(6),optical(7),enclosure(13),dvd(10),unknown(31)</p>|`SNMP agent`|scsiDevType[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

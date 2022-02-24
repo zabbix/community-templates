@@ -112,6 +112,8 @@ There are no discovery rules in this template.
 |Nginx Handled per second|<p>-</p>|`External check`|nginx_stat_getter["-h","{HOST.CONN}","-p","4040","-s","handled"]<p>Update: 60</p>|
 |Nginx process count|<p>-</p>|`Zabbix agent`|proc.num[nginx]<p>Update: 60</p>|
 |Nginx Requests per second|<p>-</p>|`External check`|nginx_stat_getter["-h","{HOST.CONN}","-p","4040","-s","requests"]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

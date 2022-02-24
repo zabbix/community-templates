@@ -48,6 +48,8 @@ There are no discovery rules in this template.
 |DIMM C0 Temp|<p>-</p>|`IPMI agent`|ipmi.system.cpu_dimm_c0<p>Update: 1m</p>|
 |SIO Temp 3|<p>-</p>|`IPMI agent`|ipmi.sio.temp3<p>Update: 1m</p>|
 |PCH Temp|<p>-</p>|`IPMI agent`|ipmi.pch.temp<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

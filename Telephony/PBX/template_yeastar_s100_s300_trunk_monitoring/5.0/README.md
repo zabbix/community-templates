@@ -29,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Trunk Discovery|<p>-</p>|`SNMP agent`|sTrunks<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +51,8 @@ There are no template links in this template.
 |Wan IP address|<p>-</p>|`SNMP agent`|sWanIpaddress<p>Update: 30m</p>|
 |Wan GateWay|<p>-</p>|`SNMP agent`|sWanGateWay<p>Update: 30m</p>|
 |Trunk {#TRUNK_NAME} Status|<p>-</p>|`SNMP agent`|sTrunksStatus[{#TRUNK_INDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

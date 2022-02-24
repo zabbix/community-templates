@@ -34,6 +34,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Gluster Volume Names Discovery|<p>-</p>|`Zabbix agent`|gluster_volume_name.discovery<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -54,6 +56,8 @@ There are no template links in this template.
 |Gluster Volume state on {#VOLUME_NAME}|<p>-</p>|`Zabbix agent`|gluster_volume_info["state",{#VOLUME_NAME}]<p>Update: 30s</p><p>LLD</p>|
 |Gluster Volume Total Size on {#VOLUME_NAME}|<p>-</p>|`Zabbix agent`|gluster_volume_info["usable_capacity",{#VOLUME_NAME}]<p>Update: 30s</p><p>LLD</p>|
 |Gluster Volume Used Size on {#VOLUME_NAME}|<p>-</p>|`Zabbix agent`|gluster_volume_info["used_capacity",{#VOLUME_NAME}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

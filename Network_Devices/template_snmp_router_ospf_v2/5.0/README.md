@@ -43,6 +43,8 @@ There are no template links in this template.
 |OSPF Interfaces|<p>Identifies OSPF Interfaces.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 5m</p>|
 |OSPF Areas|<p>-</p>|`SNMP agent`|ospfAreaId<p>Update: 5m</p>|
 |OSPF Neighbors|<p>-</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -71,6 +73,8 @@ There are no template links in this template.
 |OSPF NBMA Neighbor $1 Status|<p>This variable displays the status of the entry. Setting it to 'invalid' has the effect of rendering it inoperative. The internal effect (row removal) is implementation dependent.</p>|`SNMP agent`|ospfNbmaNbrStatus[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |OSPF Neighbor $1 Router ID|<p>A 32-bit integer (represented as a type IpAddress) uniquely identifying the neighboring router in the Autonomous System.</p>|`SNMP agent`|ospfNbrRtrId[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |OSPF neighbor $1 state|<p>The State of the relationship with this Neighbor. [RU] Возможные состояния Down — начальное состояние процесса обнаружения соседей. Это состояние указывает на то, что от соседей не была получена свежая информация. В NBMA сетях Hello-пакеты могут отправляться и соседям в состоянии Down, однако с меньшей частотой (PollInterval) Attempt — это состояние имеет смысл только для соседей, которые присоединены к NBMA сетям. Оно указывает на то, что от соседа не была получена свежая информация и что нужно сделать попытку связаться с соседом. Это делается путём отправки соседу сообщений Hello с промежутком времени Hello Interval (в Cisco в этом состоянии сообщения Hello отправляются каждый PollInterval. Имеет смысл для соседей в NBMA сетях, которые заданы командой neighbor) Init — состояние, в котором находится маршрутизатор, отправивший своему соседу hello и ожидающий от него ответного hello Two-way — при получении ответных hello маршрутизатор должен увидеть в них свой RID в списке соседей. Если это так, то он устанавливает отношения и переходит в состояние two-way Когда в широковещательном сегменте более 3х маршрутизаторов, то в этом состоянии остаются между собой маршрутизаторы DROTHER Exstart — маршрутизаторы определяют Master/Slave отношения на основании Router ID. Маршрутизатор с высшим RID становится Master-маршрутизатором, который определяет DD Sequence number, а также первым начинает обмен DD-пакетами Exchange — маршрутизаторы посылают друг другу database description пакеты (DD) с информацией о сетях, содержащихся в их собственной LSDB Loading — Если маршрутизатор видит, что части маршрутов нет в его LSDB, он посылает сообщение LSR с перечислением тех сетей, по которым он хочет получить дополнительную информацию. Пока маршрутизатор находится в ожидании ответа в виде LSU сообщений, он пребывает в состоянии Loading Full — Когда маршрутизатор получил всю информацию и LSDB на обоих маршрутизаторах синхронизирована, оба маршрутизатора переходят в состояние fully adjacent (FULL)</p>|`SNMP agent`|ospfNbrState[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

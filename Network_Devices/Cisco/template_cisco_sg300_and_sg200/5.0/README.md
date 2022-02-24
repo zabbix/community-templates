@@ -53,6 +53,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +62,8 @@ There are no macros links in this template.
 |Net vlan Discovery|<p>-</p>|`SNMP agent`|net.vlan.discovery<p>Update: 89m</p>|
 |Fan Discovery|<p>-</p>|`SNMP agent`|fan.discovery<p>Update: 1d</p>|
 |Net If Discovery|<p>-</p>|`SNMP agent`|net.if.disco<p>Update: 88m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -96,6 +100,8 @@ There are no macros links in this template.
 |{#IFNAME} {#IFXENTRY}: TX unicast|<p>-</p>|`SNMP agent`|net.if[ifOutUcastPkts.{#SNMPINDEX}]<p>Update: 180</p><p>LLD</p>|
 |{#IFNAME} {#IFXENTRY}: speed|<p>-</p>|`SNMP agent`|net.if[ifSpeed.{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |{#IFNAME} {#IFXENTRY}: If Type|<p>-</p>|`SNMP agent`|net.if[ifType.{#SNMPINDEX}]<p>Update: 86400</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

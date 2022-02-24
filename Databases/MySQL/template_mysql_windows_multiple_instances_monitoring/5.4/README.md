@@ -206,6 +206,8 @@ There are no discovery rules in this template.
 |MySQL: Com_execute_sql|<p>"Prepared statements may increase performance in applications that execute similar statements more than once, primarily because the query is parsed only once. Prepared statements can also reduce network traffic because it is only necessary to send the data for the parameters for each execution rather than the whole statement. However, prepared statements take time to prepare and consume memory in the MySQL server until they are closed, so it is important to use them properly. If you are only executing a statement a few times, the overhead of creating a prepared statement may not be worthwhile."</p>|`Zabbix agent`|mysql-stats[Com_execute_sql,{$PORT}]<p>Update: 5m</p>|
 |MySQL: have_symlink|<p>YES if symbolic link support is enabled, NO if not. This is required on Unix for support of the DATA DIRECTORY and INDEX DIRECTORY table options. If the server is started with the --skip-symbolic-links option, the value is DISABLED. This variable has no meaning on Windows. Links: "MySQL Manual: Making MySQL Secure Against Attackers MySQL Manual: Using Symbolic Links MySQL Manual: Disk Issues MySQL Manual: CREATE TABLE Syntax"</p>|`Zabbix agent`|mysql-stats[have_symlink,{$PORT}]<p>Update: 6h</p>|
 |Commands Update|<p>Count update commands per second. Used to see the writes on database</p>|`Zabbix agent`|mysql-stats[Com_update,{$PORT}]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

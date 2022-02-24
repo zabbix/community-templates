@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Расчетное время автономии|<p>-</p>|`SNMP agent`|upsEstimatedMinutesRemaining<p>Update: 30</p>|
 |Статус АКБ|<p>-</p>|`SNMP agent`|upsBatteryStatus<p>Update: 30</p>|
 |Режим работы|<p>-</p>|`SNMP agent`|upsOutputSource<p>Update: 10</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

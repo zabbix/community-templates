@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |FAN 4 RPM|<p>-</p>|`IPMI agent`|ipmi.fan.4.rpm<p>Update: 300</p>|
 |FAN 1 RPM|<p>-</p>|`IPMI agent`|ipmi.fan.1.rpm<p>Update: 300</p>|
 |Power|<p>-</p>|`IPMI agent`|power<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

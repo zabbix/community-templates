@@ -29,6 +29,8 @@ There are no template links in this template.
 |Informações de entrada de fase|<p>-</p>|`SNMP agent`|ups.line.in.discovery<p>Update: 2h</p>|
 |Informações da bateria|<p>-</p>|`SNMP agent`|ups.system.discovery<p>Update: 2h</p>|
 |Informações de saída de fase|<p>-</p>|`SNMP agent`|ups.line.out.discovery<p>Update: 2h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Percentual de carga - Fase $1|<p>-</p>|`SNMP agent`|upsOutputPercentLoad.[{#SINDICE}]<p>Update: 30m</p><p>LLD</p>|
 |Potência de saída (W) - Fase $1|<p>-</p>|`SNMP agent`|upsOutputPower.[{#SINDICE}]<p>Update: 1m</p><p>LLD</p>|
 |Tensão de saída (V) - Fase $1|<p>-</p>|`SNMP agent`|upsOutputVoltage.[{#SINDICE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

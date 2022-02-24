@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Voltagem Saída -  Fase 3|<p>-</p>|`SNMP agent`|ups-delta-voltagem-saida-fase-3<p>Update: 30s</p>|
 |Consumo de Saída - Fase 3|<p>-</p>|`SNMP agent`|ups-delta-consumo-saida-fase-3<p>Update: 30s</p>|
 |Frequencia Entrada -  Fase 1|<p>-</p>|`SNMP agent`|ups-frequencia-entrada-fase-1<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

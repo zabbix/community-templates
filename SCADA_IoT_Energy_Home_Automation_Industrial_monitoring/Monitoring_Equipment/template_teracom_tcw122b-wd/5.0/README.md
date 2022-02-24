@@ -181,6 +181,8 @@ There are no discovery rules in this template.
 |relay1Pulse|<p>-</p>|`SNMP agent`|TCW122B-WD.relay1Pulse<p>Update: 1m</p>|
 |voltage1|<p>-</p>|`SNMP agent`|TCW122B-WD.voltage1<p>Update: 1m</p>|
 |temperature1Min|<p>-</p>|`SNMP agent`|TCW122B-WD.temperature1Min<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -20,6 +20,8 @@ Armagan Yaman
 |{$AMQ_DESTINATION_CONSUMER_COUNT_THRESHOLD_MIN}|<p>-</p>|`0`|Text macro|
 |{$AMQ_DESTINATION_PRODUCER_COUNT_THRESHOLD_MIN}|<p>-</p>|`0`|Text macro|
 |{$AMQ_DESTINATION_QUEUE_SIZE_THRESHOLD}|<p>-</p>|`10`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |ActiveMQ brokers|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache.activemq:type=Broker,brokerName=*"]<p>Update: 3600</p>|
 |ActiveMQ destinations|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache.activemq:type=Destination,destinationName=*"]<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +55,8 @@ There are no template links in this template.
 |ExpiredCount per minute for {#JMXVALUE}|<p>Number of messages per minute that have been expired.</p>|`JMX agent`|jmx["{#JMXOBJ}",ExpiredCount]<p>Update: 30</p><p>LLD</p>|
 |ProducerCount for {#JMXVALUE}|<p>Number of producers publishing to this destination</p>|`JMX agent`|jmx["{#JMXOBJ}",ProducerCount]<p>Update: 60</p><p>LLD</p>|
 |QueueSize for {#JMXVALUE}|<p>Number of messages in the destination which are yet to be consumed. Potentially dispatched but unacknowledged.</p>|`JMX agent`|jmx["{#JMXOBJ}",QueueSize]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Traps SNMP nao tratados|<p>-</p>|`SNMP trap`|snmptrap.fallback<p>Update: 0</p>|
 |Nome (hostname)|<p>-</p>|`SNMP agent`|SNMPv2-MIB.sysName.0<p>Update: 2h</p>|
 |Descricao do sistema (sysDescr)|<p>-</p>|`SNMP agent`|SNMPv2-MIB.sysDescr.0<p>Update: 6h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -68,17 +70,23 @@ Template Básico para monitoramento OLT Intelbras 4840E.
 |{$REGEX_IFOPERSTATUS_VIRTUAL}|<p>-</p>|`^(2|6)$`|Text macro|
 |{$REGEX_IFTYPE_FISICA}|<p>6=ethernetCsmacd, 117=gigabitEthernet</p>|`^(6|117|62)$`|Text macro|
 |{$REGEX_IFTYPE_VIRTUAL}|<p>53=propVirtual, 58=frameRelayInterconnect, 131=tunnel, 135=l2vlan, 136=l3ipvlan, 161=ieee8023adLag</p>|`^(53|58|131|135|136|161)$`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Solustic-Modulo SNMP Generico v1.0.2|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Descoberta de interfaces PON|<p>-</p>|`SNMP agent`|EPON-PON-CONFIG-MIB.eponPonOpmTable<p>Update: 12h</p>|
 |Descoberta de ONUs|<p>-</p>|`SNMP agent`|EPON-ONU-CONFIG-MIB.eponOnuInfoTable<p>Update: 2h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -91,6 +99,8 @@ Template Básico para monitoramento OLT Intelbras 4840E.
 |Total de ONUs offline na PON {{#SNMPINDEX}.regsub("(\d+)\.(\d+)","\1/\2")}|<p>-</p>|`Dependent item`|EPON-ONU-CONFIG-MIB.eponOnuOperationStatus.[{#SNMPINDEX},onustatus != 1]<p>Update: 0</p><p>LLD</p>|
 |ONU {#CARD}/{#PON}/{#ONU} {{#ONUID}.regsub("(\w+).(\w+).(\w+).(\w+).(\w+).(\w+)","\1:\2:\3:\4:\5:\6")} ({#ONUNAME}): Potencia Rx|<p>-</p>|`SNMP agent`|EPON-ONU-CONFIG-MIB.eponOnuOpmRxPower.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |ONU {#CARD}/{#PON}/{#ONU} {{#ONUID}.regsub("(\w+).(\w+).(\w+).(\w+).(\w+).(\w+)","\1:\2:\3:\4:\5:\6")} ({#ONUNAME}): Status|<p>-</p>|`Dependent item`|EPON-ONU-CONFIG-MIB.eponOnuOperationStatus.[{#SNMPINDEX}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

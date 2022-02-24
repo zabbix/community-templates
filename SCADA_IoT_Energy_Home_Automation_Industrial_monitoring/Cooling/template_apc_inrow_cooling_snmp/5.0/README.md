@@ -101,6 +101,8 @@ There are no discovery rules in this template.
 |Return Air Temp|<p>-</p>|`SNMP agent`|coolingUnitStatusAnalogValue.1.8<p>Update: 10s</p>|
 |Suction Pressure|<p>-</p>|`SNMP agent`|coolingUnitStatusAnalogValue.1.22<p>Update: 10s</p>|
 |Operating Mode|<p>-</p>|`SNMP agent`|coolingUnitStatusDiscreteIntegerAsString.1.2<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

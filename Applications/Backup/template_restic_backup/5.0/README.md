@@ -19,6 +19,8 @@ For more information, see the [README](https://github.com/creativeprojects/resti
 |----|-----------|-------|----|
 |{$BACKUP_STATUS_FILE}|<p>resticprofile status file</p>|`/home/backup/status.json`|Text macro|
 |{$MAX_HOURS_BETWEEN}|<p>-</p>|`26`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -28,6 +30,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Profiles|<p>-</p>|`Dependent item`|backup.profiles<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -36,6 +40,8 @@ There are no template links in this template.
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} error|<p>-</p>|`Dependent item`|backup.error[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} success|<p>-</p>|`Dependent item`|backup.success[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} time|<p>-</p>|`Dependent item`|backup.time[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -44,6 +50,8 @@ There are no template links in this template.
 |Last {#PROFILENAME} / {#PROFILECOMMAND} did not run|<p>Last profile has not finished on time (or has not started): last run finished more than {$MAX_HOURS_BETWEEN} hour(s) ago</p>|<p>**Expression**: {restic backup by Zabbix agent:backup.time[{#PROFILENAME}, {#PROFILECOMMAND}].now()}-{restic backup by Zabbix agent:backup.time[{#PROFILENAME}, {#PROFILECOMMAND}].last()}>(26*3600)</p><p>**Recovery expression**: </p>|high|
 |Last {#PROFILENAME} / {#PROFILECOMMAND} failed (LLD)|<p>-</p>|<p>**Expression**: {restic backup by Zabbix agent:backup.success[{#PROFILENAME}, {#PROFILECOMMAND}].last()}=0</p><p>**Recovery expression**: </p>|high|
 |Last {#PROFILENAME} / {#PROFILECOMMAND} did not run (LLD)|<p>Last profile has not finished on time (or has not started): last run finished more than {$MAX_HOURS_BETWEEN} hour(s) ago</p>|<p>**Expression**: {restic backup by Zabbix agent:backup.time[{#PROFILENAME}, {#PROFILECOMMAND}].now()}-{restic backup by Zabbix agent:backup.time[{#PROFILENAME}, {#PROFILECOMMAND}].last()}>(26*3600)</p><p>**Recovery expression**: </p>|high|
+
+
 # restic backup by Zabbix agent active
 
 ## Overview
@@ -78,6 +86,8 @@ For more information, see the [README](https://github.com/creativeprojects/resti
 |----|-----------|-------|----|
 |{$BACKUP_STATUS_FILE}|<p>resticprofile status file</p>|`/home/backup/status.json`|Text macro|
 |{$MAX_HOURS_BETWEEN}|<p>-</p>|`26`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -87,6 +97,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Profiles|<p>-</p>|`Dependent item`|backup.profiles<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -95,6 +107,8 @@ There are no template links in this template.
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} error|<p>-</p>|`Dependent item`|backup.error[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} success|<p>-</p>|`Dependent item`|backup.success[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
 |Backup profile {#PROFILENAME} / {#PROFILECOMMAND} time|<p>-</p>|`Dependent item`|backup.time[{#PROFILENAME}, {#PROFILECOMMAND}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

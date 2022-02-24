@@ -19,6 +19,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interfaces |<p>-</p>|`SNMP agent`|sonicwallifDescr<p>Update: 90</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -31,6 +33,8 @@ There are no template links in this template.
 |Current CPU Util|<p>-</p>|`SNMP agent`|sonicwallCurrentCPUUtil<p>Update: 60</p>|
 |Incoming Traffic on interface $1|<p>-</p>|`SNMP agent`|ifInOctets.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Outgoing Traffic on interface $1|<p>-</p>|`SNMP agent`|ifOutOctets.[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

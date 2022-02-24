@@ -63,6 +63,8 @@ There are no discovery rules in this template.
 |\Почтовый ящик банка данных MSExchange(_Total) Средняя задержка RPC (клиент)|<p>Shows a server RPC latency, in ms, averaged for the past 1,024 packets for a particular client protocol. Should be less than 50 ms on average for each client. Wide disparities between different client types, such as IMAP4, Microsoft Outlook Anywhere, or other clients (MAPI), can help direct troubleshooting to appropriate subcomponents.</p>|`Zabbix agent`|perf_counter["\Почтовый ящик банка данных MSExchange(_Total)\Средняя задержка RPC (клиент)"]<p>Update: 30</p>|
 |Microsoft Exchange Active Directory Topology|<p>Provides Active Directory topology information to Exchange services. If this service is stopped, most Exchange services are unable to start. This service has no dependencies.</p>|`Zabbix agent`|service_state[MSExchangeADTopology]<p>Update: 30</p>|
 |Microsoft Exchange Mail Submission Service|<p>Submits messages from the Mailbox server to Exchange 2010 Hub Transport servers. This service is dependent upon the Microsoft Exchange Active Directory Topology service.</p>|`Zabbix agent`|service_state[MSExchangeMailSubmission]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

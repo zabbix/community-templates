@@ -13,6 +13,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Printer Paper Tray|<p>-</p>|`SNMP agent`|sharp.prt.snmp.tray<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -33,6 +35,8 @@ There are no template links in this template.
 |Waste Toner Usage|<p>-</p>|`SNMP agent`|sharp.printer.toner.waste.usage<p>Update: 30</p>|
 |Paper Trays $1|<p>-</p>|`SNMP agent`|sharp.prt.snmp.tray.["{#SNMPINDEX}"]<p>Update: 30</p><p>LLD</p>|
 |Paper Trays $1 Level|<p>-</p>|`SNMP agent`|sharp.prt.snmp.tray.level.["{#SNMPINDEX}"]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

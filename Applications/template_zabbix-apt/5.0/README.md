@@ -27,6 +27,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Upgradable packets|<p>-</p>|`Zabbix agent`|apt.upgradable<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

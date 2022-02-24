@@ -114,6 +114,8 @@ There are no discovery rules in this template.
 |PS2 Status|<p>-</p>|`IPMI agent`|pwr.state2<p>Update: 15m</p>|
 |Front dimm1|<p>-</p>|`IPMI agent`|temp.front.dimm1<p>Update: 15m</p>|
 |PROC2 DIMM2|<p>-</p>|`IPMI agent`|temp.proc2.dimm2<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

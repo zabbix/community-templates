@@ -21,6 +21,8 @@ kos
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Outlets|<p>-</p>|`SNMP agent`|rPDUOutletConfigIndex<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +50,8 @@ There are no template links in this template.
 |rPDUIdentName.0|<p>-</p>|`SNMP agent`|rPDUIdentName.0<p>Update: 86400</p>|
 |Outlet $1 Name|<p>-</p>|`SNMP agent`|rPDUOutletConfigOutletName[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Outlet $1 State Status|<p>-</p>|`SNMP agent`|rPDUOutletStatusOutletState[{#SNMPINDEX}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

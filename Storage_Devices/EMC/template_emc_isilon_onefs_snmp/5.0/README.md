@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |clusterNetworkOutBitsPerSecond|<p>-</p>|`SNMP agent`|clusterNetworkOutBitsPerSecond.0<p>Update: 60</p>|
 |clusterIfsInBytes|<p>The cumulative number of bytes into /ifs.</p>|`SNMP agent`|clusterIfsInBytes.0<p>Update: 300</p>|
 |ifsFreeBytes|<p>-</p>|`SNMP agent`|ifsFreeBytes.0<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -162,6 +164,8 @@ There are no template links in this template.
 |Licenses|<p>-</p>|`SNMP agent`|licenseModuleName<p>Update: 3600</p>|
 |Disks|<p>-</p>|`SNMP agent`|diskBay<p>Update: 3600</p>|
 |Sensors|<p>-</p>|`SNMP agent`|tempSensorNumber<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -208,6 +212,8 @@ There are no template links in this template.
 |Temperature Sensor $1 Description|<p>-</p>|`SNMP agent`|tempSensorDescription.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Temperature Sensor $1 Name|<p>-</p>|`SNMP agent`|tempSensorName.[{#SNMPINDEX}]<p>Update: 3600</p><p>LLD</p>|
 |Temperature Sensor $1 Value|<p>-</p>|`SNMP agent`|tempSensorValue.[{#SNMPINDEX}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

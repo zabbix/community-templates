@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |Ha System Mode|<p>FgHaMode (INTEGER) {standalone(1), activeActive(2), activePassive(3) }</p>|`SNMP agent`|fgHaSystemMode<p>Update: 3600s</p>|
 |Ha Group Name|<p>-</p>|`SNMP agent`|fgHaGroupName<p>Update: 1d</p>|
 |Ha Stats Sync Status|<p>FgHaStatsSyncStatusType (INTEGER) {unsynchronized(0), synchronized(1) }</p>|`SNMP agent`|fgHaStatsSyncStatus<p>Update: 600s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

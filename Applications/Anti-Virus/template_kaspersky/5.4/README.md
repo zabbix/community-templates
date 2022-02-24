@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |Host licença expirada|<p>O número de hosts com a licença expirada.</p>|`SNMP agent`|hostsLicenceExpired.0<p>Update: 1d</p>|
 |Hosts sem conexão|<p>O número de hosts que não está conectado ao servidor por um longo tempo.</p>|`SNMP agent`|hostsNotConnectedLongTime.0<p>Update: 5h</p>|
 |Número de Host com vírus Unprocessed Files|<p>O número de hosts com objetos Unprocessed Files</p>|`SNMP agent`|hostsNotCuredObject.0<p>Update: 20m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

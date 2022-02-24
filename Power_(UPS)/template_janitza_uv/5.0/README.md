@@ -73,6 +73,8 @@ There are no discovery rules in this template.
 |JANITZA-MIB::frequence.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.frequence.0<p>Update: 30</p>|
 |JANITZA-MIB::wh3.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.wh3.0<p>Update: 30</p>|
 |JANITZA-MIB::cosp3.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.cosp3.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

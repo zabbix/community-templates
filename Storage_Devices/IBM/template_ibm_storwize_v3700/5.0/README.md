@@ -20,6 +20,8 @@ Disk, Enclosure, Battery, Enclosure Canister, PSU, Mdisk, Pool, PortFibreChannel
 |{$STORWIZE_PORT}|<p>-</p>|`22`|Text macro|
 |{$STORWIZE_USER}|<p>-</p>|``|Text macro|
 |{$SUBSCRIBED_PERCENT}|<p>-</p>|`91`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no template links in this template.
 |PortSAS|<p>-</p>|`Zabbix trapper`|lsportsas<p>Update: 0</p>|
 |Enclosure Canister|<p>Node Canister Контроллер, голова</p>|`Zabbix trapper`|lsenclosurecanister<p>Update: 0</p>|
 |Enclosure PSU|<p>-</p>|`Zabbix trapper`|lsenclosurepsu<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -66,6 +70,8 @@ There are no template links in this template.
 |Health status of PSU "{#PSU_ID}" in enclosure "{#ENCLOSURE_ID}"|<p>-</p>|`Zabbix trapper`|health.lsenclosurepsu.[{#ENCLOSURE_ID}.{#PSU_ID}]<p>Update: 0</p><p>LLD</p>|
 |Input Power of PSU "{#PSU_ID}" in enclosure "{#ENCLOSURE_ID}"|<p>-</p>|`Zabbix trapper`|inFailed.lsenclosurepsu.[{#ENCLOSURE_ID}.{#PSU_ID}]<p>Update: 0</p><p>LLD</p>|
 |Output Power of PSU "{#PSU_ID}" in enclosure "{#ENCLOSURE_ID}"|<p>-</p>|`Zabbix trapper`|outFailed.lsenclosurepsu.[{#ENCLOSURE_ID}.{#PSU_ID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -27,6 +27,8 @@ Wellington Martins
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`nobreak01`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no discovery rules in this template.
 |Frequência de Entrada|<p>-</p>|`SNMP agent`|upsInputFrequency<p>Update: 15</p>|
 |Tensão de Saída|<p>-</p>|`SNMP agent`|load-Power<p>Update: 180</p>|
 |Temperatura da Bateria|<p>-</p>|`SNMP agent`|temp<p>Update: 180</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

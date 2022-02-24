@@ -53,11 +53,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Discover Connected Users|<p>Discover the users that are connected to an OpenVPN Server</p>|`Zabbix agent`|thevpncompany.openvpn.client.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Data for {#ID}|<p>-</p>|`Zabbix agent`|thevpncompany.openvpn.client.if.size[{#ID}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -161,6 +165,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Total Network Usage|<p>-</p>|`Zabbix agent`|vpncompany.if.size<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

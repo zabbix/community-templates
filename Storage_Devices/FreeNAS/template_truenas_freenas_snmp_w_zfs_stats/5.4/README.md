@@ -25,6 +25,8 @@ There are no macros links in this template.
 |Template SNMP Interfaces|
 |Template SNMP Disks|
 |Template SNMP Generic|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no macros links in this template.
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifDescr<p>Update: 3600</p>|
 |Memory statistics|<p>The rule will discover all memory matching the global regexp "Storage devices for SNMP discovery". {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|hrMemDescr<p>Update: 3600</p>|
 |ZFS Pools|<p>ZFS pools</p>|`SNMP agent`|zfsPoolName<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +84,8 @@ There are no macros links in this template.
 |Usage of pool {#SNMPVALUE}|<p>Used percentage of the pools capacity</p>|`Calculated`|vfs.fs.size[{#SNMPVALUE},pfree]<p>Update: 60</p><p>LLD</p>|
 |Used bytes on pool {#SNMPVALUE}|<p>The number of bytes (rounded to 1 MB blocks) that are used.</p>|`SNMP agent`|vfs.fs.size[{#SNMPVALUE},used]<p>Update: 60</p><p>LLD</p>|
 |Write bandwidth on pool {#SNMPVALUE}|<p>the bandwidth of all write operations expressed as units per second</p>|`SNMP agent`|vfs.fs.bandwidth[{#SNMPVALUE},write]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

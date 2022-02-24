@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |Статус развертывания.|<p>-</p>|`SNMP agent`|deploymentStatus<p>Update: 30s</p>|
 |Критическое событие на сервере.|<p>-</p>|`SNMP agent`|criticalEventOccured<p>Update: 30s</p>|
 |Количество групп на сервере.|<p>-</p>|`SNMP agent`|groupsCount<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

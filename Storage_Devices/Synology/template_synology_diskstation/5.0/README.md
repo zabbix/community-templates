@@ -65,11 +65,15 @@ NPollie
 |----|-----------|-------|----|
 |{$DISK_UTIL_HIGH}|<p>-</p>|`90`|Text macro|
 |{$DISK_UTIL_WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -83,6 +87,8 @@ NPollie
 |Synology StorageIO|<p>An entry containing a device and its statistics.</p>|`SNMP agent`|storageIO.storageIOTable.storageIOEntry<p>Update: 1h</p>|
 |Synology Service(s)|<p>An entry containing Service information.</p>|`SNMP agent`|synologyService.serviceTable.serviceEntry<p>Update: 1h</p>|
 |Synology SpaceIO|<p>An entry containing a device and its statistics.</p>|`SNMP agent`|spaceIO.spaceIOTable.spaceIOEntry<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -144,6 +150,8 @@ NPollie
 |{#SNMPVALUE} read access(es) since boot|<p>The number of read accesses from this volume since boot.</p>|`SNMP agent`|spaceIO.spaceIOTable.spaceIOEntry.spaceIONReads.[{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |{#SNMPVALUE} write accesses since boot|<p>The number of write accesses to this volume since boot (32-bit ver.).</p>|`SNMP agent`|spaceIO.spaceIOTable.spaceIOEntry.spaceIONWrites.[{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
 |{#SNMPVALUE} byte(s) written since boot|<p>The number of bytes written to this volume since boot (32-bit ver.).</p>|`SNMP agent`|spaceIO.spaceIOTable.spaceIOEntry.spaceIONWritten.[{#SNMPINDEX}]<p>Update: 3m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

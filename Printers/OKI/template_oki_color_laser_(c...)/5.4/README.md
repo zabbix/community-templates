@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |Magenta Toner Level %|<p>-</p>|`SNMP agent`|usageTonerCurrentLevel.3<p>Update: 300</p>|
 |Yellow Drum count|<p>-</p>|`SNMP agent`|usageDrumCurrentLevel.4<p>Update: 300</p>|
 |Cyan Drum level %|<p>-</p>|`Calculated`|cyanDrumLevelPercCalc<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

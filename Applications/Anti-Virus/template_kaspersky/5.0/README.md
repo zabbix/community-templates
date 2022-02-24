@@ -53,6 +53,8 @@ There are no discovery rules in this template.
 |Número de host|<p>O número de hosts na console</p>|`SNMP agent`|hostsInGroups.0<p>Update: 1d</p>|
 |Status atualização da base|<p>Status atualizado da base</p>|`SNMP agent`|updatesStatus.0<p>Update: 5h</p>|
 |Número de Host com vírus Unprocessed Files|<p>O número de hosts com objetos Unprocessed Files</p>|`SNMP agent`|hostsNotCuredObject.0<p>Update: 20m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

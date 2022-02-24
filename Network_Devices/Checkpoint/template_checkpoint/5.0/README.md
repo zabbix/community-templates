@@ -12,6 +12,8 @@ There are no macros links in this template.
 |Template SNMP Interfaces|
 |Template SNMP Device|
 |Template SNMP Disks|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -22,6 +24,8 @@ There are no macros links in this template.
 |Processor Discovery|<p>-</p>|`SNMP agent`|multiProc<p>Update: 240</p>|
 |FanState|<p>-</p>|`SNMP agent`|fanSpeedSensorTable<p>Update: 3600</p>|
 |Network interfaces|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs. {$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|ifDescr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +64,8 @@ There are no macros links in this template.
 |Operational status of interface $1|<p>The current operational state of the interface.</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Outbound errors on interface $1|<p>For packet-oriented interfaces, the number of outbound packets that could not be transmitted because of errors. For character-oriented or fixed-length interfaces, the number of outbound transmission units that could not be transmitted because of errors.</p>|`SNMP agent`|ifOutErrors[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>The number of octets transmitted in MAC frames on this interface, including the MAC header and FCS.</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

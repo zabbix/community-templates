@@ -85,6 +85,8 @@ There are no discovery rules in this template.
 |Transfer Module capacity|<p>-</p>|`SNMP agent`|TransferModuleCapacity<p>Update: 3600</p>|
 |05 Device Serial Number|<p>-</p>|`SNMP agent`|serialNumber<p>Update: 3600</p>|
 |Waste Toner Bottle Level|<p>-</p>|`SNMP agent`|WasteTonerBottleLevel<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

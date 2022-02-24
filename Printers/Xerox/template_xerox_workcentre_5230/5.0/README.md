@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |Printer location|<p>-</p>|`SNMP agent`|printer.location<p>Update: 6h</p>|
 |Max cartridge Toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 15m</p>|
 |Pages printed - color|<p>-</p>|`SNMP agent`|pages.printed.color<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

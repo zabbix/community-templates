@@ -110,6 +110,8 @@ There are no discovery rules in this template.
 |POP3 Blocked Connections|<p>Connections that have been blocked</p>|`SNMP agent`|pop3-BlockedConnections<p>Update: 1m</p>|
 |Number of SMTP Corrupted Contents Blocked|<p>Number of corrupted contents blocked</p>|`SNMP agent`|smtp-corrupt-content-blocked<p>Update: 1m</p>|
 |Number of SMTP Mails Blocked After Sender Authentication Check|<p>Number of mails blocked after sender authentication check</p>|`SNMP agent`|smtp-sender-auth-blocked<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

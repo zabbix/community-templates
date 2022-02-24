@@ -33,6 +33,8 @@ Geraldo Jr
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -43,6 +45,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Drive Enumeration|<p>-</p>|`SNMP agent`|driveEntryId<p>Update: 86400</p>|
 |Library Enumeration|<p>-</p>|`SNMP agent`|libraryEntryId<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +73,8 @@ There are no template links in this template.
 |Library - Qtde de Slots|<p>Number of cartridge slots contained in this library</p>|`SNMP agent`|librarySlotCnt[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 |Library - Status|<p>-</p>|`SNMP agent`|libraryState[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Library - Uptime|<p>-</p>|`SNMP agent`|libraryTimeStamp[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

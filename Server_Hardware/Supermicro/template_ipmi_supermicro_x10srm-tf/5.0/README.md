@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |VDIMMAB|<p>-</p>|`IPMI agent`|ipmi.supermicro.VDIMMAB<p>Update: 240</p>|
 |CPU - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.cpu.temp<p>Update: 45</p>|
 |Fan 5|<p>-</p>|`IPMI agent`|ipmi.supermicro.fan5<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

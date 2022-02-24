@@ -37,6 +37,8 @@ There are no template links in this template.
 |discovery Interface|<p>Обнаружение сетевых интрефейсов</p>|`Zabbix agent`|net.if.discovery<p>Update: 24h</p>|
 |discovery service|<p>Обнаружение служб Windows</p>|`Zabbix agent`|service.discovery<p>Update: 24h</p>|
 |discovery local disk|<p>Обнаружение дисков</p>|`Zabbix agent`|vfs.fs.discovery<p>Update: 24h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -65,6 +67,8 @@ There are no template links in this template.
 |LogicalDisk {#FSNAME} Disk Time %|<p>Тип файловой системы:{#FSTYPE} Тип диска:{#FSDRIVETYPE} Счетчик отображает, какую часть времени диск расходует на обслуживание запросов на чтение и запись. Если его значения стабильно сохраняются на уровне вблизи отметки 100%, система работает с диском весьма интенсивно. Если же идет постоянный активный обмен данными и при этом создаются большие очереди, возможно, что дисковая подсистема не справляется с нагрузкой. В типичных условиях эксплуатации значение этого счетчика не должно превышать 50.</p>|`Zabbix agent`|perf_counter["\LogicalDisk({#FSNAME})\% Disk Time",300]<p>Update: 5m</p><p>LLD</p>|
 |LogicalDisk {#FSNAME} Free Space|<p>Тип файловой системы:{#FSTYPE} Тип диска:{#FSDRIVETYPE}</p>|`Zabbix agent`|perf_counter["\LogicalDisk({#FSNAME})\% Free Space",300]<p>Update: 5m</p><p>LLD</p>|
 |LogicalDisk {#FSNAME} Avg. Disk Queue Length|<p>Тип файловой системы:{#FSTYPE} Тип диска:{#FSDRIVETYPE} Показатель этого счетчика отражает среднее число ожидающих обработки запросов к диску на ввод и вывод данных. Если он стабильно выше 2, значит, в диске образовался «затор».</p>|`Zabbix agent`|perf_counter["\LogicalDisk({#FSNAME})\Avg. Disk Queue Length",60]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

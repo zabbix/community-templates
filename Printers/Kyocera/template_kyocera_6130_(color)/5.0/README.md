@@ -90,6 +90,8 @@ There are no discovery rules in this template.
 |Pages printed - total|<p>-</p>|`SNMP agent`|pages.printed.total<p>Update: 10m</p>|
 |Cartridge toner level % - yellow|<p>-</p>|`Calculated`|yellow.cartridge.toner<p>Update: 10m</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 12h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

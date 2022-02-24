@@ -42,6 +42,8 @@ SIS
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$PASSWORD}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -59,6 +61,8 @@ There are no discovery rules in this template.
 |Fifth Daily Partition Count|<p>ls /var/lib/mysql/zabbixdb | grep -c $(date -d "$(date +%F)"+Xdays "+%Y%m%d") Workflow 1. List the content of the /var/lib/mysql/zabbixdb folder 2. Print the grep count of current date, + X days ahead, printing the format like the partition file name.</p>|`SSH agent`|ssh.run[dpc5,{HOST.HOST},22,]<p>Update: 30s</p>|
 |Fourth Daily Partition Count|<p>ls /var/lib/mysql/zabbixdb | grep -c $(date -d "$(date +%F)"+Xdays "+%Y%m%d") Workflow 1. List the content of the /var/lib/mysql/zabbixdb folder 2. Print the grep count of current date, + X days ahead, printing the format like the partition file name.</p>|`SSH agent`|ssh.run[dpc4,{HOST.HOST},22,]<p>Update: 30s</p>|
 |Third Daily Partition Count|<p>ls /var/lib/mysql/zabbixdb | grep -c $(date -d "$(date +%F)"+Xdays "+%Y%m%d") Workflow 1. List the content of the /var/lib/mysql/zabbixdb folder 2. Print the grep count of current date, + X days ahead, printing the format like the partition file name.</p>|`SSH agent`|ssh.run[dpc3,{HOST.HOST},22,]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

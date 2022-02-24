@@ -73,6 +73,8 @@ There are no discovery rules in this template.
 |JANITZA-MIB::cosPL3.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.cosPL3.0<p>Update: 30</p>|
 |JANITZA-MIB::iL1.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.iL1.0<p>Update: 30</p>|
 |JANITZA-MIB::uL1L2.0|<p>-</p>|`SNMP agent`|JANITZA-MIB.L1L2.0<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -43,6 +43,8 @@ Samuel Martins
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -53,6 +55,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Connected Device Ip|<p>-</p>|`SNMP agent`|fmDeviceEntIp<p>Update: 5m</p>|
 |Connected Device Name|<p>-</p>|`SNMP agent`|fmDeviceEntName<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +79,8 @@ There are no template links in this template.
 |HA Status|<p>Ha mode</p>|`SNMP agent`|fmHaMode<p>Update: 1m</p>|
 |Connected Device IP {#SNMPINDEX}|<p>-</p>|`SNMP agent`|fmDeviceEntIp[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |Connected Device Name {#SNMPINDEX}|<p>-</p>|`SNMP agent`|fmDeviceEntName[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |MQTT Messages Received|<p>-</p>|`Zabbix trapper`|emqtt[messages/received]<p>Update: 0</p>|
 |MQTT Packets PUBREL Received|<p>-</p>|`Zabbix trapper`|emqtt[packets/pubrel/received]<p>Update: 0</p>|
 |MQTT Messages QoS 2 Dropped|<p>-</p>|`Zabbix trapper`|emqtt[messages/qos2/dropped]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

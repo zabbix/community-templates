@@ -29,11 +29,15 @@ Martin Suchy
 |{$EC_EM_CONSUMPTION}|<p>Total value on your electric company electrometer in Wh at the moment you reset Shelly 3EM data.</p>|`0`|Text macro|
 |{$SHELLY_PASS}|<p>Device password, if configured</p>|`****`|Secret macro|
 |{$SHELLY_USER}|<p>Device user, if configured</p>|`admin`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -102,6 +106,8 @@ There are no discovery rules in this template.
 |Electrometer B power|<p>-</p>|`Dependent item`|emeters-1.power<p>Update: 0</p>|
 |Electrometer C total returned|<p>-</p>|`Dependent item`|emeters-2.total_returned<p>Update: 0</p>|
 |Electrometer C voltage|<p>-</p>|`Dependent item`|emeters-2.voltage<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -161,6 +167,8 @@ Martin Suchy
 |{$MQTT_BROKER_PASS}|<p>MQTT broker password, if configured</p>|`****`|Secret macro|
 |{$MQTT_BROKER_USER}|<p>MQTT broker user, if configured</p>|``|Text macro|
 |{$MQTT_DEVICE_ID}|<p>Shelly device MQTT ID</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -233,6 +241,8 @@ There are no discovery rules in this template.
 |Electrometer B power factor|<p>-</p>|`Dependent item`|emeters-1.pf<p>Update: 0</p>|
 |MQTT connected|<p>-</p>|`Dependent item`|mqtt.connected<p>Update: 0</p>|
 |Firmware new version|<p>-</p>|`Dependent item`|update.new_version<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -311,11 +321,15 @@ Martin Suchy
 |----|-----------|-------|----|
 |{$SHELLY_PASS}|<p>Device password, if configured</p>|`****`|Secret macro|
 |{$SHELLY_USER}|<p>Device user, if configured</p>|`admin`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -353,6 +367,8 @@ There are no discovery rules in this template.
 |Motion sensor self-check|<p>-</p>|`Dependent item`|sensor.is_valid<p>Update: 0</p>|
 |Skipped actions|<p>-</p>|`Dependent item`|actions_stats.skipped<p>Update: 0</p>|
 |Battery voltage|<p>-</p>|`Dependent item`|bat.voltage<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -455,6 +471,8 @@ Martin Suchy
 |{$MQTT_BROKER_PASS}|<p>MQTT broker password, if configured</p>|`****`|Secret macro|
 |{$MQTT_BROKER_USER}|<p>MQTT broker user, if configured</p>|``|Text macro|
 |{$MQTT_DEVICE_ID}|<p>Shelly device MQTT ID</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -496,6 +514,8 @@ There are no discovery rules in this template.
 |System configuration changes|<p>-</p>|`Dependent item`|cfg_changed_cnt<p>Update: 0</p>|
 |Tamper detection|<p>-</p>|`Dependent item`|sensor.vibration<p>Update: 0</p>|
 |File system free size|<p>-</p>|`Dependent item`|fs_free<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -618,11 +638,15 @@ Martin Suchy
 |----|-----------|-------|----|
 |{$SHELLY_PASS}|<p>Device password, if configured</p>|`****`|Secret macro|
 |{$SHELLY_USER}|<p>Device user, if configured</p>|`admin`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -665,6 +689,8 @@ There are no discovery rules in this template.
 |Electrometer overpower occurred|<p>-</p>|`Dependent item`|meters-0.overpower<p>Update: 0</p>|
 |Device time|<p>-</p>|`Dependent item`|unixtime<p>Update: 0</p>|
 |Relay timer remaining|<p>-</p>|`Dependent item`|relays-0.timer_remaining<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -811,6 +837,8 @@ Martin Suchy
 |{$MQTT_BROKER_PASS}|<p>MQTT broker password, if configured</p>|`****`|Secret macro|
 |{$MQTT_BROKER_USER}|<p>MQTT broker user, if configured</p>|``|Text macro|
 |{$MQTT_DEVICE_ID}|<p>Shelly device MQTT ID</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -857,6 +885,8 @@ There are no discovery rules in this template.
 |Relay timer started|<p>-</p>|`Dependent item`|relays-0.timer_started<p>Update: 0</p>|
 |WiFi RSSI|<p>-</p>|`Dependent item`|wifi_sta.rssi<p>Update: 0</p>|
 |Firmware old version|<p>-</p>|`Dependent item`|update.old_version<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

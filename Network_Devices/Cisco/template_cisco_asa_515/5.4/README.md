@@ -29,6 +29,8 @@ There are no template links in this template.
 |CPU Discovery|<p>If your IOS device has several CPUs, you must use CISCO-PROCESS-MIB and its object cpmCPUTotal5minRev from the table called cpmCPUTotalTable , indexed with cpmCPUTotalIndex . This table allows CISCO-PROCESS-MIB to keep CPU statistics for different physical entities in the router, like different CPU chips, group of CPUs, or CPUs in different modules/cards. In case of a single CPU, cpmCPUTotalTable has only one entry.</p>|`SNMP agent`|cpu.discovery<p>Update: 10s</p>|
 |Entity Serial Numbers Discovery|<p>-</p>|`SNMP agent`|entity_sn.discovery<p>Update: 30s</p>|
 |EtherLike-MIB Discovery|<p>Discovering interfaces from IF-MIB and EtherLike-MIB. Interfaces with up(1) Operational Status are discovered.</p>|`SNMP agent`|net.if.duplex.discovery<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -124,6 +126,8 @@ There are no template links in this template.
 |{#SNMPVALUE}: CPU utilization|<p>MIB: CISCO-PROCESS-MIB The overall CPU busy percentage in the last 5 minute period. This object deprecates the avgBusy5 object from the OLD-CISCO-SYSTEM-MIB. This object is deprecated by cpmCPUTotal5minRev which has the changed range of value (0..100) Reference: http://www.cisco.com/c/en/us/support/docs/ip/simple-network-management-protocol-snmp/15215-collect-cpu-util-snmp.html</p>|`SNMP agent`|system.cpu.util[cpmCPUTotal5min.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#ENT_NAME}: Hardware serial number|<p>MIB: ENTITY-MIB</p>|`SNMP agent`|system.hw.serialnumber[entPhysicalSerialNum.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Duplex status|<p>MIB: EtherLike-MIB The current mode of operation of the MAC entity. 'unknown' indicates that the current duplex mode could not be determined. Management control of the duplex mode is accomplished through the MAU MIB. When an interface does not support autonegotiation, or when autonegotiation is not enabled, the duplex mode is controlled using ifMauDefaultType. When autonegotiation is supported and enabled, duplex mode is controlled using ifMauAutoNegAdvertisedBits. In either case, the currently operating duplex mode is reflected both in this object and in ifMauType. Note that this object provides redundant information with ifMauType. Normally, redundant objects are discouraged. However, in this instance, it allows a management application to determine the duplex status of an interface without having to know every possible value of ifMauType. This was felt to be sufficiently valuable to justify the redundancy. Reference: [IEEE 802.3 Std.], 30.3.1.1.32,aDuplexStatus.</p>|`SNMP agent`|net.if.duplex[dot3StatsDuplexStatus.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -45,6 +45,8 @@ Evren Yurtesen
 |{$ELASTICSEARCH.RESPONSE_TIME.MAX.WARN}|<p>The ES cluster maximum response time in seconds for trigger expression.</p>|`10s`|Text macro|
 |{$ELASTICSEARCH.SCHEME}|<p>The scheme of the Elasticsearch (http/https).</p>|`http`|Text macro|
 |{$ELASTICSEARCH.USERNAME}|<p>The username of the Elasticsearch.</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -55,6 +57,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Index settings discovery|<p>Discovery ES index settings</p>|`Dependent item`|es.index.settings<p>Update: 0</p>|
 |Cluster nodes discovery|<p>Discovery ES cluster nodes.</p>|`Zabbix agent`|web.page.get[{$ELASTICSEARCH.HOST},_nodes/_all/nodes,{$ELASTICSEARCH.PORT}]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -130,6 +134,8 @@ There are no template links in this template.
 |ES {#ES.NODE}: Total time spent performing fetch|<p>Time in milliseconds spent performing fetch operations.</p>|`Dependent item`|es.node.indices.search.fetch_time_in_millis[{#ES.NODE}]<p>Update: 0</p><p>LLD</p>|
 |ES {#ES.NODE}: Total number of fetch|<p>The total number of fetch operations.</p>|`Dependent item`|es.node.indices.search.fetch_total[{#ES.NODE}]<p>Update: 0</p><p>LLD</p>|
 |ES {#ES.NODE}: Write thread pool executor tasks rejected|<p>The number of tasks rejected by the write thread pool executor.</p>|`Dependent item`|es.node.thread_pool.write.rejected.rate[{#ES.NODE}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

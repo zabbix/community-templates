@@ -85,6 +85,8 @@ There are no discovery rules in this template.
 |Number of active connections with remote servers|<p>The number of active HTTP connections with remote servers.</p>|`SNMP agent`|sgProxyHttpServerConnectionsActive<p>Update: 60</p>|
 |Number of idle connections with remote servers|<p>The number of idle HTTP connections with remote servers.</p>|`SNMP agent`|sgProxyHttpServerConnectionsIdle<p>Update: 60</p>|
 |Number of errors while fetching objects|<p>The number of HTTP errors while fetching objects.</p>|`SNMP agent`|sgProxyHttpServerErrors<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

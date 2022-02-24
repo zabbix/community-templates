@@ -25,6 +25,8 @@ Template tested with ignite 2.8.0 and GridGain 2.7.16
 |----|-----------|-------|----|
 |{$IGNITE_JMX_PASS}|<p>-</p>|``|Text macro|
 |{$IGNITE_JMX_USER}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Thread Pool Metrics|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=\"Thread Pools\",name=*"]<p>Update: 30m</p>|
 |Ingite Kernal Metrics|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=Kernal,name=IgniteKernal"]<p>Update: 30m</p>|
 |Cache Metrics|<p>-</p>|`JMX agent`|jmx.discovery[beans,"org.apache:igniteInstanceName=*,group=*,name=\"org.apache.ignite.internal.processors.cache.CacheLocalMetricsMXBeanImpl\""]<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -101,6 +105,8 @@ There are no template links in this template.
 |{#JMXIGNITEINSTANCENAME} - {#JMXGROUP} - CacheTxRollbacks|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group={#JMXGROUP},name=\"org.apache.ignite.internal.processors.cache.CacheLocalMetricsMXBeanImpl\"",CacheTxRollbacks]<p>Update: 5m</p><p>LLD</p>|
 |{#JMXIGNITEINSTANCENAME} - {#JMXGROUP} - HeapEntriesCount|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group={#JMXGROUP},name=\"org.apache.ignite.internal.processors.cache.CacheLocalMetricsMXBeanImpl\"",HeapEntriesCount]<p>Update: 5m</p><p>LLD</p>|
 |{#JMXIGNITEINSTANCENAME} - {#JMXGROUP} - NodeKeyCount|<p>-</p>|`JMX agent`|jmx["{#JMXDOMAIN}:igniteInstanceName={#JMXIGNITEINSTANCENAME},group={#JMXGROUP},name=\"org.apache.ignite.internal.processors.cache.CacheLocalMetricsMXBeanImpl\"",Size]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

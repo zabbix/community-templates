@@ -41,6 +41,8 @@ There are no discovery rules in this template.
 |NFSv3 read operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc3 (([0-9]*)?\s){8}",,,,\1]<p>Update: 60</p>|
 |NFSv3 readdir operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc3 (([0-9]*)?\s){18}",,,,\1]<p>Update: 60</p>|
 |NFSv3 lookup operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc3 (([0-9]*)?\s){5}",,,,\1]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -101,6 +103,8 @@ There are no discovery rules in this template.
 |NFSv4 read operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc4 (([0-9]*)?\s){3}",,,,\1]<p>Update: 60</p>|
 |NFSv4 statfs operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc4 (([0-9]*)?\s){29}",,,,\1]<p>Update: 60</p>|
 |NFSv4 rename operations per minute|<p>-</p>|`Zabbix agent (active)`|vfs.file.regexp[/proc/net/rpc/nfs,"^proc4 (([0-9]*)?\s){24}",,,,\1]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

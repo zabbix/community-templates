@@ -55,11 +55,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Linux service discovery|<p>-</p>|`Zabbix agent`|service.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Number of processes $1|<p>-</p>|`Zabbix agent`|proc.num[{#SERVICE}]<p>Update: 2m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -48,6 +48,8 @@ There are no template links in this template.
 |Temperature Enumeration|<p>-</p>|`SNMP agent`|TempEnum<p>Update: 1d</p>|
 |Disk Volume Enumeration|<p>-</p>|`SNMP agent`|VolumeEnum<p>Update: 1d</p>|
 |Power Supply Enumeration|<p>-</p>|`SNMP agent`|PowerSupplies<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -114,6 +116,8 @@ There are no template links in this template.
 |Power Supply {#SNMPINDEX} Sensor State|<p>-</p>|`SNMP agent`|PowerSupplySensorState.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |Power Supply {#SNMPINDEX} State Settings|<p>-</p>|`SNMP agent`|PowerSupplyStateSettings.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |Power Supply {#SNMPINDEX} Status|<p>-</p>|`SNMP agent`|PowerSupplyStatus.[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

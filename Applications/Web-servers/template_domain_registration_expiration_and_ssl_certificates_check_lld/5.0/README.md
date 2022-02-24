@@ -26,6 +26,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Domains discovery|<p>-</p>|`External check`|list.sh["ssl_check.json","1"]<p>Update: 1h</p>|
 |URLs discovery|<p>-</p>|`External check`|list.sh["ssl_check.json"]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -34,6 +36,8 @@ There are no template links in this template.
 |HTTPS Service on {#URL}:{#PORT} is running|<p>-</p>|`Simple check`|net.tcp.service[https,{#URL},{#PORT}]<p>Update: 5m</p><p>LLD</p>|
 |SSL certificate validity {#URL}:{#PORT}|<p>-</p>|`External check`|zext_ssl_cert.sh[-d,{#URL},{#PORT}]<p>Update: 1h</p><p>LLD</p>|
 |SSL certificate issuer {#URL}:{#PORT}|<p>-</p>|`External check`|zext_ssl_cert.sh[-i,{#URL},{#PORT}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

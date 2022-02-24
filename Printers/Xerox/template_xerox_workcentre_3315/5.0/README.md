@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Type of cartridge - black|<p>-</p>|`SNMP agent`|black.cartridge.type<p>Update: 3600</p>|
 |Printer model|<p>-</p>|`SNMP agent`|model<p>Update: 3600</p>|
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

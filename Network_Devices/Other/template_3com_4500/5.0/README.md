@@ -396,6 +396,8 @@ There are no discovery rules in this template.
 |Port 2 Status|<p>-</p>|`SNMP agent`|ifOperStatus.4227634<p>Update: 30</p>|
 |Port 30 Last Changed|<p>-</p>|`SNMP agent`|ifLastChange.4227858<p>Update: 30</p>|
 |Port 19 Traffic OUT Errors|<p>-</p>|`SNMP agent`|ifOutErrors.4227770<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -24,6 +24,8 @@ Manuel Frei
 |{$PDNS.DNSDIST.APIKEY}|<p>-</p>|`changeme`|Text macro|
 |{$PDNS.DNSDIST.WEBSERVER.IP}|<p>-</p>|`127.0.0.1`|Text macro|
 |{$PDNS.DNSDIST.WEBSERVER.PORT}|<p>-</p>|`8083`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -87,6 +89,8 @@ There are no discovery rules in this template.
 |queries|<p>Number of received queries.</p>|`Dependent item`|pdns.dnsdist.statistics[queries]<p>Update: 0</p>|
 |udp-sndbuf-errors|<p>From /proc/net/snmp SndbufErrors. New in version 1.5.0.</p>|`Dependent item`|pdns.dnsdist.statistics[udp-sndbuf-errors]<p>Update: 0</p>|
 |udp-recvbuf-errors|<p>From /proc/net/snmp RcvbufErrors. New in version 1.5.0.</p>|`Dependent item`|pdns.dnsdist.statistics[udp-recvbuf-errors]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

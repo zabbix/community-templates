@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |FAN MOD 3A RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_MOD_3A_RPM<p>Update: 300</p>|
 |Ambient Temp|<p>-</p>|`IPMI agent`|ipmi.sensor.Ambient_Temp<p>Update: 300</p>|
 |FAN MOD 4B RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_MOD_4B_RPM<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

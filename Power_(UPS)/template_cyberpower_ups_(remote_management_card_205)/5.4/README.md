@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |UPS-BatteryReplaceStatus|<p>-</p>|`SNMP agent`|UPS-BatteryReplaceStatus<p>Update: 30s</p>|
 |UPS-LoadPower|<p>-</p>|`SNMP agent`|UPS-LoadPower<p>Update: 12h</p>|
 |UPS-InputStatus|<p>1 ⇒ normal 2 ⇒ overVoltage 3 ⇒ underVoltage 4 ⇒ frequencyFailure 5 ⇒ blackout</p>|`SNMP agent`|UPS-InputStatus<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

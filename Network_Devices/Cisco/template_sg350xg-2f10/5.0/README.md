@@ -247,6 +247,8 @@ There are no discovery rules in this template.
 |Status Port te1/0/3|<p>-</p>|`SNMP agent`|ifOperStatus.3<p>Update: 30s</p>|
 |Status Port te2/0/10|<p>-</p>|`SNMP agent`|ifOperStatus.62<p>Update: 30s</p>|
 |Traffic incomming Interface te1/0/8|<p>-</p>|`SNMP agent`|ifInOctets.8<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

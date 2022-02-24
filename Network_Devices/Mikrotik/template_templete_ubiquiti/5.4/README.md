@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |Ping On/Off|<p>-</p>|`Simple check`|icmpping<p>Update: 30s</p>|
 |Sinal UBNT|<p>-</p>|`SNMP agent`|ubntWlStatSignal<p>Update: 30s</p>|
 |CCQ|<p>-</p>|`SNMP agent`|ccq.status<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

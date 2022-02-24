@@ -32,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |CPE discovery|<p>-</p>|`SNMP agent`|ubnt.cpe.discovery<p>Update: 60m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -91,6 +93,8 @@ There are no template links in this template.
 |CPE {#REMOTEMAC} Last IP address|<p>-</p>|`SNMP agent`|LastIpAddress[{#SNMPINDEX}]<p>Update: 15m</p><p>LLD</p>|
 |CPE {#REMOTEMAC} IdealRxPower1 (ap)|<p>-</p>|`SNMP agent`|IdealRxPower1[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |CPE {#REMOTEMAC} TxRate|<p>-</p>|`SNMP agent`|TxRate[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

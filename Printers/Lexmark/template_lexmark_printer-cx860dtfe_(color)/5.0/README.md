@@ -86,6 +86,8 @@ There are no discovery rules in this template.
 |02 Device location|<p>The physical location of this node (e.g., `telephone closet, 3rd floor'). If the location is unknown, the value is the zero-length string.</p>|`SNMP agent`|sysLocation<p>Update: 3600</p>|
 |BLACK Photoconductor capacity|<p>-</p>|`SNMP agent`|BlackPhotoconductorCapacity<p>Update: 3600</p>|
 |ADF Kit capacity|<p>-</p>|`SNMP agent`|ADFKitCapacity<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

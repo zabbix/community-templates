@@ -483,6 +483,8 @@ There are no discovery rules in this template.
 |ifHCOutOctets.10|<p>-</p>|`SNMP agent`|ifHCOutOctets.10<p>Update: 30s</p>|
 |ifOutMulticastPkts.11|<p>-</p>|`SNMP agent`|ifOutMulticastPkts.11<p>Update: 30s</p>|
 |Cостояние порта 21|<p>-</p>|`SNMP agent`|ifAdminStatus.21<p>Update: 6s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

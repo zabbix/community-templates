@@ -23,6 +23,8 @@ There are no template links in this template.
 |Discovery LLD Information Processor Firewall|<p>-</p>|`SNMP agent`|fgHaStatsCpuUsages.discovery<p>Update: 84600</p>|
 |Firewall Network Interface LLD Discovery|<p>-</p>|`SNMP agent`|FwIfName.discovery<p>Update: 84600</p>|
 |Discovery LLD Hardware Inventory|<p>-</p>|`SNMP agent`|fgHaStatsHostname.discovery<p>Update: 84600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -52,6 +54,8 @@ There are no template links in this template.
 |Network Interface Type $1|<p>-</p>|`SNMP agent`|ifType.[{#SNMPINDEX}]<p>Update: 84600</p><p>LLD</p>|
 |Hostname do Firewall $1|<p>-</p>|`SNMP agent`|fgHaStatsHostnameMagnao.[{#SNMPVALUE}]<p>Update: 84600</p><p>LLD</p>|
 |firewall version $1|<p>-</p>|`SNMP agent`|xg-firewallVersion.[{#SNMPVALUE}]<p>Update: 84600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

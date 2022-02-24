@@ -33,6 +33,8 @@ There are no template links in this template.
 |Stacking|<p>-</p>|`SNMP agent`|hpeStacking<p>Update: 1h</p>|
 |VSF Stack Model|<p>-</p>|`SNMP agent`|hpeVSFStackModel<p>Update: 1d</p>|
 |FanState|<p>-</p>|`SNMP agent`|hpicfFanState<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +53,8 @@ There are no template links in this template.
 |Stacking Oper Status|<p>-</p>|`SNMP agent`|hpStackSwitchOperStatus.0<p>Update: 1m</p><p>LLD</p>|
 |VSF Stack Model $1|<p>-</p>|`SNMP agent`|hpeVSFStackModel[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |FanState $1|<p>-</p>|`SNMP agent`|hpicfFanState[{#SNMPVALUE}.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

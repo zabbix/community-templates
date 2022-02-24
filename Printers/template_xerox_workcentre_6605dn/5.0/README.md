@@ -38,6 +38,8 @@ There are no discovery rules in this template.
 |Max cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.max<p>Update: 30</p>|
 |Max cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.max<p>Update: 30</p>|
 |Cartridge level % - image unit|<p>-</p>|`Calculated`|imageunit.cartridge.procents<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

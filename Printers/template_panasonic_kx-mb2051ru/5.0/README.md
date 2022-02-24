@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Модель МФУ|<p>-</p>|`SNMP agent`|model<p>Update: 1h</p>|
 |Pages printed - total|<p>-</p>|`SNMP agent`|pages.printed.total<p>Update: 30s</p>|
 |Драм Юнит % - black|<p>-</p>|`Calculated`|black.drum<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

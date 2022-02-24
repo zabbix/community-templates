@@ -39,11 +39,15 @@ Template is just like V2 templates, but changed to support SNMPv3, please use SH
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP.TIMEOUT}|<p>-</p>|`5m`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -60,6 +64,8 @@ There are no discovery rules in this template.
 |System location|<p>MIB: SNMPv2-MIB The physical location of this node (e.g., `telephone closet, 3rd floor'). If the location is unknown, the value is the zero-length string.</p>|`SNMP agent`|system.locationV3[sysLocation.0]<p>Update: 1h</p>|
 |Uptime|<p>MIB: SNMPv2-MIB The time (in hundredths of a second) since the network management portion of the system was last re-initialized.</p>|`SNMP agent`|system.uptimeV3[sysUpTime.0]<p>Update: 30s</p>|
 |System name|<p>MIB: SNMPv2-MIB An administratively-assigned name for this managed node.By convention, this is the node's fully-qualified domain name. If the name is unknown, the value is the zero-length string.</p>|`SNMP agent`|system.nameV3<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

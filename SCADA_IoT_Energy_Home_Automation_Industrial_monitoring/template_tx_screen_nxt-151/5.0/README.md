@@ -39,6 +39,8 @@ Marcos Sousa and Guilherme Pereira
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$USER}|<p>-</p>|`{$USER_FULLNAME}`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -121,6 +123,8 @@ There are no discovery rules in this template.
 |Alarm Voltage 1 (50 V)|<p>alarm of voltage 1 of system</p>|`SNMP agent`|system.alarm.voltage1<p>Update: 5s</p>|
 |Antenna|<p>data of antenna of GPS</p>|`SNMP agent`|gps.status.antenna<p>Update: 5s</p>|
 |RF|<p>data of RF (reflected power) of external amplifier component.</p>|`SNMP agent`|extamplifier.status.rf<p>Update: 5s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

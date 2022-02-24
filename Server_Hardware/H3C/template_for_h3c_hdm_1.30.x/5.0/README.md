@@ -24,6 +24,8 @@ H3C
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`rocommstr`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |h3cHealthInfo_discovery|<p>-</p>|`SNMP agent`|h3cHealthInfo_discovery<p>Update: 30s</p>|
 |h3cFan_discover|<p>-</p>|`SNMP agent`|h3cFan_discover<p>Update: 30s</p>|
 |h3cCPUInfo_discovery|<p>-</p>|`SNMP agent`|h3cCPUInfo_discovery<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -68,6 +72,8 @@ There are no template links in this template.
 |FAN_[{#SNMPINDEX}]_Speed|<p>-</p>|`SNMP agent`|FANSpeed[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |CPU_[{#SNMPINDEX}]_PresentStatus|<p>The present status of CPU associated with the ID.</p>|`SNMP agent`|CPUPresentStatus[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |CPU_[{#SNMPINDEX}]_Status|<p>The working status of the CPU associated with the ID</p>|`SNMP agent`|CPUStatus[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

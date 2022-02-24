@@ -18,6 +18,8 @@ fredprod
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$ZBX_TPL_VERSION}|<p>-</p>|`0.0.1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Logstash discovery|<p>-</p>|`Zabbix trapper`|logstash.node.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +79,8 @@ There are no template links in this template.
 |Logstash JVM Mem non heap committed|<p>-</p>|`Zabbix trapper`|logstash.jvm.mem.non_heap_committed_in_bytes<p>Update: 0</p>|
 |Logstash Process CPU Total in ms|<p>-</p>|`Zabbix trapper`|logstash.process.cpu.total_in_millis<p>Update: 0</p>|
 |Logstash Process Open File descriptors|<p>-</p>|`Zabbix trapper`|logstash.process.open_file_descriptors<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

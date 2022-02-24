@@ -40,6 +40,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Discovery_Disk|<p>-</p>|`SNMP agent`|Disk<p>Update: 600</p>|
 |Discovery_Volume|<p>-</p>|`SNMP agent`|Volume<p>Update: 600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +62,8 @@ There are no template links in this template.
 |[{#SNMPVALUE}]_volumeRAIDLevel|<p>-</p>|`SNMP agent`|volumeRAIDLevel[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |[{#SNMPVALUE}]_VolumeSize|<p>-</p>|`SNMP agent`|volumeSize[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |[{#SNMPVALUE}]_VolumeStatus|<p>-</p>|`SNMP agent`|volumeStatus[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

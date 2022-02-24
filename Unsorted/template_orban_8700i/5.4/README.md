@@ -28,6 +28,8 @@ Items and traps:
 |{$OID_PATH}|<p>-</p>|`iso.org.dod.internet.private.enterprises.orban`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -61,6 +63,8 @@ There are no discovery rules in this template.
 |snmpPrimaryManagerIp|<p>Primary SNMP Manager IP address.</p>|`SNMP agent`|ORBAN8700-MIB.snmpPrimaryManagerIp<p>Update: 60</p>|
 |aesInputError|<p>Digital Input error status.</p>|`SNMP agent`|ORBAN8700-MIB.aesInputError<p>Update: 60</p>|
 |SNMP Trap: ORBAN8700-MIB::alarmAesInputError|<p>Send trap in AES input detects an error. Varbinds: 0. aesInputError (INTEGER) Digital Input error status. </p>|`SNMP trap`|snmptrap["\s\.1\.3\.6\.1\.4\.1\.41877\.5\.4\.3\s"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

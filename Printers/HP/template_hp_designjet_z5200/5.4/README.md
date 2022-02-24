@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Пурпурный картридж %|<p>-</p>|`Calculated`|magenta<p>Update: 3600</p>|
 |Max cartridge toner level - light cyan|<p>-</p>|`SNMP agent`|ink.light.cyan.max<p>Update: 3600</p>|
 |Current cartridge toner level - matte black|<p>-</p>|`SNMP agent`|ink.matte.black.now<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -83,6 +83,8 @@ There are no discovery rules in this template.
 |Waste Toner Bottle|<p>-</p>|`SNMP agent`|wastetoner<p>Update: 10m</p>|
 |Serial|<p>-</p>|`SNMP agent`|printerserial<p>Update: 1h</p>|
 |Toner (Magenta)|<p>-</p>|`SNMP agent`|tonermagenta<p>Update: 30m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

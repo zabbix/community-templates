@@ -34,11 +34,15 @@ Constantin Oshmyan
 |{$MAX_QEZ_INCREASE}|<p>-</p>|`400`|Text macro|
 |{$MAX_QEZ_SIZE}|<p>-</p>|`50000`|Text macro|
 |{$MAX_QPRINT_SIZE}|<p>-</p>|`15000`|Text macro|
+
+
 ## Template links
 
 |Name|
 |----|
 |Template App Zabbix Agent|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -46,6 +50,8 @@ Constantin Oshmyan
 |Disks discovery|<p>-</p>|`Zabbix agent (active)`|as400.disk.discovery<p>Update: 3600</p>|
 |Processes discovery|<p>-</p>|`Zabbix agent (active)`|proc.cpu.util.discovery[{$MAX_CPU_FOR_DISCOVERY}]<p>Update: 60</p>|
 |ASP discovery|<p>-</p>|`Zabbix agent (active)`|vfs.fs.discovery<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +79,8 @@ Constantin Oshmyan
 |ASP{#FSNAME} capacity|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[{#FSNAME},total]<p>Update: 3600</p><p>LLD</p>|
 |ASP{#FSNAME} used|<p>-</p>|`Zabbix agent (active)`|vfs.fs.size[{#FSNAME},used]<p>Update: 300</p><p>LLD</p>|
 |ASP{#FSNAME} status|<p>-</p>|`Zabbix agent (active)`|vfs.fs.state[{#FSNAME}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

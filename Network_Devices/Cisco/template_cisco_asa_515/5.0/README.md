@@ -29,6 +29,8 @@ There are no template links in this template.
 |FAN Discovery|<p>The table of fan status maintained by the environmental monitor.</p>|`SNMP agent`|fan.discovery<p>Update: 30s</p>|
 |Entity Serial Numbers Discovery|<p>-</p>|`SNMP agent`|entity_sn.discovery<p>Update: 30s</p>|
 |PSU Discovery|<p>The table of power supply status maintained by the environmental monitor card.</p>|`SNMP agent`|psu.discovery<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -124,6 +126,8 @@ There are no template links in this template.
 |{#SENSOR_INFO}: Fan status|<p>MIB: CISCO-ENVMON-MIB</p>|`SNMP agent`|sensor.fan.status[ciscoEnvMonFanState.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#ENT_NAME}: Hardware serial number|<p>MIB: ENTITY-MIB</p>|`SNMP agent`|system.hw.serialnumber[entPhysicalSerialNum.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#SENSOR_INFO}: Power supply status|<p>MIB: CISCO-ENVMON-MIB</p>|`SNMP agent`|sensor.psu.status[ciscoEnvMonSupplyState.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

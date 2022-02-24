@@ -27,6 +27,8 @@ Wellington Martins
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`nobreak01`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no discovery rules in this template.
 |Restante de Carga|<p>-</p>|`SNMP agent`|upsEstimatedChargeRemaining<p>Update: 15</p>|
 |Tempo Restante de Carga|<p>-</p>|`SNMP agent`|BatTimeRemaining<p>Update: 180</p>|
 |Frequência de Saída|<p>-</p>|`SNMP agent`|upsOutputFrequency<p>Update: 15</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

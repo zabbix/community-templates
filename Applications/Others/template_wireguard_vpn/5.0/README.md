@@ -58,6 +58,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |WireGuard Peers Discovery|<p>-</p>|`Zabbix agent`|wg.list.discovery[PEERS]<p>Update: 3600s</p>|
 |WireGuard Interfaces Discovery|<p>-</p>|`Zabbix agent`|wg.list.discovery[INTERFACES]<p>Update: 3600s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +75,8 @@ There are no template links in this template.
 |Active peers on {#WGINTERFACE}|<p>-</p>|`Zabbix agent`|wg.peers.connected[{#WGINTERFACE}]<p>Update: 15m</p><p>LLD</p>|
 |Total peers on {#WGINTERFACE}|<p>-</p>|`Zabbix agent`|wg.peers.count[{#WGINTERFACE}]<p>Update: 30m</p><p>LLD</p>|
 |Port used on {#WGINTERFACE}|<p>-</p>|`Zabbix agent`|wg.port.used[{#WGINTERFACE}]<p>Update: 60m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

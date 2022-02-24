@@ -68,6 +68,8 @@ Kari Karvonen
 |{$BATTERY_TEMP_LOW_CRITICAL}|<p>-</p>|`-20`|Text macro|
 |{$BATTERY_TEMP_LOW_WARNING}|<p>-</p>|`0`|Text macro|
 |{$SNMP_COMMUNITY}|<p>SNMPv2 read only community</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -109,6 +111,8 @@ There are no discovery rules in this template.
 |Power System Status|<p>-</p>|`SNMP agent`|powerSystemStatus.0<p>Update: 1m</p>|
 |Mains Voltage Status L1|<p>error (0) normal (1) minorAlarm (2) majorAlarm (3) disabled (4) disconnected (5) notPresent (6) minorAndMajor (7) majorLow (8) minorLow (9) majorHigh (10) minorHigh (11) event (12) valueVolt (13) valueAmp (14) valueTemp (15) valueUnit (16) valuePerCent (17) critical (18) warning (19)</p>|`SNMP agent`|mainsVoltageStatus.1<p>Update: 1m</p>|
 |Rectifier 1 Output Current Value|<p>-</p>|`SNMP agent`|rectifierOutputCurrentValue.1<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |ICMP response time|<p>-</p>|`Simple check`|icmppingsec<p>Update: 1s</p>|
 |ICMP loss|<p>-</p>|`Simple check`|icmppingloss<p>Update: 1s</p>|
 |ICMP ping|<p>-</p>|`Simple check`|icmpping<p>Update: 1s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -64,12 +66,16 @@ There are no macros links in this template.
 |Name|
 |----|
 |ICMP Ping GPON|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |ONUs|<p>-</p>|`SNMP agent`|onuAlias<p>Update: 1d</p>|
 |Network interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +94,8 @@ There are no macros links in this template.
 |Incoming traffic on interface $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Operational status of interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
@@ -96,6 +104,8 @@ There are no macros links in this template.
 |ONU {#SNMPVALUE} LOW SIGNAL|<p>-</p>|<p>**Expression**: {SNMP Device GPON PARKS:onuDwRx[{#SNMPVALUE}].last()}>28</p><p>**Recovery expression**: </p>|information|
 |ONU {#SNMPVALUE} LOW SIGNAL (LLD)|<p>-</p>|<p>**Expression**: {SNMP Device GPON PARKS:onuDwRx[{#SNMPVALUE}].last()}>28</p><p>**Recovery expression**: </p>|information|
 |Interface {#SNMPVALUE} operational status changed (LLD)|<p>-</p>|<p>**Expression**: {SNMP Device GPON PARKS:ifOperStatus[{#SNMPVALUE}].diff(0)}=1</p><p>**Recovery expression**: </p>|average|
+
+
 # SNMP Device GPON ZTE fw 1.2.5p3
 
 ## Overview
@@ -137,6 +147,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |ICMP Ping GPON|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -144,6 +156,8 @@ There are no macros links in this template.
 |ONUs|<p>-</p>|`SNMP agent`|onuindex<p>Update: 1d;wd1-5h2</p>|
 |OLT Cards|<p>-</p>|`SNMP agent`|cardindex<p>Update: 1d;wd1-5h3</p>|
 |Network interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 1d;wd1-5h4</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -183,6 +197,8 @@ There are no macros links in this template.
 |Incoming traffic on interface $1|<p>-</p>|`SNMP agent`|ifInOctets[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Operational status of interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
 |Outgoing traffic on interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#SNMPVALUE}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

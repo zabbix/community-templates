@@ -168,6 +168,8 @@ There are no discovery rules in this template.
 |Bytes Rx port 9|<p>-</p>|`SNMP agent`|ifInOctets.9<p>Update: 120</p>|
 |Status port 10|<p>-</p>|`SNMP agent`|ifOperStatus.10<p>Update: 120</p>|
 |Bytes Tx port 10|<p>-</p>|`SNMP agent`|ifOutOctets.10<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

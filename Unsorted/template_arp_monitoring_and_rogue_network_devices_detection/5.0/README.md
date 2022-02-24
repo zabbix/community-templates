@@ -53,6 +53,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Address discovery|<p>-</p>|`Zabbix trapper`|arp.discovery<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -61,6 +63,8 @@ There are no template links in this template.
 |Mac(s) associated with IP {#IPADDRESS}|<p>-</p>|`Zabbix trapper`|arp.ipMacs[{#IPADDRESS}]<p>Update: 0</p><p>LLD</p>|
 |Mac address count for IP {#IPADDRESS}|<p>-</p>|`Zabbix trapper`|arp.macCount[{#IPADDRESS}]<p>Update: 0</p><p>LLD</p>|
 |Ip address(es) associated with mac {#HWADDRESS}|<p>-</p>|`Zabbix trapper`|arp.macIps[{#HWADDRESS}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

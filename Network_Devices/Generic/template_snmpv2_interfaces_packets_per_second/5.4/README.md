@@ -28,6 +28,8 @@ Kari Karvonen
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$WARNING_BROADCAST_PPS}|<p>pps to trigger warning</p>|`10`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -37,6 +39,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interfaces pps|<p>You may also consider using IF-MIB::ifType or IF-MIB::ifAlias for discovery depending on your filtering needs.</p>|`SNMP agent`|net.discover.pps<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -49,6 +53,8 @@ There are no template links in this template.
 |Interface {#IFNAME}({#IFALIAS}): Outbound multicast rate|<p>The number of outgoing multicast packets per second</p>|`SNMP agent`|ifHCOutMulticastPkts[{#IFNAME}]<p>Update: 1m</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Outbound total rate|<p>-</p>|`Calculated`|ifHCOutTotalPkts[{#IFNAME}]<p>Update: 1m</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Outbound unicast rate|<p>The number of outgoing unicast packets per second</p>|`SNMP agent`|ifHCOutUcastPkts[{#IFNAME}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

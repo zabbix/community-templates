@@ -87,6 +87,8 @@ There are no discovery rules in this template.
 |Exchange ADAccess Domain Controllers(*)\LDAP Read Time|<p>-</p>|`Zabbix agent`|perf_counter["\MSExchange ADAccess Domain Controllers(*)\LDAP Read Time"]<p>Update: 30s</p>|
 |Exchange Mailbox Replication(*) CopyQueueLength|<p>Shows the number of transaction log files waiting to be copied to the passive copy log file folder. A copy isn't considered complete until it has been checked for corruption. Should be less than 1 at all times for continuous replication.</p>|`Zabbix agent`|perf_counter["\MSExchange Replication(*)\CopyQueueLength"]<p>Update: 30</p>|
 |Exchange Transport Q - Remote Delivery Q|<p>MODIFIED_FOR_EX2016-WAS:perf_counter[" MSExchangeTransport Queues(_total) Active Remote Delivery Queue Length"]</p>|`Zabbix agent`|perf_counter["\MSExchangeTransport Queues(_total)\External Active Remote Delivery Queue Length"]<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`CMPublic`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -32,6 +34,8 @@ There are no discovery rules in this template.
 |Near_High_1_Load_Point|<p>Near High Load Threshold by Phase</p>|`SNMP agent`|NHigh1Load.rPDU<p>Update: 3600</p>|
 |State 3 Phase Load|<p>PhaseLoadNormal(1) = operating between high and low threshold OID values. phaseLoadLow(2) = dropped below low OID value. phaseLoadNearOverload(3) = is greater than or equal to the near overload value phaseLoadOverload(4) = load is greater than or equal to the high load OID value.</p>|`SNMP agent`|State3Load.rPDU<p>Update: 1800</p>|
 |State 1 Phase Load|<p>PhaseLoadNormal(1) = operating between high and low threshold OID values. phaseLoadLow(2) = dropped below low OID value. phaseLoadNearOverload(3) = is greater than or equal to the near overload value phaseLoadOverload(4) = load is greater than or equal to the high load OID value.</p>|`SNMP agent`|State1Load.rPDU<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

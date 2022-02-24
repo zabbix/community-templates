@@ -101,6 +101,8 @@ Aleksey Omelyanovich
 |----|-----------|-------|----|
 |{$CPU_UTIL_MAX}|<p>-</p>|`90`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -113,6 +115,8 @@ There are no template links in this template.
 |CPU|<p>-</p>|`SNMP agent`|snmp.CPU.discovery<p>Update: 3600</p>|
 |VCSA Services|<p>-</p>|`External check`|vcsa_discovery<p>Update: 1h</p>|
 |File System|<p>-</p>|`SNMP agent`|snmp.filesystem.discovery<p>Update: 180</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -140,6 +144,8 @@ There are no template links in this template.
 |File System {#SNMPVALUE} - Used Percentage|<p>-</p>|`Calculated`|File-System-Space-Used-Percentage.[{#SNMPVALUE}]<p>Update: 180</p><p>LLD</p>|
 |File System {#SNMPVALUE} - Space Allocated|<p>-</p>|`SNMP agent`|SNMP-File-System-Space-Allocated.[{#SNMPVALUE}]<p>Update: 600</p><p>LLD</p>|
 |File System {#SNMPVALUE} - Space Used|<p>-</p>|`SNMP agent`|SNMP-File-System-Space-Used.[{#SNMPVALUE}]<p>Update: 180</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -93,6 +93,8 @@ There are no discovery rules in this template.
 |HDD7_STATUS|<p>-</p>|`IPMI agent`|HDD7_STATUS<p>Update: 3600</p>|
 |DDR3_P2_E2_ECC|<p>-</p>|`IPMI agent`|DDR3_P2_E2_ECC<p>Update: 3600</p>|
 |RISER1_INLET_TMP|<p>-</p>|`IPMI agent`|RISER1_INLET_TMP<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

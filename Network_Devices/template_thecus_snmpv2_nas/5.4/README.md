@@ -31,6 +31,8 @@ S.V.Sidenko
 |{$HD_TEMPERATURE_ALARM}|<p>-</p>|`51`|Text macro|
 |{$HD_TEMPERATURE_WARNING}|<p>-</p>|`40`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -41,6 +43,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |RAID discovery|<p>-</p>|`SNMP agent`|nasRaid.discovery<p>Update: 1h</p>|
 |Hard disks discovery|<p>-</p>|`SNMP agent`|nasDisk.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -70,6 +74,8 @@ There are no template links in this template.
 |S.M.A.R.T. info of {#SNMPVALUE}|<p>-</p>|`SNMP agent`|diskSMARTHealthCheck[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Status of {#SNMPVALUE}|<p>-</p>|`SNMP agent`|diskStatus[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Disk Tray Number {#SNMPVALUE}|<p>-</p>|`SNMP agent`|diskTrayNum[{#SNMPINDEX}]<p>Update: 3h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Voltagem Bypass -  Fase 3|<p>-</p>|`SNMP agent`|ups-delta-voltagem-bypass-fase3<p>Update: 30s</p>|
 |Porcentagem da Bateria|<p>-</p>|`SNMP agent`|ups-bateria-porcentagem<p>Update: 30s</p>|
 |Voltagem Saída -  Fase 2|<p>-</p>|`SNMP agent`|ups-delta-voltagem-saida-fase-2<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

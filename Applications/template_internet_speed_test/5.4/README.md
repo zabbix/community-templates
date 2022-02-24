@@ -36,6 +36,8 @@ There are no discovery rules in this template.
 |Upload Speed|<p>-</p>|`Dependent item`|Xspeedtest_upload<p>Update: 0</p>|
 |Latency|<p>-</p>|`Dependent item`|Xspeedtest_latency<p>Update: 0</p>|
 |URL Result|<p>-</p>|`Dependent item`|Xspeedtest_urlresult<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

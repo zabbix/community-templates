@@ -77,6 +77,8 @@ Aécio Pires e Victor Igor
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -109,6 +111,8 @@ There are no discovery rules in this template.
 |Battery Status|<p>-</p>|`SNMP agent`|upsBatteryStatus<p>Update: 60s</p>|
 |upsBatteryVoltage|<p>-</p>|`SNMP agent`|upsBatteryVoltage<p>Update: 10s</p>|
 |upsInputFrequency|<p>-</p>|`SNMP agent`|upsInputFrequency<p>Update: 10s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

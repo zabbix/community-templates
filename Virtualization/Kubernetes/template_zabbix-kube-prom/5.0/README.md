@@ -196,6 +196,8 @@ Laurent Marchelli
 |{$PROM.POD.DEVICE.NOT_MATCHES}|<p>Device interface regex used in pod's metric discovery. Can be overridden on the host or linked template level.</p>|`CHANGE_IF_NEEDED`|Text macro|
 |{$PROM.POD.IFNAME.MATCHES}|<p>Network interface regex used in pod's metric discovery. Can be overridden on the host or linked template level.</p>|`^.*$`|Text macro|
 |{$PROM.POD.IFNAME.NOT_MATCHES}|<p>Network interface regex used in pod's metric discovery. Can be overridden on the host or linked template level.</p>|`CHANGE_IF_NEEDED`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -213,6 +215,8 @@ There are no template links in this template.
 |Discovery cpu_usage|<p>-</p>|`Dependent item`|prom.pod.discovery[cpu_usage]<p>Update: 0</p>|
 |Discovery storage_fs|<p>-</p>|`Dependent item`|prom.pod.discovery[storage,fs]<p>Update: 0</p>|
 |Discovery memory|<p>-</p>|`Dependent item`|prom.pod.discovery[memory]<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -235,6 +239,8 @@ There are no template links in this template.
 |{#CONTAINER} - container_cpu_usage_seconds_total|<p>-</p>|`Dependent item`|prom.pod.metrics[cpu_usage,{#CONTAINER},container_cpu_usage_seconds_total]<p>Update: 0</p><p>LLD</p>|
 |{#CONTAINER} - Storage {#DEVICE}: {#METRIC}|<p>-</p>|`Dependent item`|prom.pod.metrics[storage,{#CONTAINER},{#METRIC},{#DEVICE}]<p>Update: 0</p><p>LLD</p>|
 |{#CONTAINER} - {#METRIC}|<p>-</p>|`Dependent item`|prom.pod.metrics[memory,{#CONTAINER},{#METRIC}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -355,6 +361,8 @@ Laurent Marchelli
 |{$VFS.FS.INODE.PFREE.MIN.WARN}|<p>-</p>|`20`|Text macro|
 |{$VFS.FS.PUSED.MAX.CRIT}|<p>-</p>|`90`|Text macro|
 |{$VFS.FS.PUSED.MAX.WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -365,6 +373,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Kube pod|<p>-</p>|`HTTP agent`|prom.pod.discovery<p>Update: 1m</p>|
 |Kube node|<p>-</p>|`HTTP agent`|prom.node.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 There are no items in this template.
@@ -539,6 +549,8 @@ Laurent Marchelli
 |{$VFS.FS.INODE.PFREE.MIN.WARN}|<p>-</p>|`20`|Text macro|
 |{$VFS.FS.PUSED.MAX.CRIT}|<p>-</p>|`90`|Text macro|
 |{$VFS.FS.PUSED.MAX.WARN}|<p>-</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -550,6 +562,8 @@ There are no template links in this template.
 |Mounted filesystem discovery|<p>Discovery of file systems of different types.</p>|`Dependent item`|vfs.fs.discovery[node_exporter]<p>Update: 0</p>|
 |Block devices discovery|<p>-</p>|`Dependent item`|vfs.dev.discovery[node_exporter]<p>Update: 0</p>|
 |Network interface discovery|<p>Discovery of network interfaces. Requires node_exporter v0.18 and up.</p>|`Dependent item`|net.if.discovery[node_exporter]<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -610,6 +624,8 @@ There are no template links in this template.
 |Interface {#IFNAME}({#IFALIAS}): Speed|<p>Sets value to 0 if metric is missing in node_exporter output.</p>|`Dependent item`|net.if.speed[node_exporter,"{#IFNAME}"]<p>Update: 0</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Operational status|<p>Indicates the interface RFC2863 operational state as a string. Possible values are:"unknown", "notpresent", "down", "lowerlayerdown", "testing","dormant", "up". Reference: https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net</p>|`Dependent item`|net.if.status[node_exporter,"{#IFNAME}"]<p>Update: 0</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Interface type|<p>node_network_protocol_type protocol_type value of /sys/class/net/<iface>.</p>|`Dependent item`|net.if.type[node_exporter,"{#IFNAME}"]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

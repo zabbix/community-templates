@@ -82,6 +82,8 @@ There are no discovery rules in this template.
 |C1 P2I Bay 7|<p>-</p>|`IPMI agent`|C1P2IBay7<p>Update: 300</p>|
 |Fan Block 1|<p>-</p>|`IPMI agent`|FanBlock1<p>Update: 300</p>|
 |35-LOM Card|<p>-</p>|`IPMI agent`|35-LOMCard<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -69,6 +69,8 @@ There are no discovery rules in this template.
 |Corrente de Saída PoE (Amperes)|<p>-</p>|`SNMP agent`|corrente<p>Update: 60s</p>|
 |Status de controle da Saída da Fonte|<p>-</p>|`SNMP agent`|statusswitch<p>Update: 60s</p>|
 |Status PoE|<p>-</p>|`SNMP agent`|statuspoe<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

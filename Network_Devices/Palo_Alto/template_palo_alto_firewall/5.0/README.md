@@ -15,6 +15,8 @@ There are no template links in this template.
 |Memory|<p>-</p>|`SNMP agent`|hrStorageDescr[memory]<p>Update: 300</p>|
 |$1 Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[FAN]<p>Update: 300</p>|
 |$1 Discovery|<p>ENTITY-SENSOR-MIB::entPhySensorType The type of data returned by the associated entPhySensorValue object.</p>|`SNMP agent`|entPhySensorType[Temperature]<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -30,6 +32,8 @@ There are no template links in this template.
 |Operational status of FAN $1|<p>ENTITY-SENSOR-MIB::entPhySensorOperStatus The operational status of the sensor.</p>|`SNMP agent`|entPhySensorOperStatus[{#SNMPVALUE},FAN]<p>Update: 30</p><p>LLD</p>|
 |Operational status of $2 Sensor $1|<p>ENTITY-SENSOR-MIB::entPhySensorOperStatus The operational status of the sensor.</p>|`SNMP agent`|entPhySensorOperStatus[{#SNMPVALUE},Temperature]<p>Update: 30</p><p>LLD</p>|
 |Temperature on Sensor #$1|<p>ENTITY-SENSOR-MIB::entPhySensorValue The most recent measurement obtained by the agent for this sensor.</p>|`SNMP agent`|entPhySensorValue[{#SNMPVALUE},Temperature]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

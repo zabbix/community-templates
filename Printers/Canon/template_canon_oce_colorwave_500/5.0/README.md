@@ -54,6 +54,8 @@ There are no discovery rules in this template.
 |Счетчик тонера - желтый|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.1552.21.3.1.1.5.5.0<p>Update: 3h</p>|
 |OCE500 IP adress|<p>-</p>|`SNMP agent`|OCE500.system.ip<p>Update: 3h</p>|
 |Счетчик тонера - Черно-белый САПР|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.1552.21.3.1.1.5.9.0<p>Update: 3h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

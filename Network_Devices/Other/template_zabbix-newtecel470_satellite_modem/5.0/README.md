@@ -52,6 +52,8 @@ There are no discovery rules in this template.
 |estInputBitrate|<p>Extra performance stuff for Newtec satellite modems</p>|`SNMP agent`|estInputBitrate<p>Update: {$UPDATEINT}</p>|
 |SNMP traps (fallback)|<p>-</p>|`SNMP trap`|snmptrap.fallback<p>Update: 0</p>|
 |ethTxErrors|<p>Extra performance stuff for Newtec satellite modems</p>|`SNMP agent`|ethTxErrors<p>Update: {$UPDATEINT}</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

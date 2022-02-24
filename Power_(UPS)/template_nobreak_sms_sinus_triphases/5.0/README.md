@@ -92,6 +92,8 @@ There are no discovery rules in this template.
 |Tensao de saida S|<p>Tensao de saida S</p>|`SNMP agent`|voutS<p>Update: 1</p>|
 |Tensao de entrada S|<p>Tensao de entrada S</p>|`SNMP agent`|vinS<p>Update: 1</p>|
 |Tensao de entrada T|<p>Tensao de entrada T</p>|`SNMP agent`|vinT<p>Update: 1</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

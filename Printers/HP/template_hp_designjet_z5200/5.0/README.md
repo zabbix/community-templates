@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Max cartridge toner level - cyan|<p>-</p>|`SNMP agent`|ink.cyan.max<p>Update: 3600</p>|
 |Тип картриджа - Желтый|<p>-</p>|`SNMP agent`|yellow.cartridge.type<p>Update: 21600</p>|
 |Матовый Черный картридж %|<p>-</p>|`Calculated`|matte.black<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

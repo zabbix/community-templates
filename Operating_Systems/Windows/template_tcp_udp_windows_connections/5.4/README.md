@@ -59,6 +59,8 @@ There are no discovery rules in this template.
 |TCP Sockets In ESTABLISHED|<p>TCP sockets currently in use on the system.</p>|`Zabbix agent`|sockstat.tcp.inuse<p>Update: 60</p>|
 |UDP Sockets In Use Count|<p>-</p>|`Zabbix agent`|sockstat.udp.inuse.count<p>Update: 60</p>|
 |TCP Sockets in LISTENING|<p>-</p>|`Zabbix agent`|sockstat.tcp.allocated<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

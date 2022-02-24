@@ -23,11 +23,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Operating System Identification discovery|<p>Operating System Identification discovery.</p>|`Zabbix agent`|vfs.file.contents["/etc/os-release"]<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |OSI {#KEY}|<p>-</p>|`Zabbix agent`|vfs.file.regexp["/etc/os-release","^{#KEY}=(?P<quote>[\"']?)(?P<value>[\S\s]*?)(?P=quote)($|\s)",,,,\2]<p>Update: 1d</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

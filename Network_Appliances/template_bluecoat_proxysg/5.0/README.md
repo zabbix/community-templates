@@ -85,6 +85,8 @@ There are no discovery rules in this template.
 |Name of the proxy software|<p>Name of the proxy software.</p>|`SNMP agent`|sgProxySoftware<p>Update: 3600</p>|
 |Quantity of storage in use|<p>The quantity of storage in use by the proxy.</p>|`SNMP agent`|sgProxyStorage<p>Update: 60</p>|
 |Version of the proxy software|<p>Version of the proxy software.</p>|`SNMP agent`|sgProxyVersion<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

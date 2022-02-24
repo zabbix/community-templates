@@ -37,6 +37,8 @@ It will use the chrony template.
 |----|-----------|-------|----|
 |{$NTP_OFFSET}|<p>-</p>|`50`|Text macro|
 |{$NTP_OFFSET_LARGE}|<p>-</p>|`5000`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -62,6 +64,8 @@ There are no discovery rules in this template.
 |NTP time difference (ms)|<p>Displays the difference between NTP time and system time.</p>|`Dependent item`|Systemtime_ms<p>Update: 0</p>|
 |NTP polling|<p>Displays the synchronization interval with the NTP server.</p>|`Dependent item`|Updateinterval<p>Update: 0</p>|
 |NTP synchronized server|<p>-</p>|`Dependent item`|Reference<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

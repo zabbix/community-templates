@@ -24,6 +24,8 @@ There are no macros links in this template.
 |----|
 |Template Module ICMP Ping|
 |Template Module Generic SNMP|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -31,6 +33,8 @@ There are no macros links in this template.
 |Output line|<p>-</p>|`SNMP agent`|ups.line.output<p>Update: 1h</p>|
 |Input line|<p>-</p>|`SNMP agent`|ups.line.input<p>Update: 1h</p>|
 |Bypass|<p>-</p>|`SNMP agent`|ups.bypass<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +64,8 @@ There are no macros links in this template.
 |UPS bypass current {#SNMPINDEX}|<p>-</p>|`SNMP agent`|ups.bypass.current[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |UPS bypass power {#SNMPINDEX}|<p>-</p>|`SNMP agent`|ups.bypass.power[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |UPS bypass voltage {#SNMPINDEX}|<p>-</p>|`SNMP agent`|ups.bypass.voltage[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

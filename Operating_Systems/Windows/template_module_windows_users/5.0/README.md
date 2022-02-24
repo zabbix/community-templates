@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Number of logged in users|<p>The number of users who are currently logged in.</p>|`Zabbix agent`|wmi.getall[root\cimv2,select SessionId from Win32_Process where Name like '%explorer.exe%']<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -163,6 +165,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Number of logged in users|<p>The number of users who are currently logged in.</p>|`Zabbix agent (active)`|wmi.getall[root\cimv2,select SessionId from Win32_Process where Name like '%explorer.exe%']<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

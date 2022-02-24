@@ -57,11 +57,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Juniper Optical Interfaces Discovery|<p>-</p>|`SNMP agent`|net.if.optical.discovery<p>Update: 12h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interface {#IFNAME}({#IFALIAS}): RxLaserPower|<p>-</p>|`SNMP agent`|jnxDomCurrentRxLaserPower[ifDescr.{#SNMPINDEX}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

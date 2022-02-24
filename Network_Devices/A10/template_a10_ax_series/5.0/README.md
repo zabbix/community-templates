@@ -15,6 +15,8 @@ There are no template links in this template.
 |Power Supply Discovery|<p>A10-AX-MIB::axPowerSupplyName The pwer supply name.</p>|`SNMP agent`|axPowerSupplyName<p>Update: 300</p>|
 |FAN Discovery|<p>A10-AX-MIB::axFanName The system fan name.</p>|`SNMP agent`|axFanName<p>Update: 300</p>|
 |Power Supply Voltage Discovery|<p>A10-AX-MIB::axPowerSupplyVoltageDescription The description of the system power supply voltage.</p>|`SNMP agent`|axPowerSupplyVoltageDescription<p>Update: 300</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Speed of FAN "$1"|<p>A10-AX-MIB::axFanSpeed The fan speed.</p>|`SNMP agent`|axFanSpeed["{#SNMPVALUE}"]<p>Update: 300</p><p>LLD</p>|
 |Status of "$1" FAN|<p>A10-AX-MIB::axFanStatus Fan status: 0: Failed, 4: OK-fixed/high, 5: OK-low/med, 6: OK-med/med, 7: OK-med/high, -2: not ready, -1: unknown.</p>|`SNMP agent`|axFanStatus["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
 |Status of Power Supply Voltage "$1"|<p>A10-AX-MIB::axPowerSupplyVoltageStatus The status of the indexed system power supply voltage. This is only supported for the platform where the sensor data is available.</p>|`SNMP agent`|axPowerSupplyVoltageStatus["{#SNMPVALUE}"]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -64,6 +64,8 @@ There are no discovery rules in this template.
 |Belt level %|<p>-</p>|`Calculated`|BeltLevelPercCalc<p>Update: 300</p>|
 |Fuser level %|<p>-</p>|`Calculated`|FuserLevelPercCalc<p>Update: 300</p>|
 |Yellow Drum max|<p>-</p>|`SNMP agent`|usageDrumMaxLevel.4<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

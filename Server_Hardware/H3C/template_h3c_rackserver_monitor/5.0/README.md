@@ -28,6 +28,8 @@ zhangzhefeng
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CLOUD_SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |Memory Discovery|<p>-</p>|`SNMP agent`|MemoryDiscovery<p>Update: 1h</p>|
 |CPU Discovery|<p>-</p>|`SNMP agent`|CPUDiscovery<p>Update: 1h</p>|
 |PCIE Discovery|<p>-</p>|`SNMP agent`|NetCardDiscovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -51,6 +55,8 @@ There are no template links in this template.
 |Memory  Status {#SNMPVALUE}|<p>-</p>|`SNMP agent`|MemoryStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |CPU Status [{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|CPUStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
 |PCIE Status Slot[{#SNMPVALUE}]|<p>-</p>|`SNMP agent`|NetCardStatus.[{#SNMPINDEX}]<p>Update: 10m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -90,6 +90,8 @@ There are no discovery rules in this template.
 |Тип картриджа - yellow|<p>-</p>|`SNMP agent`|type.yellow<p>Update: 12h</p>|
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 12h</p>|
 |Тип картриджа - magenta|<p>-</p>|`SNMP agent`|type.magenta<p>Update: 12h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

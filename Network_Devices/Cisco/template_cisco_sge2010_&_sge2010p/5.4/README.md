@@ -416,6 +416,8 @@ There are no discovery rules in this template.
 |Pacotes de saída com erro GigabitEthernet1/0/26|<p>-</p>|`SNMP agent`|ifOutErrors.26<p>Update: 60</p>|
 |Pacotes de saída com erro GigabitEthernet1/0/44|<p>-</p>|`SNMP agent`|ifOutErrors.44<p>Update: 60</p>|
 |Pacotes de entrada com erro GigabitEthernet1/0/16|<p>-</p>|`SNMP agent`|ifInErrors.16<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

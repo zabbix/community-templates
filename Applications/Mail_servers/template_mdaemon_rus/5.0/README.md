@@ -78,6 +78,8 @@ There are no discovery rules in this template.
 |Активные сеансы SMTP (вх)|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Активные сеансы SMTP (вх)"]<p>Update: 30</p>|
 |SMTP-сообщений (исх)/с|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\SMTP-сообщений (исх)/с"]<p>Update: 30</p>|
 |Сообщения в очереди повторов|<p>-</p>|`Zabbix agent`|perf_counter["\MDaemon\Сообщения в очереди повторов"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

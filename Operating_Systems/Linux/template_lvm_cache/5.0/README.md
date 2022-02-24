@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |promotions|<p>-</p>|`Dependent item`|lvmcache.promotions<p>Update: 0</p>|
 |used_cache_blocks|<p>-</p>|`Dependent item`|lvmcache.used_cache_blocks<p>Update: 0</p>|
 |total_cache_blocks|<p>-</p>|`Dependent item`|lvmcache.total_cache_blocks<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

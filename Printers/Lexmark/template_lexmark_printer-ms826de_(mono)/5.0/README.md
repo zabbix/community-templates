@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |Maintenance Kit level|<p>-</p>|`SNMP agent`|MaintenanceKitCurrentLevel<p>Update: 60</p>|
 |Toner print level (black cartridge)|<p>-</p>|`SNMP agent`|prtMarkerSuppliesLevel<p>Update: 60</p>|
 |06 Device uptime|<p>The time since the network management portion of the system was last re-initialized.</p>|`SNMP agent`|sysUpTime<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

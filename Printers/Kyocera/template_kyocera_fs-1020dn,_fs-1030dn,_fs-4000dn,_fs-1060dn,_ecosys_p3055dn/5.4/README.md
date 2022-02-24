@@ -53,6 +53,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |KyoceraPrint|<p>-</p>|`SNMP agent`|KyoceraPrint<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -73,6 +75,8 @@ There are no template links in this template.
 |Время работы|<p>Время работы с момента последнего включения</p>|`SNMP agent`|UpTime<p>Update: 60</p>|
 |MAC адрес|<p>-</p>|`SNMP agent`|MAC<p>Update: 3600</p>|
 |Отпечатанно страниц|<p>Общее количество отпечатанных страниц</p>|`SNMP agent`|PageCounter<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

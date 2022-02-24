@@ -20,6 +20,8 @@ There are no macros links in this template.
 |----|
 |Template Module ICMP Ping|
 |Template Module Generic SNMP|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -42,6 +44,8 @@ There are no discovery rules in this template.
 |System SW version|<p>-</p>|`SNMP agent`|system.sw.version<p>Update: 1h</p>|
 |Storage Incoming Replication|<p>-</p>|`SNMP agent`|system.storage.inrep<p>Update: 1h</p>|
 |Storage Outgoing Replication|<p>-</p>|`SNMP agent`|system.storage.outrep<p>Update: 1h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -34,6 +34,8 @@ Federico Coppola
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -54,6 +56,8 @@ There are no discovery rules in this template.
 |SNMP Check UDP 161|<p>-</p>|`Simple check`|net.udp.service[ntp,,161]<p>Update: 30s</p>|
 |Ethernet Interface Status|<p>Ethernet Interface status Value = 1 (UP) Value = 0 (DOWN)</p>|`SNMP agent`|eth.int.status<p>Update: 30s</p>|
 |HTTP Check TCP 80|<p>HTTP Web Server Check</p>|`Simple check`|net.tcp.service[http]<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -43,6 +43,8 @@ There are no template links in this template.
 |OSPF Neighbors|<p>-</p>|`SNMP agent`|ospfNbrIpAddr<p>Update: 5m</p>|
 |OSPF Areas|<p>-</p>|`SNMP agent`|ospfAreaId<p>Update: 5m</p>|
 |OSPF Interfaces|<p>Identifies OSPF Interfaces.</p>|`SNMP agent`|ospfIfIpAddress<p>Update: 5m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -71,6 +73,8 @@ There are no template links in this template.
 |OSPF interface $1 state|<p>The OSPF Interface State.</p>|`SNMP agent`|ospfIfState[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |OSPF interface $1 Interface Type|<p>The OSPF interface type. By way of a default, this field may be intuited from the corresponding value of ifType. Broadcast LANs, such as Ethernet and IEEE 802.5, take the value 'broadcast', X.25 and similar technologies take the value 'nbma', and links that are definitively point to point take the value 'pointToPoint'.</p>|`SNMP agent`|ospfIfType[{#SNMPINDEX}]<p>Update: 5m</p><p>LLD</p>|
 |OSPF interface $1 event rate|<p>Dependent item for graphs</p>|`Dependent item`|ospfIfEventsPerSecond[{#SNMPINDEX}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

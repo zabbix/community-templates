@@ -35,6 +35,8 @@ Tiago TT
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`e3b56dd2ad99199`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -50,6 +52,8 @@ There are no template links in this template.
 |Humidity Sensor Discovery|<p>-</p>|`SNMP agent`|pdu.sensor.humidity<p>Update: 1m</p>|
 |Power Inlet Discovery|<p>-</p>|`SNMP agent`|pdu.inlet<p>Update: 1m</p>|
 |Over Current Protector Discovery|<p>-</p>|`SNMP agent`|pdu.protector<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -88,6 +92,8 @@ There are no template links in this template.
 |RMS Current State on Over Current Protector {#PDU_PROTECTOR_LABEL} - {#PDU_PROTECTOR_NAME}|<p>RMS Current sensor from the PDU over current protector the following details: Label: {#PDU_PROTECTOR_LABEL} Name: {#PDU_PROTECTOR_NAME} Rated Current: {#PDU_PROTECTOR_RATED_CURRENT}</p>|`SNMP agent`|pdu.protector.current_state[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Trip Sensor on Over Current Protector {#PDU_PROTECTOR_LABEL} - {#PDU_PROTECTOR_NAME}|<p>Trip sensor from the PDU over current protector the following details: Label: {#PDU_PROTECTOR_LABEL} Name: {#PDU_PROTECTOR_NAME} Rated Current: {#PDU_PROTECTOR_RATED_CURRENT}</p>|`SNMP agent`|pdu.protector.trip[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Trip Sensor State on Over Current Protector {#PDU_PROTECTOR_LABEL} - {#PDU_PROTECTOR_NAME}|<p>Trip sensor from the PDU over current protector the following details: Label: {#PDU_PROTECTOR_LABEL} Name: {#PDU_PROTECTOR_NAME} Rated Current: {#PDU_PROTECTOR_RATED_CURRENT}</p>|`SNMP agent`|pdu.protector.trip_state[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

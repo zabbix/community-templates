@@ -21,6 +21,8 @@ Cesar Buffulin
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`sksnmp`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -30,6 +32,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interfaces Discovery|<p>.</p>|`SNMP agent`|net.if.discovery<p>Update: 60s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -58,6 +62,8 @@ There are no template links in this template.
 |Interface {#IFNAME}({#IFALIAS}): Bytes Out|<p>-</p>|`SNMP agent`|net.if.out[ifHCOutOctets.{#SNMPINDEX}]<p>Update: 120;30/2-6,07:00-21:00</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Speed|<p>-</p>|`SNMP agent`|net.if.speed[ifHighSpeed.{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Operational status|<p>-</p>|`SNMP agent`|net.if.status[ifOperStatus.{#SNMPINDEX}]<p>Update: 240s;120s/2-6,07:00-21:00</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -26,6 +26,8 @@ Oleg Morozov aka zigmund
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NUTCRACKER_URL}|<p>Nutcracker stats URL</p>|`http://localhost:22222`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -36,6 +38,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Server discovery|<p>-</p>|`Dependent item`|nutcracker[stats,server_discovery]<p>Update: 0</p>|
 |Pool discovery|<p>-</p>|`Dependent item`|nutcracker[stats,pool_discovery]<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -63,6 +67,8 @@ There are no template links in this template.
 |Nutcracker pool {#POOL} forward errors per second|<p>Number of forwarding errors per second</p>|`Dependent item`|nutcracker[stats,pools,{#POOL},forward_error]<p>Update: 0</p><p>LLD</p>|
 |Nutcracker pool {#POOL} fragments per second|<p>Number of fragments created from a multi-vector request per second</p>|`Dependent item`|nutcracker[stats,pools,{#POOL},fragments]<p>Update: 0</p><p>LLD</p>|
 |Nutcracker pool {#POOL} server ejects per second|<p>Number of times backend server was ejected per second</p>|`Dependent item`|nutcracker[stats,pools,{#POOL},server_ejects]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

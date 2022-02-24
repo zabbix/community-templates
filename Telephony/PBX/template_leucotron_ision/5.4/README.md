@@ -30,6 +30,8 @@ Fernando Vançan
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`sobam`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -41,6 +43,8 @@ There are no template links in this template.
 |Mídias|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.2.3.2.1.1<p>Update: 1d</p>|
 |Licenças|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.3.2.1.1.1<p>Update: 1d</p>|
 |Dados dos SLOTS|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.3.1.2.1.1<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -90,6 +94,8 @@ There are no template links in this template.
 |Número do TDM {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.3.1.2.1.5.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Número Serial {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.3.1.2.1.6.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
 |Data inclusão/exclusão {#SNMPINDEX}|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.17069.1.3.1.3.1.2.1.7.[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

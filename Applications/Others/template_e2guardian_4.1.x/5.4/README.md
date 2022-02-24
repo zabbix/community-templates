@@ -43,6 +43,8 @@ Marco Hofmann
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$E2GUARDIAN_DSTATS}|<p>-</p>|`/var/log/e2guardian/dstats.log`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -66,6 +68,8 @@ There are no discovery rules in this template.
 |e2guardian - requests per second|<p>9. reqs/s - average requests per sec over period since last stats line.</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},9]<p>Update: 5m</p>|
 |e2guardian - log queue|<p>5. logQ - Number of messages waiting to be logged to disk. In normal use 0. An increase in number may indicate system overloading, but should not otherwise affect performance.</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},5]<p>Update: 5m</p>|
 |e2guardian - maximum number file descriptor in use|<p>10. maxfd - Indication of maximum number file descriptor in use</p>|`Zabbix agent (active)`|e2guardian[{$E2GUARDIAN_DSTATS},10]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

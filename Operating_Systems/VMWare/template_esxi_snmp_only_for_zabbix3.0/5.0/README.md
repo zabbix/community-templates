@@ -15,6 +15,8 @@ There are no template links in this template.
 |Virtual Machines|<p>-</p>|`SNMP agent`|vmwVmDisplayName<p>Update: 3600</p>|
 |Disk partitions|<p>The rule will discover all dis partitions matching the global regexp "Storage devices for SNMP discovery". {$SNMP_COMMUNITY} is a global macro. hrStorageFixedDisk</p>|`SNMP agent`|hrStorageAlloc<p>Update: 3600</p>|
 |Memory|<p>-</p>|`SNMP agent`|hrStorageDescr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -38,6 +40,8 @@ There are no template links in this template.
 |Free Memory|<p>-</p>|`Calculated`|hrMemoryFree[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |Total Memory|<p>-</p>|`SNMP agent`|hrMemoryTotal[{#SNMPINDEX}]<p>Update: 300</p><p>LLD</p>|
 |Memory Used|<p>-</p>|`SNMP agent`|hrMemoryUsed[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

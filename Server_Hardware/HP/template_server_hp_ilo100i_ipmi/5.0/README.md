@@ -114,6 +114,8 @@ There are no discovery rules in this template.
 |PROC2 DIMM1|<p>-</p>|`IPMI agent`|temp.proc2.dimm1<p>Update: 15m</p>|
 |2U_2HDD14_Outlet|<p>-</p>|`IPMI agent`|board.2u.2hdd14.outlet<p>Update: 15m</p>|
 |CPU1_PROCHOT|<p>-</p>|`IPMI agent`|proc.cpu1.prochot<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

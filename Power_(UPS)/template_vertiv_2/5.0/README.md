@@ -15,6 +15,8 @@ Mihguel da Silva Santos Tavares de Araujo
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$HOSTNAME}|<p>HOSTNAME</p>|`{#IFHOSTNAME}`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -26,6 +28,8 @@ There are no template links in this template.
 |Alarms Description|<p>-</p>|`SNMP agent`|ifAlarmDescription<p>Update: 1m</p>|
 |Retificadores|<p>-</p>|`SNMP agent`|ifRetificadores<p>Update: 1m</p>|
 |Battery|<p>-</p>|`SNMP agent`|ifBattery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -62,6 +66,8 @@ There are no template links in this template.
 |{#IFDESCR} - Temperature|<p>-</p>|`SNMP agent`|ifTemperatura[{#IFDESCR}]<p>Update: 1h</p><p>LLD</p>|
 |Serial {#IFDESCR}|<p>-</p>|`SNMP agent`|serial[{#IFDESCR}]<p>Update: 1h</p><p>LLD</p>|
 |{#IFBATTERY} - Capacidade|<p>Tipo de Bateria Utilizada</p>|`SNMP agent`|ifBatteryRating[{#IFBATTERY}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

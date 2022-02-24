@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Number of slow ICAP connections|<p>The number of ICAP connections that are considered 'slow' - receiving data for more than the configured time threshold (by default 60 seconds).</p>|`SNMP agent`|avSlowICAPConnections<p>Update: 60</p>|
 |Version published on the automatic update location|<p>ProxyAV version published on the automatic update location.</p>|`SNMP agent`|avPublishedFirmwareVersion<p>Update: 3600</p>|
 |AV engine version|<p>AV engine version.</p>|`SNMP agent`|avEngineVersion<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

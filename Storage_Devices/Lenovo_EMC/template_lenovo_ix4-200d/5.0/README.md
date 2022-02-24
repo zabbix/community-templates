@@ -28,6 +28,8 @@ Template Lenovo ix4-200d
 |{$SENHA}|<p>-</p>|`itg@1720`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`itg`|Text macro|
 |{$USUARIO}|<p>-</p>|`itg`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -84,6 +86,8 @@ There are no discovery rules in this template.
 |Descrição|<p>-</p>|`SNMP agent`|sysDescr<p>Update: 30</p>|
 |Capacidade do disco 4|<p>-</p>|`SNMP agent`|enterprises.1139.3.4<p>Update: 30</p>|
 |MTU ethernet 0|<p>-</p>|`SNMP agent`|ifMtu.2<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

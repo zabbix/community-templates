@@ -29,6 +29,8 @@ SNMP Discovery - Temperature Sensor
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -43,6 +45,8 @@ There are no template links in this template.
 |SNMP Discovery - CPU Load|<p>-</p>|`SNMP agent`|snmp.discovery.cpu.load<p>Update: 60</p>|
 |SNMP Discovery - Fan|<p>-</p>|`SNMP agent`|snmp.discovery.fan<p>Update: 60</p>|
 |SNMP Discovery - Temperature Sensor|<p>-</p>|`SNMP agent`|snmp.discovery.temp.sensor<p>Update: 60</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -126,6 +130,8 @@ There are no template links in this template.
 |{#SNMPVALUE} - Max Temperature|<p>-</p>|`SNMP agent`|temperatureSensorMaxTemperature[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |{#SNMPVALUE} - Min Temperature|<p>-</p>|`SNMP agent`|temperatureSensorMinTemperature[{#SNMPINDEX}]<p>Update: 60</p><p>LLD</p>|
 |{#SNMPVALUE} - Read Error|<p>-</p>|`SNMP agent`|temperatureSensorTemperatureReadError[{#SNMPINDEX}]<p>Update: 10</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

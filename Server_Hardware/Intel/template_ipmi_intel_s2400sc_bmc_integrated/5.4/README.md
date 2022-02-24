@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |BB +1.8V AUX|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.1.1BBvaux<p>Update: 240</p>|
 |BB EDGE Temp|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.bbedge.temp<p>Update: 240</p>|
 |BB +3.3V AUX|<p>-</p>|`IPMI agent`|ipmi.intel.s2400sc.3.3BBVAUX<p>Update: 240</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

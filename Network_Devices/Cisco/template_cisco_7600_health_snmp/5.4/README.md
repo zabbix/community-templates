@@ -137,6 +137,8 @@ Flavio Camacho Junior
 |{$CPU_HIGH_WARNING}|<p>% cpu alarm</p>|`70`|Text macro|
 |{$MEMORY_HIGH_ALARM}|<p>% memory alarm</p>|`80`|Text macro|
 |{$MEMORY_HIGH_WARNING}|<p>% memoty warning</p>|`70`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -152,6 +154,8 @@ There are no template links in this template.
 |Power Supply Discovery|<p>CISCO-ENVMON-MIB::ciscoEnvMonSupplyStatusDescr Textual description of the power supply being instrumented.</p>|`SNMP agent`|ciscoEnvMonSupplyStatusDescr["Power Supply"]<p>Update: 1h</p>|
 |CPU Discovery|<p>CISCO-PROCESS-MIB::cpmCPUTotalPhysicalIndex The entPhysicalIndex of the physical entity for which the CPU statistics in this entry are maintained. The physical entity can be a CPU chip, a group of CPUs, a CPU card etc. The exact type of this entity is described by its entPhysicalVendorType value. If the CPU statistics in this entry correspond to more than one physical entity (or to no physical entity), or if the entPhysicalTable is not supported on the SNMP agent, the value of this object must be zero.</p>|`SNMP agent`|cpmCPUTotalPhysicalIndex["CPU"]<p>Update: 1h</p>|
 |Power Comsumption Discovery|<p>CISCO-ENTITY-FRU-CONTROL-MIB</p>|`SNMP agent`|cefcConnectorRating["Power Consumption"]<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -172,6 +176,8 @@ There are no template links in this template.
 |Module "$1" Voltage (V)|<p>-</p>|`SNMP agent`|cefcConnectorRating["{#SNMPINDEX}"]<p>Update: 5m</p><p>LLD</p>|
 |Module "$1" Current (A)|<p>-</p>|`SNMP agent`|cefcModulePowerConsumptionTable["{#SNMPINDEX}"]<p>Update: 5m</p><p>LLD</p>|
 |Module "$1" Power (W)|<p>-</p>|`Calculated`|moduleComsumption["{#SNMPINDEX}"]<p>Update: 5m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -39,6 +39,8 @@ There are no discovery rules in this template.
 |5VCC|<p>-</p>|`IPMI agent`|5VCC<p>Update: 60</p>|
 |Peripheral Temp|<p>-</p>|`IPMI agent`|PeripheralTemp<p>Update: 60</p>|
 |DIMMB1 Temp|<p>-</p>|`IPMI agent`|DIMMB1Temp<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

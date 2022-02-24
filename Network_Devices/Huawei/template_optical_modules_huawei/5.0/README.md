@@ -21,6 +21,8 @@ gustavo10telecom
 |{$ATTENUATIONFACTOR}|<p>-</p>|`-2`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`dEz_sW_@ro`|Text macro|
 |{$TRANSCEIVER_TEMP_WARN}|<p>-</p>|`70`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -31,6 +33,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Network Optical Modules Multi Lane|<p>-</p>|`SNMP agent`|net.optical.ml.discovery<p>Update: 1h</p>|
 |Network Optical Modules Single Lane|<p>-</p>|`SNMP agent`|net.optical.sl.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -67,6 +71,8 @@ There are no template links in this template.
 |Optical Module Interface {#ENTPHYSICALNAME}: TxPower Low Warning Threshold|<p>-</p>|`SNMP agent`|hwEntityOpticalTxLowWarnThreshold[{#ENTPHYSICALNAME}]<p>Update: 10m</p><p>LLD</p>|
 |Optical Module Interface {#ENTPHYSICALNAME}: Vendor Name|<p>-</p>|`SNMP agent`|hwEntityOpticalVenderName[{#ENTPHYSICALNAME}]<p>Update: 1h</p><p>LLD</p>|
 |Optical Module Interface {#ENTPHYSICALNAME}: Type|<p>-</p>|`SNMP agent`|hwEntityOpticalVenderPn[{#ENTPHYSICALNAME}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

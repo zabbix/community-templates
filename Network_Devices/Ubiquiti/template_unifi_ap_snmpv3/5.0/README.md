@@ -33,6 +33,8 @@ Helmut Leonhardt
 |{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
 |{$SNMP_PRIVPASS}|<p>-</p>|``|Text macro|
 |{$SNMP_USERNAME}|<p>-</p>|``|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -42,6 +44,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Wifi Virtual Interfaces|<p>-</p>|`SNMP agent`|unifiVapEssId<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +79,8 @@ There are no template links in this template.
 |Traffic Incoming Errors per Second $2 on $1|<p>-</p>|`SNMP agent`|unifiVapRxErrors[{#UNIFIVAPESSID},{#UNIVAPRADIO}]<p>Update: 60s</p><p>LLD</p>|
 |Traffic Outgoing $2 on $1|<p>-</p>|`SNMP agent`|unifiVapTxBytes[{#UNIFIVAPESSID},{#UNIVAPRADIO}]<p>Update: 30s</p><p>LLD</p>|
 |Traffic Outgoing Errors per Second $2 on $1|<p>-</p>|`SNMP agent`|unifiVapTxErrors[{#UNIFIVAPESSID},{#UNIVAPRADIO}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

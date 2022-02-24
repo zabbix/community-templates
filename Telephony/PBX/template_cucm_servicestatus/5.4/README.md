@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Service A Cisco DB|<p>-</p>|`Dependent item`|axlCUCMserviceCiscoDB<p>Update: 0</p>|
 |Cisco Push Notification Service|<p>-</p>|`Dependent item`|axlCUCMservicePUSH<p>Update: 0</p>|
 |Cisco CTIManager|<p>-</p>|`Dependent item`|axlCUCMserviceCTIManager<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

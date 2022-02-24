@@ -24,6 +24,8 @@ yelin
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`rocommstr`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |h3cHardDiskInfo_discovery|<p>-</p>|`SNMP agent`|h3cHardDiskInfo_discovery<p>Update: 30s</p>|
 |h3cFru_discovery|<p>-</p>|`SNMP agent`|h3cFru_discovery<p>Update: 30s</p>|
 |h3cMem_discovery|<p>-</p>|`SNMP agent`|h3cMem_Discovery<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -68,6 +72,8 @@ There are no template links in this template.
 |HardDisk_[{#SNMPINDEX}]_Location|<p>The location of hard disk</p>|`SNMP agent`|HardDiskStatus[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Fru_[{#SNMPINDEX}]_Name|<p>-</p>|`SNMP agent`|FruName[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Mem_[{#SNMPINDEX}]_Status|<p>-</p>|`SNMP agent`|MemStatus[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |Conntrack delete per second|<p>Number of conntrack entries which were removed.</p>|`Dependent item`|conntrack_stats[delete]<p>Update: 0</p>|
 |Conntrack new per second|<p>Number of conntrack entries added which were not expected before.</p>|`Dependent item`|conntrack_stats[new]<p>Update: 0</p>|
 |Conntrack entries|<p>Number of entries in conntrack table.</p>|`Dependent item`|conntrack_stats[entries]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

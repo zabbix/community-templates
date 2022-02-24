@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |07-Chipset Zone|<p>-</p>|`IPMI agent`|07-ChipsetZone<p>Update: 300</p>|
 |02-CPU 1|<p>-</p>|`IPMI agent`|02-CPU1<p>Update: 300</p>|
 |12-System Board|<p>-</p>|`IPMI agent`|12-SystemBoard<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

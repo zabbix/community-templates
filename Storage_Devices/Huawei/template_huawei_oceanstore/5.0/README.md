@@ -18,6 +18,8 @@ Tested on 5500 V5, 5600 V5, 2600 V3, 5500 V3, dorado 5000 V3, 18800 V3 and dorad
 |{$API_USER}|<p>-</p>|``|Text macro|
 |{$SUBSCRIBED_PERCENT}|<p>-</p>|`91`|Text macro|
 |{$USED_PERCENT}|<p>-</p>|`91`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -40,6 +42,8 @@ There are no template links in this template.
 |PortFibreChannel|<p>-</p>|`Zabbix trapper`|fc_port<p>Update: 0</p>|
 |Disk|<p>-</p>|`Zabbix trapper`|disk<p>Update: 0</p>|
 |FAN|<p>-</p>|`Zabbix trapper`|fan<p>Update: 0</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -80,6 +84,8 @@ There are no template links in this template.
 |Running status of disk "{#LOCATION}"|<p>-</p>|`Zabbix trapper`|running.disk.[{#LOCATION}]<p>Update: 0</p><p>LLD</p>|
 |Health Status of a FAN "{#LOCATION}"|<p>-</p>|`Zabbix trapper`|health.fan.[{#LOCATION}]<p>Update: 0</p><p>LLD</p>|
 |Running status of a FAN "{#LOCATION}"|<p>-</p>|`Zabbix trapper`|running.fan.[{#LOCATION}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

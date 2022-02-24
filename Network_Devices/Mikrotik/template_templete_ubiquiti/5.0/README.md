@@ -77,6 +77,8 @@ There are no discovery rules in this template.
 |Ping On/Off|<p>-</p>|`Simple check`|icmpping<p>Update: 30s</p>|
 |Out Traffic|<p>-</p>|`SNMP agent`|ifOutOctets<p>Update: 30s</p>|
 |In Traffic -MK|<p>-</p>|`SNMP agent`|iso.3.6.1.2.1.2.2.1.10.2<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

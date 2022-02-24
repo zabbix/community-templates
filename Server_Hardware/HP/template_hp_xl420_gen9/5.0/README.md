@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |C1 P2I Bay 9|<p>-</p>|`IPMI agent`|C1P2IBay9<p>Update: 300</p>|
 |C2 P1I Bay 50|<p>-</p>|`IPMI agent`|C2P1IBay50<p>Update: 300</p>|
 |Fan 2|<p>-</p>|`IPMI agent`|Fan2<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

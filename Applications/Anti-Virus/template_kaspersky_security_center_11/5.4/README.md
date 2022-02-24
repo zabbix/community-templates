@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |Количество устройств в группах Сервера администрирования.|<p>-</p>|`SNMP agent`|hostsInGroups<p>Update: 30s</p>|
 |Количество устройств, которые не находятся под управлением сервера.|<p>-</p>|`SNMP agent`|hostsControlLost<p>Update: 30s</p>|
 |Уведомляет о наличии устройств, которые давно не подключались к серверу.|<p>-</p>|`SNMP agent`|notConnectedLongTime<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

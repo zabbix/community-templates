@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |系统状态|<p>-</p>|`SNMP agent`|ups.status<p>Update: 10m</p>|
 |输出电流A|<p>-</p>|`SNMP agent`|ups.OutputCurrenta<p>Update: 10m</p>|
 |输出电流B|<p>-</p>|`SNMP agent`|ups.OutputCurrentb<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

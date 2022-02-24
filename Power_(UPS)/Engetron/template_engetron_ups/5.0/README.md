@@ -29,6 +29,8 @@ There are no template links in this template.
 |Descoberta automática de Tensão de entrada|<p>Descoberta automática de Tensao de fase</p>|`SNMP agent`|tensao.discovery<p>Update: 30m</p>|
 |Descoberta automática de Potência de Saída|<p>Descoberta automática de Potencia de saída de fase</p>|`SNMP agent`|potencia.s.discovery<p>Update: 30m</p>|
 |Descoberta automática de Tensão de Saída|<p>Descoberta automática de Tensão de fase</p>|`SNMP agent`|tensao.s.discovery<p>Update: 30m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -47,6 +49,8 @@ There are no template links in this template.
 |Tensao de entrada da fase $1|<p>-</p>|`SNMP agent`|tensao.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Potencia de saída da fase $1|<p>-</p>|`SNMP agent`|potencia.s.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Tensão de saída da fase $1|<p>-</p>|`SNMP agent`|tensao.s.[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

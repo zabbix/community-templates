@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |Type_of_cartridge|<p>-</p>|`SNMP agent`|Type_of_cartridge<p>Update: 86400</p>|
 |MAC_address|<p>-</p>|`SNMP agent`|MAC_address<p>Update: 86400</p>|
 |SimplePing|<p>-</p>|`Simple check`|icmpping<p>Update: 360</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

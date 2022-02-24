@@ -87,6 +87,8 @@ There are no discovery rules in this template.
 |Exchange Middle-Tier Storage(*)\Items Moved to Dumpster/sec|<p>Shows the rate at which items are inserted into the transport dumpster on this server. Determines the current rate of transport dumpster inserts. MODIFIED_FOR_EX2016-WAS:perf_counter[" MSExchangeTransport Dumpster Dumpster Inserts/sec"]</p>|`Zabbix agent`|perf_counter["\MSExchange Middle-Tier Storage(*)\Items Moved to Dumpster/sec."]<p>Update: 30s</p>|
 |Exchange ActiveSync\Current Requests|<p>Shows the number of HTTP requests waiting to be assigned to a thread</p>|`Zabbix agent`|perf_counter["\MSExchange ActiveSync\Current Requests"]<p>Update: 30</p>|
 |Exchange ADAccess Domain Controllers(*)\LDAP Read Calls/sec|<p>Shows the current rate that LDAP reads occur while processing requests for the client. Used to determine the current LDAP read rate per protocol. MODIFIED_FOR_EX2016-WAS:perf_counter[" MSExchangeIS Client(*) Directory Access: LDAP Reads/sec"]</p>|`Zabbix agent`|perf_counter["\MSExchange ADAccess Domain Controllers(*)\LDAP Read Calls/sec"]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -30,6 +30,8 @@ There are no discovery rules in this template.
 |Pages printed - total|<p>-</p>|`SNMP agent`|pages.printed.total<p>Update: 30s</p>|
 |Cartridge drum level % - black|<p>-</p>|`Calculated`|black.cartridge.drum<p>Update: 15m</p>|
 |Cartridge toner level % - black|<p>-</p>|`Calculated`|black.cartridge.toner<p>Update: 15m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

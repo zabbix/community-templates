@@ -93,6 +93,8 @@ There are no discovery rules in this template.
 |P12V_STBY_V_MOIN|<p>-</p>|`IPMI agent`|P12V_STBY_V_MOIN<p>Update: 3600</p>|
 |DDR3_P1_D2_ECC|<p>-</p>|`IPMI agent`|DDR3_P1_D2_ECC<p>Update: 3600</p>|
 |PSU1_STATUS|<p>-</p>|`IPMI agent`|PSU1_STATUS<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

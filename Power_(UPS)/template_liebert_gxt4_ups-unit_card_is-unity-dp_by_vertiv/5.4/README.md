@@ -23,6 +23,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -51,6 +53,8 @@ There are no discovery rules in this template.
 |Number of current alarm|<p>The present number of active alarm conditions A list of alarm table entries. The table contains zero, one, or many rows at any moment, depending upon the number of alarm conditions in effect. The table is initially empty at agent startup. The agent creates a row in the table each time a condition is detected and deletes that row when that condition no longer pertains. The agent creates the first row with upsAlarmId equal to 1, and increments the value of upsAlarmId each time a new row is created, wrapping to the first free value greater than or equal to 1 when the maximum value of upsAlarmId would otherwise be exceeded. Consequently, after multiple operations, the table may become sparse, e.g., containing entries for rows 95, 100, 101, and 203 and the entries should not be assumed to be in chronological order because upsAlarmId might have wrapped. Alarms are named by an AutonomousType (OBJECT IDENTIFIER), upsAlarmDescr, to allow a single table to reflect well known alarms plus alarms defined by a particular implementation, i.e., as documented in the private enterprise MIB definition for the device. No two rows will have the same value of upsAlarmDescr, since alarms define conditions. In order to meet this requirement, care should be taken in the definition of alarm conditions to insure that a system cannot enter the same condition multiple times simultaneously. The number of rows in the table at any given time is reflected by the value of upsAlarmsPresent.</p>|`SNMP agent`|upsAlarmsPresent<p>Update: 1m</p>|
 |Battery voltage|<p>The magnitude of the present battery voltage.</p>|`SNMP agent`|upsBatteryVoltage<p>Update: 1m</p>|
 |Model|<p>-</p>|`SNMP agent`|lgpAgentDeviceModel<p>Update: 24h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

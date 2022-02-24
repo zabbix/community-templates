@@ -33,6 +33,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Station List|<p>-</p>|`SNMP agent`|ubntStaName<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -45,6 +47,8 @@ There are no template links in this template.
 |Station Signal Strength $1|<p>-</p>|`SNMP agent`|ubntStaSignal[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Station Tx Capacity $1|<p>-</p>|`SNMP agent`|ubntStaTxCapacity[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
 |Station  Tx Latency $1|<p>-</p>|`SNMP agent`|ubntStaTxLatency[{#SNMPVALUE}]<p>Update: 30</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

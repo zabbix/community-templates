@@ -63,6 +63,8 @@ Bernardo Lankheet
 |----|-----------|-------|----|
 |{$PATHLOG}|<p>Path Log zabbix_server.log</p>|`/var/log/zabbix/zabbix_server.log`|Text macro|
 |{$REGEXLOG}|<p>Regex Housekeeping line</p>|`.*deleted.*[0-9]+ hist\/trends.*`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -84,6 +86,8 @@ There are no discovery rules in this template.
 |Records deleted in Alarms|<p>-</p>|`Dependent item`|dep.housekeeper.alarms<p>Update: 0</p>|
 |Syslog Housekeeping|<p>-</p>|`Zabbix agent (active)`|log[{$PATHLOG},"{$REGEXLOG}",,,skip,,]<p>Update: 1s</p>|
 |Duration of the last executed Housekeeper|<p>-</p>|`Dependent item`|dep.housekeeper.duration<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

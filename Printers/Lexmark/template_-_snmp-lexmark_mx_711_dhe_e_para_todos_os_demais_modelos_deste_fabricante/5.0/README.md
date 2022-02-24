@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |Page Counter|<p>-</p>|`SNMP agent`|prtMarkerLifeCount<p>Update: 60</p>|
 |KIT Manutencao|<p>-</p>|`SNMP agent`|Kitmanutencao<p>Update: 30s</p>|
 |Device Manufacturer|<p>The textual identification of the contact person for this managed node, together with information on how to contact this person. If no contact information is known, the value is the zero-length string.</p>|`SNMP agent`|deviceManufacturer<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -55,6 +55,8 @@ There are no discovery rules in this template.
 |磁盘分区状态|<p>If you receive an alert, it means that partition has experienced an error.</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.21"]<p>Update: 0</p>|
 |存储柜电源状态|<p>If you receive an alert, it means that one of the power supplies has experienced an error.</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.11"]<p>Update: 0</p>|
 |PCI卡状态|<p>If you receive an alert, it means that one or more of the PCIe cards are not installed in the correct slots, or a PCIe card is not functional.</p>|`SNMP trap`|snmptrap["1.3.6.1.4.1.393.3.9.1.16"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

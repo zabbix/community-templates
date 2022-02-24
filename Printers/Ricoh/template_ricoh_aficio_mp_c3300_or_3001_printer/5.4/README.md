@@ -37,6 +37,8 @@ There are no discovery rules in this template.
 |在线状态|<p>-</p>|`Simple check`|icmpping<p>Update: 60</p>|
 |品红色碳粉余量|<p>返回值范围0-100（类似百分比），0表示碳粉用尽，100表示碳粉余量充足。</p>|`SNMP agent`|prints.toner.status[magenta]<p>Update: 180</p>|
 |设备序列号|<p>-</p>|`SNMP agent`|print.serial<p>Update: 3600</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

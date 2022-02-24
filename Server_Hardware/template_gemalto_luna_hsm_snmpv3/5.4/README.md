@@ -49,6 +49,8 @@ There are no discovery rules in this template.
 |Device software version|<p>-</p>|`SNMP agent`|confSoftwareVersion<p>Update: 300s</p>|
 |Crypto Status SHA2|<p>-</p>|`SNMP agent`|statusSHA2<p>Update: 300s</p>|
 |Network Status NIC2|<p>-</p>|`SNMP agent`|statusNIC2Port<p>Update: 300s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

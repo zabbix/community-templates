@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |FAN1 SYS|<p>-</p>|`IPMI agent`|ipmi.FAN1<p>Update: 300</p>|
 |Total Power Out|<p>-</p>|`IPMI agent`|ipmi.TotalPowerOut<p>Update: 300</p>|
 |BBU|<p>-</p>|`IPMI agent`|ipmi.BBU<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

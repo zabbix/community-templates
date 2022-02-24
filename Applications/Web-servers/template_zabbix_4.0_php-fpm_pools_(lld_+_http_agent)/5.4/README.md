@@ -205,6 +205,8 @@ Fabio Gallese
 |----|-----------|-------|----|
 |{$HOST.PHPFPM}|<p>-</p>|`127.0.0.1:8080`|Text macro|
 |{$PROTO}|<p>-</p>|`http`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -214,6 +216,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |PHP-FPM Pools Discovery|<p>-</p>|`Zabbix agent`|php-fpm.discover_pools<p>Update: 120s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -234,6 +238,8 @@ There are no template links in this template.
 |PHP-FPM ({#POOLNAME}): Start Since|<p>How long has this pool been running.</p>|`Dependent item`|php-fpm.start_since[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
 |PHP-FPM ({#POOLNAME}): Start Time|<p>The time when this pool was started.</p>|`Dependent item`|php-fpm.start_time[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
 |PHP-FPM ({#POOLNAME}): Total Processes|<p>The total number of server processes currently running; the sum of idle processes + active processes. If the process manager is static, this number will match pm.max_children.</p>|`Dependent item`|php-fpm.total_processes[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

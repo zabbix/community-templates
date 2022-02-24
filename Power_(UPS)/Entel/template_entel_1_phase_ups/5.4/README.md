@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |Нагрузка в процентах|<p>-</p>|`SNMP agent`|upsOutputPercentLoad<p>Update: 30</p>|
 |Время работы от АКБ|<p>-</p>|`SNMP agent`|upsSecondsOnBattery<p>Update: 30</p>|
 |Частота входа|<p>-</p>|`SNMP agent`|upsInputFrequency<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

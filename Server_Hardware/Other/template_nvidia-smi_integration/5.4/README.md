@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |GPU Temperature|<p>-</p>|`Zabbix agent`|gpu.temp<p>Update: 30</p>|
 |GPU Used Memory|<p>-</p>|`Zabbix agent`|gpu.used<p>Update: 30</p>|
 |GPU Fan Speed|<p>-</p>|`Zabbix agent`|gpu.fanspeed<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

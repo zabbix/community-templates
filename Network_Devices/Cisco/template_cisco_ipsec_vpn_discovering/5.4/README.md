@@ -65,6 +65,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |VPN Tunnels|<p>-</p>|`SNMP agent`|cikeTunActiveTime<p>Update: 10m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -75,6 +77,8 @@ There are no template links in this template.
 |Out bytes of  tunnel {#LOCAL}---{#REMOTE}|<p>-</p>|`SNMP agent`|cikeTunOutOctets[{#LOCAL}---{#REMOTE}]<p>Update: 1m</p><p>LLD</p>|
 |Out packets of  tunnel {#LOCAL}---{#REMOTE}|<p>-</p>|`SNMP agent`|cikeTunOutPkts[{#LOCAL}---{#REMOTE}]<p>Update: 1m</p><p>LLD</p>|
 |Status of  tunnel {#LOCAL}---{#REMOTE}|<p>-</p>|`SNMP agent`|cikeTunStatus[{#LOCAL}---{#REMOTE}]<p>Update: 1m</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

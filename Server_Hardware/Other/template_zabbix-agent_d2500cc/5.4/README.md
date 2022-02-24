@@ -29,6 +29,8 @@ There are no discovery rules in this template.
 |Vcore voltage|<p>-</p>|`Zabbix agent`|sensor[w83627uhg-isa-0290,in0]<p>Update: 60</p>|
 |+5V Voltage|<p>-</p>|`Zabbix agent`|sensor[w83627uhg-isa-0290,in3]<p>Update: 60</p>|
 |Vbat Voltage|<p>-</p>|`Zabbix agent`|sensor[w83627uhg-isa-0290,in8]<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

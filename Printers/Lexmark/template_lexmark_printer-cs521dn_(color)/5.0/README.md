@@ -71,6 +71,8 @@ There are no discovery rules in this template.
 |Transfer Module capacity|<p>-</p>|`SNMP agent`|TransferModuleCapacity<p>Update: 3600</p>|
 |Imaging Kit Level|<p>-</p>|`SNMP agent`|ImagingKitLevel<p>Update: 3600</p>|
 |06 Device uptime|<p>The time since the network management portion of the system was last re-initialized.</p>|`SNMP agent`|sysUpTime<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

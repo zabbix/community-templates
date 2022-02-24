@@ -27,6 +27,8 @@ There are no discovery rules in this template.
 |CPU Vcore|<p>-</p>|`IPMI agent`|ipmi.system.processor_vcc<p>Update: 300</p>|
 |CPU temp|<p>-</p>|`IPMI agent`|ipmi.system.temp_cpu<p>Update: 300</p>|
 |CPU Fan|<p>-</p>|`IPMI agent`|ipmi.system.cpu_fan<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

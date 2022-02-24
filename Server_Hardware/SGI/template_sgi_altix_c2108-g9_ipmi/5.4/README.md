@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |CPU1 Temp|<p>-</p>|`IPMI agent`|ipmi.cpu1.temp<p>Update: 300</p>|
 |PS Status|<p>-</p>|`IPMI agent`|ipmi.ps.status<p>Update: 300</p>|
 |System Temp|<p>-</p>|`IPMI agent`|ipmi.system.temp<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

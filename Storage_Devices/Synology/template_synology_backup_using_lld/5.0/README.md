@@ -44,6 +44,8 @@ Tudor Ticau
 |{$BPERIOD3}|<p>-</p>|`1d`|Text macro|
 |{$NAS.IP}|<p>-</p>|`{HOST.IP2}`|Text macro|
 |{$SNMP_COMMUNITY}|<p>-</p>|`MonitorZabbix`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -53,11 +55,15 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |BACKUP: Backup tasks|<p>Discover backup tasks with the script from /var/log/remotelog/synobackup.sh</p>|`Zabbix agent`|backup[{$NAS.IP}]<p>Update: 1d</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Backup "{#BPNAME}" status|<p>Monitor the backup {#BPNAME} status and return date and task status. This backup is configured to be done every {$BPERIOD1}</p>|`Zabbix agent`|backupt[{$NAS.IP},{#BPNAME}]<p>Update: {$BPERIOD1}</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

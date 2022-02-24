@@ -32,6 +32,8 @@ XSKY
 |{$XMS_S3_LOAD_BALANCER_ACTIVE_CONNECTIONS.WARN}|<p>Max Warn Value of XMS S3 Load Balancer Active Connections</p>|`1024`|Text macro|
 |{$XMS_S3_LOAD_BALANCER_CPU_UTIL.WARN}|<p>Max Warn Percentage of XMS S3 Load Balancer CPU Util</p>|`80`|Text macro|
 |{$XMS_S3_LOAD_BALANCER_MEM_USAGE_PERCENT.WARN}|<p>Max Warn Percentage of XMS S3 Load Balancer MEM Usage</p>|`80`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -51,6 +53,8 @@ There are no template links in this template.
 |XMS OS-Bucket Discovery|<p>-</p>|`HTTP agent`|xms.os_buckets.discovery<p>Update: 1h</p>|
 |XMS Services Discovery|<p>-</p>|`HTTP agent`|xms.hosts.services.discovery<p>Update: 1h</p>|
 |XMS Host Discovery|<p>-</p>|`HTTP agent`|xms.hosts.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -145,6 +149,8 @@ There are no template links in this template.
 |XMS Bucket {#XMS_BUCKET_NAME} Status|<p>-</p>|`Dependent item`|xms.buckets.status[{#XMS_BUCKET_ID}]<p>Update: 0</p><p>LLD</p>|
 |XMS {#HOSTNAME} {#TYPE} Status|<p>-</p>|`Dependent item`|host.service.status[{#HOSTID}.{#TYPE}]<p>Update: 0</p><p>LLD</p>|
 |XMS Host {#HOSTNAME} Status|<p>-</p>|`Dependent item`|xms.hosts.status[{#HOSTID}]<p>Update: 0</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

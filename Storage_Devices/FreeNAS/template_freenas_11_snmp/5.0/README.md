@@ -51,6 +51,8 @@ There are no macros links in this template.
 |Template SNMP Generic|
 |Template SNMP Interfaces|
 |Template SNMP Processors|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +62,8 @@ There are no macros links in this template.
 |ZVols|<p>Find all the zvols on the FreeNAS system</p>|`SNMP agent`|zvolDescr<p>Update: 3600</p>|
 |Processors|<p>{$SNMP_COMMUNITY} is a global macro.</p>|`SNMP agent`|hrProcessorLoad<p>Update: 3600</p>|
 |Datasets|<p>Discover the datasets available on the FreeNAS system</p>|`SNMP agent`|datasetDescr<p>Update: 3600</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -120,6 +124,8 @@ There are no macros links in this template.
 |Usage of dataset {#SNMPVALUE}|<p>Used percentage of the datasets capacity</p>|`Calculated`|vfs.fs.size[{#SNMPVALUE},pfree ]<p>Update: 60s</p><p>LLD</p>|
 |Used bytes on dataset {#SNMPVALUE}|<p>The used bytes in each dataset. This is multiplied by the datasetAllocationUnits which is usually 4096. The OID for this is .1.3.6.1.4.1.50536.1.2.1.1.3</p>|`SNMP agent`|vfs.fs.size[{#SNMPVALUE},used ]<p>Update: 60s</p><p>LLD</p>|
 |Size of dataset {#SNMPVALUE}|<p>The size of each dataset. This is multiplied by the datasetAllocationUnits which is usually 4096. The OID for this is .1.3.6.1.4.1.50536.1.2.1.1.3</p>|`SNMP agent`|vfs.fs.size[{#SNMPVALUE}]<p>Update: 60s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

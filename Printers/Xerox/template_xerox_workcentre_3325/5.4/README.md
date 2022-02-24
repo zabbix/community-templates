@@ -24,6 +24,8 @@ There are no discovery rules in this template.
 |Serial number|<p>-</p>|`SNMP agent`|serial.number<p>Update: 30</p>|
 |Current cartridge toner level - black|<p>-</p>|`SNMP agent`|ink.black.now<p>Update: 30</p>|
 |Type of cartridge - black|<p>-</p>|`SNMP agent`|black.cartridge.type<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

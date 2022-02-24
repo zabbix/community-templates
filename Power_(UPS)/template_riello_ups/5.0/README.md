@@ -16,6 +16,8 @@ I. Aliaga U.
 |----|-----------|-------|----|
 |{$NOMINAL_FREQUENCY}|<p>-</p>|`60`|Text macro|
 |{$NOMINAL_VOLTAGE}|<p>-</p>|`230`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -27,6 +29,8 @@ There are no template links in this template.
 |Input Lines|<p>-</p>|`SNMP agent`|InputLinesD<p>Update: 30s</p>|
 |Bypass Lines|<p>-</p>|`SNMP agent`|BypassLinesD<p>Update: 30s</p>|
 |Output Lines|<p>-</p>|`SNMP agent`|OutputLinesD<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -60,6 +64,8 @@ There are no template links in this template.
 |Line {#SNMPINDEX} Output % Load|<p>-</p>|`SNMP agent`|rupsOutputPercetLoad.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Line {#SNMPINDEX} Output Power|<p>-</p>|`SNMP agent`|rupsOutputPower.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Line {#SNMPINDEX} Output Voltage|<p>-</p>|`SNMP agent`|rupsOutputVoltage.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

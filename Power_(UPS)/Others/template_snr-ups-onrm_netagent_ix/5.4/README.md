@@ -35,6 +35,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -55,6 +57,8 @@ There are no discovery rules in this template.
 |UPS status|<p>The current state of the UPS. If the UPS is unable to determine the state of the UPS this variable is set to unknown(1).</p>|`SNMP agent`|upsBaseOutputStatus<p>Update: 30s</p>|
 |UPS output load (%)|<p>The current UPS load expressed in percent of rated capacity.</p>|`SNMP agent`|upsSmartOutputLoad<p>Update: 60s</p>|
 |UPS time on battery|<p>The elapsed time in seconds since the UPS has switched to battery power. Прошедшее время в секундах с момента переключения ИБП на батареи.</p>|`SNMP agent`|upsBaseBatteryTimeOnBattery<p>Update: 60s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

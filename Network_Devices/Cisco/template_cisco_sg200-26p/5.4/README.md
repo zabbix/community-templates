@@ -102,6 +102,8 @@ There are no discovery rules in this template.
 |Port GE18 Traffic IN |<p>-</p>|`SNMP agent`|ifInOctects.66<p>Update: 60</p>|
 |Port GE20 Traffic OUT |<p>-</p>|`SNMP agent`|ifOutOctets.68<p>Update: 60</p>|
 |Port GE03 Traffic OUT |<p>-</p>|`SNMP agent`|ifOutOctets.51<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

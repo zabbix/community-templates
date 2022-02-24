@@ -91,6 +91,8 @@ There are no discovery rules in this template.
 |DSL Upstream Stat - Total Corrected Blocks|<p>-</p>|`SNMP agent`|DSL-USStat-CorrectedBlks<p>Update: 60</p>|
 |DSL Downstream Errors - Loss Of Framing|<p>-</p>|`SNMP agent`|DSL-DSErr-LOFS<p>Update: 60</p>|
 |DSL Upstream Errors - Loss Of Signal|<p>-</p>|`SNMP agent`|DSL-USErr-LOSS<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -25,6 +25,8 @@ zhangzhefeng
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$CLOUD_SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -39,6 +41,8 @@ There are no discovery rules in this template.
 |----|-----------|----|----|
 |Preventive Maintenance Status|<p>-</p>|`SNMP agent`|PreventiveMaintenance<p>Update: 10m</p>|
 |Regression Status|<p>-</p>|`SNMP agent`|RegressionStatus<p>Update: 10m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

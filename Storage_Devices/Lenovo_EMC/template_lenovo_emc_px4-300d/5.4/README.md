@@ -9,6 +9,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -20,6 +22,8 @@ There are no macros links in this template.
 |Discovery Temp|<p>Entry for temperature sensor</p>|`SNMP agent`|tempEntry<p>Update: 1h</p>|
 |Discovery Volt|<p>Entry for temperature sensor</p>|`SNMP agent`|voltEntry<p>Update: 1h</p>|
 |Discovery Disks|<p>Connected client count</p>|`SNMP agent`|diskID<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -56,6 +60,8 @@ There are no macros links in this template.
 |{#SNMPVALUE} Value|<p>Entry for volt sensor</p>|`SNMP agent`|voltEntry.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Capacity|<p>Capacity of disk</p>|`SNMP agent`|diskSize.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |{#SNMPVALUE} Status|<p>Status of Disk. There are four status: NORMAL FOREIGN FAULTED MISSING</p>|`SNMP agent`|diskStatus.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

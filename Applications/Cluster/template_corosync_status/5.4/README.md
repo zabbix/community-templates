@@ -146,6 +146,8 @@ There are no discovery rules in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Corosync Ring 0 Status|<p>Status of the Corosync Ring 0</p>|`Zabbix agent`|check_corosync[0]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -59,6 +59,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Signal SFP Mikrotik|<p>-</p>|`SNMP agent`|signal.sfp<p>Update: 30s</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -66,6 +68,8 @@ There are no template links in this template.
 |RX $1|<p>-</p>|`SNMP agent`|RX[{#SNMPVALUE}]<p>Update: 30s</p><p>LLD</p>|
 |Temperatura $1|<p>-</p>|`SNMP agent`|temperatura[{#SNMPVALUE}]<p>Update: 30s</p><p>LLD</p>|
 |TX $1|<p>-</p>|`SNMP agent`|TX[{#SNMPVALUE}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

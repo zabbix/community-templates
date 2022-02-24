@@ -108,6 +108,8 @@ There are no discovery rules in this template.
 |Падение напряжения в электросети|<p>AVR Boost Active</p>|`Zabbix agent (active)`|eventlog[Application,,,APCPBEAgent,0,,skip]<p>Update: 5m</p>|
 |Батарея разряжена (ЖОПА!)|<p>Батарея разряжена Low Battery Condition</p>|`Zabbix agent (active)`|eventlog[Application,,,APCPBEAgent,2003,,skip]<p>Update: 30s</p>|
 |Повышение напряжения в электросети|<p>AVR Trim Active</p>|`Zabbix agent (active)`|eventlog[Application,,,APCPBEAgent,2007,,skip]<p>Update: 5m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

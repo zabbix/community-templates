@@ -5,6 +5,8 @@
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NTP_IP}|<p>-</p>|`127.0.0.1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -25,6 +27,8 @@ There are no discovery rules in this template.
 |ntp[{$NTP_IP}]|<p>"*" It represents the server in the reference synchronization "+" Server that pass the clock error check "#" It is in the in the reference synchronization , but distance is distant server " " Blank , does not refer to a server "x" Server that fail to clock error check ". " Server that are excluded from the reference list refid Host name or IP address of the high-stratum NTP server NTP server is referencing st NTP Server stratum t stratum type l:local,u:unicast,m:multicast,b:broadcast when The number of seconds after receiving the last packet poll Interval number of seconds to query reach Register data for reachability *octal delay [milliseconds] offset [milliseconds] jitter [milliseconds]</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}]<p>Update: 3600</p>|
 |NTP jitter[({$NTP_IP}]|<p>Past 8 dispersion average value of NTP offset</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$10}']<p>Update: 1800</p>|
 |NTP stratum [{$NTP_IP}]|<p>Stratum of the NTP server that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$3}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -57,6 +61,8 @@ There are no discovery rules in this template.
 |NTP polling|<p>Synchronization period with the NTP server</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$6}']<p>Update: 1800</p>|
 |NTP delay|<p>Estimated delay time of the NTP packet</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$8}']<p>Update: 1800</p>|
 |NTP synchronized server|<p>NTP server name that is synchronized</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$1}'|sed s/*//]<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

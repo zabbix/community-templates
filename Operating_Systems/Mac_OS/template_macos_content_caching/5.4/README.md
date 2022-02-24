@@ -61,6 +61,8 @@ There are no discovery rules in this template.
 |iCloud Content Used|<p>-</p>|`Dependent item`|contentcache.icloudused<p>Update: 0</p>|
 |Bytes Imported|<p>Bytes Imported by Caching Service</p>|`Dependent item`|contentcache.bytes.imported<p>Update: 0</p>|
 |iCloud Content Free|<p>-</p>|`Dependent item`|contentcache.icloudfree<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

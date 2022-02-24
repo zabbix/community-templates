@@ -104,6 +104,8 @@ There are no discovery rules in this template.
 |Battery nominal Volts [HighPrec]|<p>-</p>|`SNMP agent`|upsHighPrecBatteryNominalVoltage<p>Update: 30s</p>|
 |Input Voltage L2|<p>The input voltage in VAC, or -1 if it's unsupported by this UPS.</p>|`SNMP agent`|upsPhaseInputVoltageL2<p>Update: 30s</p>|
 |Output Phase capacity L2|<p>The percentage of the UPS power capacity in Watts at redundancy @ (n + x) presently being used on this output phase, or -1 if it's unsupported by this UPS.</p>|`SNMP agent`|upsPhaseOutputPercentPowerL2<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

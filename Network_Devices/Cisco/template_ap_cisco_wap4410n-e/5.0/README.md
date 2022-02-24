@@ -21,6 +21,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 There are no discovery rules in this template.
@@ -56,6 +58,8 @@ There are no discovery rules in this template.
 |SSID3 Packet In|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.9.6.1.32.4410.1.1.3.2.1.7.1.3<p>Update: 60</p>|
 |SSID1 Packet In|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.9.6.1.32.4410.1.1.3.2.1.7.1.1<p>Update: 60</p>|
 |SSID3 Auth Type|<p>-</p>|`SNMP agent`|.1.3.6.1.4.1.9.6.1.32.4410.1.1.2.2.1.3.1.3<p>Update: 360</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

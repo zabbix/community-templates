@@ -74,6 +74,8 @@ There are no discovery rules in this template.
 |Суммарный ток фаз L1-L3|<p>Power sensor current</p>|`SNMP agent`|pSensorCurrentX100L1-3<p>Update: 10s</p>|
 |Полная мощность фазы L3|<p>Power sensor apparent power</p>|`SNMP agent`|pSensorApparentPowerX1000L3<p>Update: 1m</p>|
 |Trap Voltage|<p>Variables: traps, traps_level, traps_index "Power sensor voltage"</p>|`SNMP trap`|snmptrap["(SNMPv2-SMI::enterprises.43672.0.43|SNMPv2-SMI::enterprises.43672.0.47|SNMPv2-SMI::enterprises.43672.0.51)"]<p>Update: 0</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

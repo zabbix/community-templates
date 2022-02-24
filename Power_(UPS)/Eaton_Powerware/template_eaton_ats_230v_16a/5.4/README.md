@@ -75,6 +75,8 @@ There are no discovery rules in this template.
 |PowerInputFrequency2|<p>-</p>|`SNMP agent`|PowerInputFrequency2<p>Update: 900</p>|
 |EnvTempLowerLimit|<p>-</p>|`SNMP agent`|EnvTempLowerLimit<p>Update: 3600</p>|
 |PowerInputFrequency1|<p>-</p>|`SNMP agent`|PowerInputFrequency1<p>Update: 900</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

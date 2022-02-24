@@ -38,6 +38,8 @@ There are no template links in this template.
 |XTM Series::Optical Amplifiers|<p>-</p>|`SNMP agent`|oaIfName<p>Update: 300</p>|
 |XTM Series::DCN::CU SFP/II::Optical Supervisory Channel|<p>-</p>|`SNMP agent`|dcnIfName<p>Update: 300</p>|
 |XTM Series::Metro Ethernet Services|<p>-</p>|`SNMP agent`|mesErrorPropName<p>Update: 30</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -112,6 +114,8 @@ There are no template links in this template.
 |TM-3000/II Chassis | CU SFP/II | dcnIfReceivedPowerHigh $1|<p>-</p>|`SNMP agent`|dcnIfReceivedPowerHigh[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |TM-3000/II Chassis | CU SFP/II | dcnIfReceivedPowerLow $1|<p>-</p>|`SNMP agent`|dcnIfReceivedPowerLow[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |XTM Series | MES Error Propagation Fault on $1|<p>-</p>|`SNMP agent`|mesErrorPropFault[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

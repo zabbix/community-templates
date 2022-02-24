@@ -16,6 +16,8 @@ It will discover hosts from VM6, if you enable it
 |{$VM6_URL}|<p>Please fill your domain</p>|`https://__VM_DOMAIN__/vm/v3`|Text macro|
 |{$TASK_MAX_RUNNING}|<p>Max running time for tasks in minutes</p>|30|Text macro|
 |{$TASK_MAX_WAITING}|<p>Max waiting time for tasks in minutes</p>|5|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -26,6 +28,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Host discovery|<p>Enable host prototype for automatic Zabbix host creation. It will add your cluster nodes to Zabbix with Linux by zabbix agent template </p>|`HTTP agent`|host.discovery<p>Update: 1d</p>|
 |Tasks|<p>Watch for tasks in VMmanager</p>|`Depended item`|tasks.new.task<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -54,6 +58,8 @@ There are no template links in this template.
 |Node {#NODE_ID} {#NODE_NAME} vm moving|<p>Moving vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_moving]`|
 |Node {#NODE_ID} {#NODE_NAME} vm stopped|<p>Stopped vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_stopped]`|
 |Node {#NODE_ID} {#NODE_NAME} vm total|<p>Total vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_total]`|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

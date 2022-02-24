@@ -9,6 +9,8 @@ There are no macros links in this template.
 |Name|
 |----|
 |Template Module ICMP Ping|
+
+
 ## Discovery rules
 
 |Name|Description|Type|Key and additional info|
@@ -20,6 +22,8 @@ There are no macros links in this template.
 |Discovery Temp|<p>Entry for temperature sensor</p>|`SNMP agent`|tempEntry<p>Update: 1h</p>|
 |Discovery Devices|<p>Entry for connected USB device</p>|`SNMP agent`|usbEntry<p>Update: 1h</p>|
 |Discovery Fan|<p>Entry for connected USB device</p>|`SNMP agent`|fanEntry<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -56,6 +60,8 @@ There are no macros links in this template.
 |USB device #{#SNMPVALUE} Model|<p>Model of the USB device</p>|`SNMP agent`|usbModel.[{#SNMPINDEX}]<p>Update: 120s</p><p>LLD</p>|
 |USB device #{#SNMPVALUE} Type|<p>USB device type(such UPS(3), PTP(6), printer(7) and so on)</p>|`SNMP agent`|usbType.[{#SNMPINDEX}]<p>Update: 120s</p><p>LLD</p>|
 |{#SNMPVALUE} Value|<p>Rotation speed of the fan in RPM</p>|`SNMP agent`|fanValue.[{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

@@ -139,6 +139,8 @@ There are no discovery rules in this template.
 |SW 2 Interface 7 Status|<p>SW 1 Interface 7 Status</p>|`SNMP agent`|sw2.interface.7.status<p>Update: 30</p>|
 |SW 1 Interface 4 Speed|<p>SW 1 Interface 4 Speed</p>|`SNMP agent`|sw1.interface.4.speed<p>Update: 30</p>|
 |SW 1 Interface 7 Status|<p>SW 1 Interface 7 Status</p>|`SNMP agent`|sw1.interface.7.status<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

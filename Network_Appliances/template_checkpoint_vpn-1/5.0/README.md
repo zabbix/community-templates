@@ -21,6 +21,8 @@ There are no discovery rules in this template.
 |Current Outbound IPSec SAs|<p>-</p>|`SNMP agent`|cpvCurrEspSAsOut<p>Update: 120</p>|
 |VPN Encrypted Packets/s|<p>-</p>|`SNMP agent`|cpvEncPackets<p>Update: 120</p>|
 |VPN Decrypted Packets/s|<p>-</p>|`SNMP agent`|cpvDecPackets<p>Update: 120</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

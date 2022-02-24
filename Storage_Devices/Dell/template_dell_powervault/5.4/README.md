@@ -33,6 +33,8 @@ Geraldo Jr
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -43,6 +45,8 @@ There are no template links in this template.
 |----|-----------|----|----|
 |Library Enumeration|<p>-</p>|`SNMP agent`|libraryEntryId<p>Update: 86400</p>|
 |Drive Enumeration|<p>-</p>|`SNMP agent`|driveEntryId<p>Update: 86400</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -69,6 +73,8 @@ There are no template links in this template.
 |Erro de leitura Soft $1|<p>Contagem de recuperação de erros Soft de leitura para o cartucho atual</p>|`SNMP agent`|driveSoftReadErrors[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Erro de gravação Soft $1|<p>Contagem de recuperação de erros Soft de gravação para o cartucho atual</p>|`SNMP agent`|driveSoftWrtErrors[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
 |Tempo de movimentação $1|<p>Total de horas de movimentação de unidade deste dispositivo.</p>|`SNMP agent`|driveTpHrs[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

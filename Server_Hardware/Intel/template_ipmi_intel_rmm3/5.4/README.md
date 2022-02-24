@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Baseboard Temp1|<p>-</p>|`IPMI agent`|rmm3.Baseboard_Temp1<p>Update: 30</p>|
 |Sys Fan Tach 1B|<p>-</p>|`IPMI agent`|rmm3.Sys_Fan_Tach_1B<p>Update: 30</p>|
 |Sys Fan Tach 1A|<p>-</p>|`IPMI agent`|rmm3.Sys_Fan_Tach_1A<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

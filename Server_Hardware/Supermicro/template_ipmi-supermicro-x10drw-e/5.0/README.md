@@ -150,6 +150,8 @@ There are no discovery rules in this template.
 |Fan 1|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.fan1<p>Update: 30</p>|
 |P2-DIMME1 - Temp|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.p2.dimme1.temp<p>Update: 30</p>|
 |1.5V PCH|<p>-</p>|`IPMI agent`|ipmi.supermicro.x10drw-e.1.5VPCH<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

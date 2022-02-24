@@ -30,6 +30,8 @@ It will trigger on the following:
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`nriedaedc`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -52,6 +54,8 @@ There are no discovery rules in this template.
 |Software Version Timestamp|<p>OID name in MIB: softwareVersionTimestamp Description: Timestamp of the camera software</p>|`SNMP agent`|camera.software.version.timestamp<p>Update: 1h</p>|
 |Camera Model|<p>OID name in MIB: cameraModel Description: Model of the MOBOTIX camera</p>|`SNMP agent`|camera.model<p>Update: 6h</p>|
 |Camera Serial Number|<p>OID name in MIB: cameraSerialNumber Description: Serial number of the MOBOTIX camera</p>|`SNMP agent`|camera.serialnumber<p>Update: 6h</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

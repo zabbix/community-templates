@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |CPU1 Vcore|<p>-</p>|`IPMI agent`|ipmi.cpu1.vcore<p>Update: 300</p>|
 |CPU1 Temp|<p>-</p>|`IPMI agent`|ipmi.cpu1.temp<p>Update: 300</p>|
 |+5V|<p>-</p>|`IPMI agent`|ipmi.5v<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

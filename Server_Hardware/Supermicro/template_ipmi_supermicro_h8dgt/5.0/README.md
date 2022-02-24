@@ -46,6 +46,8 @@ There are no discovery rules in this template.
 |FAN 1|<p>-</p>|`IPMI agent`|ipmi.system.fan_1<p>Update: 60</p>|
 |CPU2 Vcore|<p>-</p>|`IPMI agent`|ipmi.system.processor_vcc2<p>Update: 60</p>|
 |+3.3V|<p>-</p>|`IPMI agent`|ipmi.system.3.3v<p>Update: 60</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

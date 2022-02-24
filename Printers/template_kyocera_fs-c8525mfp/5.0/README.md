@@ -32,6 +32,8 @@ There are no discovery rules in this template.
 |Cyan toner capacity|<p>-</p>|`SNMP agent`|cyan.capacity<p>Update: 6000</p>|
 |Total prints|<p>-</p>|`SNMP agent`|nbr.prints.total<p>Update: 180</p>|
 |MAC address|<p>-</p>|`SNMP agent`|.1.3.6.1.2.1.2.2.1.6.1<p>Update: 6000</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

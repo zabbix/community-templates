@@ -65,6 +65,8 @@ There are no discovery rules in this template.
 |Front Panel Temp|<p>-</p>|`IPMI agent`|rmm3.Front_Panel_Temp<p>Update: 30</p>|
 |Sys Fan Tach 1A|<p>-</p>|`IPMI agent`|rmm3.Sys_Fan_Tach_1A<p>Update: 30</p>|
 |Sys Fan Tach 2B|<p>-</p>|`IPMI agent`|rmm3.Sys_Fan_Tach_2B<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

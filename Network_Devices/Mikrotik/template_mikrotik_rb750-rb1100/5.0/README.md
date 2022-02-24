@@ -1,8 +1,11 @@
 # Template Mikrotik RB750-RB1100
 
-Autor: Danilo Barros de Medeiros
-Template: Mikrotik RB750/RB1100
-Versão Zabbix: 3.0
+Autor: Danilo Barros de Medeiros
+
+Template: Mikrotik RB750/RB1100
+
+Versão Zabbix: 3.0
+
 Versão Template: 1.1## Macros used
 
 There are no macros links in this template.
@@ -12,8 +15,10 @@ There are no macros links in this template.
 There are no template links in this template.
 
 ## Discovery rules
+|
 
-|Name|Description|Type|Key and additional info|
+
+#Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |LLD Interfaces|<p>-</p>|`SNMP agent`|ifDescr<p>Update: 30</p>|
 ## Items collected
@@ -36,8 +41,10 @@ There are no template links in this template.
 |System name|<p>-</p>|`SNMP agent`|mikrotik.identity.name<p>Update: 3600</p>|
 |Alias Interface $1|<p>-</p>|`SNMP agent`|ifAlias[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 |In-Erros Interface $1|<p>-</p>|`SNMP agent`|ifInErrors[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
-|Inbound Interface $1|<p>-</p>|`SNMP agent`|ifInOctets[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
-|Operacional Status Interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
+|Inbound Interface $1|<p>-</p>|`SNMP agent`|ifInOctets[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>||
+
+
+#Operacional Status Interface $1|<p>-</p>|`SNMP agent`|ifOperStatus[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 |Out-Erros Interface $1|<p>-</p>|`SNMP agent`|ifOutErrors[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 |Outbound Interface $1|<p>-</p>|`SNMP agent`|ifOutOctets[{#IFDESCR}]<p>Update: 30</p><p>LLD</p>|
 ## Triggers

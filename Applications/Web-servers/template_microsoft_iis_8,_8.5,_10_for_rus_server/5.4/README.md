@@ -40,6 +40,8 @@ There are no discovery rules in this template.
 |IIS Web Service Процент попаданий в кэш файлов|<p>The ratio of user-mode file cache hits to total cache requests (since service startup). Note: This value might be low if the Kernel URI cache hits percentage is high.</p>|`Zabbix agent`|perf_counter["\Кэш веб-службы\Процент попаданий в кэш файлов",300]<p>Update: 30</p>|
 |IIS Web Service Количество запросов POST в секунду|<p>Number of HTTP requests using POST method</p>|`Zabbix agent`|perf_counter["\Веб-служба(*)\Количество запросов POST в секунду",300]<p>Update: 30</p>|
 |IIS Web Service Максимальное количество подключений|<p>Current number of connections to the service</p>|`Zabbix agent`|perf_counter["\Веб-служба(*)\Максимальное количество подключений",300]<p>Update: 30</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

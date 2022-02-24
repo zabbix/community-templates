@@ -43,6 +43,8 @@ NTP精度情報をグラフ化することが可能です。
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$NTP_IP}|<p>-</p>|`127.0.0.1`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -63,6 +65,8 @@ There are no discovery rules in this template.
 |ntpq({$NTP_IP})|<p>"*" 参照同期中のサーバーを表している "+" クロック誤り検査に合格したサーバー "#" 参照同期中ではあるが、距離が遠いサーバー " " 左に何も表示されない場合（空欄）、サーバーを参照していない "x" クロック誤り検査に不合格となったサーバー ". " 参照リストから除外されたサーバー refid NTPサーバーが参照している上位ホスト名 or IPアドレス st NTPサーバーの階層 t 階層のタイプ　l:local、u:unicast、m:multicast、b:broadcast when 最後のパケットを受け取ってからの時間（秒） poll 問い合わせを行う間隔（秒） reach 到達可能性に関するレジスタ・データ（8進数） delay 推定遅延（ミリ秒） offset 偏差補償（ミリ秒） jitter RMS Jitterの平均値（ミリ秒）</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}]<p>Update: 3600</p>|
 |NTP推定遅延({$NTP_IP})|<p>NTPパケットの推定遅延時間</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$8}']<p>Update: 1800</p>|
 |NTP上位サーバ({$NTP_IP})|<p>同期しているNTPサーバーの上位NTPサーバ</p>|`Zabbix agent (active)`|system.run[ntpq -p {$NTP_IP}|grep \* |awk '{print$2}']<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.
@@ -171,6 +175,8 @@ There are no discovery rules in this template.
 |NTPDバージョン|<p>-</p>|`Zabbix agent (active)`|system.run[ntpq -c version]<p>Update: 3600</p>|
 |NTPプロセス|<p>-</p>|`Zabbix agent`|proc.num[ntpd]<p>Update: 60</p>|
 |NTP同期サーバ|<p>同期しているNTPサーバー名</p>|`Zabbix agent (active)`|system.run[ntpq -p|grep \* |awk '{print$1}'|sed s/*//]<p>Update: 1800</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

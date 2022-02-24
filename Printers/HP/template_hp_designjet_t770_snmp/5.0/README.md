@@ -57,6 +57,8 @@ There are no discovery rules in this template.
 |Name_of_model|<p>-</p>|`SNMP agent`|Name_of_model<p>Update: 86400</p>|
 |Amount_of_MK_toner_remaining|<p>-</p>|`SNMP agent`|Amount_of_MK_toner_remaining<p>Update: 3600</p>|
 |Type_of_MK_toner|<p>-</p>|`SNMP agent`|Type_of_MK_toner<p>Update: 86400</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

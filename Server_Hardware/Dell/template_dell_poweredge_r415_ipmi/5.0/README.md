@@ -58,6 +58,8 @@ There are no discovery rules in this template.
 |IOB Temp|<p>-</p>|`IPMI agent`|ipmi.sensor.IOB_Temp<p>Update: 1m</p>|
 |Voltage (Primary)|<p>-</p>|`IPMI agent`|ipmi.sensor.Voltage_1<p>Update: 1m</p>|
 |FAN MOD 4A RPM|<p>-</p>|`IPMI agent`|ipmi.sensor.FAN_MOD_4A_RPM<p>Update: 1m</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

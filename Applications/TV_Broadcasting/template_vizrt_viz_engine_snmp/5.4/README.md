@@ -226,6 +226,8 @@ There are no discovery rules in this template.
 |Vizrt NLE Mode|<p>-</p>|`SNMP agent`|VizrtNLEMode<p>Update: 30s</p>|
 |Vizrt Texture Memory Used|<p>-</p>|`SNMP agent`|VizrtTextureMemoryUsed<p>Update: 30s</p>|
 |Vizrt Retrace Counter|<p>-</p>|`SNMP agent`|VizrtRetraceCounter<p>Update: 30s</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

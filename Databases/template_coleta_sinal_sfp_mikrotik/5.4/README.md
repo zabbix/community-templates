@@ -43,12 +43,16 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network Interfaces Discovery|<p>-</p>|`SNMP agent`|net.if2.discovery<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Interface {#IFNAME}({#IFALIAS}): RX Power|<p>-</p>|`SNMP agent`|enterprises.[RXenterprises.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): TX Power|<p>-</p>|`SNMP agent`|enterprises.[TXenterprises.{#SNMPINDEX}]<p>Update: 30s</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

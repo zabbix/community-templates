@@ -100,6 +100,8 @@ There are no template links in this template.
 |[Cleaning] Discovery of The clean cartridge label|<p>The clean cartridge label</p>|`SNMP agent`|slLibCleanCartLabel<p>Update: 1h</p>|
 |[Cap] Discovery of Cap is Enabled|<p>The Enabled state of the Cap</p>|`SNMP agent`|slCapEnabled<p>Update: 1h</p>|
 |[Inventory] Discovery of Tape Logical Address|<p>Tape Cartridge logical address string</p>|`SNMP agent`|slTapeLogicalAddressStr<p>Update: 1h</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -220,6 +222,8 @@ There are no template links in this template.
 |Clean Cartridge Label {#SNMPINDEX}|<p>The clean cartridge label</p>|`SNMP agent`|slLibCleanCartLabel[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Cap {#SNMPINDEX} is Enabled|<p>The Enabled state of the Cap false(0), true(1)</p>|`SNMP agent`|slCapEnabled[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Tape {#SNMPINDEX} Logical Address|<p>Tape Cartridge logical address string</p>|`SNMP agent`|slTapeLogicalAddressStr[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|

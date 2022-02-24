@@ -56,6 +56,8 @@ There are no discovery rules in this template.
 |Ambient Temp|<p>-</p>|`IPMI agent`|ipmi.ambient.temp<p>Update: 300</p>|
 |FAN MOD 4B RPM|<p>-</p>|`IPMI agent`|ipmi.fan.4b.rpm<p>Update: 300</p>|
 |FAN MOD 1C RPM|<p>-</p>|`IPMI agent`|ipmi.fan.1c.rpm<p>Update: 300</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

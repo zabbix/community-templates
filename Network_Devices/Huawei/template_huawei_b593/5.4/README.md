@@ -28,6 +28,8 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Network interface discovery|<p>Get interfaces from B593</p>|`Zabbix agent`|net.if.discovery<p>Update: 900</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -65,6 +67,8 @@ There are no template links in this template.
 |Incoming network traffic on $1|<p>-</p>|`Zabbix agent`|net.if.in[{#IFNAME}]<p>Update: 120</p><p>LLD</p>|
 |Outgoing network traffic on $1|<p>-</p>|`Zabbix agent`|net.if.out[{#IFNAME}]<p>Update: 120</p><p>LLD</p>|
 |Total network traffic on $1|<p>-</p>|`Zabbix agent`|net.if.total[{#IFNAME}]<p>Update: 120</p><p>LLD</p>|
+
+
 ## Triggers
 
 There are no triggers in this template.

@@ -36,6 +36,8 @@ Levi Pereira
 |Name|Description|Default|Type|
 |----|-----------|-------|----|
 |{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
+
+
 ## Template links
 
 There are no template links in this template.
@@ -47,6 +49,8 @@ There are no template links in this template.
 |I/O Perfomance|<p>-</p>|`SNMP agent`|diskName<p>Update: 1m</p>|
 |Disks Info|<p>-</p>|`SNMP agent`|diskID<p>Update: 1m</p>|
 |Network Interface Discovery|<p>-</p>|`SNMP agent`|net.if.discovery<p>Update: 1m</p>|
+
+
 ## Items collected
 
 |Name|Description|Type|Key and additional info|
@@ -82,6 +86,8 @@ There are no template links in this template.
 |Interface {#IFNAME}: Speed|<p>-</p>|`SNMP agent`|net.if.speed[ifHighSpeed.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Interface {#IFNAME}: Operational status|<p>-</p>|`SNMP agent`|net.if.status[ifOperStatus.{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
 |Interface {#IFNAME}: Interface type|<p>-</p>|`SNMP agent`|net.if.type[ifType.{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+
+
 ## Triggers
 
 |Name|Description|Expression|Priority|
