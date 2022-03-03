@@ -21,15 +21,17 @@ class Template:
         self.author = ''
         self.collection = collection
 
-    def add_file(self, template_object={}, file_type='xml'):
+    def add_file(self, template_object={}, file = 'template.xml'):
         if not 'zabbix_export' in template_object:
             return
         if not 'templates' in template_object['zabbix_export']:
             return
+        file_type = file.split('.')[-1]
         template = {
             'version': float(template_object['zabbix_export']['version']),
             'sync': int(time.time()),
-            'description': ''
+            'description': '',
+            'template_file': file
         }
         if file_type == 'xml':
             if isinstance(template_object['zabbix_export']['templates']['template'], list):
@@ -76,7 +78,10 @@ class Template:
             'tags': self.tags
         } 
         for ver in self.versions:
-            info['versions'].append(ver['version'])
+            info['versions'].append({
+                'version': ver['version'],
+                'template_file': ver['template_file']
+            })
             os.makedirs(os.path.join(self.collection,os.sep.join(['_includes','markdown','zabbix_templates']),file_mame,str(ver['version'])))
             shutil.copyfile(os.path.join(os.sep.join(self.path),str(ver['version']),'README.md'),
                             os.path.join(self.collection,os.sep.join(['_includes','markdown','zabbix_templates']),file_mame,str(ver['version']),'README.md'))
@@ -188,7 +193,7 @@ class Folder:
                     in_template = json.dumps(r_file)
                 elif file.split('.')[-1] == 'yaml':
                     in_template = yaml.load(r_file)
-                tmpl.add_file(in_template, file.split('.')[-1])
+                tmpl.add_file(in_template, file)
         if len(tmpl.versions) > 0:
             self.add_folder(path[:-1], template=tmpl)
 
