@@ -1,0 +1,185 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:59:36Z'
+  groups:
+    -
+      uuid: 57b7ae836ca64446ba2c296389c009b7
+      name: Templates/Modules
+  templates:
+    -
+      uuid: efef3469d5504ae0a80d498fc12bac6e
+      template: 'Module Linux XFS by Zabbix agent'
+      name: 'Module Linux XFS by Zabbix agent'
+      description: |
+        ## Overview
+        
+        I needed a template for monitoring XFS project quotas. This is only used with Zabbix 5 but it may work on older/newer versions with little tweaks.
+        
+        
+        Requires `jq`, `grep`, `awk` and `sudo` configuration.
+        
+        
+        I needed to use `grep` because of the slashes in XFS project paths. Please comment if you know a way to resolve the issue with only `awk` let me know.
+        
+        
+        Create file /etc/zabbix/zabbix\_agentd.d/template\_linux\_xfs.conf with contents:
+        
+        
+        
+        ```
+        UserParameter=xfs.quota.projects, awk -F':' '{ printf "{\"{#XFSNAME}\":\"%s\"}\n",$2 }' /etc/projects | jq --slurp 'map(select(. != ""))'
+        UserParameter=xfs.quota.project.used[*], sudo xfs\_quota -c 'df -N' | grep ' $1$$' | awk '{print $$3*1024}'
+        UserParameter=xfs.quota.project.total[*], sudo xfs\_quota -c 'df -N' | grep ' $1$$' | awk '{print $$2*1024}'
+        UserParameter=xfs.quota.project.pused[*], sudo xfs\_quota -c 'df -N' | grep ' $1$$' | awk '{print +$$5}'
+        UserParameter=xfs.quota.project.pfree[*], sudo xfs\_quota -c 'df -Ni' |grep ' $1$$' | awk '{print 100-$5}'
+        
+        ```
+        
+          
+        Create sudoers file /etc/sudoers.d/zabbix\_extra with contents:
+        
+        
+        
+        ```
+        Cmnd\_Alias XFS\_QUOTA = /usr/sbin/xfs\_quota -c df -N, /usr/sbin/xfs\_quota -c df -Ni
+        zabbix ALL = (ALL) NOPASSWD: XFS\_QUOTA
+        
+        ```
+        
+          
+        You can test if sudo is working by trying it:
+        
+        
+        
+        ```
+        # su - zabbix -s /bin/bash -c "sudo /usr/sbin/xfs\_quota -c 'df -N'"
+        
+        ```
+        
+          
+        and
+        
+        
+        
+        ```
+        # su - zabbix -s /bin/bash -c "sudo /usr/sbin/xfs\_quota -c 'df -N'"
+        
+        ```
+        
+          
+        Good luck!  
+        Evren Yurtesen
+        
+        
+        
+        ## Author
+        
+        Evren Yurtesen
+        
+        
+      groups:
+        -
+          name: Templates/Modules
+      discovery_rules:
+        -
+          uuid: c17ce108c54649c1b918004a6264fb95
+          name: 'XFS project discovery'
+          key: xfs.quota.projects
+          delay: 1h
+          description: 'Discovery of XFS projects using /etc/projects file'
+          item_prototypes:
+            -
+              uuid: 05c52e66a0d2427ba91dd41c476b28ea
+              name: '{#XFSNAME}: Space utilization'
+              key: 'xfs.quota.project.pused[{#XFSNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: Application
+                  value: 'XFS projects'
+                -
+                  tag: Application
+                  value: 'XFS project {#XFSNAME}'
+            -
+              uuid: 558b37618d6c41eca7d8070a8ff3d042
+              name: '{#XFSNAME}: Total space'
+              key: 'xfs.quota.project.total[{#XFSNAME}]'
+              history: 7d
+              units: B
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: Application
+                  value: 'XFS projects'
+                -
+                  tag: Application
+                  value: 'XFS project {#XFSNAME}'
+            -
+              uuid: 4a85d8f1b5e947d9b404713a3f2a52e3
+              name: '{#XFSNAME}: Used space'
+              key: 'xfs.quota.project.used[{#XFSNAME}]'
+              history: 7d
+              units: B
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: Application
+                  value: 'XFS projects'
+                -
+                  tag: Application
+                  value: 'XFS project {#XFSNAME}'
+          trigger_prototypes:
+            -
+              uuid: e523cdc475ee49d7b9ee7c6dff12ba7c
+              expression: |
+                last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}])>{$XFS.PROJECT.PUSED.MAX.CRIT:"{#XFSNAME}"} and
+                ((last(/Module Linux XFS by Zabbix agent/xfs.quota.project.total[{#XFSNAME}])-last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}]))<5G or timeleft(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}],1h,100)<1d)
+              name: '{#XFSNAME}: Disk space is critically low (used > {$XFS.PROJECT.PUSED.MAX.CRIT:"{#XFSNAME}"}%)'
+              opdata: 'Space used: {ITEM.LASTVALUE3} of {ITEM.LASTVALUE2} ({ITEM.LASTVALUE1})'
+              priority: AVERAGE
+              description: |
+                Two conditions should match: First, space utilization should be above {$XFS.PROJECT.PUSED.MAX.CRIT:"{#FSNAME}"}.
+                 Second condition should be one of the following:
+                 - The project free space is less than 5G.
+                 - The project will be full in less than 24 hours.
+              manual_close: 'YES'
+            -
+              uuid: 6013d84e320343f688efd4f859852cdf
+              expression: 'last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}])>{$XFS.PROJECT.PUSED.MAX.WARN:"{#XFSNAME}"} and ((last(/Module Linux XFS by Zabbix agent/xfs.quota.project.total[{#XFSNAME}])-last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}]))<10G or timeleft(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}],1h,100)<1d)'
+              name: '{#XFSNAME}: Disk space is low (used > {$XFS.PROJECT.PUSED.MAX.WARN:"{#XFSNAME}"}%)'
+              opdata: 'Space used: {ITEM.LASTVALUE3} of {ITEM.LASTVALUE2} ({ITEM.LASTVALUE1})'
+              priority: WARNING
+              description: |
+                Two conditions should match: First, space utilization should be above {$XFS.PROJECT.PUSED.MAX.WARN:"{#XFSNAME}"}.
+                 Second condition should be one of the following:
+                 - The project free space is less than 10G.
+                 - The project will be full in less than 24 hours.
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: '{#XFSNAME}: Disk space is critically low (used > {$XFS.PROJECT.PUSED.MAX.CRIT:"{#XFSNAME}"}%)'
+                  expression: |
+                    last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}])>{$XFS.PROJECT.PUSED.MAX.CRIT:"{#XFSNAME}"} and
+                    ((last(/Module Linux XFS by Zabbix agent/xfs.quota.project.total[{#XFSNAME}])-last(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}]))<5G or timeleft(/Module Linux XFS by Zabbix agent/xfs.quota.project.pused[{#XFSNAME}],1h,100)<1d)
+      macros:
+        -
+          macro: '{$XFS.PROJECT.PUSED.MAX.CRIT}'
+          value: '90'
+        -
+          macro: '{$XFS.PROJECT.PUSED.MAX.WARN}'
+          value: '80'

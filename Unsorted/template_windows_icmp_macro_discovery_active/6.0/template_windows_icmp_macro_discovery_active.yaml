@@ -1,0 +1,257 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T22:02:54Z'
+  groups:
+    -
+      uuid: 857e0dbb69174d88b6afb4c3005dc1ae
+      name: Templates/Development
+  templates:
+    -
+      uuid: a00ed4f3b7614f20bf01ba7cf72d645b
+      template: 'Windows ICMP Macro Discovery Active'
+      name: 'Windows ICMP Macro Discovery Active'
+      description: |
+        ## Overview
+        
+        Sometimes we are faced with an infrastructure distributed over the Internet. In case there is no VPN, using zabbix active agents is a great way to configure monitoring of servers and workstations. But what if we just want to check the availability of the IP camera and other devices behind the NAT? Of course we should use an agent!
+        
+        
+        This template uses a macros with "!"-separated pairs for hosts and IP-addresses for LLD and makes a very simple ICMP checks for each host.
+        
+        
+        
+        ## Author
+        
+        Maxim M. Demichev
+        
+        
+      groups:
+        -
+          name: Templates/Development
+      items:
+        -
+          uuid: 203f0ccfc2b24daabeb24b6ed3573b7e
+          name: 'ICMP Devices Macros Content'
+          type: ZABBIX_ACTIVE
+          key: 'system.run["echo {$ICMP_DEVICES}"]'
+          delay: 1h
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var resultArr = value.split("!");
+                  
+                  var resultArr1 = []; 
+                  
+                  resultArr.forEach(function(item, i, resultArr ) {
+                    var tmp = item.replace(/\s/, '');
+                    tmp = tmp.replace(/\r/, '');
+                    tmp = tmp.replace(/\n/, '');
+                    resultArr1.push(tmp);
+                  });
+                  
+                  var resultArrUnique  = [];
+                  
+                  resultArr1.forEach(function(item, i, resultArr1){
+                      if(resultArrUnique.indexOf(item) === -1) {
+                         resultArrUnique.push(item);
+                      }
+                  });
+                  
+                  var out = [];
+                  
+                  resultArrUnique.forEach(function(item, i, resultArr ) {
+                    var tmp = item.replace(/\s/, '');
+                    tmp = tmp.replace(/\r/, '');
+                    tmp = tmp.replace(/\n/, '');
+                    var tmpArr = tmp.split(",");
+                    var tmp1 = {"{#ICMPDEVICEIP}": tmpArr[0], "{#ICMPDEVICENAME}": tmpArr[1]};
+                    out.push(tmp1);
+                  });
+                  
+                  var out1 = {"data" : out};
+                  
+                  return JSON.stringify(out1);
+                  
+          tags:
+            -
+              tag: Application
+              value: Status
+        -
+          uuid: 9099756b9b92465f89a67cd0036397be
+          name: 'Overall ICMP hosts status'
+          type: EXTERNAL
+          key: 'zbx_app_worst_trigger.php["{HOST.HOST}", "/ICMP/"]'
+          history: 7d
+          valuemap:
+            name: 'Zabbix Trigger Mapping'
+          preprocessing:
+            -
+              type: TRIM
+              parameters:
+                - \n\r
+          tags:
+            -
+              tag: Application
+              value: Status
+      discovery_rules:
+        -
+          uuid: 6245e33f738644a0999c7e55303b2b8f
+          name: 'ICMP Macro Discovery'
+          type: ZABBIX_ACTIVE
+          key: 'system.run["echo {$ICMP_DEVICES} && break"]'
+          delay: 10m
+          item_prototypes:
+            -
+              uuid: 6526d6d6c7544ba4a5010b7aa11b3844
+              name: 'Response for ICMP agent ping {#ICMPDEVICENAME}'
+              type: ZABBIX_ACTIVE
+              key: 'system.run["ping -n 4 {#ICMPDEVICEIP}"]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              tags:
+                -
+                  tag: Application
+                  value: 'ICMP for {#ICMPDEVICENAME}'
+            -
+              uuid: 78c9135ee7194a959925c123dfce5b08
+              name: '{#ICMPDEVICENAME} ICMP availability'
+              type: ZABBIX_ACTIVE
+              key: 'system.run["ping -n 4 {#ICMPDEVICEIP} | find /v /c \"\""]'
+              history: 1d
+              valuemap:
+                name: 'Service state'
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if(value < 11) {
+                        return 0;
+                      } else {
+                        return 1;
+                      }
+              tags:
+                -
+                  tag: Application
+                  value: 'ICMP for {#ICMPDEVICENAME}'
+              trigger_prototypes:
+                -
+                  uuid: bc464cff7a454f2ab425f6514ba6867a
+                  expression: 'last(/Windows ICMP Macro Discovery Active/system.run["ping -n 4 {#ICMPDEVICEIP} | find /v /c \"\""])=0'
+                  name: 'Недоступен узел {#ARPADDRESS} во внутренней сети'
+                  priority: INFO
+            -
+              uuid: ca48e300d7b949349a00cca422db6932
+              name: '{#ICMPDEVICENAME} ICMP packet loss'
+              type: ZABBIX_ACTIVE
+              key: 'system.run["ping -n 4 {#ICMPDEVICEIP} | findstr [0-9]"]'
+              history: 1d
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var resultArr = value.split("\n");
+                      var result = false;
+                      
+                      resultArr.forEach(function(item, i, resultArr) {
+                        if(item.includes("%")) {
+                          
+                          var tmpResult = item.trim();
+                          var tmpArr = tmpResult.split("%");
+                          var tmpResult = tmpArr[0];
+                          var tmpArr = tmpResult.split("(");
+                          var tmpResult = tmpArr[1];
+                          result = tmpResult;
+                        }
+                      });
+                      
+                      return result;
+                      
+              tags:
+                -
+                  tag: Application
+                  value: 'ICMP for {#ICMPDEVICENAME}'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var resultArr = value.split("!");
+                  
+                  var resultArr1 = []; 
+                  
+                  resultArr.forEach(function(item, i, resultArr ) {
+                    var tmp = item.replace(/\s/, '');
+                    tmp = tmp.replace(/\r/, '');
+                    tmp = tmp.replace(/\n/, '');
+                    resultArr1.push(tmp);
+                  });
+                  
+                  var resultArrUnique  = [];
+                  
+                  resultArr1.forEach(function(item, i, resultArr1){
+                      if(resultArrUnique.indexOf(item) === -1) {
+                         resultArrUnique.push(item);
+                      }
+                  });
+                  
+                  var out = [];
+                  
+                  resultArrUnique.forEach(function(item, i, resultArr ) {
+                    var tmp = item.replace(/\s/, '');
+                    tmp = tmp.replace(/\r/, '');
+                    tmp = tmp.replace(/\n/, '');
+                    var tmpArr = tmp.split(",");
+                    var tmp1 = {"{#ICMPDEVICEIP}": tmpArr[0], "{#ICMPDEVICENAME}": tmpArr[1]};
+                    out.push(tmp1);
+                  });
+                  
+                  var out1 = {"data" : out};
+                  
+                  return JSON.stringify(out1);
+                  
+      macros:
+        -
+          macro: '{$ICMP_DEVICES}'
+          value: '127.0.0.1,localhost ! 127.0.1.1,camera1'
+      valuemaps:
+        -
+          uuid: 0353b579a15a487088bd17913f221320
+          name: 'Service state'
+          mappings:
+            -
+              value: '0'
+              newvalue: Down
+            -
+              value: '1'
+              newvalue: Up
+        -
+          uuid: 89172053fe6e493ebb6ff3ecfbbb013d
+          name: 'Zabbix Trigger Mapping'
+          mappings:
+            -
+              value: '0'
+              newvalue: OK
+            -
+              value: '1'
+              newvalue: information
+            -
+              value: '2'
+              newvalue: warning
+            -
+              value: '3'
+              newvalue: average
+            -
+              value: '4'
+              newvalue: high
+            -
+              value: '5'
+              newvalue: disaster

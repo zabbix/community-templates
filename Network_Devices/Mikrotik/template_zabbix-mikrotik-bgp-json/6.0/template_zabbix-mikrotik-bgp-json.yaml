@@ -1,0 +1,137 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:48:32Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: d4b9f2cd2d334fde8a093bf2bcbe8a77
+      template: 'Mikrotik - BGP LLD'
+      name: 'Mikrotik - BGP LLD'
+      description: |
+        ## Overview
+        
+        The Zabbix Mikrotik BGP template for 4.0, which uses LLD, JSON, SSH for connection to Mikrotik router wihout externel scripts.
+        
+        
+        Inspired by: [https://share.zabbix.com/network\_devices/mikrotik/mikrotik-bgp-lld#login-modal](network_devices/mikrotik/mikrotik-bgp-lld#login-modal)
+        
+        
+        The diferenses is this template uses one ssh connection for getting all parametrs through JSON.
+        
+        
+        This template requires changing macroses:
+        
+        
+        {$MIKROTIK\_SSH\_PASS}
+        
+        
+        {$MIKROTIK\_SSH\_PORT}
+        
+        
+        {$MIKROTIK\_SSH\_USER}
+        
+        
+         
+        
+        
+        
+        ## Author
+        
+        AlKosmos
+        
+        
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: bc83a98eed434e21aba4dc7fde61d55c
+          name: 'BGP - Peer JSON'
+          type: SSH
+          key: 'ssh.run[BGP - Peer JSON,,{$MIKROTIK_SSH_PORT},]'
+          delay: '{$UPDATEINT}'
+          history: '{$HISTORY}'
+          trends: '0'
+          value_type: TEXT
+          params: ':global list [/routing bgp peer find]; :global count 0; :global total [:len $list]; :put "{"; :foreach i in=$list do={; :set count ($count + 1); :local name [/routing bgp peer get value-name=name number=$i]; :local prefix [/routing bgp peer get value-name=prefix number=$i];  :local state [/routing bgp peer get value-name=state number=$i];  :local remoteas [/routing bgp peer get value-name=remote-as number=$i]; :local disabled [/routing bgp peer get value-name=disabled number=$i]; :if ( disabled != true) do={ :if ( $count < $total) do={; :put "\"$name\":{\"REMOTEAS\":\"$remoteas\",\"DISABLED\":\"$disabled\",\"PREFIX\":\"$prefix\",\"STATE\":\"$state\"},"; } else={; :put "\"$name\":{\"REMOTEAS\":\"$remoteas\",\"DISABLED\":\"$disabled\",\"PREFIX\":\"$prefix\",\"STATE\":\"$state\"}"; }; }; }; :put "}";'
+          username: '{$MIKROTIK_SSH_USER}'
+          password: '{$MIKROTIK_SSH_PASS}'
+          tags:
+            -
+              tag: Application
+              value: 'BGP JSON'
+      discovery_rules:
+        -
+          uuid: 895d361d89b8423fb1c3819a16001e9c
+          name: 'BGP - Peers'
+          type: SSH
+          key: 'ssh.run[,,{$MIKROTIK_SSH_PORT},]'
+          delay: 1h
+          params: ':global list [/routing bgp peer find]; :global count 0; :global total [:len $list]; :put "{\"data\":["; :foreach i in=$list do={; :set count ($count + 1); :local name [/routing bgp peer get value-name=name number=$i]; :local remoteas [/routing bgp peer get value-name=remote-as number=$i]; :local disabled [/routing bgp peer get value-name=disabled number=$i]; :if ( $count < $total) do={; :put "{\"{#PEERNAME}\":\"$name\",\"{#REMOTEAS}\":\"$remoteas\",\"{#DISABLED}\":\"$disabled\"},"; } else={; :put "{\"{#PEERNAME}\":\"$name\",\"{#REMOTEAS}\":\"$remoteas\",\"{#DISABLED}\":\"$disabled\"}"; }; }; :put "]}";'
+          username: '{$MIKROTIK_SSH_USER}'
+          password: '{$MIKROTIK_SSH_PASS}'
+          filter:
+            conditions:
+              -
+                macro: '{#DISABLED}'
+                value: 'false'
+                formulaid: A
+          item_prototypes:
+            -
+              uuid: cc2b7960762e43da9c9041fc8e6b8199
+              name: '{#PEERNAME} ({#REMOTEAS}) - Prefix'
+              type: DEPENDENT
+              key: 'ssh.run[{#PEERNAME}-prefix,,{$MIKROTIK_SSH_PORT},]'
+              delay: '0'
+              history: '{$HISTORY}'
+              trends: '{$TRENDS}'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$["{#PEERNAME}"].PREFIX'
+              master_item:
+                key: 'ssh.run[BGP - Peer JSON,,{$MIKROTIK_SSH_PORT},]'
+              tags:
+                -
+                  tag: Application
+                  value: BGP
+            -
+              uuid: e01703036ecf417e89622f43674d17cf
+              name: '{#PEERNAME} ({#REMOTEAS}) - Status'
+              type: DEPENDENT
+              key: 'ssh.run[{#PEERNAME}-status,,{$MIKROTIK_SSH_PORT},]'
+              delay: '0'
+              history: '{$HISTORY}'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$["{#PEERNAME}"].STATE'
+              master_item:
+                key: 'ssh.run[BGP - Peer JSON,,{$MIKROTIK_SSH_PORT},]'
+              tags:
+                -
+                  tag: Application
+                  value: BGP
+              trigger_prototypes:
+                -
+                  uuid: 5b45ced0ae1d4d5e973b3c0d71e31ff8
+                  expression: 'find(/Mikrotik - BGP LLD/ssh.run[{#PEERNAME}-status,,{$MIKROTIK_SSH_PORT},],,"like","established")=0'
+                  name: 'Peer {#PEERNAME} not established'
+                  priority: DISASTER
+      macros:
+        -
+          macro: '{$MIKROTIK_SSH_PASS}'
+          value: '1111'
+        -
+          macro: '{$MIKROTIK_SSH_PORT}'
+          value: '22'
+        -
+          macro: '{$MIKROTIK_SSH_USER}'
+          value: mikmon

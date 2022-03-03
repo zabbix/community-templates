@@ -1,0 +1,171 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:22:01Z'
+  groups:
+    -
+      uuid: bb80c072f65e43738eb0f0e94820d886
+      name: 'ZZZ-TPL: Parts Network'
+  templates:
+    -
+      uuid: 62e5bdca50544c92892013021e0b4608
+      template: tpl_part_network_cisco_all_performance
+      name: tpl_part_network_cisco_all_performance
+      description: |
+        ## Overview
+        
+        Template for all Cisco devices which support the CISCO-MEMORY-POOL-MIB and CISCO-PROCESS-MIB. 
+        
+        
+        Discovery all CPUs and memory pools with dynamic trigger thresholds (macro context) and flapping prevention (use of .max()/.min() functions).
+        
+        
+         
+        
+        
+        You need to create a user macro on the template or global level with name {$CRD\_SNMPV2\_R} = "yourSNMPv2ReadCommunity".
+        
+        
+        
+        ## Author
+        
+        Valentin Weber
+        
+        
+      groups:
+        -
+          name: 'ZZZ-TPL: Parts Network'
+      discovery_rules:
+        -
+          uuid: af9b3e967c1b400286c59916815778b8
+          name: 'LLD of memory pools'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#MEMNAME},1.3.6.1.4.1.9.9.48.1.1.1.2]'
+          key: ciscoMemoryPoolTable
+          delay: '86400'
+          lifetime: 7d
+          description: '{#MEMNAME} --> A textual name assigned to the memory pool. This object is suitable for output to a human operator, and may also be used to distinguish among the various pool types, especially among dynamic pools.'
+          item_prototypes:
+            -
+              uuid: 5895de418fe84bcfbab7b1796759b1e7
+              name: 'Memory - free in pool ''{#MEMNAME}'''
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.9.9.48.1.1.1.6.{#SNMPINDEX}'
+              key: 'ciscoMemoryPoolFree[{#SNMPINDEX}]'
+              delay: '600'
+              history: 7d
+              units: B
+              description: 'Indicates the number of bytes from the memory pool that are currently unused on the managed device.'
+              tags:
+                -
+                  tag: Application
+                  value: Cisco
+              trigger_prototypes:
+                -
+                  uuid: 345c229a57a943a68a8e24b3272d0ed8
+                  expression: 'max(/tpl_part_network_cisco_all_performance/ciscoMemoryPoolFree[{#SNMPINDEX}],#3)<{$MEM_FREE_MIN_1:"{#MEMNAME}"}'
+                  name: 'Cisco: ''Free memory'' in pool ''{#MEMNAME}'' is low [{ITEM.LASTVALUE}]'
+                  priority: WARNING
+                  dependencies:
+                    -
+                      name: 'Cisco: ''Free memory'' in pool ''{#MEMNAME}'' is too low [{ITEM.LASTVALUE}]'
+                      expression: 'max(/tpl_part_network_cisco_all_performance/ciscoMemoryPoolFree[{#SNMPINDEX}],#3)<{$MEM_FREE_MIN_2:"{#MEMNAME}"}'
+                -
+                  uuid: bb664c2cae0b4360ba730c5671d1630c
+                  expression: 'max(/tpl_part_network_cisco_all_performance/ciscoMemoryPoolFree[{#SNMPINDEX}],#3)<{$MEM_FREE_MIN_2:"{#MEMNAME}"}'
+                  name: 'Cisco: ''Free memory'' in pool ''{#MEMNAME}'' is too low [{ITEM.LASTVALUE}]'
+                  priority: AVERAGE
+        -
+          uuid: c8754769b39b4358bc1c7515aeef2eb1
+          name: 'LLD of CPU'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#CPUID},1.3.6.1.4.1.9.9.109.1.1.1.1.2]'
+          key: cpmCPUTotalTable
+          delay: '86400'
+          lifetime: 7d
+          description: '{#CPUID} --> The physical entity can be a CPU chip, a group of CPUs, a CPU card etc. The exact type of this entity is described by its entPhysicalVendorType value.'
+          item_prototypes:
+            -
+              uuid: 8812b4c7c5374af3b3dd8f6439fc014f
+              name: 'CPU - usage on core ''{#CPUID}'''
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.9.9.109.1.1.1.1.8.{#SNMPINDEX}'
+              key: 'cpmCPUTotal5minRev[{#SNMPINDEX}]'
+              delay: '300'
+              history: 7d
+              units: '%'
+              description: 'The overall CPU busy percentage in the last 5 minute period.'
+              tags:
+                -
+                  tag: Application
+                  value: Cisco
+              trigger_prototypes:
+                -
+                  uuid: 9fd7b40bd751478ab22332cfe7061e39
+                  expression: 'min(/tpl_part_network_cisco_all_performance/cpmCPUTotal5minRev[{#SNMPINDEX}],#3)>{$CPU_PUSED_MAX_1:"{#CPUID}"}'
+                  name: 'Cisco: ''CPU usage'' on core ''{#CPUID}'' is high [{ITEM.LASTVALUE}]'
+                  url: 'http://www.cisco.com/c/en/us/support/docs/routers/10000-series-routers/15095-highcpu.html#anc0'
+                  priority: WARNING
+                  description: |
+                    - Check for a possible security issue. Commonly, high CPU utilization is caused by a security issue, such as a worm or virus operating in your network. This is especially likely to be the cause if there have not been recent changes to the network. Usually, a configuration change, such as adding additional lines to your access lists can mitigate the effects of this problem. Cisco Product Security Advisories and Notices contains information on detection of the most likely causes and specific workarounds.
+                    - Make sure all debugging commands in your router are turned off by issuing the undebug all or no debug all commands. For more information on the use of debugging commands, refer to Using Debug Commands.
+                    - Are you able to issue show commands on the router? If yes, start collecting more information immediately, using these show commands.
+                    - Is the router inaccessible? Can you reproduce this problem? If yes, power-cycle the router and, before reproducing the problem, configure the scheduler interval 500 command. This schedules low priority processes to run every 500 milliseconds, which provides time for you to run some commands, even if CPU usage is at 100 percent. On Cisco 7200 and Cisco 7500 Series Routers, use the scheduler allocate 3000 1000 command.
+                    - Does the router show symptoms of high CPU utilization at brief and unpredictable intervals? If yes, periodically collect the output of the show processes cpu command, which shows if the high CPU utilization is caused by interrupts or by a certain process. Use this UNIX script and, based on the first findings, modify the script to collect data needed for further investigation of the issue.
+                    
+                    The overall CPU busy percentage.
+                  dependencies:
+                    -
+                      name: 'Cisco: ''CPU usage'' on core ''{#CPUID}'' is too high [{ITEM.LASTVALUE}]'
+                      expression: 'min(/tpl_part_network_cisco_all_performance/cpmCPUTotal5minRev[{#SNMPINDEX}],#3)>{$CPU_PUSED_MAX_2:"{#CPUID}"}'
+                -
+                  uuid: 2a7d0db4c3834f528319f92999f53b53
+                  expression: 'min(/tpl_part_network_cisco_all_performance/cpmCPUTotal5minRev[{#SNMPINDEX}],#3)>{$CPU_PUSED_MAX_2:"{#CPUID}"}'
+                  name: 'Cisco: ''CPU usage'' on core ''{#CPUID}'' is too high [{ITEM.LASTVALUE}]'
+                  url: 'http://www.cisco.com/c/en/us/support/docs/routers/10000-series-routers/15095-highcpu.html#anc0'
+                  priority: AVERAGE
+                  description: |
+                    - Check for a possible security issue. Commonly, high CPU utilization is caused by a security issue, such as a worm or virus operating in your network. This is especially likely to be the cause if there have not been recent changes to the network. Usually, a configuration change, such as adding additional lines to your access lists can mitigate the effects of this problem. Cisco Product Security Advisories and Notices contains information on detection of the most likely causes and specific workarounds.
+                    - Make sure all debugging commands in your router are turned off by issuing the undebug all or no debug all commands. For more information on the use of debugging commands, refer to Using Debug Commands.
+                    - Are you able to issue show commands on the router? If yes, start collecting more information immediately, using these show commands.
+                    - Is the router inaccessible? Can you reproduce this problem? If yes, power-cycle the router and, before reproducing the problem, configure the scheduler interval 500 command. This schedules low priority processes to run every 500 milliseconds, which provides time for you to run some commands, even if CPU usage is at 100 percent. On Cisco 7200 and Cisco 7500 Series Routers, use the scheduler allocate 3000 1000 command.
+                    - Does the router show symptoms of high CPU utilization at brief and unpredictable intervals? If yes, periodically collect the output of the show processes cpu command, which shows if the high CPU utilization is caused by interrupts or by a certain process. Use this UNIX script and, based on the first findings, modify the script to collect data needed for further investigation of the issue.
+                    
+                    The overall CPU busy percentage.
+          graph_prototypes:
+            -
+              uuid: 6a08cea295274df6970efbc26cfc69e8
+              name: 'CPU usage on core ''{#CPUID}'''
+              show_triggers: 'NO'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              graph_items:
+                -
+                  color: 1A7C11
+                  item:
+                    host: tpl_part_network_cisco_all_performance
+                    key: 'cpmCPUTotal5minRev[{#SNMPINDEX}]'
+      macros:
+        -
+          macro: '{$CPU_PUSED_MAX_1}'
+          value: '85'
+        -
+          macro: '{$CPU_PUSED_MAX_2}'
+          value: '95'
+        -
+          macro: '{$MEM_FREE_MIN_1}'
+          value: '5000000'
+        -
+          macro: '{$MEM_FREE_MIN_1:"I/O"}'
+          value: '1400000'
+        -
+          macro: '{$MEM_FREE_MIN_1:"SRAM"}'
+          value: '3000'
+        -
+          macro: '{$MEM_FREE_MIN_2}'
+          value: '1000000'
+        -
+          macro: '{$MEM_FREE_MIN_2:"I/O"}'
+          value: '500000'
+        -
+          macro: '{$MEM_FREE_MIN_2:"SRAM"}'
+          value: '1000'

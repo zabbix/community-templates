@@ -1,0 +1,178 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T22:08:36Z'
+  groups:
+    -
+      uuid: 57b7ae836ca64446ba2c296389c009b7
+      name: Templates/Modules
+  templates:
+    -
+      uuid: 33e0546f88df48f5961dd2fbf39dd197
+      template: 'Module Linux Active User Status by Zabbix Agent active'
+      name: 'Module Linux Active User Status by Zabbix Agent active'
+      description: |
+        ## Description
+        
+        This template collects and monitors active users on target hosts.
+        
+        ## Overview
+        
+        
+        # Zabbix Template for monitoring Active User Status by Zabbix Agent active
+        
+        
+        This template try to monitor active users on servers and find out overstay users
+          
+        
+        1. Monitor Items
+         1. Logged in users List
+         1. Num of Active(logged in) users
+         1. Overstay users on the {HOST.NAME} > {$OVERSTAY\_THRESHOLD} day(s)
+         1. Num of overstay users on the {HOST.NAME} > {$OVERSTAY\_THRESHOLD} day(s)
+         - Triggers
+         Some users overstay on the {HOST.NAME} > {$OVERSTAY\_THRESHOLD} day(s)
+          
+        
+        ## Tested version
+          
+        
+        - Zabbix: `5.0.1`
+          
+        
+        ## Useage
+          
+        
+        1. Import Templates: Zabbix Web Page --> [Configuration] --> [Templates] --> [Import] this xml file
+        1. Link this template to an existing host or a new host
+        1. Update the Macro to specify your Harbor info: [Configuration] --> your host --> [Macros] --> [Inherited and host macros]
+         - {$OVERSTAY\_THRESHOLD}
+        
+        
+        ## Author
+        
+        Yioda
+        
+        
+      groups:
+        -
+          name: Templates/Modules
+      items:
+        -
+          uuid: 7c54566c2a3848d89a131a8b27acca4c
+          name: 'Logged in users'
+          type: ZABBIX_ACTIVE
+          key: 'system.run["TZ=UTC last -FRw | grep \"still logged\" | sed ''s/still logged in//g'' | awk ''{$2=\"\";print $0;}''  | sed ''s/  /,/g''"]'
+          delay: 1h
+          trends: '0'
+          value_type: TEXT
+          description: 'Use linux command `last` to get those users with status "still logged in".'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var conns = value.split('\n');
+                  var new_conns = [];
+                  for(var i=0; i<conns.length; i++){
+                    if (conns[i].length === 0){
+                      continue;
+                    }
+                    var conn_info = conns[i].split(',');
+                    var user = conn_info[0];
+                    var time = new Date(conn_info[1]);
+                    new_conns.push({user: user, login: time});
+                  }
+                  return JSON.stringify(new_conns);
+          tags:
+            -
+              tag: Application
+              value: 'Active User Status'
+            -
+              tag: Application
+              value: OS
+        -
+          uuid: b4dfedfc00814d2bb7618aae8b310d59
+          name: 'Num of Active(logged in) users'
+          type: DEPENDENT
+          key: system.users.loggedin.num
+          delay: '0'
+          description: 'Same purpose as the Zabbix built-in metric `system.users.num`.'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value).length;'
+          master_item:
+            key: 'system.run["TZ=UTC last -FRw | grep \"still logged\" | sed ''s/still logged in//g'' | awk ''{$2=\"\";print $0;}''  | sed ''s/  /,/g''"]'
+          tags:
+            -
+              tag: Application
+              value: 'Active User Status'
+            -
+              tag: Application
+              value: OS
+        -
+          uuid: ca9ff0022edf4c378f3782a3e5af2af9
+          name: 'Overstay users on the {HOST.NAME} > {$OVERSTAY_THRESHOLD} day(s)'
+          type: DEPENDENT
+          key: system.users.overstay.list
+          delay: '0'
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var conns = JSON.parse(value);
+                  var overstay_conns = [];
+                  var threshold = '{$OVERSTAY_THRESHOLD}';
+                  for (var i=0; i<conns.length; i++){
+                    var login_date = new Date(conns[i].login);
+                    var current_date = new Date();
+                    var stay_days = (current_date - login_date)/(1000*60*60*24*threshold);
+                    if (stay_days >= 1) {
+                      overstay_conns.push(conns[i]);
+                    }
+                  }
+                  return JSON.stringify(overstay_conns);
+          master_item:
+            key: 'system.run["TZ=UTC last -FRw | grep \"still logged\" | sed ''s/still logged in//g'' | awk ''{$2=\"\";print $0;}''  | sed ''s/  /,/g''"]'
+          tags:
+            -
+              tag: Application
+              value: 'Active User Status'
+            -
+              tag: Application
+              value: OS
+        -
+          uuid: 69882caff9ba439aac605f4fa7db3dae
+          name: 'Num of overstay users on the {HOST.NAME} > {$OVERSTAY_THRESHOLD} day(s)'
+          type: DEPENDENT
+          key: system.users.overstay.num
+          delay: '0'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value).length;'
+          master_item:
+            key: system.users.overstay.list
+          tags:
+            -
+              tag: Application
+              value: 'Active User Status'
+            -
+              tag: Application
+              value: OS
+          triggers:
+            -
+              uuid: 68d4533e8b9346b7a7ce1afb9b20d850
+              expression: 'last(/Module Linux Active User Status by Zabbix Agent active/system.users.overstay.num)>0'
+              name: 'Some users overstay on the {HOST.NAME} >  {$OVERSTAY_THRESHOLD} day(s)'
+              priority: WARNING
+      macros:
+        -
+          macro: '{$OVERSTAY_THRESHOLD}'
+          value: '1'
+          description: 'stay on certain server too long, default: 1 day'

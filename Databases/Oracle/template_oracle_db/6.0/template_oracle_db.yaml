@@ -1,0 +1,2493 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:49:37Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+    -
+      uuid: 748ad4d098d447d492bb935c907f652f
+      name: Templates/Databases
+  templates:
+    -
+      uuid: 904938e46bb848289184e46eebe792cf
+      template: 'Oracle DB'
+      name: 'Oracle DB'
+      description: |
+        ## Overview
+        
+        Zabbix template for oracle
+        ==========================
+        
+        
+        Steps in order to make it work:
+        -------------------------------
+        
+        
+        1. Install ODBC drivers for your OS (Oracle)
+        2. Create some user in your Oracle database for Zabbix
+        3. Maintain your odbc.ini and add new DSN
+        4. Fill corresponding connect DSN in {#DSN} and {#BACKUP\_DSN} macro at your zabbix host.
+        5. Grant **select any dictionary** to created user at step #2.
+        6. If some specific permission is required for some specific item, it will be available at item description.
+        
+        
+        Future plans:
+        -------------
+        
+        
+        * Add more performance metric items and triggers
+        * Add support for Oracle RAC
+        * Add compatibility for Oracle DataGuard instances
+        
+        
+        Github repo: <https://github.com/HellScre4m/zabbix-monitoring-templates>
+        
+        
+        Some hints:
+        -----------
+        
+        
+        **Min Zabbix version** is prone to **change** at higher versions. Always check template description before getting new version.
+        
+        
+        Current supporting Oracle is **11gr2**
+        
+        
+        Feel free to fork/edit/pull request.
+        
+        
+        Version / Zabbix version:
+        -------------------------
+        
+        
+        1.0 / 4.2+
+        
+        
+        
+        ## Author
+        
+        SuNova
+        
+        
+      groups:
+        -
+          name: Templates
+        -
+          name: Templates/Databases
+      items:
+        -
+          uuid: 335637900b474d5d8e0ab371bfcc8813
+          name: 'Archived log Primary-Standby gap'
+          type: ODBC
+          key: 'db.odbc.select[archive log gap,{$DSN}]'
+          delay: 10m
+          history: 7d
+          params: |
+            select (select max(sequence#) from v$archived_log) - (select max(sequence#) from v$archived_log where applied = 'YES')
+            from dual;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+          triggers:
+            -
+              uuid: 83f5368647564a1aac923aa4c7f66a01
+              expression: 'last(/Oracle DB/db.odbc.select[archive log gap,{$DSN}])>=5'
+              name: 'DB - DG archive gap detected => {ITEM.VALUE1}'
+              priority: WARNING
+              dependencies:
+                -
+                  name: 'DB - DG massive archive gap detected => {ITEM.VALUE1}'
+                  expression: 'last(/Oracle DB/db.odbc.select[archive log gap,{$DSN}])>=10'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 94cb595fe2b5444998b85831925000c6
+              expression: 'last(/Oracle DB/db.odbc.select[archive log gap,{$DSN}])>=10'
+              name: 'DB - DG massive archive gap detected => {ITEM.VALUE1}'
+              priority: HIGH
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: 3fecbaf2f65f48b69e4ce0c3321f8b13
+          name: 'Last 24h backup details'
+          type: ODBC
+          key: 'db.odbc.select[backup status,{$BACKUP_DSN}]'
+          delay: 1h
+          history: 1d
+          value_type: FLOAT
+          params: |
+            select * from (
+            select case
+                when status = 'COMPLETED' then 1
+                when status = 'FAILED' then -1
+                when status like 'WITH WARNINGS'  then 2
+                when status like 'WITH ERRORS'  then 3
+                else 0 end
+            from v$rman_status
+            where trunc(start_time) = trunc(sysdate-{$ORACLE_BACKUP_HOUR}/24) and operation = 'BACKUP' and (object_type='DB INCR' or object_type='DB FULL')
+            order by start_time asc)
+            where rownum=1;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          description: |
+            when status = 'COMPLETED' then 1
+            when status = 'FAILED' then -1
+            when status like 'WITH WARNINGS'  then 2
+            when status like 'WITH ERRORS'  then 3
+            else 0
+          valuemap:
+            name: 'Oracle backup status'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+          triggers:
+            -
+              uuid: 4808698b3faf4b7aa76a35144ec80596
+              expression: |
+                last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])=-1
+                or
+                nodata(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}],24h)=1
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])>=0'
+              name: 'Database has no backup last 24hrs'
+              priority: AVERAGE
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: e998aea7780d4d04be53792b34fc5944
+              expression: 'last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])=3'
+              name: 'Last DB backup contains errors'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 2999a99066d64a099ee29c1c5e622636
+              expression: 'last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])=2'
+              name: 'Last DB backup contains warnings'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 712d8e02ac3149bd898e51d9b0f78f39
+              expression: 'last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])=-1'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Oracle DB/db.odbc.select[backup status,{$BACKUP_DSN}])>=0'
+              name: 'Last DB backup is failed'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: 9c5704f321cf4351935db962027d7e52
+          name: 'Blocked sessions count'
+          type: ODBC
+          key: 'db.odbc.select[Blocked sessions count,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: 'select count(distinct sid) from v$session_blockers;'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: Locks
+        -
+          uuid: d47484e1298e4296ae6761578f11f98a
+          name: 'Buffer Cache Hit Ratio'
+          type: ODBC
+          key: 'db.odbc.select[Buffer Cache Hit Ratio,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Buffer Cache Hit Ratio' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: b833f303414a47a4b1eeb823d670575d
+          name: 'Cursor Cache Hit Ratio'
+          type: ODBC
+          key: 'db.odbc.select[Cursor Cache Hit Ratio,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Cursor Cache Hit Ratio' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 540feceba53a48e8b8c4187f54a3117f
+          name: 'Database CPU Time Ratio'
+          type: ODBC
+          key: 'db.odbc.select[Database CPU Time Ratio,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Database CPU Time Ratio' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 7ae98067f61441358e0f684418b5c038
+          name: 'Database lock count'
+          type: ODBC
+          key: 'db.odbc.select[Database lock count,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: |
+            select count(1)
+            from v$lock;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: Locks
+        -
+          uuid: 9922d69da2e940feb146f3fe51321f6a
+          name: 'Database session count'
+          type: ODBC
+          key: 'db.odbc.select[db session count,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: 'select count(1) from v$session;'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 28de3114a27347edbea3b7a8be525f4d
+          name: 'Global DB name'
+          type: ODBC
+          key: 'db.odbc.select[global_db_name,{$DSN}]'
+          delay: 1d
+          history: 30d
+          trends: '0'
+          value_type: TEXT
+          params: |
+            select property_value
+            from database_properties
+            where property_name='GLOBAL_DB_NAME';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: e13c9ede7cd84dadb31e37cb523b6494
+          name: 'Host CPU Utilization %'
+          type: ODBC
+          key: 'db.odbc.select[Host CPU Utilization,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Host CPU Utilization (%)' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 708896e7bb4d483eb097e7b5df57e99e
+          name: 'Instance CPU count'
+          type: ODBC
+          key: 'db.odbc.select[Instance CPU count,{$DSN}]'
+          delay: 1h
+          history: 7d
+          params: |
+            select value from
+            v$system_parameter2
+            where name='cpu_count';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 835f7d558114450eb33496f2aa79688e
+          name: 'Instance status'
+          type: ODBC
+          key: 'db.odbc.select[Instance Status,{$DSN}]'
+          delay: '60'
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          params: 'select status from v$instance'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+          triggers:
+            -
+              uuid: 02e5540411634291b60e1b332e19df94
+              expression: |
+                count(/Oracle DB/db.odbc.select[Instance Status,{$DSN}],#1,"eq","OPEN")=0
+                or
+                nodata(/Oracle DB/db.odbc.select[Instance Status,{$DSN}],150s)=1
+              name: 'Database Is Down'
+              priority: DISASTER
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: 5de1da52095c472ebea51bee374ba325
+          name: 'Instance name'
+          type: ODBC
+          key: 'db.odbc.select[instance_name,{$DSN}]'
+          delay: 1d
+          history: 30d
+          trends: '0'
+          value_type: TEXT
+          params: 'select instance_name from v$instance;'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 921ccfc20cc74e66a31a0282d5f80c6e
+          name: 'Long table scans per sec'
+          type: ODBC
+          key: 'db.odbc.select[Long Table Scans Per Sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Long Table Scans Per Sec' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: e33e4772d0fe4fc181960f31bb59e693
+          name: 'Max applied archived log'
+          type: ODBC
+          key: 'db.odbc.select[max applied archived log,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: 'select max(sequence#) from v$archived_log  where applied = ''YES'';'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 78c89e2a1fa845759db7de36564e611b
+          name: 'Max archived log'
+          type: ODBC
+          key: 'db.odbc.select[max archived log,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: |
+            select case
+            when max(sequence#) is null then 0
+            else max(sequence#) end
+            from v$archived_log;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+          triggers:
+            -
+              uuid: 8c2ab26ed6e94beca534eecc829975f5
+              expression: 'last(/Oracle DB/db.odbc.select[max archived log,{$DSN}])=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Oracle DB/db.odbc.select[max archived log,{$DSN}])>0'
+              name: 'Database is not in archive mode'
+              priority: WARNING
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: c67df9995b1a4fd89208b40b960dcba6
+          name: 'Maximum processes'
+          type: ODBC
+          key: 'db.odbc.select[max number of processes,{$DSN}]'
+          delay: 1h
+          history: 7d
+          params: |
+            select value from v$system_parameter
+            where name ='processes';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 4ba5f576e8284157bb76d3efbd8b4bcb
+          name: 'Maximum sessions'
+          type: ODBC
+          key: 'db.odbc.select[max number of sessions,{$DSN}]'
+          delay: 1h
+          history: 7d
+          params: |
+            select value from v$system_parameter
+            where name ='sessions';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: f318a8fa77dc4a05971ef6152b448ec5
+          name: 'PGA Cache Hit %'
+          type: ODBC
+          key: 'db.odbc.select[PGA Cache Hit Percentage,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='PGA Cache Hit %' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 787f90fa3b9444d8b547201e1f2d4d4c
+          name: 'Physical Read Bytes Per Sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical Read Bytes Per Sec,{$DSN}]'
+          delay: 2m
+          history: 7d
+          value_type: FLOAT
+          units: Bps
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Physical Read Bytes Per Sec' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+          triggers:
+            -
+              uuid: 7994bdc8b3f34171ad05003a65d31c81
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],15m) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) >=1.75'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],#3) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) <1.75'
+              name: 'Database Read Bps is abnormal => {ITEM.VALUE1}'
+              priority: WARNING
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Database Read Bps is high => {ITEM.VALUE1}'
+                  expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],10m) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) >=2'
+                  recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],#2) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) <2'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 26e43e57d8fb44f68809d855c3691340
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],10m) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) >=2'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],#2) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) <2'
+              name: 'Database Read Bps is high => {ITEM.VALUE1}'
+              priority: AVERAGE
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Database Read Bps is very high => {ITEM.VALUE1}'
+                  expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],5m) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) >=2.25'
+                  recovery_expression: 'last(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}]) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) <2.25'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 3239de1cfad446eb8f960bc55aaf4f6a
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],5m) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) >=2.25'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}]) / (avg(/Oracle DB/db.odbc.select[Physical Read Bytes Per Sec,{$DSN}],1w) + {$MIN_READ_BPS}) <2.25'
+              name: 'Database Read Bps is very high => {ITEM.VALUE1}'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: c8ab4d5b086d49aa8e8c89877334759d
+          name: 'Physical reads direct per sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical reads direct per sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysstat
+            where name='physical reads direct';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          preprocessing:
+            -
+              type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+        -
+          uuid: 42ccd72be9a9477980ad0a406e06bb33
+          name: 'Physical reads direct temporary tablespace per sec'
+          type: ODBC
+          key: 'db.odbc.select[physical reads direct temporary tablespace per sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysstat
+            where name='physical reads direct temporary tablespace';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          preprocessing:
+            -
+              type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+        -
+          uuid: 6f8d1880e8f04cf6a86feaa782772494
+          name: 'Physical Reads Per Sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical Reads Per Sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Physical Reads Per Sec' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+        -
+          uuid: 0065ea33d03c44d096b107150c98bc04
+          name: 'Physical Write Bytes Per Sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical Write Bytes Per Sec,{$DSN}]'
+          delay: 2m
+          history: 7d
+          value_type: FLOAT
+          units: Bps
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Physical Write Bytes Per Sec' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+          triggers:
+            -
+              uuid: 940ed009c42445da836e2e5d0c776153
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],15m) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) >=1.75'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],#3) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) <1.75'
+              name: 'Database Write Bps is abnormal => {ITEM.VALUE1}'
+              priority: WARNING
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Database Write Bps is high => {ITEM.VALUE1}'
+                  expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],10m) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) >=2'
+                  recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],#2) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) <2'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: f884a97b5cbd4014a3b6c09fb4ddd533
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],10m) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) >=2'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],#2) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) <2'
+              name: 'Database Write Bps is high => {ITEM.VALUE1}'
+              priority: AVERAGE
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Database Write Bps is very high => {ITEM.VALUE1}'
+                  expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],5m) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) >=2.25'
+                  recovery_expression: 'last(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}]) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) <2.25'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: 9668669bcfd748b68ebb80749d6f190a
+              expression: 'avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],5m) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) >=2.25'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}]) / (avg(/Oracle DB/db.odbc.select[Physical Write Bytes Per Sec,{$DSN}],1w) + {$MIN_WRITE_BPS}) <2.25'
+              name: 'Database Write Bps is very high => {ITEM.VALUE1}'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+        -
+          uuid: 8e1518b01e8d44b6b166a2d65519a66a
+          name: 'Physical writes direct per sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical writes direct per sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysstat
+            where name='physical writes direct';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          preprocessing:
+            -
+              type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+        -
+          uuid: bfb9732ff88d40c3b74e4b4d432160bd
+          name: 'Physical Writes Per Sec'
+          type: ODBC
+          key: 'db.odbc.select[Physical Writes Per Sec,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Physical Writes Per Sec' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: IO
+        -
+          uuid: 9069b95d631d4d2db50323bb8d1db159
+          name: 'Redo Allocation Hit Ratio'
+          type: ODBC
+          key: 'db.odbc.select[Redo Allocation Hit Ratio,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Redo Allocation Hit Ratio' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: 88e47dbded324c0fa09c0f211b7021b2
+          name: 'Session blockers count'
+          type: ODBC
+          key: 'db.odbc.select[session blockers count,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: 'select count(distinct blocker_sid) from v$session_blockers;'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: Locks
+        -
+          uuid: f2fa10df746f4c83a62f4773aaf91daa
+          name: 'Shared Pool Free %'
+          type: ODBC
+          key: 'db.odbc.select[Shared Pool Free %,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Shared Pool Free %' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: bb4dd76c468646b7a773a6cabb24306a
+          name: 'Soft Parse Ratio'
+          type: ODBC
+          key: 'db.odbc.select[Soft Parse Ratio,{$DSN}]'
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          params: |
+            select value
+            from v$sysmetric
+            where metric_name='Soft Parse Ratio' and group_id=2;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Database
+        -
+          uuid: d5d7758e8ef54059abc2c691c0818cf0
+          name: 'Waiting sessions count'
+          type: ODBC
+          key: 'db.odbc.select[Waiting sessions count,{$DSN}]'
+          delay: 5m
+          history: 7d
+          params: |
+            select count(1)
+            from v$session
+            where username is not null
+            and wait_time = 0
+            and wait_class# != 6;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          tags:
+            -
+              tag: Application
+              value: Database
+            -
+              tag: Application
+              value: Locks
+      discovery_rules:
+        -
+          uuid: c6ed32c7773a4afab8f26f0171ad23c6
+          name: 'Active session discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[active session discovery,{$DSN}]'
+          delay: 5m
+          params: |
+            select distinct sid
+            from v$session
+            where username is not null
+            and wait_class#!=6;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: cf718e0a54484a9aaa54f79215874160
+              name: 'Session {#SID} CPU used in seconds'
+              type: ODBC
+              key: 'db.odbc.select[session {#SID} CPU time,{$DSN}]'
+              delay: 2m
+              history: 7d
+              value_type: FLOAT
+              params: |
+                select value/100 from v$sesstat
+                join v$statname using (statistic#)
+                where name = 'CPU used by this session'
+                and sid={#SID};
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Sessions
+                -
+                  tag: Application
+                  value: 'Session {#SID}'
+            -
+              uuid: eaff84e0372f4a2284a39d15b65a1823
+              name: 'Session {#SID} SQL ID'
+              type: ODBC
+              key: 'db.odbc.select[session {#SID} SQL ID,{$DSN}]'
+              delay: 5m
+              history: 1d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                select sql_id
+                from v$session
+                where sid={#SID};
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Sessions
+                -
+                  tag: Application
+                  value: 'Session {#SID}'
+                -
+                  tag: Application
+                  value: SQL
+            -
+              uuid: 4a96e605f6df43c3a15bd5d635a3d657
+              name: 'Session {#SID} username'
+              type: ODBC
+              key: 'db.odbc.select[session {#SID} username,{$DSN}]'
+              delay: 5m
+              history: 1d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                select username
+                from v$session
+                where sid={#SID};
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Sessions
+                -
+                  tag: Application
+                  value: 'Session {#SID}'
+            -
+              uuid: b7aa405e109f4b08974ebcd0ef5fb0ff
+              name: 'Session {#SID} change in CPU time per sec'
+              type: DEPENDENT
+              key: 'oracle.db.session.cpu_time_change[{#SID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'db.odbc.select[session {#SID} CPU time,{$DSN}]'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Sessions
+                -
+                  tag: Application
+                  value: 'Session {#SID}'
+          trigger_prototypes:
+            -
+              uuid: 1abdda88b4774181b9801ea62a817809
+              expression: |
+                last(/Oracle DB/db.odbc.select[Host CPU Utilization,{$DSN}])>=60
+                and
+                last(/Oracle DB/db.odbc.select[session {#SID} CPU time,{$DSN}])>=0.7
+              name: 'Session {#SID} is devouring CPU!'
+              priority: HIGH
+              tags:
+                -
+                  tag: Application
+                  value: Oracle
+                -
+                  tag: Field
+                  value: Database
+                -
+                  tag: Scope
+                  value: Infrastructure
+                -
+                  tag: Type
+                  value: Technical
+            -
+              uuid: d9a07b47fefd493fbdd39b7ac8993ac7
+              expression: |
+                last(/Oracle DB/db.odbc.select[Host CPU Utilization,{$DSN}])>=60
+                and
+                last(/Oracle DB/db.odbc.select[session {#SID} CPU time,{$DSN}])>=0.6
+              name: 'Session {#SID} is eating CPU!'
+              priority: AVERAGE
+            -
+              uuid: 0e0991d383b341388e45d948175e0053
+              expression: |
+                last(/Oracle DB/db.odbc.select[Host CPU Utilization,{$DSN}])>=50
+                and
+                last(/Oracle DB/db.odbc.select[session {#SID} CPU time,{$DSN}])>=0.5
+              name: 'Session {#SID} is hogging CPU!'
+              priority: WARNING
+        -
+          uuid: 2dd8a9e12b44408b93eb8c270d7f8075
+          name: 'Archive destination discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[Archive destination discovery,{$DSN}]'
+          delay: 1h
+          params: |
+            select DEST_ID
+            from v$archive_DEST_STATUS
+            where status='VALID'
+            and TYPE != 'LOCAL';
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 29cee8d10bf6444d9f5ffceca0769549
+              name: 'Destination {#DEST_ID} status'
+              type: ODBC
+              key: 'db.odbc.select[Dest {#DEST_ID} status. {#DSN}]'
+              delay: 5m
+              history: 7d
+              params: |
+                select STATUS
+                from v$archive_dest_status
+                where dest_id={#DEST_ID};
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              description: |
+                'VALID' 1
+                'INACTIVE' 2
+                'DEFERRED' 3
+                'ERROR' 4
+                'DISABLED' 5
+                'BAD PARAM' 6
+                'ALTERNATE' 7
+                'FULL' 8
+                else -1
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value == 'VALID') return 1;
+                      if (value == 'INACTIVE') return 2;
+                      if (value == 'DEFERRED') return 3;
+                      if (value == 'ERROR') return 4;
+                      if (value == 'DISABLED') return 5;
+                      if (value == 'BAD PARAM') return 6;
+                      if (value == 'ALTERNATE') return 7;
+                      if (value == 'FULL') return 8;
+                      return -1;
+              tags:
+                -
+                  tag: Application
+                  value: 'Archival Destination'
+                -
+                  tag: Application
+                  value: 'Archival Destination {#DEST_ID}'
+        -
+          uuid: 15bfc8ab43524e3187438c9c0e02de43
+          name: 'ASM disk discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[ASM Disk Discovery,{$DSN}]'
+          params: |
+            select name as disk_name, 
+            case mount_status
+            when 'MISSING' then -3
+            when 'CLOSED' then  -2
+            when 'CLOSING' then -1
+            when 'IGNORED' then 0
+            when 'OPENED' then 1
+            when 'CACHED' then 2 end as mount_status,
+            case mode_status
+            when 'OFFLINE' then 0
+            when 'ONLINE' then 1 end as mode_status,
+            case state
+            when 'NORMAL' then 1
+            when 'UNKNOWN' then 0
+            when 'ADDING' then 2
+            when 'DROPPING' then 3
+            when 'HUNG' then -1
+            when 'FORCING' then -2 end as state,
+            os_mb, total_mb, free_mb from v$asm_disk_stat;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: 7d
+          item_prototypes:
+            -
+              uuid: d2457976547c42cc8ff293fb51e6557f
+              name: 'ASM disk: {#DISK_NAME}: mode status'
+              type: CALCULATED
+              key: 'oracle.asm.disk.mode_status[{#DISK_NAME}]'
+              delay: 5m
+              params: '{#MODE_STATUS}'
+              description: |
+                when 'OFFLINE' then 0
+                when 'ONLINE' then 1
+              valuemap:
+                name: 'Oracle ASM disk mount status'
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+            -
+              uuid: 842e960011a641de983978699f253a32
+              name: 'ASM disk: {#DISK_NAME}: mount status'
+              type: CALCULATED
+              key: 'oracle.asm.disk.mount_status[{#DISK_NAME}]'
+              delay: 5m
+              params: '{#MOUNT_STATUS}'
+              description: |
+                when  'MISSING' then -3
+                when 'CLOSED' then  -2
+                when 'CLOSING' then -1
+                when 'IGNORED' then 0
+                when 'OPENED' then 1
+                when 'CACHED' then 2
+              valuemap:
+                name: 'Oracle ASM disk mount status'
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+            -
+              uuid: 47f4ea8e605d42169d11a9b3c1428463
+              name: 'ASM disk: {#DISK_NAME}: state'
+              type: CALCULATED
+              key: 'oracle.asm.disk.state[{#DISK_NAME}]'
+              params: '{#STATE}'
+              description: |
+                when 'NORMAL' then 1
+                when 'UNKNOWN' then 0
+                when 'ADDING' then 2
+                when 'DROPPING' then 3
+                when 'HUNG' then -1
+                when 'FORCING' then -2
+              valuemap:
+                name: 'Oracle ASM disk state'
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+              trigger_prototypes:
+                -
+                  uuid: 7e31cb44269045f9a2aa7b9a519fbff0
+                  expression: 'last(/Oracle DB/oracle.asm.disk.state[{#DISK_NAME}])<>1'
+                  name: 'ASM disk {#DISK_NAME} is => {ITEM.VALUE1}'
+                  priority: DISASTER
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+            -
+              uuid: deb7f50a37b6414aa276bec2709403c7
+              name: 'ASM disk: {#DISK_NAME}: total space'
+              type: CALCULATED
+              key: 'oracle.asm.disk.total_space[{#DISK_NAME}]'
+              delay: 5m
+              history: 1d
+              units: B
+              params: '{#TOTAL_MB}'
+              preprocessing:
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '1048576'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+            -
+              uuid: 76a8a9efba3440668a4601aed8443cc5
+              name: 'ASM disk: {#DISK_NAME}: free space'
+              type: CALCULATED
+              key: 'oracle.db.disk.free_space[{#DISK_NAME}]'
+              delay: 5m
+              history: 1d
+              units: B
+              params: '{#FREE_MB}'
+              preprocessing:
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '1048576'
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+            -
+              uuid: f1a8c0f3f94c45ae871430be10425e58
+              name: 'ASM disk: {#DISK_NAME}: pct free'
+              type: CALCULATED
+              key: 'oracle.db.disk.pct_free[{#DISK_NAME}]'
+              delay: 5m
+              history: 1d
+              value_type: FLOAT
+              units: '%'
+              params: '{#FREE_MB} / {#TOTAL_MB} * 100'
+              preprocessing:
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '1048576'
+              tags:
+                -
+                  tag: Application
+                  value: ASM
+              trigger_prototypes:
+                -
+                  uuid: 61de6014bac94747931513a5f0379065
+                  expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) * {$ASM_USAGE_THRESHOLD} <=5'
+                  name: 'ASM disk {#DISK_NAME} extremely low free space => {ITEM.VALUE1}'
+                  priority: HIGH
+                  dependencies:
+                    -
+                      name: 'ASM disk {#DISK_NAME} zero free space'
+                      expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) <=0.01'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Field
+                      value: Storage
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: bcfc11c7373943d9bfe468f38bd7f8c3
+                  expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) * {$ASM_USAGE_THRESHOLD} <=15'
+                  name: 'ASM disk {#DISK_NAME} low free space => {ITEM.VALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    -
+                      name: 'ASM disk {#DISK_NAME} very low free space => {ITEM.VALUE1}'
+                      expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) * {$ASM_USAGE_THRESHOLD} <=10'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Field
+                      value: Storage
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: ff40490468c343c5bb10c454ed4e1422
+                  expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) * {$ASM_USAGE_THRESHOLD} <=10'
+                  name: 'ASM disk {#DISK_NAME} very low free space => {ITEM.VALUE1}'
+                  priority: AVERAGE
+                  dependencies:
+                    -
+                      name: 'ASM disk {#DISK_NAME} extremely low free space => {ITEM.VALUE1}'
+                      expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) * {$ASM_USAGE_THRESHOLD} <=5'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Field
+                      value: Storage
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: 7b202f4971dc46a39902eaf253c07ff5
+                  expression: 'last(/Oracle DB/oracle.db.disk.pct_free[{#DISK_NAME}]) <=0.01'
+                  name: 'ASM disk {#DISK_NAME} zero free space'
+                  priority: DISASTER
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Field
+                      value: Storage
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+          request_method: POST
+        -
+          uuid: 468a038d82a74d6f91ac4ab5683d5224
+          name: 'Blocking session discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[blocking sessions discovery,{$DSN}]'
+          delay: 5m
+          params: 'select distinct blocking_session as SID from v$session where blocking_session is not NULL;'
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 8a065316a2274ab79da0c345610905cc
+              name: 'Total wait time on Blocking session: {#SID}'
+              type: ODBC
+              key: 'db.odbc.select[waiting time -  {#SID},{$DSN}]'
+              delay: 5m
+              params: |
+                select  
+                   sum(seconds_in_wait)  "SECONDS_IN_WAIT"
+                from 
+                   v$session
+                where 
+                   blocking_session= {#SID} and seconds_in_wait is not null;
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: Database
+              trigger_prototypes:
+                -
+                  uuid: f318f0dd507a41178eb2b888c034dd17
+                  expression: 'last(/Oracle DB/db.odbc.select[waiting time -  {#SID},{$DSN}])>{$BLOCK_THRESHOLD}'
+                  name: 'Session {#SID} is an intensive blocker'
+                  priority: WARNING
+          request_method: POST
+        -
+          uuid: e68c4b2bebfb4e8aa21ba214f9a0d1f7
+          name: 'Flash Recovery Area Discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[Flash Recovery Area Discovery,{$DSN}]'
+          delay: 5m
+          params: |
+            select name, space_limit, space_used
+            from v$recovery_file_dest;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          item_prototypes:
+            -
+              uuid: e4dc7b51d83d4f9a967874ec881922c1
+              name: 'FRA: {#NAME}: pct_used'
+              type: CALCULATED
+              key: 'db.oracle.fra.pct_used[{#NAME}]'
+              delay: 4m
+              history: 1d
+              value_type: FLOAT
+              units: '%'
+              params: '{#SPACE_USED}/{#SPACE_LIMIT}*100'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: FRA
+              trigger_prototypes:
+                -
+                  uuid: f8c5aeeea775474fbcdded9d9c511b01
+                  expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}]) * {$FRA_USAGE_THRESHOLD} >= 95'
+                  name: 'FRA is almost full => {ITEM.VALUE1}'
+                  priority: HIGH
+                  dependencies:
+                    -
+                      name: 'FRA is full => {ITEM.VALUE1}'
+                      expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}])=100'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastracture
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: ff29d343d174404fa0acc823c6f8c830
+                  expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}])=100'
+                  name: 'FRA is full => {ITEM.VALUE1}'
+                  priority: DISASTER
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: 9b990c3f345a4be7ba8c745299be6414
+                  expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}]) * {$FRA_USAGE_THRESHOLD} >=85'
+                  name: 'FRA space usage is high => {ITEM.VALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    -
+                      name: 'FRA space usage is very high => {ITEM.VALUE1}'
+                      expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}]) * {$FRA_USAGE_THRESHOLD} >=90'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+                -
+                  uuid: aa66b4dce7a841bfb4398b2b113b3b42
+                  expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}]) * {$FRA_USAGE_THRESHOLD} >=90'
+                  name: 'FRA space usage is very high => {ITEM.VALUE1}'
+                  priority: AVERAGE
+                  dependencies:
+                    -
+                      name: 'FRA is almost full => {ITEM.VALUE1}'
+                      expression: 'last(/Oracle DB/db.oracle.fra.pct_used[{#NAME}]) * {$FRA_USAGE_THRESHOLD} >= 95'
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+            -
+              uuid: a8cafcb4b976464bad84e8daee31592c
+              name: 'FRA: {#NAME}: size'
+              type: CALCULATED
+              key: 'db.oracle.fra.size[{#NAME}]'
+              delay: 4m
+              history: 1d
+              units: B
+              params: '{#SPACE_LIMIT}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: FRA
+            -
+              uuid: fff4c14af9f342abbea5652f2ed391e5
+              name: 'FRA: {#NAME}: space_used'
+              type: CALCULATED
+              key: 'db.oracle.fra.space_used[{#NAME}]'
+              delay: 4m
+              history: 1d
+              units: B
+              params: '{#SPACE_USED}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: FRA
+        -
+          uuid: 448109eb5aaf477da18d070d67b98bed
+          name: 'Scheduler jobs discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[job discovery,{$DSN}]'
+          delay: 5m
+          params: |
+            select job_name, owner,
+              round(cast(req_start_date as date) - date '1970-01-01') * 24 *3600 as req_start_date,
+              round(cast(actual_start_date as date) - date '1970-01-01') * 24 *3600 as actual_start_date,
+              error#, run_duration
+              from user_scheduler_job_run_details
+              where rownum=1
+            order by req_start_date desc;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: 7d
+        -
+          uuid: 2150cfb2985e449092ee86111acf7d91
+          name: 'Schema discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[Schema Discovery,{$DSN}]'
+          delay: 6h
+          params: |
+            select distinct owner
+            from dba_segments;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: 7d
+          item_prototypes:
+            -
+              uuid: 4435ffc255ff4f528fac575463765ecf
+              name: 'Schema {#OWNER}: size'
+              type: ODBC
+              key: 'db.odbc.select[Schema {#OWNER} size,{$DSN}]'
+              delay: 1h
+              history: 7d
+              units: B
+              params: |
+                select sum(bytes)
+                from dba_segments
+                where owner='{#OWNER}'
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              description: 'SIze of the schema.'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Schemas
+        -
+          uuid: 2beeeda3ac914b40bd19b280bb0c6ba3
+          name: 'Tablespace discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[Tablespace Discovery,{$DSN}]'
+          delay: 1h
+          params: |
+            select tablespace_name, 
+                case 
+                when contents in ('PERMANENT', 'UNDO') then
+                    (select sum(bytes) from dba_data_files where tablespace_name=t.tablespace_name)
+                        when contents='TEMPORARY' then
+                    (select sum(bytes) from dba_temp_files where tablespace_name=t.tablespace_name) end
+                as "SIZE", 
+                case
+                    when contents in ('PERMANENT', 'UNDO') then
+                        (select sum(
+                            case 
+                            when autoextensible = 'YES' then maxbytes 
+                            else bytes
+                            end)
+                            from dba_data_files
+                        where tablespace_name=t.tablespace_name)
+                    when contents='TEMPORARY' then
+                        (select sum(
+                                 case 
+                                when autoextensible = 'YES' then maxbytes 
+                                else bytes
+                                end)
+                                from dba_temp_files where tablespace_name=t.tablespace_name) end
+                as "MAX_SIZE",
+               case bigfile
+               when 'YES' then 1
+               when 'NO' then 0
+               end "BIGFILE", 
+               case contents
+               when 'PERMANENT' then 1
+               when 'TEMPORARY' then 2
+               when 'UNDO' then 3
+               end "CONTENTS"
+            from dba_tablespaces t group by tablespace_name, bigfile, contents;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          item_prototypes:
+            -
+              uuid: 00ebcb0994b84f8fb2b782e6f8c3d0e8
+              name: 'Tablespace: {#TABLESPACE_NAME}: bigfile'
+              type: CALCULATED
+              key: 'db.oracle.tablespace.bigfile[{#TABLESPACE_NAME}]'
+              delay: 1h
+              history: 1d
+              params: '{#BIGFILE}'
+              valuemap:
+                name: TruthValue
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Tablespaces
+            -
+              uuid: 97ae07a669d94dadb4715cffa9f7785d
+              name: 'Tablespace: {#TABLESPACE_NAME}: contents'
+              type: CALCULATED
+              key: 'db.oracle.tablespace.contents[{#TABLESPACE_NAME}]'
+              delay: 4m
+              history: 1d
+              params: '{#CONTENTS}'
+              valuemap:
+                name: 'Oracle tablespace contents'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Tablespaces
+            -
+              uuid: 215c40352f964b2a930a5ed428ffa65d
+              name: 'Tablespace: {#TABLESPACE_NAME}: max_size'
+              type: CALCULATED
+              key: 'db.oracle.tablespace.max_size[{#TABLESPACE_NAME}]'
+              delay: 4m
+              history: 1d
+              units: B
+              params: '{#MAX_SIZE}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Tablespaces
+            -
+              uuid: b827ab6f49a04e49a59b24593fa80f27
+              name: 'Tablespace: {#TABLESPACE_NAME}: pct_used'
+              type: CALCULATED
+              key: 'db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]'
+              delay: 4m
+              history: 1d
+              value_type: FLOAT
+              units: '%'
+              params: '{#SIZE}/{#MAX_SIZE}*100'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Tablespaces
+            -
+              uuid: 479c77c851e14b238e29b74f27cf378c
+              name: 'Tablespace: {#TABLESPACE_NAME}: size'
+              type: CALCULATED
+              key: 'db.oracle.tablespace.size[{#TABLESPACE_NAME}]'
+              delay: 4m
+              history: 1d
+              units: B
+              params: '{#SIZE}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Tablespaces
+          trigger_prototypes:
+            -
+              uuid: 8645e5837571460a8de8b9485fc5d647
+              expression: |
+                last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]) >= 95 * {$TB_USAGE_THRESHOLD}
+                and
+                last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+              name: 'Tablespace {#TABLESPACE_NAME} almost full => {ITEM.VALUE1}'
+              priority: HIGH
+              dependencies:
+                -
+                  name: 'Tablespace {#TABLESPACE_NAME} full => {ITEM.VALUE1}'
+                  expression: |
+                    last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}])=100
+                    and
+                    last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+            -
+              uuid: b3f033be892a4990b26a6e28a6a79ace
+              expression: |
+                last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}])=100
+                and
+                last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+              name: 'Tablespace {#TABLESPACE_NAME} full => {ITEM.VALUE1}'
+              priority: DISASTER
+            -
+              uuid: 1bdadf1ba75b457284a1ff6618678322
+              expression: |
+                last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]) >= 85 * {$TB_USAGE_THRESHOLD}
+                and
+                last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+              name: 'Tablespace {#TABLESPACE_NAME} space usage is high => {ITEM.VALUE1}'
+              priority: WARNING
+              dependencies:
+                -
+                  name: 'Tablespace {#TABLESPACE_NAME} space usage is very high => {ITEM.VALUE1}'
+                  expression: |
+                    last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]) >= 90 * {$TB_USAGE_THRESHOLD}
+                    and
+                    last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+            -
+              uuid: 19efb1f6b8014b23bd9321e44d833a0e
+              expression: |
+                last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]) >= 90 * {$TB_USAGE_THRESHOLD}
+                and
+                last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+              name: 'Tablespace {#TABLESPACE_NAME} space usage is very high => {ITEM.VALUE1}'
+              priority: AVERAGE
+              dependencies:
+                -
+                  name: 'Tablespace {#TABLESPACE_NAME} almost full => {ITEM.VALUE1}'
+                  expression: |
+                    last(/Oracle DB/db.oracle.tablespace.pct_used[{#TABLESPACE_NAME}]) >= 95 * {$TB_USAGE_THRESHOLD}
+                    and
+                    last(/Oracle DB/db.oracle.tablespace.contents[{#TABLESPACE_NAME}])=1
+        -
+          uuid: 01cf8582a57843e2adc7d834513b015e
+          name: 'Top lasting SQLs discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[Top lasting SQLs discovery,{$DSN}]'
+          delay: 5m
+          params: |
+            select * from (
+                select SQL_ID, CHILD_ADDRESS
+                from v$sql
+                where last_active_time > systimestamp - 1/24
+                order by elapsed_time desc)
+            where rownum < 11;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: 12h
+          item_prototypes:
+            -
+              uuid: ee9e8bacb3174ba69517096438a85820
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} bind variables'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} bind variables,{$DSN}]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                with temp as (
+                    select
+                      NAME,
+                      DATATYPE_STRING,
+                      POSITION,
+                      case datatype
+                      when 180
+                        then to_char(anydata.accesstimestamp(value_anydata), 'DD-MM-YYYY HH24:MI:SS.FF9')
+                      when 181
+                        then to_char(anydata.accesstimestamptz(value_anydata), 'DD-MM-YYYY HH24:MI:SS.FF9 TZR')
+                      when 183
+                        then to_char(anydata.accessintervalYM(value_anydata) || ' ' || anydata.accessintervalDS(value_anydata))
+                      when 12
+                        then to_char(anydata.accessdate(value_anydata), 'DD-MM-YYYY HH24:MI:SS')
+                      else nvl(value_string, 'Null')
+                      end data_value
+                    FROM V$SQL_BIND_CAPTURE
+                    where sql_id = '{#SQL_ID}'
+                          and child_address = q'[{#CHILD_ADDRESS}]'
+                
+                )
+                SELECT listagg(NAME || ' := (' || DATATYPE_STRING || ') ' || data_value, chr(10))
+                within group (
+                  order by position asc)
+                from temp
+                START WITH POSITION = 1
+                CONNECT BY POSITION = PRIOR POSITION + 1;
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: 9cbe587dc6c141508aa39bb98fe429b3
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} CPU time'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} CPU time,{$DSN}]'
+              delay: 2m
+              history: 7d
+              units: S
+              params: |
+                select CPU_TIME
+                from v$sql
+                where sql_id='{#SQL_ID}'
+                and child_address=q'[{#CHILD_ADDRESS}]';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '0.000001'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: 6e2f165b7ba047f7b086cbeb050bbd0d
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} parsing schema'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} parsing schema,{$DSN}]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                select parsing_schema_name
+                from v$sql
+                where sql_id='{#SQL_ID}'
+                and child_address=q'[{#CHILD_ADDRESS}]';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: 25484e9c33434c98bde5a309eeead19f
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} physical read bytes'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} physical read bytes,{$DSN}]'
+              delay: 5m
+              history: 7d
+              units: B
+              params: |
+                select PHYSICAL_READ_BYTES
+                from v$sql
+                where sql_id='{#SQL_ID}'
+                and child_address=q'[{#CHILD_ADDRESS}]';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: 28ef8b1ab3084084acd1c5f9f9f752bd
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} physical write bytes'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} physical write bytes,{$DSN}]'
+              delay: 5m
+              history: 7d
+              units: B
+              params: |
+                select PHYSICAL_WRITE_BYTES
+                from v$sql
+                where sql_id='{#SQL_ID}'
+                and child_address=q'[{#CHILD_ADDRESS}]';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: 45f0c7be55da46f6adebc0ca7c6966c2
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} plan'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} plan,{$DSN}]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                with temp as (
+                    select *
+                    FROM V$SQL_PLAN
+                    where sql_id = '{#SQL_ID}'
+                          and child_address = q'[{#CHILD_ADDRESS}]'
+                )
+                SELECT listagg(
+                    ID || '|' ||
+                    lpad(' ', level - 1) || operation || ' ' || options || ' ' ||
+                    case
+                    when object_name is not null
+                      then chr(9) || object_owner || '.' || object_name || '(' || object_type || ')|'
+                    else ''
+                    end ||
+                    case
+                    when partition_start is not null
+                      then chr(9) || 'PARTITION START: ' || partition_start || '|'
+                    else ''
+                    end ||
+                    case
+                    when partition_stop is not null
+                      then chr(9) || 'PARTITION STOP: ' || partition_stop || '|'
+                    else ''
+                    end ||
+                    case
+                    when optimizer is not null
+                      then chr(9) || optimizer || '|'
+                    else ''
+                    end ||
+                    case
+                    when cardinality is not null
+                      then chr(9) || cardinality || ' DISTINCT ROWS|'
+                    else ''
+                    end ||
+                    case
+                    when bytes is not null
+                      then chr(9) || bytes || ' BYTES|'
+                    else ''
+                    end ||
+                    case
+                    when cpu_cost is not null
+                      then chr(9) || 'CPU COST: ' || CPU_COST || '|'
+                    else ''
+                    end ||
+                    case
+                    when temp_space is not null
+                      then chr(9) || 'TEMP SPACE: ' || TEMP_SPACE || '|'
+                    else ''
+                    end ||
+                    case
+                    when ACCESS_PREDICATES is not null
+                      then chr(9) || 'ACCESS PREDICATES: ' || ACCESS_PREDICATES || '|'
+                    else ''
+                    end ||
+                    case
+                    when FILTER_PREDICATES is not null
+                      then chr(9) || 'FILTER PREDICATES: ' || FILTER_PREDICATES || ' |'
+                    else ''
+                    end, chr(10))
+                within group (
+                  order by id desc)
+                from temp
+                START WITH id = 0
+                CONNECT BY prior id = parent_id;
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: f4261d66c1c7464e97f685b55992469e
+              name: 'Top SQL {#SQL_ID}:{#CHILD_ADDRESS} text'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID}:{#CHILD_ADDRESS} text,{$DSN}]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                select  dbms_lob.substr(sql_fulltext,5000,1)
+                from v$sql
+                where sql_id='{#SQL_ID}'
+                and child_address=q'[{#CHILD_ADDRESS}]';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '86400'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}:{#CHILD_ADDRESS}'
+            -
+              uuid: c86fe6857cad4ab7a290ab1a8b965709
+              name: 'Top SQL {#SQL_ID} total CPU time'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID} total CPU time,{$DSN}]'
+              delay: 30m
+              history: 7d
+              units: S
+              params: |
+                select CPU_TIME
+                from v$sqlarea
+                where sql_id='{#SQL_ID}';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              preprocessing:
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '0.000001'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}'
+            -
+              uuid: 7f0880c7537a495b87bff7c3e718574a
+              name: 'Top SQL {#SQL_ID} total physical read bytes'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID} total physical read bytes,{$DSN}]'
+              delay: 30m
+              history: 7d
+              units: B
+              params: |
+                select PHYSICAL_READ_BYTES
+                from v$sqlarea
+                where sql_id='{#SQL_ID}';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}'
+            -
+              uuid: bb755c02c6ec449db84a04de231dd523
+              name: 'Top SQL {#SQL_ID} total physical write bytes'
+              type: ODBC
+              key: 'db.odbc.select[Top SQL {#SQL_ID} total physical write bytes,{$DSN}]'
+              delay: 30m
+              history: 7d
+              units: B
+              params: |
+                select PHYSICAL_WRITE_BYTES
+                from v$sqlarea
+                where sql_id='{#SQL_ID}';
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: 'SQL {#SQL_ID}'
+        -
+          uuid: c3aa7c45c0254f3c94488e2c1bd8ee0c
+          name: 'Waiting session discovery'
+          type: ODBC
+          key: 'db.odbc.discovery[waiting session discovery,{$DSN}]'
+          delay: 5m
+          params: |
+            select distinct sid
+            from v$session
+            where username is not null
+            and wait_time = 0
+            and wait_class# != 6;
+          username: '{$DB_USERNAME}'
+          password: '{$DB_PASSWORD}'
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: b84ddd094e8d4566b732d3416d2ea673
+              name: 'Session {#SID} total wait time in seconds'
+              type: ODBC
+              key: 'db.odbc.select[session {#SID} wait time,{$DSN}]'
+              delay: 5m
+              history: 7d
+              params: |
+                select case 
+                 when wait_time = 0 and WAIT_CLASS# != 6 then seconds_in_wait 
+                 else 0 end
+                 from v$session
+                 where sid={#SID};
+              username: '{$DB_USERNAME}'
+              password: '{$DB_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: Database
+                -
+                  tag: Application
+                  value: Sessions
+                -
+                  tag: Application
+                  value: 'Session {#SID}'
+              trigger_prototypes:
+                -
+                  uuid: 5f9c3bbfdb444aaaa0b04956b9be97f9
+                  expression: 'last(/Oracle DB/db.odbc.select[session {#SID} wait time,{$DSN}])>300'
+                  name: 'Long waiting session: {#SID} => {ITEM.LASTVALUE} seconds'
+                  priority: WARNING
+                  tags:
+                    -
+                      tag: Application
+                      value: Oracle
+                    -
+                      tag: Field
+                      value: Database
+                    -
+                      tag: Scope
+                      value: Infrastructure
+                    -
+                      tag: Type
+                      value: Technical
+      tags:
+        -
+          tag: '{$BACKUP_DSN}'
+          value: '{$DSN}'
+      macros:
+        -
+          macro: '{$ASM_USAGE_THRESHOLD}'
+          value: '1.0'
+        -
+          macro: '{$BACKUP_DSN}'
+          value: '{$DSN}'
+        -
+          macro: '{$BLOCK_THRESHOLD}'
+          value: '20'
+        -
+          macro: '{$DB_PASSWORD}'
+          value: zabbix
+        -
+          macro: '{$DB_USERNAME}'
+          value: zabbix
+        -
+          macro: '{$DSN}'
+        -
+          macro: '{$FRA_USAGE_THRESHOLD}'
+          value: '1.0'
+        -
+          macro: '{$MIN_READ_BPS}'
+          value: '10485760'
+        -
+          macro: '{$MIN_WRITE_BPS}'
+          value: '1048576'
+        -
+          macro: '{$ORACLE_BACKUP_HOUR}'
+          value: '0'
+        -
+          macro: '{$TB_USAGE_THRESHOLD}'
+          value: '1.0'
+      valuemaps:
+        -
+          uuid: 58b61eb100294b3f9505b2efae1f293e
+          name: 'Oracle ASM disk mount status'
+          mappings:
+            -
+              value: '-1'
+              newvalue: CLOSING
+            -
+              value: '-2'
+              newvalue: CLOSED
+            -
+              value: '-3'
+              newvalue: MISSING
+            -
+              value: '0'
+              newvalue: IGNORED
+            -
+              value: '1'
+              newvalue: OPENED
+            -
+              value: '2'
+              newvalue: CACHED
+        -
+          uuid: f441042ce57b40558d10b1e6419f6010
+          name: 'Oracle ASM disk state'
+          mappings:
+            -
+              value: '-1'
+              newvalue: HUNG
+            -
+              value: '-2'
+              newvalue: FORCING
+            -
+              value: '0'
+              newvalue: UNKNOWN
+            -
+              value: '1'
+              newvalue: NORMAL
+            -
+              value: '2'
+              newvalue: ADDING
+            -
+              value: '3'
+              newvalue: DROPPING
+        -
+          uuid: 370485b7ee7643cc9dddbfcfed1fcd04
+          name: 'Oracle backup status'
+          mappings:
+            -
+              value: '-1'
+              newvalue: FAILED
+            -
+              value: '0'
+              newvalue: UNKNOWN
+            -
+              value: '1'
+              newvalue: COMPLETED
+            -
+              value: '2'
+              newvalue: 'WITH WARNINGS'
+            -
+              value: '4'
+              newvalue: 'WITH ERRORS'
+        -
+          uuid: c38ccd7b47f14ffa8d0cdfc63cdd5eb8
+          name: 'Oracle tablespace contents'
+          mappings:
+            -
+              value: PERMANENT
+              newvalue: '1'
+            -
+              value: TEMPORARY
+              newvalue: '2'
+            -
+              value: UNDO
+              newvalue: '3'
+        -
+          uuid: bdd4777f2a2b473f85a21bcf5bf10be5
+          name: TruthValue
+          mappings:
+            -
+              value: '1'
+              newvalue: 'true'
+            -
+              value: '2'
+              newvalue: 'false'
+  triggers:
+    -
+      uuid: d799f38619ee448e969306a1f5f84fb5
+      expression: 'last(/Oracle DB/db.odbc.select[db session count,{$DSN}])>=last(/Oracle DB/db.odbc.select[max number of sessions,{$DSN}])  * 0.95'
+      name: 'Database extreme session count => {ITEM.VALUE1}'
+      priority: DISASTER
+      manual_close: 'YES'
+      tags:
+        -
+          tag: Application
+          value: Oracle
+        -
+          tag: Field
+          value: Database
+        -
+          tag: Scope
+          value: Infrastructure
+        -
+          tag: Type
+          value: Technical
+    -
+      uuid: e4a4a65f5f16494a8ce53d1a9299df44
+      expression: 'last(/Oracle DB/db.odbc.select[db session count,{$DSN}])>=last(/Oracle DB/db.odbc.select[max number of sessions,{$DSN}]) * 0.6'
+      name: 'Database high session count'
+      priority: WARNING
+      manual_close: 'YES'
+      dependencies:
+        -
+          name: 'Database very high session count => {ITEM.VALUE1}'
+          expression: 'last(/Oracle DB/db.odbc.select[db session count,{$DSN}])>=last(/Oracle DB/db.odbc.select[max number of sessions,{$DSN}]) * 0.8'
+      tags:
+        -
+          tag: Application
+          value: Oracle
+        -
+          tag: Field
+          value: Database
+        -
+          tag: Scope
+          value: Infrastructure
+        -
+          tag: Type
+          value: Technical
+    -
+      uuid: 970e190b96304afd974555b77290bc9f
+      expression: 'last(/Oracle DB/db.odbc.select[db session count,{$DSN}])>=last(/Oracle DB/db.odbc.select[max number of sessions,{$DSN}]) * 0.8'
+      name: 'Database very high session count => {ITEM.VALUE1}'
+      priority: HIGH
+      manual_close: 'YES'
+      dependencies:
+        -
+          name: 'Database extreme session count => {ITEM.VALUE1}'
+          expression: 'last(/Oracle DB/db.odbc.select[db session count,{$DSN}])>=last(/Oracle DB/db.odbc.select[max number of sessions,{$DSN}])  * 0.95'
+      tags:
+        -
+          tag: Application
+          value: Oracle
+        -
+          tag: Field
+          value: Database
+        -
+          tag: Scope
+          value: Infrastructure
+        -
+          tag: Type
+          value: Technical

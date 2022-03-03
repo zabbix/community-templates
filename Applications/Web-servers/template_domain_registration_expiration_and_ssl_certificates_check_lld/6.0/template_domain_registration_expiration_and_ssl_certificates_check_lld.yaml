@@ -1,0 +1,208 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:47:18Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: bdd818f56d2a4de9851a7565a0e3480b
+      template: 'SSL check LLD'
+      name: 'SSL check LLD'
+      description: |
+        ## Overview
+        
+        Main idea is monitoring several URL with SSL in one Zabbix host. Data for LLD provide JSON file.
+        
+        
+        This is originally based on [https://share.zabbix.com/cat-app/web-servers/ssl-certificates-check](cat-app/web-servers/ssl-certificates-check) with modifications to the script and template.
+        
+        
+        Added domain registration expiration check
+        
+        
+        
+        
+      groups:
+        -
+          name: Templates
+      discovery_rules:
+        -
+          uuid: f0f5caf81a9a4ba7aa16b5ccc4296e8c
+          name: 'Domains discovery'
+          type: EXTERNAL
+          key: 'list.sh["ssl_check.json","1"]'
+          delay: 1h
+          lifetime: 60d
+          item_prototypes:
+            -
+              uuid: 6df79ee6939244d5a1d854063dde8d8f
+              name: 'Domain {#DOMAIN_NAME} expire in'
+              type: EXTERNAL
+              key: 'whois_expire.sh[{#DOMAIN_NAME}]'
+              delay: 1d
+              trends: 730d
+              units: day(s)
+              tags:
+                -
+                  tag: Application
+                  value: 'Domain checks'
+              trigger_prototypes:
+                -
+                  uuid: 72ce8aaf74364d66893b7f2f9bcd4ac7
+                  expression: 'last(/SSL check LLD/whois_expire.sh[{#DOMAIN_NAME}])<=0'
+                  name: 'Domain {#DOMAIN_NAME} expired'
+                  priority: DISASTER
+                -
+                  uuid: 7803bdf2ade94f02ad74c140c0631148
+                  expression: 'last(/SSL check LLD/whois_expire.sh[{#DOMAIN_NAME}])<14'
+                  name: 'Domain {#DOMAIN_NAME} will expire in 14 days'
+                  priority: HIGH
+                  dependencies:
+                    -
+                      name: 'Domain {#DOMAIN_NAME} expired'
+                      expression: 'last(/SSL check LLD/whois_expire.sh[{#DOMAIN_NAME}])<=0'
+                -
+                  uuid: dd7366cd97a4408196d48b74745cd4a6
+                  expression: 'last(/SSL check LLD/whois_expire.sh[{#DOMAIN_NAME}])<30'
+                  name: 'Domain {#DOMAIN_NAME} will expire in 30 days'
+                  priority: WARNING
+                  dependencies:
+                    -
+                      name: 'Domain {#DOMAIN_NAME} will expire in 14 days'
+                      expression: 'last(/SSL check LLD/whois_expire.sh[{#DOMAIN_NAME}])<14'
+          lld_macro_paths:
+            -
+              lld_macro: '{#DOMAIN_NAME}'
+              path: $.d_name
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var urls = JSON.parse(value);
+                  var dom_names = [];
+                  for (var i = 0; i < urls.length; i++) {
+                      var j = urls[i].url.split('.');
+                      var dn = j[j.length - 2] + '.' + j[j.length - 1];
+                      if (dom_names.indexOf(dn) == -1) {
+                          dom_names.push(dn);
+                      }
+                  }
+                  var dnames = [];
+                  for (var i = 0; i < dom_names.length; i++) {
+                      dnames.push({'d_name': dom_names[i]});
+                  }
+                  return JSON.stringify(dnames);
+        -
+          uuid: f144797ab4904691abd6e9bb2b6f2b48
+          name: 'URLs discovery'
+          type: EXTERNAL
+          key: 'list.sh["ssl_check.json"]'
+          delay: 1h
+          lifetime: 60d
+          item_prototypes:
+            -
+              uuid: 1a713989d41a4ca692042ee932c1691a
+              name: 'HTTPS Service on {#URL}:{#PORT} is running'
+              type: SIMPLE
+              key: 'net.tcp.service[https,{#URL},{#PORT}]'
+              delay: 5m
+              history: 10d
+              trends: 730d
+              valuemap:
+                name: 'Service state'
+              tags:
+                -
+                  tag: Application
+                  value: 'HTTPS Service'
+              trigger_prototypes:
+                -
+                  uuid: a0630601c5884c3594ca94ebd0dadf30
+                  expression: 'max(/SSL check LLD/net.tcp.service[https,{#URL},{#PORT}],#3)=0'
+                  name: 'HTTPS service is down on {#URL}:{#PORT}'
+                  priority: AVERAGE
+                  description: |
+                    Last value: {ITEM.LASTVALUE1}.
+                    HTTPS service is down on {#URL}:{#PORT}
+            -
+              uuid: 7276f1a300334b98951efdf94d7dc4e5
+              name: 'SSL certificate validity {#URL}:{#PORT}'
+              type: EXTERNAL
+              key: 'zext_ssl_cert.sh[-d,{#URL},{#PORT}]'
+              delay: 1h
+              history: 10d
+              trends: 730d
+              units: day(s)
+              tags:
+                -
+                  tag: Application
+                  value: 'SSL Checks'
+              trigger_prototypes:
+                -
+                  uuid: 5298aa96bb3c41f8b50cca33058bfc3d
+                  expression: 'nodata(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}],210m)=1'
+                  name: 'Falied to establish SSL connectoin on {#URL}:{#PORT} in last 3 hour'
+                  status: DISABLED
+                  priority: HIGH
+                -
+                  uuid: 493e729cb0934497aacb06eb3ab969d7
+                  expression: 'last(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}])<0'
+                  name: 'SSL certificate on {#URL}:{#PORT} expired'
+                  priority: DISASTER
+                -
+                  uuid: 2ff5ca35a92b4ee49150ef59e1e40625
+                  expression: 'last(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}])<7'
+                  name: 'SSL certificate on {#URL}:{#PORT} expires in less than 7 days'
+                  priority: HIGH
+                  description: |
+                    Last value: {ITEM.LASTVALUE1}.
+                    SSL certificate on {#URL}:{#PORT} expires in less than week
+                  dependencies:
+                    -
+                      name: 'SSL certificate on {#URL}:{#PORT} expired'
+                      expression: 'last(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}])<0'
+                -
+                  uuid: e04b106554854514ab7b3d821a9a7b57
+                  expression: 'last(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}])<21'
+                  name: 'SSL certificate on {#URL}:{#PORT} expires in less than 21 days'
+                  priority: WARNING
+                  description: |
+                    Last value: {ITEM.LASTVALUE1}.
+                    SSL certificate on {#URL}:{#PORT} expires in less than 3 week
+                  dependencies:
+                    -
+                      name: 'SSL certificate on {#URL}:{#PORT} expires in less than 7 days'
+                      expression: 'last(/SSL check LLD/zext_ssl_cert.sh[-d,{#URL},{#PORT}])<7'
+            -
+              uuid: d2bfd23599b54d8bbe9d5680054b24c2
+              name: 'SSL certificate issuer {#URL}:{#PORT}'
+              type: EXTERNAL
+              key: 'zext_ssl_cert.sh[-i,{#URL},{#PORT}]'
+              delay: 1h
+              history: 10d
+              trends: '0'
+              value_type: CHAR
+              tags:
+                -
+                  tag: Application
+                  value: 'SSL Checks'
+          lld_macro_paths:
+            -
+              lld_macro: '{#PORT}'
+              path: $.port
+            -
+              lld_macro: '{#URL}'
+              path: $.url
+      valuemaps:
+        -
+          uuid: 983c1ae60c2846b8bf99f04375a701cf
+          name: 'Service state'
+          mappings:
+            -
+              value: '0'
+              newvalue: Down
+            -
+              value: '1'
+              newvalue: Up

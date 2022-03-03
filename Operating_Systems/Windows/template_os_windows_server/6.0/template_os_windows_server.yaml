@@ -1,0 +1,847 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:42:09Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+    -
+      uuid: 846977d1dfed4968bc5f8bdb363285bc
+      name: 'Templates/Operating systems'
+  templates:
+    -
+      uuid: 95a90af1d5b64afaa24b9f917e25e4ec
+      template: 'OS Windows Server'
+      name: 'OS Windows Server'
+      description: |
+        ## Description
+        
+        Шаблон подходит для ОС Windows Server 2012, 2016. Посетите. Группа ВК:https://vk.com/simplezabbix Видео про шаблон:https://youtu.be/FWqFyRu8hmQ
+        
+        ## Overview
+        
+        Данный шаблон основан на счетчиках производительности Windows. Низкоуровневое обнаружение сетевых интерфейсов и дисков используется для создания ключей "perf\_counter[счетчик,<период>]"
+        
+        
+        Посетите.
+        
+        
+        Группа ВК:https://vk.com/simplezabbix
+        
+        
+         
+        
+        
+        Видео про шаблон:https://youtu.be/FWqFyRu8hmQ
+        
+        
+        
+        
+      groups:
+        -
+          name: Templates
+        -
+          name: 'Templates/Operating systems'
+      items:
+        -
+          uuid: 3ebbab9c9434494794d49b7ebf9119f1
+          name: 'Проверка статуса Firewall'
+          key: CheckFirewall
+          delay: 4h
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          description: |
+            Для работы нужно добавить в файл конфигурации zabbix агента
+            
+            #CheckFirewall
+            UserParameter=CheckFirewall, PowerShell.exe "(Get-NetFirewallProfile -Profile Domain,Public,Private).enabled"
+          tags:
+            -
+              tag: Application
+              value: Система
+          triggers:
+            -
+              uuid: fc50576b0c0f421498ab0c42f65eedd1
+              expression: 'find(/OS Windows Server/CheckFirewall,,"like","False")=1'
+              name: 'Отключен firewall Windows'
+              priority: WARNING
+              description: '{ITEM.LASTVALUE}'
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Безопасность
+        -
+          uuid: 5c49b523c7094e83861dd6b341c0b8b9
+          name: 'Проверка по ICMP (ping)'
+          type: SIMPLE
+          key: icmpping
+          history: 1d
+          trends: 7d
+          tags:
+            -
+              tag: Application
+              value: Сеть
+          triggers:
+            -
+              uuid: 26bdb5ddc8ba4d56b4129cc3fa6df900
+              expression: 'last(/OS Windows Server/icmpping)=0'
+              name: 'Интерфейс узла сети не доступен (no ping)'
+              priority: HIGH
+              description: '{HOST.IP}'
+              tags:
+                -
+                  tag: Доступность
+        -
+          uuid: 204b87e4a4cc45b4ad5d707b8def6557
+          name: 'Memory Available (Physical) %'
+          type: CALCULATED
+          key: MemoryAvailablePhysicalProc
+          history: 7d
+          trends: 180d
+          value_type: FLOAT
+          units: '%'
+          params: '100*last(//perf_counter["\Memory\Available Bytes",60])/last(//system.run[Powershell.exe "((Get-WmiObject Win32_PhysicalMemory).Capacity | Measure-Object -Sum).Sum"])'
+          description: 'Процент используемой физической памяти'
+          tags:
+            -
+              tag: Application
+              value: Память
+          triggers:
+            -
+              uuid: d5ef9e36e540404994f3483b4e7859c3
+              expression: 'avg(/OS Windows Server/MemoryAvailablePhysicalProc,5m)<15'
+              name: 'Memory Available (Physical) > 85% (5 min)'
+              priority: WARNING
+              description: 'ОС использует > 85% от физической памяти более 5 минут'
+              dependencies:
+                -
+                  name: 'Memory Available (Physical) > 95% (5 min)'
+                  expression: 'avg(/OS Windows Server/MemoryAvailablePhysicalProc,5m)<5'
+              tags:
+                -
+                  tag: Производительность
+            -
+              uuid: fb6310641ba64dcd9515ce594f9eb737
+              expression: 'avg(/OS Windows Server/MemoryAvailablePhysicalProc,5m)<5'
+              name: 'Memory Available (Physical) > 95% (5 min)'
+              priority: HIGH
+              description: |
+                ОС использует > 95% от физической памяти более 5 минут
+                
+                Если объем доступной памяти слишком мал, есть вероятность, что система начнет использовать для активных процессов файл подкачки. Если системе не хватает физической памяти, то результатом этого могут быть значительные задержки и/или полное зависание системы
+              tags:
+                -
+                  tag: Производительность
+        -
+          uuid: 987ca02924b646b58d1f989bf540bc6e
+          name: 'Memory Committed Bytes In Use %'
+          key: 'perf_counter["\Memory\% Committed Bytes In Use",300]'
+          delay: 5m
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          units: '%'
+          description: |
+            Соотношение величин счетчиков Commited Bytes и Commit Limit.
+            
+            Следя за счетчиком %Committed Bytes In Use, можно увидеть, что при достижении им величины 100% система начнет увеличивать размеры файла подкачки, пытаясь удовлетворить растущие запросы на память.
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Память
+          triggers:
+            -
+              uuid: 69665ea0cf2943ca9fed3c978f597c11
+              expression: 'last(/OS Windows Server/perf_counter["\Memory\% Committed Bytes In Use",300])>85'
+              name: 'Committed Bytes In Use > 85%'
+              priority: AVERAGE
+              description: 'Предел выделенной памяти будет расти, если общий объем выделенной памяти приблизится к 90% от предельного значения — если же значение достигнет 95%, то предел вероятно перестанет расти, и появится вероятность возникновения ошибки OutOfMemory. Как только объем выделенной памяти достигнет предела, то система больше не сможет выделять память для процессов. Большинство процессов не справится с данным поведением системы и прекратят свое выполнение. Поэтому очень важно следить за этим счетчиком.'
+              tags:
+                -
+                  tag: Производительность
+        -
+          uuid: f147ca58669a49d3b6f1ddf92a183232
+          name: 'Memory Available Bytes'
+          key: 'perf_counter["\Memory\Available Bytes",60]'
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          units: B
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Память
+        -
+          uuid: 5a22a3b8d84f4988932b250eb3e35094
+          name: 'Memory Commit Limit'
+          key: 'perf_counter["\Memory\Commit Limit",300]'
+          delay: 5m
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          units: B
+          description: 'показывает максимальный объем памяти, который может быть выделен системой. Обычно это фиксированная величина, которая определяется операционной системой'
+          tags:
+            -
+              tag: Application
+              value: Память
+        -
+          uuid: 522a7763dc7f425e88978e0f62f8918e
+          name: 'Process Total Private Bytes'
+          key: 'perf_counter["\Process(_Total)\Private Bytes",300]'
+          delay: 5m
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          units: B
+          description: 'показывает объем выделенной памяти для процесса. Если сумма всех private bytes для всех процессов превысит предел памяти, описанный выше, это значит, что в системе образовалась нехватка памяти и приложения будут отказывать'
+          tags:
+            -
+              tag: Application
+              value: Память
+        -
+          uuid: bf3de50af43d43469c4ca1cbdbaf2451
+          name: 'Processor Time'
+          key: 'perf_counter["\Processor(_Total)\% Processor Time",60]'
+          history: 7d
+          trends: 180d
+          value_type: FLOAT
+          units: '%'
+          description: 'Загруженность процессора в % (среднее значение за 1 минуту)'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Процессор
+          triggers:
+            -
+              uuid: 1841da8dcc7c487cb41892d5efa364f4
+              expression: 'avg(/OS Windows Server/perf_counter["\Processor(_Total)\% Processor Time",60],5m)>85'
+              name: 'Processor Time > 85% (5 min)'
+              priority: AVERAGE
+              description: 'Нужно выяснить почему загружен процессор, если высокая загрузка связанна не с проблемами в работе приложений необходимо добавить ресурсов серверу.'
+              dependencies:
+                -
+                  name: 'Processor Time > 85% (15 min)'
+                  expression: 'avg(/OS Windows Server/perf_counter["\Processor(_Total)\% Processor Time",60],15m)>85'
+              tags:
+                -
+                  tag: Производительность
+            -
+              uuid: cd4e51648dff4bb88200da17dcf299e5
+              expression: 'avg(/OS Windows Server/perf_counter["\Processor(_Total)\% Processor Time",60],15m)>85'
+              name: 'Processor Time > 85% (15 min)'
+              priority: HIGH
+              description: 'Нужно выяснить почему загружен процессор, если высокая загрузка связанна не с проблемами в работе приложений необходимо добавить ресурсов серверу.'
+              tags:
+                -
+                  tag: Производительность
+        -
+          uuid: cb246b5554c64959a7d161ae005f15fa
+          name: 'Processor Context Switches'
+          key: 'perf_counter["\System\Context Switches/sec",60]'
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          description: 'в многозадачных ОС и средах - процесс прекращения выполнения процессором одной задачи (процесса, потока, нити) с сохранением всей необходимой информации и состояния, необходимых для последующего продолжения с прерванного места, и восстановления и загрузки состояния задачи, к выполнению которой переходит процессор.'
+          tags:
+            -
+              tag: Application
+              value: Процессор
+        -
+          uuid: b2f9bf7028c94ecfba0bb27988c18778
+          name: 'Processor Queue Length'
+          key: 'perf_counter["\System\Processor Queue Length",60]'
+          history: 7d
+          trends: 90d
+          value_type: FLOAT
+          description: 'Показания счетчика действительно очень важны для поиска проблем с производительностью процессора. Постоянное наличие большой очереди запросов к ЦП явно свидетельствует о том, что процессор не справляется с обработкой данных и является узким местом.'
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Процессор
+          triggers:
+            -
+              uuid: e28cac3b7d914bf7b2b15027200d3006
+              expression: 'avg(/OS Windows Server/perf_counter["\System\Processor Queue Length",60],5m)>4'
+              name: 'Processor Queue Length > 4 (5 min)'
+              priority: AVERAGE
+              description: |
+                Обратите внимание на Processor Queue Length > 4 в течение 5 минут. 
+                
+                Получите обратную связь от пользователей приложения. Если приложение работает нормально и пользователи не испытывают проблем при работе с ПО, нужно повысить пороговое значение.
+                
+                Но стоит подключиться к более глубокому анализу производительности ЦП как слабого места, разобраться в причине или увеличить ресурсы серверу.
+              dependencies:
+                -
+                  name: 'Processor Queue Length > 10 (3 min)'
+                  expression: 'avg(/OS Windows Server/perf_counter["\System\Processor Queue Length",60],3m)>10'
+              tags:
+                -
+                  tag: Производительность
+            -
+              uuid: 14e83360c1bc4449b06d83bac34d1259
+              expression: 'avg(/OS Windows Server/perf_counter["\System\Processor Queue Length",60],3m)>10'
+              name: 'Processor Queue Length > 10 (3 min)'
+              priority: HIGH
+              description: |
+                Критическое значение очереди > 10 в течение 3 минут.
+                
+                Нужно разобраться в причине или увеличить ресурсы серверу.
+              tags:
+                -
+                  tag: Производительность
+        -
+          uuid: f33dc10dc7954debbb3e66a9b118d126
+          name: 'Системное время UTC'
+          key: 'system.localtime[utc]'
+          history: 1d
+          trends: 30d
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Система
+          triggers:
+            -
+              uuid: d151a0feb6964a0b82d6f7c4c53249e1
+              expression: 'fuzzytime(/OS Windows Server/system.localtime[utc],1s)=0'
+              name: 'Fuzzytime > 1s'
+              priority: HIGH
+              description: |
+                Разница в системном времени между хостом и сервером Zabbix больше 1 сек
+                
+                Проверьте состояние службы времени в ОС
+                
+                Полезные команды:
+                w32tm /resync - выполнение синхронизации времени
+                w32tm /resync /rediscover - Принудительная синхронизация от источника
+                w32tm /query /peers - Отображение текущих источников синхронизации и их статуса
+                w32tm /config /update - Применение внесенных в конфигурацию изменений 
+                w32tm /monitor - Отображение состояния синхронизации контроллеров домена в домене
+                
+                net stop w32time - остановка службы
+                net start w32time - запуск службы
+              dependencies:
+                -
+                  name: 'Fuzzytime > 5s'
+                  expression: 'fuzzytime(/OS Windows Server/system.localtime[utc],5s)=0'
+              tags:
+                -
+                  tag: Доступность
+            -
+              uuid: e0640a5e5fe34d4a98a1ea01cfe9580b
+              expression: 'fuzzytime(/OS Windows Server/system.localtime[utc],5s)=0'
+              name: 'Fuzzytime > 5s'
+              priority: DISASTER
+              description: |
+                Разница в системном времени между хостом и сервером Zabbix больше 5 сек
+                
+                Проверьте состояние службы времени в ОС
+                
+                Полезные команды:
+                w32tm /resync - выполнение синхронизации времени
+                w32tm /resync /rediscover - Принудительная синхронизация от источника
+                w32tm /query /peers - Отображение текущих источников синхронизации и их статуса
+                w32tm /config /update - Применение внесенных в конфигурацию изменений 
+                w32tm /monitor - Отображение состояния синхронизации контроллеров домена в домене
+                
+                net stop w32time - остановка службы
+                net start w32time - запуск службы
+              tags:
+                -
+                  tag: Доступность
+        -
+          uuid: 2b89a41718bc4438b9e657a10fc95fc8
+          name: 'Проверка Обновлений'
+          key: 'system.run["PowerShell.exe [int][double]::Parse((Get-Date((Get-ItemProperty -Path Registry::''HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install'').LastSuccessTime) -UFormat %s))"]'
+          delay: 4h
+          history: 7d
+          trends: 7d
+          description: |
+            Если в системе нет установленных обновлений, то элемент данных станет не поддерживаемый. Так как скрипт выдает ошибку.
+            
+            Для работы нужно добавить в файл конфигурации zabbix агента и разместить PS скрипт в папке.
+            
+            #UpdateWindows
+            UserParameter=Update, PowerShell.exe -File "C:\Program Files\Zabbix\lastDateUpdate.ps1"
+          preprocessing:
+            -
+              type: RTRIM
+              parameters:
+                - ' '
+          request_method: POST
+          tags:
+            -
+              tag: Application
+              value: Система
+          triggers:
+            -
+              uuid: d19838b0658046beb29e2ef1bbcf8685
+              expression: 'nodata(/OS Windows Server/system.run["PowerShell.exe [int][double]::Parse((Get-Date((Get-ItemProperty -Path Registry::''HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install'').LastSuccessTime) -UFormat %s))"],8h)=1'
+              name: 'Zabbix не смог получить данных о обновления в системе'
+              priority: INFO
+              description: 'Проверите работу zabbix agenta, наличие скрипта powershell и ключа в файле конфигурации.'
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Безопасность
+            -
+              uuid: 3ef93188d8a74034a61567d80a184de5
+              expression: '(now()-last(/OS Windows Server/system.run["PowerShell.exe [int][double]::Parse((Get-Date((Get-ItemProperty -Path Registry::''HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install'').LastSuccessTime) -UFormat %s))"]))>7889229'
+              name: 'Обновления Windows не устанавливались > 3м'
+              priority: INFO
+              description: |
+                Нужно согласовать установку обновлений на сервере. И провести установку обновлений.
+                
+                Обновления Windows не устанавливались более 3 месяцев
+              tags:
+                -
+                  tag: Безопасность
+        -
+          uuid: 79d9760562e145fe925980cf332df8fe
+          name: 'Проверка Cертификата'
+          key: 'system.run[Powershell.exe "& {(Get-ChildItem -Path cert: -Recurse -ExpiringInDays 45 | where {$_.PSPath -notmatch ''Remote Desktop'' -and $_.PSPath -notmatch ''Operations Manager''}).subject}"]'
+          delay: 4h
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          tags:
+            -
+              tag: Application
+              value: Система
+          triggers:
+            -
+              uuid: 1c6cb9e56a064c76b48e6d8758c54819
+              expression: 'nodata(/OS Windows Server/system.run[Powershell.exe "& {(Get-ChildItem -Path cert: -Recurse -ExpiringInDays 45 | where {$_.PSPath -notmatch ''Remote Desktop'' -and $_.PSPath -notmatch ''Operations Manager''}).subject}"],8h)=1'
+              name: 'Zabbix не смог получить данных о сертификатах'
+              priority: INFO
+              description: 'Проверите работу элемента данных.'
+              tags:
+                -
+                  tag: Безопасность
+            -
+              uuid: 3773b8a9b8134a33b29f8e0cb512fb2f
+              expression: 'length(last(/OS Windows Server/system.run[Powershell.exe "& {(Get-ChildItem -Path cert: -Recurse -ExpiringInDays 45 | where {$_.PSPath -notmatch ''Remote Desktop'' -and $_.PSPath -notmatch ''Operations Manager''}).subject}"]))>1'
+              name: 'Проблема с сертификатом'
+              priority: WARNING
+              description: |
+                В системе есть сертификат срок действия которого истекает через 45 дней
+                
+                {ITEM.LASTVALUE}
+                
+                Проверьте сертификаты в системе. Имя сертификата можно узнать в меню Мониторинг > Последние данные.
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: Безопасность
+        -
+          uuid: 165ae70d9b94406fa48afb7af9ab883a
+          name: 'Memory Capacity (Physical) Bytes'
+          key: 'system.run[Powershell.exe "((Get-WmiObject Win32_PhysicalMemory).Capacity | Measure-Object -Sum).Sum"]'
+          delay: 24h
+          history: 7d
+          trends: 90d
+          units: B
+          description: 'Размер физической памяти'
+          tags:
+            -
+              tag: Application
+              value: Память
+      discovery_rules:
+        -
+          uuid: d98f9f424901419b8cf88ccd59662a0a
+          name: 'discovery Interface'
+          key: net.if.discovery
+          delay: 24h
+          filter:
+            evaltype: AND
+            conditions:
+              -
+                macro: '{#IFNAME}'
+                value: '@Network interfaces for discovery'
+                formulaid: A
+              -
+                macro: '{#IFNAME}'
+                value: '@Microsoft Network Adapter'
+                formulaid: B
+          lifetime: 7d
+          description: 'Обнаружение сетевых интрефейсов'
+          item_prototypes:
+            -
+              uuid: ae685175da7643fc9ad2f059254bb827
+              name: 'Interface:{#IFNAME}, Received Bytes/sec'
+              key: 'perf_counter["\Network Interface({#IFNAME})\Bytes Received/sec",60]'
+              history: 30d
+              trends: 30d
+              value_type: FLOAT
+              units: bps
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+            -
+              uuid: ad3f3b3cd6d244598652a677c52075bf
+              name: 'Interface:{#IFNAME}, Sent Bytes/sec'
+              key: 'perf_counter["\Network Interface({#IFNAME})\Bytes Sent/sec",60]'
+              history: 30d
+              trends: 30d
+              value_type: FLOAT
+              units: bps
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+            -
+              uuid: 0b46786faa744b8082cc2e29fcfda342
+              name: 'Interface:{#IFNAME}, Current Bandwidth'
+              key: 'perf_counter["\Network Interface({#IFNAME})\Current Bandwidth",]'
+              delay: 24h
+              history: 1d
+              trends: 7d
+              units: bps
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+            -
+              uuid: 86928828884c4c68a98a6c72800aec03
+              name: 'Interface:{#IFNAME}, Output Queue Length'
+              key: 'perf_counter["\Network Interface({#IFNAME})\Output Queue Length",300]'
+              delay: 5m
+              history: 7d
+              trends: 30d
+              description: 'Счетчик фиксирует длину очереди исходящих пакетов адаптера. Приемлемыми считаются значения 1 и 2. Но если этот показатель часто достигает уровня 3, 4 или более высоких отметок, это значит, что сетевой адаптер ввода/вывода не справляется с запросами сервера на передачу данных в сеть.'
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+              trigger_prototypes:
+                -
+                  uuid: c73ede12834f4fa682e824dd3e2af81b
+                  expression: 'last(/OS Windows Server/perf_counter["\Network Interface({#IFNAME})\Output Queue Length",300])>3'
+                  name: 'Interface:{#IFNAME}, Output Queue Length > 3'
+                  priority: WARNING
+                  description: 'Счетчик фиксирует длину очереди исходящих пакетов адаптера. Приемлемыми считаются значения 1 и 2. Но если этот показатель часто достигает уровня 3, 4 или более высоких отметок, это значит, что сетевой адаптер ввода/вывода не справляется с запросами сервера на передачу данных в сеть.'
+                  tags:
+                    -
+                      tag: Производительность
+            -
+              uuid: 69994534368c4e1f8de64b47b7335cae
+              name: 'Interface:{#IFNAME}, Utilization Received'
+              type: CALCULATED
+              key: 'UtilizationReceived.[{#IFNAME}]'
+              history: 1d
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//perf_counter["\Network Interface({#IFNAME})\Bytes Received/sec",60])/last(//perf_counter["\Network Interface({#IFNAME})\Current Bandwidth",])'
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+              trigger_prototypes:
+                -
+                  uuid: 742f12a1c3874cc08df57f165c5a1d1f
+                  expression: 'last(/OS Windows Server/UtilizationReceived.[{#IFNAME}])>50'
+                  name: 'Interface:{#IFNAME}, Utilization Received > 50%'
+                  priority: INFO
+                  description: 'Utilization Received = {ITEM.LASTVALUE}'
+                  dependencies:
+                    -
+                      name: 'Interface:{#IFNAME}, Utilization Received > 90%'
+                      expression: 'last(/OS Windows Server/UtilizationReceived.[{#IFNAME}])>90'
+                  tags:
+                    -
+                      tag: Производительность
+                -
+                  uuid: e0bb883fd9884067a505035068c440ed
+                  expression: 'last(/OS Windows Server/UtilizationReceived.[{#IFNAME}])>90'
+                  name: 'Interface:{#IFNAME}, Utilization Received > 90%'
+                  priority: HIGH
+                  description: 'Utilization Received = {ITEM.LASTVALUE}'
+                  tags:
+                    -
+                      tag: Производительность
+            -
+              uuid: c6d1cea976f943f28dc275cd9a4ec5f5
+              name: 'Interface:{#IFNAME}, Utilization Sent'
+              type: CALCULATED
+              key: 'UtilizationSent.[{#IFNAME}]'
+              history: 1d
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//perf_counter["\Network Interface({#IFNAME})\Bytes Sent/sec",60])/last(//perf_counter["\Network Interface({#IFNAME})\Current Bandwidth",])'
+              tags:
+                -
+                  tag: Application
+                  value: Сеть
+              trigger_prototypes:
+                -
+                  uuid: 0ade2ed93d0e49c6b671a67a3cf1f1a1
+                  expression: 'last(/OS Windows Server/UtilizationSent.[{#IFNAME}])>50'
+                  name: 'Interface:{#IFNAME}, Utilization Sent > 50%'
+                  priority: INFO
+                  description: 'Utilization Sent = {ITEM.LASTVALUE}'
+                  dependencies:
+                    -
+                      name: 'Interface:{#IFNAME}, Utilization Sent > 90%'
+                      expression: 'last(/OS Windows Server/UtilizationSent.[{#IFNAME}])>90'
+                  tags:
+                    -
+                      tag: Производительность
+                -
+                  uuid: 7f605c18aaec41dcb64565ebdc574d2a
+                  expression: 'last(/OS Windows Server/UtilizationSent.[{#IFNAME}])>90'
+                  name: 'Interface:{#IFNAME}, Utilization Sent > 90%'
+                  priority: HIGH
+                  description: 'Utilization Sent = {ITEM.LASTVALUE}'
+                  tags:
+                    -
+                      tag: Производительность
+          graph_prototypes:
+            -
+              uuid: baa6424a71c7497c814ae2a629e570f7
+              name: 'Interface:{#IFNAME}, Utilization'
+              width: '1400'
+              height: '500'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              graph_items:
+                -
+                  color: 1A7C11
+                  item:
+                    host: 'OS Windows Server'
+                    key: 'UtilizationReceived.[{#IFNAME}]'
+                -
+                  sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'OS Windows Server'
+                    key: 'UtilizationSent.[{#IFNAME}]'
+        -
+          uuid: 1c30c550b93642e7862ebe693b36a093
+          name: 'discovery service'
+          key: service.discovery
+          delay: 24h
+          filter:
+            evaltype: OR
+            conditions:
+              -
+                macro: '{#SERVICE.NAME}'
+                value: W32Time
+                formulaid: A
+              -
+                macro: '{#SERVICE.NAME}'
+                value: MpsSvc
+                formulaid: B
+              -
+                macro: '{#SERVICE.NAME}'
+                value: Dnscache
+                formulaid: C
+              -
+                macro: '{#SERVICE.NAME}'
+                value: gpsvc
+                formulaid: D
+              -
+                macro: '{#SERVICE.NAME}'
+                value: EventLog
+                formulaid: E
+              -
+                macro: '{#SERVICE.NAME}'
+                value: Schedule
+                formulaid: F
+          lifetime: 7d
+          description: 'Обнаружение служб Windows'
+          item_prototypes:
+            -
+              uuid: 87203a8d9959446e9e47a0019cdc4b41
+              name: 'Состояние службы {#SERVICE.DISPLAYNAME}'
+              key: 'service.info[{#SERVICE.NAME}]'
+              delay: 3m
+              history: 7d
+              trends: 30d
+              description: |
+                Описание:
+                {#SERVICE.DESCRIPTION}
+              valuemap:
+                name: 'Состояние службы'
+              tags:
+                -
+                  tag: Application
+                  value: Службы
+              trigger_prototypes:
+                -
+                  uuid: b37e59409de44a92aaddd78399c38476
+                  expression: 'last(/OS Windows Server/service.info[{#SERVICE.NAME}])<>0'
+                  name: 'Состояние службы {#SERVICE.DISPLAYNAME} = {ITEM.LASTVALUE}'
+                  priority: HIGH
+                  description: |
+                    Состояние службы {#SERVICE.DISPLAYNAME} = {ITEM.LASTVALUE}
+                    
+                    Если отслеживать состояние службы не нужно, просто отключите триггер
+                  tags:
+                    -
+                      tag: Доступность
+        -
+          uuid: 8f33255c78874f0da2be315d2cbcc188
+          name: 'discovery local disk'
+          key: vfs.fs.discovery
+          delay: 24h
+          filter:
+            evaltype: AND
+            conditions:
+              -
+                macro: '{#FSTYPE}'
+                value: '@File systems for discovery'
+                formulaid: A
+              -
+                macro: '{#FSTYPE}'
+                value: ^NTFS|^ReFS
+                formulaid: B
+          lifetime: 7d
+          description: 'Обнаружение дисков'
+          item_prototypes:
+            -
+              uuid: bfc0cd5ec1d84303920a45684a5d8fcd
+              name: 'LogicalDisk {#FSNAME} Disk Time %'
+              key: 'perf_counter["\LogicalDisk({#FSNAME})\% Disk Time",300]'
+              delay: 5m
+              history: 7d
+              trends: 90d
+              value_type: FLOAT
+              description: |
+                Тип файловой системы:{#FSTYPE}
+                Тип диска:{#FSDRIVETYPE}
+                
+                Счетчик отображает, какую часть времени диск расходует на обслуживание запросов на чтение и запись. Если его значения стабильно сохраняются на уровне вблизи отметки 100%, система работает с диском весьма интенсивно. Если же идет постоянный активный обмен данными и при этом создаются большие очереди, возможно, что дисковая подсистема не справляется с нагрузкой. В типичных условиях эксплуатации значение этого счетчика не должно превышать 50.
+              tags:
+                -
+                  tag: Application
+                  value: Диск
+            -
+              uuid: caba0044c8284abfb6faa88c64846d76
+              name: 'LogicalDisk {#FSNAME} Free Space'
+              key: 'perf_counter["\LogicalDisk({#FSNAME})\% Free Space",300]'
+              delay: 5m
+              history: 30d
+              value_type: FLOAT
+              units: '%'
+              description: |
+                Тип файловой системы:{#FSTYPE}
+                Тип диска:{#FSDRIVETYPE}
+              tags:
+                -
+                  tag: Application
+                  value: Диск
+              trigger_prototypes:
+                -
+                  uuid: 417878d8796b4b20a91dcdb601e670fb
+                  expression: 'last(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\% Free Space",300])<5'
+                  name: 'LogicalDisk {#FSNAME} Free Space < 5%'
+                  priority: HIGH
+                  tags:
+                    -
+                      tag: Доступность
+                -
+                  uuid: 4d3890defd6243dfa89b2ff5122a273f
+                  expression: 'last(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\% Free Space",300])<15'
+                  name: 'LogicalDisk {#FSNAME} Free Space < 15%'
+                  priority: AVERAGE
+                  dependencies:
+                    -
+                      name: 'LogicalDisk {#FSNAME} Free Space < 5%'
+                      expression: 'last(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\% Free Space",300])<5'
+                  tags:
+                    -
+                      tag: Доступность
+            -
+              uuid: c1885122f15041b8a3bc23ac97dc4444
+              name: 'LogicalDisk {#FSNAME} Avg. Disk Queue Length'
+              key: 'perf_counter["\LogicalDisk({#FSNAME})\Avg. Disk Queue Length",60]'
+              history: 7d
+              trends: 90d
+              value_type: FLOAT
+              description: |
+                Тип файловой системы:{#FSTYPE}
+                Тип диска:{#FSDRIVETYPE}
+                
+                Показатель этого счетчика отражает среднее число ожидающих обработки запросов к диску на ввод и вывод данных. Если он стабильно выше 2, значит, в диске образовался «затор».
+              tags:
+                -
+                  tag: Application
+                  value: Диск
+              trigger_prototypes:
+                -
+                  uuid: 860d4f1a2b6f4814a0a8df8a7d5dd0d4
+                  expression: 'avg(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\Avg. Disk Queue Length",60],15m)>2'
+                  name: 'LogicalDisk {#FSNAME} Avg. Disk Queue Length > 2 (15 min)'
+                  priority: WARNING
+                  description: |
+                    Среднее значение за 15 минут > 2
+                    
+                    Показатель этого счетчика отражает среднее число ожидающих обработки запросов к диску на ввод и вывод данных. Если он стабильно выше 2, значит, в диске образовался «затор».
+                  dependencies:
+                    -
+                      name: 'LogicalDisk {#FSNAME} Avg. Disk Queue Length > 10 (3 min)'
+                      expression: 'avg(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\Avg. Disk Queue Length",60],3m)>10'
+                  tags:
+                    -
+                      tag: Производительность
+                -
+                  uuid: 34faf1d50f644835ba3e07a0f154a4b4
+                  expression: 'avg(/OS Windows Server/perf_counter["\LogicalDisk({#FSNAME})\Avg. Disk Queue Length",60],3m)>10'
+                  name: 'LogicalDisk {#FSNAME} Avg. Disk Queue Length > 10 (3 min)'
+                  priority: HIGH
+                  description: |
+                    Среднее значение за 3 минут > 10
+                    
+                    Показатель этого счетчика отражает среднее число ожидающих обработки запросов к диску на ввод и вывод данных. Если он стабильно выше 10, значит, у системы серьезные проблема с производительностью диска.
+                  tags:
+                    -
+                      tag: Производительность
+      valuemaps:
+        -
+          uuid: 1dadf78aa3ed4ecb9845cd75fa8429f7
+          name: 'Состояние службы'
+          mappings:
+            -
+              value: '0'
+              newvalue: запущена
+            -
+              value: '1'
+              newvalue: пауза
+            -
+              value: '2'
+              newvalue: 'ожидание старта'
+            -
+              value: '3'
+              newvalue: 'ожидание паузы'
+            -
+              value: '4'
+              newvalue: 'ожидание продолжения'
+            -
+              value: '5'
+              newvalue: 'ожидание остановки'
+            -
+              value: '6'
+              newvalue: остановлена
+            -
+              value: '7'
+              newvalue: неизвестно
+            -
+              value: '255'
+              newvalue: 'такой службы не существует'
+  triggers:
+    -
+      uuid: d62e41e137f54d40b7b71d4dc68f988e
+      expression: 'last(/OS Windows Server/perf_counter["\Process(_Total)\Private Bytes",300])>=last(/OS Windows Server/perf_counter["\Memory\Commit Limit",300])'
+      name: 'Process Total Private Bytes > Memory Commit Limit'
+      priority: HIGH
+      description: 'Process\Private Bytes показывает объем выделенной памяти для процесса. Если сумма всех private bytes для всех процессов превысит предел памяти(Memory Commit Limit), это значит, что в системе образовалась нехватка памяти и приложения будут отказывать.'
+      tags:
+        -
+          tag: Доступность

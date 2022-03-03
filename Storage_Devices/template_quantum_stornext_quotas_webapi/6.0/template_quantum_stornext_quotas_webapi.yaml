@@ -1,0 +1,384 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:53:48Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: 5e40e3129054485093fc7c5c14d5e85e
+      template: 'Stornext Quota'
+      name: 'Stornext Quota'
+      description: |
+        ## Overview
+        
+        Template for get Quotas from Stornext 5 WebAPI 
+        
+        
+        Just write macro values in host configuration.
+        
+        
+        {$USERNAME\_VALUE\_STORNEXT}
+        
+        
+        {$PASSWORD\_VALUE\_STORNEXT}
+        
+        
+        {$FSNAME\_VALUE\_STORNEXT}
+        
+        
+         
+        
+        
+        Template have dependent items which use main item.
+        
+        
+        Dependent items will create by discovery process.
+        
+        
+        - Current Size in TB
+        
+        
+        - Grace Period in weeks
+        
+        
+        - Hard Limit in TB
+        
+        
+        - Soft Limit in TB
+        
+        
+        - Used Space in percents
+        
+        
+         
+        
+        
+        Warning and average triggers by 5% and 0%
+        
+        
+         
+        
+        
+        It use GET to 
+        
+        
+        https://IP/sws/v2/quota/snquota?username=USER&password=PASSWORD&fsname=NAME&action=listall&format=json
+        
+        
+         
+        
+        
+        
+        ## Author
+        
+        Kirill Savin, Nikita Kuznetsov
+        
+        
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: d6625d4f309346b2ba401abe0ebe304f
+          name: 'Quota on all filesystems'
+          type: HTTP_AGENT
+          key: snquotas.onfs.all
+          delay: 30m
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - '$.directoryQuotas[?(@.type == ''dir'')]'
+          url: 'https://{HOST.IP}/sws/v2/quota/snquota'
+          query_fields:
+            -
+              name: username
+              value: '{$USERNAME_VALUE_STORNEXT}'
+            -
+              name: password
+              value: '{$PASSWORD_VALUE_STORNEXT}'
+            -
+              name: fsname
+              value: '{$FSNAME_VALUE_STORNEXT}'
+            -
+              name: action
+              value: listall
+            -
+              name: format
+              value: json
+          tags:
+            -
+              tag: Application
+              value: StorNext
+      discovery_rules:
+        -
+          uuid: 5198e558c2ba4da7943686f01ed7b718
+          name: Quotas
+          type: HTTP_AGENT
+          key: snquotas.discovery
+          delay: 1h
+          lifetime: 7d
+          item_prototypes:
+            -
+              uuid: caac078572ea42a7b496a856f1ef219c
+              name: 'Used space on fs {#SNQUOTAID}'
+              type: CALCULATED
+              key: 'snquotas.onfs.curSize.percent.[calc,{#SNQUOTAID}]'
+              delay: 30m
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: '%'
+              params: 'last(//snquotas.onfs.curSize.[{#SNQUOTAID}]) / (last(//snquotas.onfs.softLimit.[{#SNQUOTAID}]) / 100)'
+              tags:
+                -
+                  tag: Application
+                  value: StorNext
+              trigger_prototypes:
+                -
+                  uuid: fe6ffecd927a4b5f9d1086a10efcf638
+                  expression: 'last(/Stornext Quota/snquotas.onfs.curSize.percent.[calc,{#SNQUOTAID}])>=100'
+                  name: 'Free disk quota is less than 0% on fs {#SNQUOTAID}'
+                  status: DISABLED
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                -
+                  uuid: ab460b815b284a55b77cc2d43bd1ee25
+                  expression: 'last(/Stornext Quota/snquotas.onfs.curSize.percent.[calc,{#SNQUOTAID}])>=95'
+                  name: 'Free disk quota is less than 5% on fs {#SNQUOTAID}'
+                  status: DISABLED
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: 'Free disk quota is less than 0% on fs {#SNQUOTAID}'
+                      expression: 'last(/Stornext Quota/snquotas.onfs.curSize.percent.[calc,{#SNQUOTAID}])>=100'
+            -
+              uuid: efda75e97d1a4d499247cdd39ae0b2f4
+              name: 'Quota on fs {#SNQUOTAID} Current Size'
+              type: DEPENDENT
+              key: 'snquotas.onfs.curSize.[{#SNQUOTAID}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: TB
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.name==''{#SNQUOTAID}'')].curSize'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      work_value = value.slice(0, -3).slice(2)
+                      if_value = value.slice(-3).slice(0,-2)
+                      if (if_value == 'T') {
+                      return(work_value * 1024);
+                      } else if (if_value == 'P') {  
+                      return(work_value * 1024 * 1024);
+                      } else if (if_value == 'G') {   
+                      return(work_value);
+                      } else if (if_value == 'M') {    
+                      return(work_value / 1024);
+                      } else if (if_value == 'K') {  
+                      return(work_value / 1024 / 1024);
+                      } else {
+                      return(work_value / 1024 / 1024 / 1024);
+                      }
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+              master_item:
+                key: snquotas.onfs.all
+              tags:
+                -
+                  tag: Application
+                  value: StorNext
+            -
+              uuid: 3ed6692b6dcd44d8971ce8ed064eebf0
+              name: 'Quota on fs {#SNQUOTAID} Grace Period'
+              type: DEPENDENT
+              key: 'snquotas.onfs.gracePeriod.[{#SNQUOTAID}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              units: days
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.name==''{#SNQUOTAID}'')].gracePeriod'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      work_value = value.slice(0, -3).slice(2)
+                      if_value = value.slice(-3).slice(0,-2)
+                      if (if_value == 'w') {
+                      return(work_value * 7);
+                      } else if (if_value == 'y') {  
+                      return(work_value * 365);
+                      } else if (if_value == 'd') {    
+                      return(work_value);
+                      } else if (if_value == 'h') {   
+                      return(work_value / 24);
+                      } else {
+                      return(work_value / 1440);
+                      }
+              master_item:
+                key: snquotas.onfs.all
+              tags:
+                -
+                  tag: Application
+                  value: StorNext
+            -
+              uuid: 01b67a1f3c13435fbd70f7a2516c3f9e
+              name: 'Quota on fs {#SNQUOTAID} Hard Limit'
+              type: DEPENDENT
+              key: 'snquotas.onfs.hardLimit.[{#SNQUOTAID}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: TB
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.name==''{#SNQUOTAID}'')].hardLimit'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      work_value = value.slice(0, -3).slice(2)
+                      if_value = value.slice(-3).slice(0,-2)
+                      if (if_value == 'T') {
+                      return(work_value * 1024);
+                      } else if (if_value == 'P') {  
+                      return(work_value * 1024 * 1024);
+                      } else if (if_value == 'G') {   
+                      return(work_value);
+                      } else if (if_value == 'M') {    
+                      return(work_value / 1024);
+                      } else if (if_value == 'K') {  
+                      return(work_value / 1024 / 1024);
+                      } else {
+                      return(work_value / 1024 / 1024 / 1024);
+                      }
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+              master_item:
+                key: snquotas.onfs.all
+              tags:
+                -
+                  tag: Application
+                  value: StorNext
+            -
+              uuid: d31fba3522b943a5aebbac3984fe74b5
+              name: 'Quota on fs {#SNQUOTAID} Soft Limit'
+              type: DEPENDENT
+              key: 'snquotas.onfs.softLimit.[{#SNQUOTAID}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: TB
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.name==''{#SNQUOTAID}'')].softLimit'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      work_value = value.slice(0, -3).slice(2)
+                      if_value = value.slice(-3).slice(0,-2)
+                      if (if_value == 'T') {
+                      return(work_value * 1024);
+                      } else if (if_value == 'P') {  
+                      return(work_value * 1024 * 1024);
+                      } else if (if_value == 'G') {   
+                      return(work_value);
+                      } else if (if_value == 'M') {    
+                      return(work_value / 1024);
+                      } else if (if_value == 'K') {  
+                      return(work_value / 1024 / 1024);
+                      } else {
+                      return(work_value / 1024 / 1024 / 1024);
+                      }
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+              master_item:
+                key: snquotas.onfs.all
+              tags:
+                -
+                  tag: Application
+                  value: StorNext
+          graph_prototypes:
+            -
+              uuid: d7f12f205e5e4e878a01ac0d63552465
+              name: 'Quota on fs {#SNQUOTAID} Current Size'
+              ymin_type_1: FIXED
+              graph_items:
+                -
+                  color: 1A7C11
+                  item:
+                    host: 'Stornext Quota'
+                    key: 'snquotas.onfs.curSize.[{#SNQUOTAID}]'
+            -
+              uuid: a4ffd0f7fb2e44c5bccacd61eb87f4e4
+              name: 'Used space on fs {#SNQUOTAID}'
+              ymin_type_1: FIXED
+              graph_items:
+                -
+                  color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Stornext Quota'
+                    key: 'snquotas.onfs.curSize.percent.[calc,{#SNQUOTAID}]'
+          url: 'https://{HOST.IP}/sws/v2/quota/snquota'
+          query_fields:
+            -
+              name: username
+              value: '{$USERNAME_VALUE_STORNEXT}'
+            -
+              name: password
+              value: '{$PASSWORD_VALUE_STORNEXT}'
+            -
+              name: fsname
+              value: '{$FSNAME_VALUE_STORNEXT}'
+            -
+              name: action
+              value: listall
+            -
+              name: format
+              value: json
+          lld_macro_paths:
+            -
+              lld_macro: '{#SNQUOTAID}'
+              path: $.name
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - '$.directoryQuotas[?(@.type == ''dir'')]'
+      macros:
+        -
+          macro: '{$FSNAME_VALUE_STORNEXT}'
+        -
+          macro: '{$PASSWORD_VALUE_STORNEXT}'
+        -
+          macro: '{$USERNAME_VALUE_STORNEXT}'

@@ -1,0 +1,131 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:59:51Z'
+  groups:
+    -
+      uuid: 57b7ae836ca64446ba2c296389c009b7
+      name: Templates/Modules
+  templates:
+    -
+      uuid: d7df7478655b489296a833a80da31818
+      template: 'TCP port monitoring'
+      name: 'TCP port monitoring'
+      description: |
+        ## Overview
+        
+        The following template is utilizing Zabbix agent to discover TCP ports in listening state. 
+        
+        
+        Underneath the hood it will use the command:
+        
+        
+        
+        ```
+        ss --tcp --listening --numeric
+        ```
+        
+        This means the remote commands must be enabled. Or you need to convert it as an UserParameter. See discovery section for details.
+        
+        
+        After that, it will use JavaScript preprocessing step to transform the output suitable for discovery.
+        
+        
+        By default, the item will check port every 5 minutes. If the port is not reachable for 5 consecutive checks (25 minutes) it is a called a "Disaster".
+        
+        
+        Explaining video: <https://www.youtube.com/watch?v=BwQwWXoGzGM>
+        
+        
+        Cheers!
+        
+        
+        
+        
+      groups:
+        -
+          name: Templates/Modules
+      discovery_rules:
+        -
+          uuid: ced4df7ba5664787b89da5062cadc832
+          name: 'Listening TCP port discovery'
+          key: 'system.run["ss --tcp --listening --numeric"]'
+          delay: 1d
+          filter:
+            conditions:
+              -
+                macro: '{#PORT}'
+                value: '{$TCP.PORT.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+              -
+                macro: '{#PORT}'
+                value: '{$TCP.PORT.MATCHES}'
+                formulaid: B
+          description: |
+            Install UserParameter for zabbix-agent:
+            echo 'UserParameter=ss.tcp.listening,netstat --tcp --listening --numeric-ports' | sudo tee /etc/zabbix/zabbix_agentd.d/ss.tcp.listening.conf
+            
+            Install UserParameter for zabbix-agent2:
+            echo 'UserParameter=ss.tcp.listening,netstat --tcp --listening --numeric-ports' | sudo tee /etc/zabbix/zabbix_agent2.d/ss.tcp.listening.conf
+            
+            Restart Zabbix agent
+            systemctl restart zabbix-agent
+            systemctl restart zabbix-agent2
+            
+            In this section replace Key:
+            system.run["ss --tcp --listening --numeric"]
+            with:
+            netstat.tcp.listening
+          item_prototypes:
+            -
+              uuid: 615711a48cc34406a5e6a0b7bfc3afde
+              name: 'Port {#PORT} is listening'
+              type: ZABBIX_ACTIVE
+              key: 'net.tcp.listen[{#PORT}]'
+              delay: 5m
+              valuemap:
+                name: 'Service state'
+              tags:
+                -
+                  tag: Application
+                  value: 'TCP port'
+              trigger_prototypes:
+                -
+                  uuid: a2083aaf124541cbbb6443948d4f2e06
+                  expression: 'max(/TCP port monitoring/net.tcp.listen[{#PORT}],#5)=0'
+                  name: 'Port {#PORT} is down for some time'
+                  priority: DISASTER
+                  manual_close: 'YES'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var lld = [];
+                  var lines = value.match(/:[0-9]+ /gm).reduce(function(a,b){if(a.indexOf(b) < 0)a.push(b);return a;},[]).join("\n").replace(/:/g,"").replace(/ /g,"").split("\n");
+                  var lines_num = lines.length;
+                  for (i = 0; i < lines_num; i++)
+                  {
+                    var row = {};
+                    row["{#PORT}"] = lines[i]
+                    lld.push(row);
+                  }
+                  return JSON.stringify(lld);
+      macros:
+        -
+          macro: '{$TCP.PORT.MATCHES}'
+          value: '.*'
+        -
+          macro: '{$TCP.PORT.NOT_MATCHES}'
+          value: ^\s$
+      valuemaps:
+        -
+          uuid: 801d595a14de450ab184698af0b96325
+          name: 'Service state'
+          mappings:
+            -
+              value: '0'
+              newvalue: Down
+            -
+              value: '1'
+              newvalue: Up

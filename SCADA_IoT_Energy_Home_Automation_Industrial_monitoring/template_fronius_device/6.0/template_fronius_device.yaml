@@ -1,0 +1,985 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:54:53Z'
+  groups:
+    -
+      uuid: 352ccd39c4ed493da3690db82cca8ca0
+      name: Solar
+  templates:
+    -
+      uuid: d5bb199f24414e00abd10a079fba57cc
+      template: 'Fronius Solar'
+      name: 'Fronius Solar'
+      description: |
+        ## Description
+        
+        Uses Fronius API V1 to query inverter Make sure you update the following macros after linking the template DEVICE_ID: the device you want to monitor (defaults to 1 if you only have 1 inverter). Make sure your host has a hsotname of ip address configured. This must be the address of the Fronius device to monitor
+        
+        ## Overview
+        
+         Introduction
+        ============
+        
+        
+        This [Zabbix](https://www.zabbix.com/) template allows monitoring of Fronius devices such as inverters, dataloggers and smart loads through the [Fronius Solar API V1](https://www.fronius.com/en/photovoltaics/products/all-products/system-monitoring/open-interfaces/fronius-solar-api-json-).
+        
+        
+        [![graph of solar usage showing energy used and generated](https://raw.githubusercontent.com/wilsonwaters/zabbix-fronius/master/doc/fronius-graph.png "Example graph")](https://raw.githubusercontent.com/wilsonwaters/zabbix-fronius/master/doc/fronius-graph.png)
+        
+        
+        The template uses Zabbix dependent items to reduce the number of API calls made to the device. One API call is made and multiple dependent items use javascript pre-processing to parse the required field from the response.
+        
+        
+        <a id="user-content-requirements" class="anchor" style="box-sizing: border-box; background-color: initial; color: #0366d6; float: left; padding-right: 4px; margin-left: -20px; line-height: 1;
+        ===============================================================================================================================================================================================
+        
+        
+        
+        
+      groups:
+        -
+          name: Solar
+      items:
+        -
+          uuid: 6ad1980787c245ffa884e781481b99cf
+          name: 'Energy Generated Day'
+          type: DEPENDENT
+          key: fronius.day_energy
+          delay: '0'
+          history: 1w
+          units: Wh
+          description: 'Total energy generated on current day by all inverters on the system'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  
+                  var dayEnergy = null;
+                  if (apiResponse.Body.Data.DAY_ENERGY != undefined) {
+                     dayEnergy = 0;
+                     for (var entry in apiResponse.Body.Data.DAY_ENERGY.Values) {
+                        dayEnergy += apiResponse.Body.Data.DAY_ENERGY.Values[entry];
+                     }
+                  }
+                  return dayEnergy ;
+          master_item:
+            key: fronius.GetInverterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: b92cb309611349c2bc127c16ac0e1297
+          name: 'Energy Consumed Meter Total'
+          type: DEPENDENT
+          key: fronius.EnergyReal_WAC_Sum_Consumed
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: Wh
+          description: 'Smart meter energy consumption'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.EnergyReal_WAC_Sum_Consumed
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: fcf3cf4137e64435bf00581d5e519e90
+          name: 'Energy Consumed Meter Day'
+          type: CALCULATED
+          key: fronius.energy_consumed_meter_day
+          delay: 30s
+          history: 1w
+          value_type: FLOAT
+          units: Wh
+          params: last(//fronius.EnergyReal_WAC_Sum_Consumed)-last(//fronius.energy_consumed_meter_startofday)
+          description: 'Energy consumption from the grid today'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 0c614687d5444ee2a25cde5a226a21d2
+          name: 'Energy Consumed Meter start-of-day'
+          type: CALCULATED
+          key: fronius.energy_consumed_meter_startofday
+          delay: 0;h0
+          history: 1w
+          value_type: FLOAT
+          units: Wh
+          params: last(//fronius.EnergyReal_WAC_Sum_Consumed)
+          description: 'Energy consumption from the grid at the start of today'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 1d62cd189b1941028b8c13b3a41dcd1b
+          name: 'Device Error Code'
+          type: DEPENDENT
+          key: fronius.ErrorCode
+          delay: '0'
+          history: 1w
+          description: 'error code for inverter {$DEVICE_ID}'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.DeviceStatus.ErrorCode
+          master_item:
+            key: fronius.GetInverterRealtimeData_CommonInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 21fb77feaa244eceade8dcc05e4eb1eb
+          name: 'Frequency meter'
+          type: DEPENDENT
+          key: fronius.Frequency_Phase_Average
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: Hz
+          description: 'Smart meter Frequency Phase Average'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.Frequency_Phase_Average
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: c4c4486050da4748a4e193625a1a2036
+          name: InverterRealtimeDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetInverterRealtimeData
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GetInverterRealtimeData API call. Use dependent items to parse this'
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetInverterRealtimeData.cgi'
+          query_fields:
+            -
+              name: Scope
+              value: System
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 54422c3e6b5844b9af3de4c2df053343
+          name: InverterRealtimeData_3PInverterDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GetInverterRealtimeData API call. Use dependent items to parse this'
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetInverterRealtimeData.cgi'
+          query_fields:
+            -
+              name: DataCollection
+              value: 3PInverterData
+            -
+              name: Scope
+              value: Device
+            -
+              name: DeviceId
+              value: '{$DEVICE_ID}'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 3b4edf2ba1fe40d0b44fa068644687ff
+          name: InverterRealtimeData_CommonInverterDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetInverterRealtimeData_CommonInverterDataAPI
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GetInverterRealtimeData API call. Use dependent items to parse this'
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetInverterRealtimeData.cgi'
+          query_fields:
+            -
+              name: DataCollection
+              value: CommonInverterData
+            -
+              name: Scope
+              value: Device
+            -
+              name: DeviceId
+              value: '{$DEVICE_ID}'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 402c45f1a130414b8476ce77609359c2
+          name: MeterRealtimeDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetMeterRealtimeData
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: |
+            GetMeterRealtimeData API call. Use dependent items to parse this.
+            These items only work if your system has a smart meter installed
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetMeterRealtimeData.cgi'
+          query_fields:
+            -
+              name: Scope
+              value: System
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 2f74b84499d34d8a82e77ad7e2d34c88
+          name: OhmPilotRealtimeDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetOhmPilotRealtimeData
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GetOhmPilotRealtimeData API call. Use dependent items to parse this. Assumes you only have a single OhmPilot at device 0'
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetOhmPilotRealtimeData.cgi'
+          query_fields:
+            -
+              name: Scope
+              value: Device
+            -
+              name: DeviceId
+              value: '0'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 6bc9755d920c44e1a0870ed9bca14d3b
+          name: PowerFlowRealtimeDataAPI
+          type: HTTP_AGENT
+          key: fronius.GetPowerFlowRealtimeData
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GetPowerFlowRealtimeData API call. Use dependent items to parse this'
+          timeout: 30s
+          url: 'http://{HOST.CONN}/solar_api/v1/GetPowerFlowRealtimeData.fcgi'
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: e8f0480bb8dd4e23acad41f5c822e286
+          name: 'DC Current'
+          type: DEPENDENT
+          key: fronius.idc
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: A
+          description: 'DC current for inverter {$DEVICE_ID}'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.IDC.Value
+          master_item:
+            key: fronius.GetInverterRealtimeData_CommonInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: a6afdac86dea403da5f60cad065b0d2f
+          name: 'Ohmpilot Error Code'
+          type: DEPENDENT
+          key: fronius.ohmpilot.CodeOfError
+          delay: '0'
+          history: 1w
+          description: 'Error status of OhmPilot at device 0'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.CodeOfError
+          master_item:
+            key: fronius.GetOhmPilotRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 5a69ae1f8956451783ab13e97def4c9c
+          name: 'Ohmpilot Status Code'
+          type: DEPENDENT
+          key: fronius.ohmpilot.CodeOfState
+          delay: '0'
+          history: 1w
+          description: 'status code of OhmPilot at device 0'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.CodeOfState
+          master_item:
+            key: fronius.GetOhmPilotRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 5be912769f0a4a91883a414d82ad3715
+          name: 'Ohmpilot Total Energy Consumed'
+          type: DEPENDENT
+          key: fronius.ohmpilot.EnergyReal_WAC_Sum_Consumed
+          delay: '0'
+          history: 1w
+          units: Wh
+          description: 'total energy consumed by OhmPilot at device 0'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.EnergyReal_WAC_Sum_Consumed
+          master_item:
+            key: fronius.GetOhmPilotRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 504a69823f0f4228be62cf1d5175a8e8
+          name: 'Ohmpilot Power Consumed'
+          type: DEPENDENT
+          key: fronius.ohmpilot.PowerReal_PAC_Sum
+          delay: '0'
+          history: 1w
+          description: 'Current power used by OhmPilot at device 0'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.PowerReal_PAC_Sum
+          master_item:
+            key: fronius.GetOhmPilotRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 016fb7e754644ac4beffca1b4d70c6fa
+          name: 'Ohmpilot Sensor Temperature'
+          type: DEPENDENT
+          key: fronius.ohmpilot.Temperature_Channel_1
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          description: 'Temperature of sensor plugged into OhmPilot at device 0'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.Temperature_Channel_1
+          master_item:
+            key: fronius.GetOhmPilotRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: c5cbba7633e1426b97fd93896e231bdf
+          name: 'Power Generated'
+          type: DEPENDENT
+          key: fronius.pac
+          delay: '0'
+          history: 1w
+          units: W
+          description: 'Total AC power being generated by all inverters on system'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  
+                  var pac = null;
+                  if (apiResponse.Body.Data.PAC != undefined) {
+                     pac = 0;
+                     for (var entry in apiResponse.Body.Data.PAC.Values) {
+                        pac += apiResponse.Body.Data.PAC.Values[entry];
+                     }
+                  }
+                  return pac;
+          master_item:
+            key: fronius.GetInverterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 0ff990158c1f47218e232e5be1833b71
+          name: 'Power Consumed meter'
+          type: DEPENDENT
+          key: fronius.power_consumed_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          description: 'Smart meter power consumption'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.PowerReal_P_Sum
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 1ad83907f61043148ecdecb9d46afe7a
+          name: 'Power Consumed Phase 1'
+          type: DEPENDENT
+          key: fronius.power_consumed_p1_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          description: 'Smart meter power consumption'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.PowerReal_P_Phase_1
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 3edbf35d07c74937b1572c7eda72010c
+          name: 'Power Consumed Phase 2'
+          type: DEPENDENT
+          key: fronius.power_consumed_p2_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          description: 'Smart meter power consumption'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.PowerReal_P_Phase_2
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 3a205ec91bbf4a3da4f19307d00b33db
+          name: 'Power Consumed Phase 3'
+          type: DEPENDENT
+          key: fronius.power_consumed_p3_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          description: 'Smart meter power consumption'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.PowerReal_P_Phase_3
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 79b52d998a114032aa37e85a1389f8fc
+          name: 'Power Consumed excluding Smartloads'
+          type: DEPENDENT
+          key: fronius.power_no_ohmpilot
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  
+                  // powerConsumption is provided as a negative value, whereas ohmPlot consumption is provided as positive.
+                  var powerConsumption = apiResponse.Body.Data.Site.P_Load;
+                  
+                  var ohmPilotConsumption = 0;
+                  if (apiResponse.Body.Data.Smartloads != undefined) {
+                     if (apiResponse.Body.Data.Smartloads.Ohmpilots != undefined) {
+                        for (var ohmpilotId in apiResponse.Body.Data.Smartloads.Ohmpilots) {
+                           ohmPilotConsumption += apiResponse.Body.Data.Smartloads.Ohmpilots[ohmpilotId].P_AC_Total;
+                        }
+                     }
+                  }
+                  
+                  var consumption = (-powerConsumption) - ohmPilotConsumption;
+                  
+                  // consumption can be negative sometimes which is silly in this situation. I think this happens
+                  // because the P_Load and P_AC_Total from Fronius aren't measured at exactly the same time (even though it's in the same API call)
+                  // Simply clamp the value to 0w
+                  return Math.max(0, consumption);
+          master_item:
+            key: fronius.GetPowerFlowRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: ff0e34c0290345f7ab5377584a4b60b1
+          name: 'Power Grid'
+          type: DEPENDENT
+          key: fronius.P_Grid
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.Site.P_Grid
+          master_item:
+            key: fronius.GetPowerFlowRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: ae95215e9b9448d78bd3222553bafb0f
+          name: 'Power Consumed'
+          type: DEPENDENT
+          key: fronius.P_Load
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: W
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.Site.P_Load
+            -
+              type: MULTIPLIER
+              parameters:
+                - '-1'
+          master_item:
+            key: fronius.GetPowerFlowRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 7d5f17aa103645fabb78215029735adc
+          name: 'Device Status Code'
+          type: DEPENDENT
+          key: fronius.StatusCode
+          delay: '0'
+          history: 1w
+          description: 'status code for inverter {$DEVICE_ID}'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.DeviceStatus.StatusCode
+          master_item:
+            key: fronius.GetInverterRealtimeData_CommonInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: d709ba3b368b44abb8dcfb1bbedab021
+          name: 'Energy Generated Total'
+          type: DEPENDENT
+          key: fronius.total_energy
+          delay: '0'
+          history: 1w
+          units: Wh
+          description: 'Total energy generated on current day by all inverters on the system'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  
+                  var totalEnergy = null;
+                  if (apiResponse.Body.Data.DAY_ENERGY != undefined) {
+                     totalEnergy = 0;
+                     for (var entry in apiResponse.Body.Data.TOTAL_ENERGY.Values) {
+                        totalEnergy += apiResponse.Body.Data.TOTAL_ENERGY.Values[entry];
+                     }
+                  }
+                  return totalEnergy;
+          master_item:
+            key: fronius.GetInverterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: ca83b6ed05294599b76c3c78edaac347
+          name: 'DC Voltage'
+          type: DEPENDENT
+          key: fronius.udc
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: 'DC Voltage for inverter {$DEVICE_ID}'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.UDC.Value
+          master_item:
+            key: fronius.GetInverterRealtimeData_CommonInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 297f8582d42e4743a388e65eef6f33cb
+          name: 'Voltage Phase 1 inverter'
+          type: DEPENDENT
+          key: fronius.vac_p1
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage measured by inverter is only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var entry = "UAC_L1";
+                  
+                  // default to null value, which is discarded
+                  var voltage = null; 
+                  if (apiResponse.Body.Data[entry]!= undefined) {
+                     voltage = apiResponse.Body.Data[entry].Value;
+                  }
+                  return voltage;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 14ed362a4b20438eb65c1f860be7730f
+          name: 'Voltage Phase 2 inverter'
+          type: DEPENDENT
+          key: fronius.vac_p2
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage measured by inverter is only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var entry = "UAC_L2";
+                  
+                  // default to null value, which is discarded
+                  var voltage = null; 
+                  if (apiResponse.Body.Data[entry]!= undefined) {
+                     voltage = apiResponse.Body.Data[entry].Value;
+                  }
+                  return voltage;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 91671d15019d46be86eb669bc7b300fd
+          name: 'Voltage Phase 3 inverter'
+          type: DEPENDENT
+          key: fronius.vac_p3
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage measured by inverter is only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var entry = "UAC_L3";
+                  
+                  // default to null value, which is discarded
+                  var voltage = null; 
+                  if (apiResponse.Body.Data[entry]!= undefined) {
+                     voltage = apiResponse.Body.Data[entry].Value;
+                  }
+                  return voltage;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 0e31d26e6cb14fbf97cac0cfe7fe0570
+          name: 'Power Generated Phase 1 inverter'
+          type: DEPENDENT
+          key: fronius.va_generated_p1_inverter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage and current measurements supplied by inverter are only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var phase = "1";
+                  var voltageEntry = "UAC_L"+phase;
+                  var currentEntry = "IAC_L"+phase;
+                  
+                  // default to null value, which is discarded
+                  var va = null; 
+                  if (apiResponse.Body.Data[voltageEntry]!= undefined && apiResponse.Body.Data[currentEntry]!= undefined) {
+                     va = apiResponse.Body.Data[voltageEntry ].Value * apiResponse.Body.Data[currentEntry].Value;
+                  }
+                  return va;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 217ad66adf64426e891d305daaaa6a4d
+          name: 'Power Generated Phase 2 inverter'
+          type: DEPENDENT
+          key: fronius.va_generated_p2_inverter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage and current measurements supplied by inverter are only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var phase = "2";
+                  var voltageEntry = "UAC_L"+phase;
+                  var currentEntry = "IAC_L"+phase;
+                  
+                  // default to null value, which is discarded
+                  var va = null; 
+                  if (apiResponse.Body.Data[voltageEntry]!= undefined && apiResponse.Body.Data[currentEntry]!= undefined) {
+                     va = apiResponse.Body.Data[voltageEntry ].Value * apiResponse.Body.Data[currentEntry].Value;
+                  }
+                  return va;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: ef9bf6794583424588f381052c557d65
+          name: 'Power Generated Phase 3 inverter'
+          type: DEPENDENT
+          key: fronius.va_generated_p3_inverter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: |
+            Voltage and current measurements supplied by inverter are only available when inverter is active (i.e. doesn't work at night time).
+            Use the equivalent meter readings if you have one
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var apiResponse = JSON.parse(value);
+                  var phase = "3";
+                  var voltageEntry = "UAC_L"+phase;
+                  var currentEntry = "IAC_L"+phase;
+                  
+                  // default to null value, which is discarded
+                  var va = null; 
+                  if (apiResponse.Body.Data[voltageEntry]!= undefined && apiResponse.Body.Data[currentEntry]!= undefined) {
+                     va = apiResponse.Body.Data[voltageEntry ].Value * apiResponse.Body.Data[currentEntry].Value;
+                  }
+                  return va;
+          master_item:
+            key: fronius.GetInverterRealtimeData_3PInverterDataAPI
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 6aefd8c5e3fc4e67a33b5852920ed0e0
+          name: 'Voltage Phase 1 meter'
+          type: DEPENDENT
+          key: fronius.Voltage_AC_Phase_1_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: 'Smart meter voltage measurement'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.Voltage_AC_Phase_1
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: d7b28c4d779d46bda35066f384b02016
+          name: 'Voltage Phase 2 meter'
+          type: DEPENDENT
+          key: fronius.Voltage_AC_Phase_2_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: 'Smart meter voltage measurement'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.Voltage_AC_Phase_2
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+        -
+          uuid: 8c53adbb979f4afc96ab9334f721526b
+          name: 'Voltage Phase 3 meter'
+          type: DEPENDENT
+          key: fronius.Voltage_AC_Phase_3_meter
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: V
+          description: 'Smart meter voltage measurement'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Body.Data.0.Voltage_AC_Phase_3
+          master_item:
+            key: fronius.GetMeterRealtimeData
+          tags:
+            -
+              tag: Application
+              value: Solar
+      macros:
+        -
+          macro: '{$DEVICE_ID}'
+          value: '1'
+  graphs:
+    -
+      uuid: eb4577aebaff495293ac0bd9d73be9cf
+      name: Solar
+      graph_items:
+        -
+          drawtype: FILLED_REGION
+          color: C8E6C9
+          yaxisside: RIGHT
+          item:
+            host: 'Fronius Solar'
+            key: fronius.day_energy
+        -
+          sortorder: '1'
+          drawtype: FILLED_REGION
+          color: FFCDD2
+          yaxisside: RIGHT
+          item:
+            host: 'Fronius Solar'
+            key: fronius.energy_consumed_meter_day
+        -
+          sortorder: '2'
+          color: EF9A9A
+          item:
+            host: 'Fronius Solar'
+            key: fronius.P_Load
+        -
+          sortorder: '3'
+          color: 1A7C11
+          item:
+            host: 'Fronius Solar'
+            key: fronius.pac
+        -
+          sortorder: '4'
+          color: FF4000
+          item:
+            host: 'Fronius Solar'
+            key: fronius.power_no_ohmpilot

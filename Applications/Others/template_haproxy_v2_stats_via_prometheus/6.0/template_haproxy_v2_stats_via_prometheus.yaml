@@ -1,0 +1,562 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:52:06Z'
+  groups:
+    -
+      uuid: 826090e5f69043d3a3e69ed284c6bbd5
+      name: _Templates_Linux
+  templates:
+    -
+      uuid: b5326b6b61d04ebfbfe23aeebb30c84d
+      template: _T_Zbx_Lin_HAPROXY2_stats_Prometheus
+      name: _T_Zbx_Lin_HAPROXY2_stats_Prometheus
+      description: |
+        ## Description
+        
+        frontend stats bind *:8880 http-request use-service prometheus-exporter if { path /metrics } stats enable stats uri /stats stats refresh 10s
+        
+        ## Overview
+        
+        Permit getting stats via prometheus exporter (since haproxy 2.0)
+        
+        
+        First, configure your haproxy to expose frontend stats page like this :
+        
+        
+        frontend stats  
+         bind *:8880  
+         http-request use-service prometheus-exporter if { path /metrics }  
+         stats enable  
+         stats uri /stats  
+         stats refresh 10s
+        
+        
+        Then, check the item haproxy.prometheus.allmetrics URL.
+        
+        
+        Discovery for frontends, backends, servers.
+        
+        
+        * Check if <50% of backend are down (not up, like DRAIN, NOLB, etc )on a frontend.
+        * Check if connections are >90/95% of the limit on frontend
+        * Check status of frontend and backend.
+        
+        
+        
+      groups:
+        -
+          name: _Templates_Linux
+      items:
+        -
+          uuid: 51b4e1ce721444d1b0313c00eab02eca
+          name: 'Haproxy Prometheus Metrics'
+          type: HTTP_AGENT
+          key: haproxy.prometheus.allmetrics
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          url: 'http://{HOST.CONN}:8880/metrics'
+          tags:
+            -
+              tag: Application
+              value: 'Linux : App : Haproxy'
+      discovery_rules:
+        -
+          uuid: 31a9add628384bcaa61bcbbbbaded3a0
+          name: 'HAProxy Backend Discover'
+          type: DEPENDENT
+          key: haproxy.backend.discovery
+          delay: '0'
+          filter:
+            conditions:
+              -
+                macro: '{#BACKEND_NAME}'
+                value: '@HAProxyNotStats'
+                formulaid: A
+          lifetime: 0d
+          item_prototypes:
+            -
+              uuid: 186e729a99294e2c9fa0b036ebe05df2
+              name: 'backend  [{#BACKEND_NAME}] active'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,act]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_active_servers{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 78ab8b5af82641cf934e01d66784a601
+              name: 'backend [{#BACKEND_NAME}] backup'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,bck]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_backup_servers{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: c47eee76431245f9b172aea3e621a54e
+              name: 'backend  [{#BACKEND_NAME}] backend up-down transitions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,chkdown]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_check_up_down_total{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+              trigger_prototypes:
+                -
+                  uuid: ed7e255322a34c4aa9254be94579892e
+                  expression: 'last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#BACKEND_NAME},BACKEND,chkdown])>last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#BACKEND_NAME},BACKEND,chkdown],#1)'
+                  name: 'Backend {#BACKEND_NAME} number of down state change'
+                  priority: HIGH
+                  manual_close: 'YES'
+            -
+              uuid: d4544fdfbed94dcd9c28ddceb913842e
+              name: 'backend [{#BACKEND_NAME}] downtime'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,downtime]'
+              delay: '0'
+              history: 1d
+              units: s
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_downtime_seconds_total{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 3e6616f5c0404462bb4a1f8591dabbb8
+              name: 'backend [{#BACKEND_NAME}] Number of available servers'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,nb_available_servers_by_backend]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_TO_JSON
+                  parameters:
+                    - 'haproxy_server_status{proxy="{#BACKEND_NAME}"}==1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.*.labels.server'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - 'return value.split(",").length'
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 3016eeeac2aa4cc99424dbeb5ef57e26
+              name: 'backend [{#BACKEND_NAME}] Number of servers'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,nb_servers_by_backend]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_TO_JSON
+                  parameters:
+                    - 'haproxy_server_status{proxy="{#BACKEND_NAME}"}'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.*.labels.server'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - 'return value.split(",").length'
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 1ce13974d38342fe92d6e7183522c33c
+              name: 'backend [{#BACKEND_NAME}] current sessions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,scur]'
+              delay: '0'
+              history: 1d
+              units: ses
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_current_sessions{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 36d9b0a4a3d840b09a55b2b56c8cc813
+              name: 'backend [{#BACKEND_NAME}] max sessions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,smax]'
+              delay: '0'
+              history: 1d
+              units: ses
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_max_sessions{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+            -
+              uuid: 76adfb30a2f447eb9c1e9a4ca0848cb9
+              name: 'backend [{#BACKEND_NAME}] status'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},BACKEND,status]'
+              delay: '0'
+              history: 1d
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_backend_status{proxy="{#BACKEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Backends : {#BACKEND_NAME}'
+              trigger_prototypes:
+                -
+                  uuid: 65a6b50295744ccebbcd02764a86ac43
+                  expression: 'last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#BACKEND_NAME},BACKEND,status],#1)<>1'
+                  name: 'Backend {#BACKEND_NAME} state is not UP'
+                  priority: HIGH
+                  manual_close: 'YES'
+          trigger_prototypes:
+            -
+              uuid: 8d795f448e854f6b94cf10f513ba5841
+              expression: '(last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#BACKEND_NAME},BACKEND,nb_available_servers_by_backend]) / last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#BACKEND_NAME},BACKEND,nb_servers_by_backend]) ) <0.5'
+              name: 'Backend {#BACKEND_NAME} is degraded'
+              priority: AVERAGE
+              manual_close: 'YES'
+          master_item:
+            key: haproxy.prometheus.allmetrics
+          lld_macro_paths:
+            -
+              lld_macro: '{#BACKEND_NAME}'
+              path: $.proxy
+          preprocessing:
+            -
+              type: PROMETHEUS_TO_JSON
+              parameters:
+                - haproxy_backend_status
+            -
+              type: JSONPATH
+              parameters:
+                - '$.*.labels'
+        -
+          uuid: e4d57617af6b494daf87c485cb1c9fb8
+          name: 'HAProxy Frontend Discover'
+          type: DEPENDENT
+          key: haproxy.frontend.discovery
+          delay: '0'
+          lifetime: 0d
+          item_prototypes:
+            -
+              uuid: 6c03230fc7e64b939b0068737584142e
+              name: 'frontend [{#FRONTEND_NAME}] current sessions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#FRONTEND_NAME},FRONTEND,scur]'
+              delay: '0'
+              history: 1d
+              trends: 30d
+              units: ses
+              valuemap:
+                name: '_T_Zbx_Lin_HAPROXY_Prometheus:frontend status'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_frontend_current_sessions{proxy="{#FRONTEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Frontends : {#FRONTEND_NAME}'
+            -
+              uuid: 17f0dc92364e4b4d971b9275944d3690
+              name: 'frontend [{#FRONTEND_NAME}] session limit'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#FRONTEND_NAME},FRONTEND,slim]'
+              delay: '0'
+              history: 1d
+              trends: 1d
+              units: ses
+              valuemap:
+                name: '_T_Zbx_Lin_HAPROXY_Prometheus:frontend status'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_frontend_limit_sessions{proxy="{#FRONTEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Frontends : {#FRONTEND_NAME}'
+            -
+              uuid: a88e78c58a19458298463a04816ed92f
+              name: 'frontend [{#FRONTEND_NAME}] max sessions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#FRONTEND_NAME},FRONTEND,smax]'
+              delay: '0'
+              history: 1d
+              trends: 30d
+              units: ses
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_frontend_max_sessions{proxy="{#FRONTEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Frontends : {#FRONTEND_NAME}'
+            -
+              uuid: 26e0c445ee05491c87b6e349617caa82
+              name: 'frontend [{#FRONTEND_NAME}] status'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#FRONTEND_NAME},FRONTEND,status]'
+              delay: '0'
+              history: 1d
+              trends: '0'
+              valuemap:
+                name: '_T_Zbx_Lin_HAPROXY_Prometheus:frontend status'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_frontend_status{proxy="{#FRONTEND_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Frontends : {#FRONTEND_NAME}'
+              trigger_prototypes:
+                -
+                  uuid: b4831c293a6b4614a8996304bec80e4d
+                  expression: 'last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#FRONTEND_NAME},FRONTEND,status],#1)<>1'
+                  name: 'Frontend {#FRONTEND_NAME}  state is not OPEN'
+                  priority: HIGH
+          trigger_prototypes:
+            -
+              uuid: a2d12fef4d8b480fb79bdc64e59305af
+              expression: 'last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#FRONTEND_NAME},FRONTEND,scur]) * 100 / last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#FRONTEND_NAME},FRONTEND,slim]) > 90'
+              name: 'Frontend {#FRONTEND_NAME} current connexion > 90% of limit'
+              priority: AVERAGE
+            -
+              uuid: 614b3ba9e4054b7dbe5160a1f7b831f5
+              expression: 'last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#FRONTEND_NAME},FRONTEND,scur]) * 100 / last(/_T_Zbx_Lin_HAPROXY2_stats_Prometheus/haproxy.stats[{#FRONTEND_NAME},FRONTEND,slim]) > 95'
+              name: 'Frontend {#FRONTEND_NAME} current connexion > 95% of limit'
+              priority: HIGH
+          master_item:
+            key: haproxy.prometheus.allmetrics
+          lld_macro_paths:
+            -
+              lld_macro: '{#FRONTEND_NAME}'
+              path: $.proxy
+          preprocessing:
+            -
+              type: PROMETHEUS_TO_JSON
+              parameters:
+                - haproxy_frontend_status
+            -
+              type: JSONPATH
+              parameters:
+                - '$.*.labels'
+        -
+          uuid: d736631557804e048de00437e62e6b7a
+          name: 'HAProxy Server discovery'
+          type: DEPENDENT
+          key: haproxy.server.discovery
+          delay: '0'
+          lifetime: 0d
+          item_prototypes:
+            -
+              uuid: d8763876f7d24c45bbf2e728fa110f48
+              name: 'Server [{#BACKEND_NAME}/{#SERVER_NAME}] backend server up-down transitions'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},{#SERVER_NAME},chkdown]'
+              delay: '0'
+              history: 1d
+              trends: 30d
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_server_check_up_down_total{proxy="{#BACKEND_NAME}",server="{#SERVER_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Servers : {#BACKEND_NAME}/{#SERVER_NAME}'
+            -
+              uuid: 64445232f86943f9b0d0fd864aca9c5f
+              name: 'Server [{#BACKEND_NAME}/{#SERVER_NAME}] backend server downtime'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},{#SERVER_NAME},downtime]'
+              delay: '0'
+              history: 1d
+              trends: 90d
+              units: s
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_server_downtime_seconds_total{proxy="{#BACKEND_NAME}",server="{#SERVER_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Servers : {#BACKEND_NAME}/{#SERVER_NAME}'
+            -
+              uuid: e5fca1575c33484593de7715cadce0b7
+              name: 'Server [{#BACKEND_NAME}/{#SERVER_NAME}] backend server status'
+              type: DEPENDENT
+              key: 'haproxy.stats[{#BACKEND_NAME},{#SERVER_NAME},status]'
+              delay: '0'
+              history: 1d
+              trends: '0'
+              valuemap:
+                name: '_T_Zbx_Lin_HAPROXY_Prometheus:server status'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'haproxy_server_status{proxy="{#BACKEND_NAME}",server="{#SERVER_NAME}"}'
+                    - ''
+              master_item:
+                key: haproxy.prometheus.allmetrics
+              tags:
+                -
+                  tag: Application
+                  value: 'Linux : App : Haproxy : Servers : {#BACKEND_NAME}/{#SERVER_NAME}'
+          master_item:
+            key: haproxy.prometheus.allmetrics
+          lld_macro_paths:
+            -
+              lld_macro: '{#BACKEND_NAME}'
+              path: $.proxy
+            -
+              lld_macro: '{#SERVER_NAME}'
+              path: $.server
+          preprocessing:
+            -
+              type: PROMETHEUS_TO_JSON
+              parameters:
+                - haproxy_server_status
+              error_handler: CUSTOM_ERROR
+              error_handler_params: 'No server detected'
+            -
+              type: JSONPATH
+              parameters:
+                - '$.*.labels'
+      valuemaps:
+        -
+          uuid: f741e83d81b94ed09a632be8478d5dec
+          name: '_T_Zbx_Lin_HAPROXY_Prometheus:frontend status'
+          mappings:
+            -
+              value: '0'
+              newvalue: STOP
+            -
+              value: '1'
+              newvalue: UP
+            -
+              value: '2'
+              newvalue: FULL
+        -
+          uuid: 8ace1955110d48eca46012e3e7d395aa
+          name: '_T_Zbx_Lin_HAPROXY_Prometheus:server status'
+          mappings:
+            -
+              value: '0'
+              newvalue: DOWN
+            -
+              value: '1'
+              newvalue: UP
+            -
+              value: '2'
+              newvalue: MAINT
+            -
+              value: '3'
+              newvalue: DRAIN
+            -
+              value: '4'
+              newvalue: NOLB

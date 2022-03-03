@@ -1,0 +1,632 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:59:44Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: ef9f4d671b894975a02224c4d74671cb
+      template: 'OS Linux diskstats'
+      name: 'OS Linux diskstats'
+      description: |
+        ## Description
+        
+        Self-contained template for monitoring disk statistics on Linux systems. Source: https://github.com/frei-style/zabbix-linux-diskstats-template
+        
+        ## Overview
+        
+        This is a self-contained monitoring template to get I/O statistics of block devices on Linux systems.
+        
+        
+        
+        ## Author
+        
+        Manuel Frei
+        
+        
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: 4115db919cd346e2af4a597b266b2984
+          name: 'diskstats (master)'
+          type: ZABBIX_ACTIVE
+          key: 'vfs.file.contents[/proc/diskstats]'
+          delay: 30s
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  // https://www.kernel.org/doc/Documentation/ABI/testing/procfs-diskstats
+                  // https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                  
+                  function zeroTest(element) {
+                        return parseInt(element) === 0;
+                  }
+                  
+                  var returnData = [];
+                  var lines = value.split("\n");
+                  var lineCount = lines.length;
+                  for(var lineNumber = 0; lineNumber < lineCount; lineNumber++) {
+                      var fields = lines[lineNumber].trim().split(/[ ]+/);
+                  
+                      // skip devices by name
+                      if(/^(ram[0-9]+|dm-[0-9]+|loop[0-9]+)$/.test(fields[2])) {
+                          continue;
+                      }
+                      
+                      var allZero = fields.slice(3).every(zeroTest);
+                  
+                      // skip devices where all values are 0
+                      if(allZero) {
+                          continue;
+                      }
+                  
+                      var diskData = {
+                          "majorNumber": parseInt(fields[0]),
+                          "minorNumber": parseInt(fields[1]),
+                          "deviceName": fields[2],
+                          "readsCompleted": parseInt(fields[3]),
+                          "readsMerged": parseInt(fields[4]),
+                          "sectorsRead": parseInt(fields[5]),
+                          "timeSpentReading": parseInt(fields[6]),
+                          "writesCompleted": parseInt(fields[7]),
+                          "writesMerged": parseInt(fields[8]),
+                          "sectorsWritten": parseInt(fields[9]),
+                          "timeSpentWriting": parseInt(fields[10]),
+                          "iOsCurrentlyInProgress": parseInt(fields[11]),
+                          "timeSpentDoingIOs": parseInt(fields[12]),
+                          "weightedTimeSpentDoingIOs": parseInt(fields[13]),
+                      }
+                      
+                      if(fields.length>=18) { 
+                          diskData["discardsCompleted"] = parseInt(fields[14]);
+                          diskData["discardsMerged"] = parseInt(fields[15]);
+                          diskData["sectorsDiscarded"] = parseInt(fields[16]);
+                          diskData["timeSpentDiscarding"] = parseInt(fields[17]);
+                      }
+                  
+                      if(fields.length>=20) {
+                          diskData["flushRequestsCompleted"] = parseInt(fields[18]);
+                          diskData["timeSpentFlushing"] = parseInt(fields[19]);
+                      }
+                  
+                      returnData.push(diskData);
+                  }
+                  
+                  return JSON.stringify(returnData);
+          tags:
+            -
+              tag: Application
+              value: diskstats
+      discovery_rules:
+        -
+          uuid: 3ba112e572584ba8832d9b3fc5bdaccb
+          name: 'Discover Block Devices'
+          type: DEPENDENT
+          key: linux.diskstats.discovery
+          delay: '0'
+          lifetime: 7d
+          item_prototypes:
+            -
+              uuid: f49bb705f06c4c228638bf52b385256a
+              name: '{#DEVICE_NAME}: discards completed'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},discardsCompleted]'
+              delay: '0'
+              units: '!requests/s'
+              description: |
+                This is the total number of discards completed successfully.
+                
+                Linux 4.18+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].discardsCompleted.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: efd59cfbacda440382ca85002d15b3a1
+              name: '{#DEVICE_NAME}: discards merged'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},discardsMerged]'
+              delay: '0'
+              units: '!requests/s'
+              description: |
+                Discards which are adjacent to each other may be merged for efficiency.  Thus two 4K reads may become one 8K read before it is ultimately handed to the disk, and so it will be counted (and queued) as only one I/O.  This field lets you know how often this was done.
+                
+                Linux 4.18+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].discardsMerged.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 23ad456006744d2c9b9cac9db00ae6c4
+              name: '{#DEVICE_NAME}: flush requests completed'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},flushRequestsCompleted]'
+              delay: '0'
+              units: '!requests/s'
+              description: |
+                This is the number of flush requests completed successfully per second.
+                
+                Block layer combines flush requests and executes at most one at a time. This counts flush requests executed by disk. Not tracked for partitions.
+                
+                Linux 5.5+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].flushRequestsCompleted.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 00f0ff4ddc2f456887721268dfe5c22e
+              name: '{#DEVICE_NAME}: I/Os currently in progress'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},iOsCurrentlyInProgress]'
+              delay: '0'
+              units: '!I/Os'
+              description: 'Number of I/Os currently in progress.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].iOsCurrentlyInProgress.first()'
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: f31d465baeb1461eb5653137ddfc3449
+              name: '{#DEVICE_NAME}: reads completed'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},readsCompleted]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'This is the total number of reads completed successfully.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].readsCompleted.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 588647a99e5749b7abadaf860e363866
+              name: '{#DEVICE_NAME}: reads merged'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},readsMerged]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'Number of reads merged per second.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].readsMerged.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 6d0f616d2722446a966944db332fd775
+              name: '{#DEVICE_NAME}: sectors discarded'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},sectorsDiscarded]'
+              delay: '0'
+              units: '!requests/s'
+              description: |
+                This is the total number of sectors discarded successfully.
+                
+                Linux 4.18+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].sectorsDiscarded.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: e6df8144696249baad518192f1ac67e5
+              name: '{#DEVICE_NAME}: sectors read'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},sectorsRead]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'Number of sectors read per second.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].sectorsRead.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 23923d2c7d894f9a8f58df8f01fa0c3f
+              name: '{#DEVICE_NAME}: sectors written'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},sectorsWritten]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'This is the total number of sectors written successfully per second.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].sectorsWritten.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 74830e195d1e4533a30db555e8387c9c
+              name: '{#DEVICE_NAME}: time spent discarding'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},timeSpentDiscarding]'
+              delay: '0'
+              units: '!ms'
+              description: |
+                This is the total number of milliseconds spent by all discards (as measured from __make_request() to end_that_request_last()).
+                
+                Linux 4.18+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].timeSpentDiscarding.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: d994f51405ff45c5959519963c96f226
+              name: '{#DEVICE_NAME}: time spent doing I/Os'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},timeSpentDoingIOs]'
+              delay: '0'
+              units: '!ms'
+              description: |
+                Number of milliseconds spent doing I/Os.
+                
+                Since Linux 5.0 this field counts jiffies when at least one request was started or  completed. If request runs more than 2 jiffies then some I/O time might be not accounted in case of concurrent requests.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].timeSpentDoingIOs.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: e3341702d0ed456dbefdf9ca4ebddf30
+              name: '{#DEVICE_NAME}: time spent flushing'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},timeSpentFlushing]'
+              delay: '0'
+              units: '!ms'
+              description: |
+                This is the total number of milliseconds spent by all discards (as measured from __make_request() to end_that_request_last()).
+                
+                Linux 5.5+
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].timeSpentFlushing.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: f6a9c5c83efb46f796f996737c443542
+              name: '{#DEVICE_NAME}: time spent reading'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},timeSpentReading]'
+              delay: '0'
+              units: '!ms'
+              description: 'This is the total number of milliseconds spent by all reads (as measured from __make_request() to end_that_request_last()).'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].timeSpentReading.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: b33eee1bdb264b9a830f86af87a1c67d
+              name: '{#DEVICE_NAME}: time spent writing'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},timeSpentWriting]'
+              delay: '0'
+              units: '!ms'
+              description: 'This is the total number of milliseconds spent by all writes (as measured from __make_request() to end_that_request_last()).'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].timeSpentWriting.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 1a951e7fa4674e529e7caa6f71e751d0
+              name: '{#DEVICE_NAME}: weighted time spent doing I/Os'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},weightedTimeSpentDoingIOs]'
+              delay: '0'
+              units: '!ms'
+              description: 'This is the numer per second of each of this actions: I/O start, I/O completion, I/O merge, or read. This can provide an easy measure of both I/O completion time and the backlog that may be accumulating.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].weightedTimeSpentDoingIOs.first()'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: cf601eec61d14938ae5bea0e3c8a9bc4
+              name: '{#DEVICE_NAME}: writes completed'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},writesCompleted]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'This is the total number of writes completed successfully per second.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].writesCompleted.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+            -
+              uuid: 74d20c5b6d504ccda9d1a4ca2432f8e4
+              name: '{#DEVICE_NAME}: writes merged'
+              type: DEPENDENT
+              key: 'linux.diskstats[{#DEVICE_NAME},writesMerged]'
+              delay: '0'
+              units: '!requests/s'
+              description: 'This is the total number of writes merged per second.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.[?(@.deviceName == "{#DEVICE_NAME}")].writesMerged.first()'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'vfs.file.contents[/proc/diskstats]'
+              tags:
+                -
+                  tag: Application
+                  value: diskstats
+          graph_prototypes:
+            -
+              uuid: 2aafee4437324fad8f407095d180de71
+              name: '{#DEVICE_NAME}: I/O Times'
+              graph_items:
+                -
+                  color: 1A7C11
+                  item:
+                    host: 'OS Linux diskstats'
+                    key: 'linux.diskstats[{#DEVICE_NAME},timeSpentReading]'
+                -
+                  sortorder: '1'
+                  color: 3949AB
+                  item:
+                    host: 'OS Linux diskstats'
+                    key: 'linux.diskstats[{#DEVICE_NAME},timeSpentWriting]'
+            -
+              uuid: 0bee8960800445529c51db86f1a74f72
+              name: '{#DEVICE_NAME}: IOPS'
+              graph_items:
+                -
+                  color: 1A7C11
+                  item:
+                    host: 'OS Linux diskstats'
+                    key: 'linux.diskstats[{#DEVICE_NAME},readsCompleted]'
+                -
+                  sortorder: '1'
+                  color: 303F9F
+                  item:
+                    host: 'OS Linux diskstats'
+                    key: 'linux.diskstats[{#DEVICE_NAME},writesCompleted]'
+          master_item:
+            key: 'vfs.file.contents[/proc/diskstats]'
+          lld_macro_paths:
+            -
+              lld_macro: '{#DEVICE_NAME}'
+              path: $.deviceName

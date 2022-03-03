@@ -1,0 +1,133 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-12-19T11:03:08Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: 4036bee0c3c242a2a6f170b7abdbdeeb
+      template: 'Template Synology HyperBackup'
+      name: 'Template Synology HyperBackup'
+      groups:
+        -
+          name: Templates
+      discovery_rules:
+        -
+          uuid: 8c30193d25f54ac9a9064961cdd7df92
+          name: 'Hyperbackup jobs'
+          type: SSH
+          key: 'ssh.run[hyperbackupJobs,{HOST.DNS},22,]'
+          delay: 4h
+          params: |
+            bck=$(sudo grep -oP '(?<=Backup task ).*?(?= completes)' /var/log/messages)
+            bck="${bck//]/],}"
+            echo $bck
+          username: '{$SSH_USERNAME}'
+          password: '{$SSH_PASSWORD}'
+          item_prototypes:
+            -
+              uuid: bfebf3d0011046b4b4fd181d336822dc
+              name: 'Hyperbackup {#BACKUP.NAME}'
+              type: SSH
+              key: 'ssh.run[hyperbackup.{#BACKUP.NAME}.date,{HOST.DNS},22,]'
+              delay: 5m
+              units: unixtime
+              params: |
+                message=$(sudo grep "{#BACKUP.NAME}" /var/log/messages | grep -w 'with result \[[1]\]' | tail -n1)
+                timeStamp=$(echo $message | grep -P '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' -o)
+                
+                backupDate=$(date --date "$timeStamp"Z +'%s')
+                echo $backupDate
+              username: '{$SSH_USERNAME}'
+              password: '{$SSH_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: BACKUP
+            -
+              uuid: 42b2b97a437242e79573cc5c8e5b4393
+              name: 'Hyperbackup {#BACKUP.NAME} length'
+              type: SSH
+              key: 'ssh.run[hyperbackup.{#BACKUP.NAME}.length,{HOST.DNS},22,]'
+              delay: 5m
+              units: s
+              params: |
+                message=$(sudo grep "{#BACKUP.NAME}" /var/log/messages | grep -w 'with result \[[1]\]' | tail -n1)
+                echo $message | grep -P '(?<=\[)\d*(?= sec\])' -o
+              username: '{$SSH_USERNAME}'
+              password: '{$SSH_PASSWORD}'
+              tags:
+                -
+                  tag: Application
+                  value: BACKUP
+            -
+              uuid: d7f759c371444663a2088c4f675dbafb
+              name: 'Hyperbackup {#BACKUP.NAME} result'
+              type: SSH
+              key: 'ssh.run[hyperbackup.{#BACKUP.NAME}.result,{HOST.DNS},22,]'
+              delay: 5m
+              params: |
+                message=$(sudo grep "{#BACKUP.NAME}" /var/log/messages | grep -w 'with result' | tail -n1)
+                echo $message | grep -P '(?<=\[)\d(?=\])' -o
+              username: '{$SSH_USERNAME}'
+              password: '{$SSH_PASSWORD}'
+              valuemap:
+                name: 'Hyperbackup Status'
+              tags:
+                -
+                  tag: Application
+                  value: BACKUP
+              trigger_prototypes:
+                -
+                  uuid: d7b958a27365416cbb520ea9897fa054
+                  expression: 'last(/Template Synology HyperBackup/ssh.run[hyperbackup.{#BACKUP.NAME}.result,{HOST.DNS},22,])<>1'
+                  name: 'HyperBackup {#BACKUP.NAME} Failed on {DNS.NAME}'
+                  priority: AVERAGE
+          lld_macro_paths:
+            -
+              lld_macro: '{#BACKUP.NAME}'
+              path: $.1
+          preprocessing:
+            -
+              type: STR_REPLACE
+              parameters:
+                - '['
+                - ''
+            -
+              type: STR_REPLACE
+              parameters:
+                - ']'
+                - ''
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  var newStr = value.substring(0, value.length - 1);
+                  const myArray = newStr.split(", ");
+                  
+                  function onlyUnique(value, index, self) {
+                    return self.indexOf(value) === index;
+                  }
+                  
+                  var unique = myArray.filter(onlyUnique);
+                  risultato = unique.join('\n');
+                  return risultato;
+            -
+              type: CSV_TO_JSON
+              parameters:
+                - ''
+                - ''
+                - '0'
+      valuemaps:
+        -
+          uuid: ccfb6a5a03ca4694b471a6e764f1583f
+          name: 'Hyperbackup Status'
+          mappings:
+            -
+              value: '1'
+              newvalue: OK
+            -
+              type: DEFAULT
+              newvalue: 'Not OK'

@@ -1,0 +1,885 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-21T21:38:15Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: 5a62c37c4e87444cb87f45dafdb80909
+      template: enhanced_snmp_interface_discovery
+      name: 'Enhanced SNMP Interface Discovery'
+      description: |
+        ## Description
+        
+        Enhanced SNMP interface discovery 1.0.1 Template made by Twan Kamans. https://www.twan-it.nl This template searches for 4 different categories: - Interfaces that are administratively disabled - Interfaces that are working onder normal condition - Interfaces with priority, such as switch uplink - Virtual interfaces such as tunnel, port channel and vlan interfaces. Revision 0.7 - Added support for virtual interfaces Revision 0.7.1 - Added support for (filtering) stack switch ports - Fixed a bug in which VLAN interfaces with the number 0 in them would still be discovered by the normal LLD rule Revision 0.7.2 - Filtering VLAN's 1002 - 1005 interfaces - Added support for subinterfaces for Junos Revision 0.8 - Completely revisited the filtering of items using Regex due to introduction of Junos devices. You can adjust the regex for physical devices using a macro. Revision 0.9 - Added support for enduser ports. Triggers will not activate if port description contains macro value. Revision 1.0 - Tested template on posible errors. Revision 1.0.1 - Added bandwidth statistics for virtual interfaces. Revision 1.0.2 - Bandwidth triggers now make use of user macro context, making individual port bandwidth limits posible. - The interface changed state severity has been lowered by default. The new default severity for all interfaces is "warning". Exceptions to this are the priority interfaces which are "average".
+        
+        ## Overview
+        
+        This template is a replacement for the great default SNMP interface template. It uses the default SNMP interface library and OID's, meaning that it's compatible with a lot of devices.
+        
+        
+        The template has the following features:
+        
+        
+        * Priority interfaces (assign higher severity triggers to your important interfaces)
+        * Get notified when a user no-shut’s a port
+        * Get notified when a port is in the not-connected state
+        * Get notified when the bandwidth of a port reaches a specific threshold in percentage (port specific using user macro context)
+        * Get notified when a port changes that (up / down)
+        * Adjustable LLD timer for working on port configurations which quickly need to be discovered by Zabbix
+        * Only gather data for items and interfaces that are important: i don’t want to monitor loopback interfaces and the amount of incoming errors on a port-channel (notsupported items)
+        * Don’t trigger on (switch)ports which have users behind them. I don’t want to know when someone turns their computer off.
+        
+        
+        Most of these features can be adjusted and enabled / disabled using macro's:
+        
+        
+        * {$INT\_BANDWIDTH\_WARNING}
+        * {$INT\_ERRORS\_WARN}
+        * {$INT\_LLD\_UPDATE\_INTERVAL}
+        * {$INT\_NAME\_PHYSICAL}
+        * {$INT\_NO\_TRIGGER\_STRING}
+        * {$INT\_PRIO\_STRING}
+        * {$SEARCH\_FOR\_INACTIVE\_PORTS}
+        
+        
+        
+        
+        | Macro name | Default value | Type | Description |
+        | {$INT\_BANDWIDTH\_WARNING} | 80 | Percentage | Percentage when trigger fires |
+        | {$INT\_ERRORS\_WARM} | 2 | #Amount | Max error value for "interface errors trigger" |
+        | {$INT\_LLD\_UPDATE\_INTERVAL} | 30m | Time | Update interval for LLD rules |
+        | {$INT\_NAME\_PHYSICAL} | ^[A-Z|a-z]{2}-?[0-9]+\/[0-9]{1,2}(\/[0-9]+)?$ | Regex | Regex that filters the physical interfaces |
+        | {$INT\_NO\_TRIGGER\_STRING} | ^(EDGEPORT)$ | Regex | Regex for edge ports (computers turning on / off) |
+        | {$INT\_PRIO\_STRING} | UPLINK | Regex | Description keyword for priority interfaces |
+        | {$SEARCH\_FOR\_INACTIVE\_PORTS} | 0 | Bolean |  0 = Does not trigger for notconnected ports (1 does) |
+        
+        
+        With the default values, interface descriptions that start with "UPLINK" will be discovered by the Priority LLD. Interfaces that contain the keyword EDGEPORT will not generate a trigger when turned on / off.
+        
+        
+        If you miss some interfaces: run a SNMPWALK over the device to check if it matches the {$INT\_NAME\_PHYSICAL} regex!  
+        
+        
+        
+        
+        ## Author
+        
+        Twan Kamans
+        
+        
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: a54e4ffe658e4c58a64011c5ab5f76e7
+          name: 'Total amount of interfaces'
+          type: SNMP_AGENT
+          snmp_oid: 'IF-MIB::ifNumber.0'
+          key: net.if.total
+          delay: 10m
+          history: 1w
+          trends: '0'
+          description: 'Shows the total amount of interfaces.'
+          tags:
+            -
+              tag: Application
+              value: 'Network Interfaces'
+      discovery_rules:
+        -
+          uuid: 90d639e8625c45cbb5b9d4c7643e637f
+          name: 'Network Interfaces Discovery - Normal'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: net.if.discovery
+          delay: '{$INT_LLD_UPDATE_INTERVAL}'
+          filter:
+            conditions:
+              -
+                macro: '{#IFALIAS}'
+                value: '^(?!{$INT_PRIO_STRING}).*'
+                formulaid: B
+              -
+                macro: '{#IFADMINSTATUS}'
+                value: (1|3)
+                formulaid: A
+              -
+                macro: '{#IFNAME}'
+                value: '{$INT_NAME_PHYSICAL}'
+                formulaid: C
+          lifetime: 8h
+          item_prototypes:
+            -
+              uuid: 6e083fb4c00547d089633756565fbcff
+              name: 'Interface {#IFNAME}: Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.status[ifAdminStatus.{#SNMPINDEX}]'
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: e04d1632b5a5410080b4186122aebbd5
+              name: 'Interface {#IFNAME}: Alias'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.18.{#SNMPINDEX}'
+              key: 'net.if.status[ifAlias.{#SNMPINDEX}]'
+              delay: 1h
+              history: 1w
+              trends: '0'
+              value_type: TEXT
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 8708cb2f547947509478e607f9eb6bfc
+              name: 'Interface {#IFNAME}: Inbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}'
+              key: 'net.if.status[ifInDiscards.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 66229471d7d5488faa51a8d5e0e9589e
+              name: 'Interface {#IFNAME}: Inbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}'
+              key: 'net.if.status[ifInErrors.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 868b44f351dc4ad3b415732f0dd83575
+              name: 'Interface {#IFNAME}: Bits received'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.10.{#SNMPINDEX}'
+              key: 'net.if.status[ifInOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              value_type: FLOAT
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: b3ca72f6101d4e2b89baa7f60ff10cd7
+              name: 'Interface {#IFNAME}: Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.status[ifOperStatus.{#SNMPINDEX}]'
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifOperStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: ed6dbd31be0e4a0d83ad80990fa7df6b
+              name: 'Interface {#IFNAME}: Outbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
+              key: 'net.if.status[ifOutDiscards.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: f86ce1dc47cd43ceb39dfcb4161de042
+              name: 'Interface {#IFNAME}: Outbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
+              key: 'net.if.status[ifOutErrors.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 0568f98058904306b90bbb4d4d097ada
+              name: 'Interface {#IFNAME}: Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.16.{#SNMPINDEX}'
+              key: 'net.if.status[ifOutOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              value_type: FLOAT
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 124608a6704c4b71978eea73b7212740
+              name: 'Interface {#IFNAME}: Speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.5.{#SNMPINDEX}'
+              key: 'net.if.status[ifSpeed.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              units: bps
+              description: 'Speed of the interface'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+          trigger_prototypes:
+            -
+              uuid: a87df4b05f584ecd99f48d8345dd3e50
+              expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifOperStatus.{#SNMPINDEX}],3600s)<>2 and last(/enhanced_snmp_interface_discovery/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and
+                find(/enhanced_snmp_interface_discovery/net.if.status[ifAlias.{#SNMPINDEX}],#3,"regexp","{$INT_NO_TRIGGER_STRING}")=0
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/enhanced_snmp_interface_discovery/net.if.status[ifOperStatus.{#SNMPINDEX}],#5)<>2'
+              name: 'Interface status has changed on port {#IFNAME}'
+              priority: WARNING
+              description: 'Triggers when the interface state changes.'
+            -
+              uuid: 1933cd3865af4c73ac8625936365f3c8
+              expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifInOctets.{#SNMPINDEX}],10m)>(({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}/100)*last(/enhanced_snmp_interface_discovery/net.if.status[ifSpeed.{#SNMPINDEX}])) or
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifOutOctets.{#SNMPINDEX}],10m)>(({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}/100)*last(/enhanced_snmp_interface_discovery/net.if.status[ifSpeed.{#SNMPINDEX}])) and last(/enhanced_snmp_interface_discovery/net.if.status[ifSpeed.{#SNMPINDEX}])>0
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifInOctets.{#SNMPINDEX}],10m)<((({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}-3)/100)*last(/enhanced_snmp_interface_discovery/net.if.status[ifSpeed.{#SNMPINDEX}])) or
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifOutOctets.{#SNMPINDEX}],10m)<((({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}-3)/100)*last(/enhanced_snmp_interface_discovery/net.if.status[ifSpeed.{#SNMPINDEX}]))
+              name: 'Interface {#IFNAME}: Bandwidth usage over {$INT_BANDWIDTH_WARNING:"{#IFNAME}"}%'
+              priority: WARNING
+              description: 'Triggers when incoming or outgoing traffic exceeds limit of the INT_BANDWIDTH_WARNING macro.'
+            -
+              uuid: ca571a9bf6e049baa843782a4c391785
+              expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifInErrors.{#SNMPINDEX}],5m)>{$INT_ERRORS_WARN} or
+                avg(/enhanced_snmp_interface_discovery/net.if.status[ifOutErrors.{#SNMPINDEX}],5m)>{$INT_ERRORS_WARN}
+              name: 'Interface {#IFNAME}: High error rate'
+              priority: WARNING
+              description: 'Triggers when incoming or outgoing errors exceeds limit of the INT_ERRORS_WARN macro.'
+            -
+              uuid: 21fe5717c61441e6be88e22ed796ed80
+              expression: 'last(/enhanced_snmp_interface_discovery/net.if.status[ifAdminStatus.{#SNMPINDEX}])<>2 and avg(/enhanced_snmp_interface_discovery/net.if.status[ifOperStatus.{#SNMPINDEX}],1w)=2 and {$SEARCH_FOR_INACTIVE_PORTS}=1'
+              name: 'Port {#IFNAME} is enabled but not connected!'
+              priority: INFO
+              description: 'Zabbix detects a "notconnected" port on {HOST.NAME} Interface {#IFNAME}.'
+          graph_prototypes:
+            -
+              uuid: d9e93b4c5e3545b19f348fab7c5c8338
+              name: 'Interface {#IFNAME}: Network statistics'
+              graph_items:
+                -
+                  drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifInOctets.{#SNMPINDEX}]'
+                -
+                  sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: 2774A4
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifOutOctets.{#SNMPINDEX}]'
+                -
+                  sortorder: '2'
+                  color: F63100
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifInDiscards.{#SNMPINDEX}]'
+                -
+                  sortorder: '3'
+                  color: FC6EA3
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifOutDiscards.{#SNMPINDEX}]'
+                -
+                  sortorder: '4'
+                  color: A54F10
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifInErrors.{#SNMPINDEX}]'
+                -
+                  sortorder: '5'
+                  color: 6C59DC
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.status[ifOutErrors.{#SNMPINDEX}]'
+        -
+          uuid: 65c0154f142a473abadcc46842a4bfb8
+          name: 'Network Interfaces Discovery - Disabled'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1]'
+          key: net.if.down.discovery
+          delay: '{$INT_LLD_UPDATE_INTERVAL}'
+          filter:
+            conditions:
+              -
+                macro: '{#IFALIAS}'
+                value: '^(?!{$INT_PRIO_STRING})'
+                formulaid: B
+              -
+                macro: '{#IFADMINSTATUS}'
+                value: (2)
+                formulaid: A
+              -
+                macro: '{#IFNAME}'
+                value: '{$INT_NAME_PHYSICAL}'
+                formulaid: C
+          lifetime: 1h
+          item_prototypes:
+            -
+              uuid: 51efa2c66bc741f5b69f6c4348c22abc
+              name: 'Interface {#IFNAME}: Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.down.status[ifAdminStatus.{#SNMPINDEX}]'
+              delay: 3m
+              history: 1d
+              trends: '0'
+              description: 'Shows if interface is administrative disabled.'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+              trigger_prototypes:
+                -
+                  uuid: ec71e6c75d2f4c1ea00e9bfbcc2a4f29
+                  expression: 'last(/enhanced_snmp_interface_discovery/net.if.down.status[ifAdminStatus.{#SNMPINDEX}])=1'
+                  name: 'Port {#IFNAME} has gone UP!'
+                  priority: INFO
+                  description: 'Interface state has changed. This is most likely due to enabeling an interface.'
+        -
+          uuid: ea3e2b2b1d934c3893dd95b11d4ead41
+          name: 'Network Interfaces Discovery - Priority'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: net.if.prio.discovery
+          delay: '{$INT_LLD_UPDATE_INTERVAL}'
+          filter:
+            evaltype: AND
+            conditions:
+              -
+                macro: '{#IFALIAS}'
+                value: '^({$INT_PRIO_STRING}).*'
+                formulaid: A
+              -
+                macro: '{#IFNAME}'
+                value: '{$INT_NAME_PHYSICAL}'
+                formulaid: B
+          item_prototypes:
+            -
+              uuid: a1e0d562bb274364a2027827fa18d06d
+              name: 'Interface {#IFNAME} (priority): Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifAdminStatus.{#SNMPINDEX}]'
+              delay: 30s
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 82d97979cf77448aa56a937fb5e84efd
+              name: 'Interface {#IFNAME} (priority): Alias'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.18.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifDescription.{#SNMPINDEX}]'
+              delay: 1h
+              history: 1w
+              trends: '0'
+              value_type: TEXT
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: bbc172461d38441eac0fbf5e456a4774
+              name: 'Interface {#IFNAME} (priority): Inbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifInDiscards.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: f978cc3ff71f4b73b2660ed95a22d1ff
+              name: 'Interface {#IFNAME} (priority): Inbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifInErrors.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 6d0fdbcff06c4d65bca4ffd2c1fcf6f8
+              name: 'Interface {#IFNAME} (priority): Bits received'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.10.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifInOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 3ccf9b9fc59e47efb9251f90abeb1f52
+              name: 'Interface {#IFNAME} (priority): Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifOperStatus.{#SNMPINDEX}]'
+              delay: 30s
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+              trigger_prototypes:
+                -
+                  uuid: 18bf8d80c6d5454c859749951a9403c2
+                  expression: 'avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifOperStatus.{#SNMPINDEX}],3600s)<>2 and last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifOperStatus.{#SNMPINDEX}])=2'
+                  name: 'Interface status has changed on host {HOST.NAME} port {#IFNAME}: {#SNMPVALUE}'
+                  priority: AVERAGE
+            -
+              uuid: 3b7d6e86c84041deb3dbc5f41556170a
+              name: 'Interface {#IFNAME} (priority): Outbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifOutDiscards.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 810205b1938540eeaf3120a3f4419f94
+              name: 'Interface {#IFNAME} (priority): Outbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifOutErrors.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 5b098cdc7100486d84ed771ae9a597d0
+              name: 'Interface {#IFNAME} (priority): Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.16.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifOutOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 24e4baf720de4c45aeed4bb34a058e1e
+              name: 'Interface {#IFNAME} (priority): Speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.5.{#SNMPINDEX}'
+              key: 'net.if.prio.status[ifSpeed.{#SNMPINDEX}]'
+              delay: 5m
+              history: 1w
+              units: bps
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+          trigger_prototypes:
+            -
+              uuid: 708c7bca46484d05909a5c1941063e65
+              expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifInOctets.{#SNMPINDEX}],10m)>(({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}/100)*last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifSpeed.{#SNMPINDEX}])) or
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifOutOctets.{#SNMPINDEX}],10m)>(({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}/100)*last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifSpeed.{#SNMPINDEX}])) and last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifSpeed.{#SNMPINDEX}])>0
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifInOctets.{#SNMPINDEX}],10m)<((({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}-3)/100)*last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifSpeed.{#SNMPINDEX}])) or
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifOutOctets.{#SNMPINDEX}],10m)<((({$INT_BANDWIDTH_WARNING:"{#IFNAME}"}-3)/100)*last(/enhanced_snmp_interface_discovery/net.if.prio.status[ifSpeed.{#SNMPINDEX}]))
+              name: 'Interface {#IFNAME}: Bandwidth usage over {$INT_BANDWIDTH_WARNING:"{#IFNAME}"}%'
+              priority: WARNING
+              description: 'Triggers when incoming or outgoing traffic exceeds limit of the INT_BANDWIDTH_WARNING macro.'
+            -
+              uuid: 721756db91bf4833b1b68babf3aa9c6a
+              expression: |
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifInErrors.{#SNMPINDEX}],5m)>{$INT_ERRORS_WARN} or
+                avg(/enhanced_snmp_interface_discovery/net.if.prio.status[ifOutErrors.{#SNMPINDEX}],5m)>{$INT_ERRORS_WARN}
+              name: 'Interface {#IFNAME}: High error rate'
+              priority: WARNING
+          graph_prototypes:
+            -
+              uuid: 5fcdad65b31946f0b84b879b6f24996d
+              name: 'Interface {#IFNAME} (priority): Network traffic'
+              graph_items:
+                -
+                  drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifInOctets.{#SNMPINDEX}]'
+                -
+                  sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: 2774A4
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifOutOctets.{#SNMPINDEX}]'
+                -
+                  sortorder: '2'
+                  color: F63100
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifInDiscards.{#SNMPINDEX}]'
+                -
+                  sortorder: '3'
+                  color: FC6EA3
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifOutDiscards.{#SNMPINDEX}]'
+                -
+                  sortorder: '4'
+                  color: A54F10
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifInErrors.{#SNMPINDEX}]'
+                -
+                  sortorder: '5'
+                  color: 6C59DC
+                  yaxisside: RIGHT
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.prio.status[ifOutErrors.{#SNMPINDEX}]'
+        -
+          uuid: 171062dce5a5424289d6f4a7452748b7
+          name: 'Network Interfaces Discovery - Virtual'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: net.if.virt.discovery
+          delay: '{$INT_LLD_UPDATE_INTERVAL}'
+          filter:
+            conditions:
+              -
+                macro: '{#IFNAME}'
+                value: '^bond[0-9]+$'
+                formulaid: B
+              -
+                macro: '{#IFNAME}'
+                value: '^[A-Z|a-z]{2}-?[0-9]\/[0-9]{1,2}(\/[0-9]{1,2})?\.[A-Z|0-9]+$'
+                formulaid: C
+              -
+                macro: '{#IFNAME}'
+                value: '^VLAN-(?!100[2-5])[0-9]+$'
+                formulaid: D
+              -
+                macro: '{#IFNAME}'
+                value: '^irb\.[0-9]{1,4}$'
+                formulaid: E
+              -
+                macro: '{#IFNAME}'
+                value: '^(Po|VI|Vl|Tu)[0-9]*$'
+                formulaid: F
+              -
+                macro: '{#IFALIAS}'
+                value: '^(?!{$INT_PRIO_STRING}).*'
+                formulaid: A
+          item_prototypes:
+            -
+              uuid: 83c6c90b611b41dda44682df12c5c644
+              name: 'Interface {#IFNAME}: Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.virt.status[ifAdminStatus.{#SNMPINDEX}]'
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 488d323acdbf446597d1226ced7ebb52
+              name: 'Interface {#IFNAME}: Alias'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.18.{#SNMPINDEX}'
+              key: 'net.if.virt.status[ifAlias.{#SNMPINDEX}]'
+              delay: 1h
+              history: 1w
+              trends: '0'
+              value_type: TEXT
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: 7b83950829014c9ea21434e8d8983971
+              name: 'Interface {#IFNAME}: Bits received'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.10.{#SNMPINDEX}'
+              key: 'net.if.virt.status[ifInOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              value_type: FLOAT
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+            -
+              uuid: bb2bcf5e38ca4a8a97337fb34f289bc5
+              name: 'Interface {#IFNAME}: Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.virt.status[ifOperStatus.{#SNMPINDEX}]'
+              history: 1w
+              trends: '0'
+              valuemap:
+                name: 'IF-MIB::ifOperStatus'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+              trigger_prototypes:
+                -
+                  uuid: 495942a0e1b1482fb1b1d257cd01c1b4
+                  expression: |
+                    avg(/enhanced_snmp_interface_discovery/net.if.virt.status[ifOperStatus.{#SNMPINDEX}],3600s)<>2 and
+                    last(/enhanced_snmp_interface_discovery/net.if.virt.status[ifOperStatus.{#SNMPINDEX}])=2
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/enhanced_snmp_interface_discovery/net.if.virt.status[ifOperStatus.{#SNMPINDEX}])<>2'
+                  name: 'Interface status has changed on port {#IFNAME}'
+                  priority: WARNING
+                  description: 'Triggers when the interface state changes.'
+            -
+              uuid: 9c44a1da33b445beba66bda329e3191b
+              name: 'Interface {#IFNAME}: Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.16.{#SNMPINDEX}'
+              key: 'net.if.virt.status[ifOutOctets.{#SNMPINDEX}]'
+              delay: 3m
+              history: 30d
+              value_type: FLOAT
+              units: bps
+              preprocessing:
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                -
+                  type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                -
+                  tag: Application
+                  value: 'Network Interfaces'
+          graph_prototypes:
+            -
+              uuid: 78dc79bbc19d4929b4694f4b7852fe38
+              name: 'Interface {#IFNAME}: Network traffic'
+              graph_items:
+                -
+                  drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.virt.status[ifInOctets.{#SNMPINDEX}]'
+                -
+                  sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: 2774A4
+                  item:
+                    host: enhanced_snmp_interface_discovery
+                    key: 'net.if.virt.status[ifOutOctets.{#SNMPINDEX}]'
+      macros:
+        -
+          macro: '{$INT_BANDWIDTH_WARNING}'
+          value: '80'
+        -
+          macro: '{$INT_ERRORS_WARN}'
+          value: '2'
+        -
+          macro: '{$INT_LLD_UPDATE_INTERVAL}'
+          value: 30m
+        -
+          macro: '{$INT_NAME_PHYSICAL}'
+          value: '^[A-Z|a-z]{2}-?[0-9]+\/[0-9]{1,2}(\/[0-9]+)?$'
+        -
+          macro: '{$INT_NO_TRIGGER_STRING}'
+          value: ^(EDGEPORT)$
+        -
+          macro: '{$INT_PRIO_STRING}'
+          value: UPLINK
+        -
+          macro: '{$SEARCH_FOR_INACTIVE_PORTS}'
+          value: '0'
+      valuemaps:
+        -
+          uuid: 0bfb2d4ae68f45f18ee5135e62f6b384
+          name: 'IF-MIB::ifAdminStatus'
+          mappings:
+            -
+              value: '1'
+              newvalue: up
+            -
+              value: '2'
+              newvalue: disabled
+            -
+              value: '3'
+              newvalue: testing
+        -
+          uuid: 1bc34ec370b9425989fe326a042c5dd7
+          name: 'IF-MIB::ifOperStatus'
+          mappings:
+            -
+              value: '1'
+              newvalue: up
+            -
+              value: '2'
+              newvalue: down
+            -
+              value: '3'
+              newvalue: testing
+            -
+              value: '4'
+              newvalue: unknown
+            -
+              value: '5'
+              newvalue: dormant
+            -
+              value: '6'
+              newvalue: notPresent
+            -
+              value: '7'
+              newvalue: lowerLayerDown

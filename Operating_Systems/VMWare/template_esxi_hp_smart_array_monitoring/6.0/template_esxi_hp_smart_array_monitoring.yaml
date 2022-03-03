@@ -1,0 +1,315 @@
+zabbix_export:
+  version: '6.0'
+  date: '2021-11-25T12:36:38Z'
+  groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: e50a625da0db4f0a8b336d1fefb97ba8
+      template: 'ESXi HP Smart Array'
+      name: 'ESXi HP Smart Array'
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: ea4aa6b2eac84b6ebda3f02a0047c504
+          name: 'Smart Array: Data Retrieval'
+          type: SSH
+          key: 'ssh.run[hpraid.data.retrieval]'
+          delay: '600'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            data_tmp="/tmp/hp-raid-data-harvester.tmp"
+            data_out="/tmp/hp-raid-data-harvester.out"
+            hpacucli="/opt/hp/hpssacli/bin/hpssacli"
+            ctrl_list=$(${hpacucli} ctrl all show |grep -oE 'Slot [0-9]+.*?' |awk '{print $2}' |xargs echo)
+            
+            echo -n > $data_tmp
+            
+            # Get adapters list and get info about each.
+            echo "### ctrl section begin ###" >> $data_tmp
+            for slot in $ctrl_list;
+              do
+                echo "### ctrl begin $slot ###" >> $data_tmp
+                $hpacucli ctrl slot=$slot show >> $data_tmp
+                echo "### ctrl end $slot ###" >> $data_tmp
+              done
+            echo "### ctrl section end ###" >> $data_tmp
+            
+            # enumerate all adapters and all logical drives on each adapter.
+            echo "### ld section begin ###" >> $data_tmp
+            for slot in $ctrl_list;
+              do
+                ld_list=$($hpacucli ctrl slot=$slot ld all show |grep -w logicaldrive |awk '{print $2}' |xargs echo)
+              for ld in $ld_list;
+                do
+                  echo "### ld begin $slot $ld  ###" >> $data_tmp
+                  $hpacucli ctrl slot=$slot ld $ld show >> $data_tmp
+                  echo "### ld end $slot $ld ###" >> $data_tmp
+                done
+              done
+            echo "### ld section end ###" >> $data_tmp
+            
+            # enumerate all adapters and all physical drives on each adapter.
+            echo "### pd section begin ###" >> $data_tmp
+            for slot in $ctrl_list;
+              do
+                pd_list=$($hpacucli ctrl slot=$slot pd all show |grep -w physicaldrive |awk '{print $2}' |xargs echo)
+              for pd in $pd_list;
+                do
+                  echo "### pd begin $slot $pd ###" >> $data_tmp
+                  $hpacucli ctrl slot=$slot pd $pd show >> $data_tmp
+                  echo "### pd end $slot $pd ###" >> $data_tmp
+                done
+              done
+            echo "### pd section end ###" >> $data_tmp
+            
+            mv $data_tmp $data_out
+            
+            echo "OK"
+          username: '{$ZABBIX_SSH_USER}'
+          password: '{$ZABBIX_SSH_PASS}'
+          tags:
+            -
+              tag: Application
+              value: 'HP Smart Array'
+      discovery_rules:
+        -
+          uuid: af3003fab2a340dc8c39beef38107d12
+          name: 'Controllers Discovery'
+          type: SSH
+          key: 'ssh.run[hpraid.ctrl.discovery]'
+          delay: '86400'
+          params: |
+            data="/tmp/hp-raid-data-harvester.out"
+            
+            if [ -f "$data" ]; then
+              ctrl_list=$(sed -n -e '/ctrl section begin/,/ctrl section end/p' $data |grep -oE 'Slot [0-9]+.*?' |awk '{print $2}')
+              else echo "$data not found."; exit 1
+            fi
+            
+            echo -n '{"data":['
+            for ctrl in $ctrl_list; do echo -n "{\"{#CTRL_SLOT}\": \"$ctrl\"},"; done |sed -e 's:\},$:\}:'
+            echo -n ']}'
+          username: '{$ZABBIX_SSH_USER}'
+          password: '{$ZABBIX_SSH_PASS}'
+          filter:
+            conditions:
+              -
+                macro: '{#CTRL_SLOT}'
+                formulaid: A
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 3baaaffd6b96490b82a68c1c6937e0b6
+              name: 'Smart Array: Battery status on slot {#CTRL_SLOT}'
+              type: SSH
+              key: 'ssh.run[hpraid.bbu.status.{#CTRL_SLOT}]'
+              delay: '21600'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                output=$(sed -n -e "/ctrl begin {#CTRL_SLOT}/,/ctrl end {#CTRL_SLOT}/p" /tmp/hp-raid-data-harvester.out |grep -wE "[ ]+Battery/Capacitor Status:" |awk '{print $3}')
+                if [ -z $output ]; then
+                  echo "Not available"
+                else
+                  echo "$output"
+                fi
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+              trigger_prototypes:
+                -
+                  uuid: 5ca2d16f62ab4489bb154216e9bd9851
+                  expression: 'find(/ESXi HP Smart Array/ssh.run[hpraid.bbu.status.{#CTRL_SLOT}],,"regexp","OK|Not available")=0'
+                  name: 'Smart Array: Controller Battery in slot {#CTRL_SLOT} state is {ITEM.LASTVALUE}'
+                  priority: HIGH
+            -
+              uuid: c06863163a594d62b4ec476483390c4d
+              name: 'Smart Array: Cache $2 status on slot {#CTRL_SLOT}'
+              type: SSH
+              key: 'ssh.run[hpraid.cache.status.{#CTRL_SLOT}]'
+              delay: '21600'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                output=$(sed -n -e "/ctrl begin {#CTRL_SLOT}/,/ctrl end {#CTRL_SLOT}/p" /tmp/hp-raid-data-harvester.out |grep -wE "[ ]+Cache Status:" |awk '{print $3}')
+                if [ -z $output ]; then
+                  echo "Not available"
+                else
+                  echo "$output"
+                fi
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+              trigger_prototypes:
+                -
+                  uuid: ec84def228714ed2aef8e2c8e8aeced4
+                  expression: 'find(/ESXi HP Smart Array/ssh.run[hpraid.cache.status.{#CTRL_SLOT}],,"regexp","OK|Not available")=0'
+                  name: 'Smart Array: Controller Cache in slot {#CTRL_SLOT} state is {ITEM.LASTVALUE}'
+                  priority: HIGH
+            -
+              uuid: f750e9876f264382bc9062bf76cb5f27
+              name: 'Smart Array: Controller status on slot {#CTRL_SLOT}'
+              type: SSH
+              key: 'ssh.run[hpraid.ctrl.status.{#CTRL_SLOT}]'
+              delay: '21600'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: 'sed -n -e "/ctrl begin {#CTRL_SLOT}/,/ctrl end {#CTRL_SLOT}/p" /tmp/hp-raid-data-harvester.out |grep -wE "[ ]+Controller Status:" |awk ''{print $3}'''
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+              trigger_prototypes:
+                -
+                  uuid: a341cad1078347579106790f50b690da
+                  expression: 'find(/ESXi HP Smart Array/ssh.run[hpraid.ctrl.status.{#CTRL_SLOT}],,"regexp","OK")=0'
+                  name: 'Smart Array: Controller in slot {#CTRL_SLOT} state is {ITEM.LASTVALUE}'
+                  priority: HIGH
+                -
+                  uuid: 2ed81b3adcd242bda6cfd0a87df576f2
+                  expression: 'nodata(/ESXi HP Smart Array/ssh.run[hpraid.ctrl.status.{#CTRL_SLOT}],24h)=1'
+                  name: 'Smart Array: No controller data received for >24h'
+                  priority: HIGH
+        -
+          uuid: 06adb61c72f84c2295f2c318092a24b4
+          name: 'Logical Volumes Discovery'
+          type: SSH
+          key: 'ssh.run[hpraid.ld.discovery]'
+          delay: '21600'
+          params: |
+            data="/tmp/hp-raid-data-harvester.out"
+            
+            if [ -f $data ]; then
+              ld_list=$(sed -n -e '/ld section begin/,/ld section end/p' $data |grep -w 'ld begin' |awk '{OFS=":"} {print $4,$5}')
+              else echo "$data not found."; exit 1
+            fi
+            
+            echo -n '{"data":['
+              for ld in $ld_list; do echo -n "{\"{#LD}\":\"$ld\"},"; done |sed -e 's:\},$:\}:'
+            echo -n ']}'
+          username: '{$ZABBIX_SSH_USER}'
+          password: '{$ZABBIX_SSH_PASS}'
+          filter:
+            conditions:
+              -
+                macro: '{#LD}'
+                formulaid: A
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 391e1e9797254807b010967bf350504c
+              name: 'Logical volume $1 status'
+              type: SSH
+              key: 'ssh.run[hpraid.ld.status.{#LD}]'
+              delay: '600'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                slot=$(echo "{#LD}" | cut -d ":" -f 1)
+                ld=$(echo "{#LD}" | cut -d ":" -f 2)
+                sed -n -e "/ld begin $slot $ld/,/ld end $slot $ld/p" /tmp/hp-raid-data-harvester.out |grep -wE "[ ]+Status:" |awk '{print $2}'
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+              trigger_prototypes:
+                -
+                  uuid: 0e1a0e02d29b4a5484cfe4a3172305ac
+                  expression: 'find(/ESXi HP Smart Array/ssh.run[hpraid.ld.status.{#LD}],,"like","OK")=0'
+                  name: 'Smart Array: Logical Volume state is {ITEM.LASTVALUE} on {HOSTNAME}'
+                  priority: HIGH
+        -
+          uuid: 558973fb0b5b46e2b405dcdb6f24bf90
+          name: 'Physical Drives Discovery'
+          type: SSH
+          key: 'ssh.run[hpraid.pd.discovery]'
+          delay: '86400'
+          params: |
+            data="/tmp/hp-raid-data-harvester.out"
+            
+            if [ -f $data ]; then
+              pd_list=$(sed -n -e '/pd section begin/,/pd section end/p' $data |grep -w 'pd begin' |awk '{OFS=":"} {print $4,$5}')
+              else echo "$data not found."; exit 1
+            fi
+            
+            echo -n '{"data":['
+              for pd in $pd_list; do echo -n "{\"{#PD}\":\"$pd\"},"; done |sed -e 's:\},$:\}:'
+            echo -n ']}'
+          username: '{$ZABBIX_SSH_USER}'
+          password: '{$ZABBIX_SSH_PASS}'
+          filter:
+            conditions:
+              -
+                macro: '{#PD}'
+                formulaid: A
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 05000a8cc05c4caf9f1eaf28b7a66023
+              name: 'Physical drive {#PD} status'
+              type: SSH
+              key: 'ssh.run[hpraid.pd.status.{#PD}]'
+              delay: '600'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                slot=$(echo "{#PD}" | cut -d ":" -f 1)
+                pd=$(echo "{#PD}" | cut -d ":" -f 2-)
+                sed -n -e "/pd begin $slot $pd/,/pd end $slot $pd/p" /tmp/hp-raid-data-harvester.out |grep -wE '[ ]+Status:' |awk '{print $2}'
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+              trigger_prototypes:
+                -
+                  uuid: aa2178df07514c3aa16ee28e69bf6ab3
+                  expression: 'find(/ESXi HP Smart Array/ssh.run[hpraid.pd.status.{#PD}],,"like","OK")=0'
+                  name: 'Smart Array: Disk state is {ITEM.LASTVALUE} on {HOSTNAME}'
+                  priority: HIGH
+            -
+              uuid: cfd3026d14874c588fc7f1f8f2750050
+              name: 'Physical drive {#PD} temperature'
+              type: SSH
+              key: 'ssh.run[hpraid.pd.temperature.{#PD}]'
+              delay: '600'
+              history: 7d
+              params: |
+                slot=$(echo "{#PD}" | cut -d ":" -f 1)
+                pd=$(echo "{#PD}" | cut -d ":" -f 2-)
+                sed -n -e "/pd begin $slot $pd/,/pd end $slot $pd/p" /tmp/hp-raid-data-harvester.out |grep -wE '[ ]+Current Temperature \(C\):' |awk '{print $4}'
+              username: '{$ZABBIX_SSH_USER}'
+              password: '{$ZABBIX_SSH_PASS}'
+              tags:
+                -
+                  tag: Application
+                  value: 'HP Smart Array'
+      macros:
+        -
+          macro: '{$ZABBIX_SSH_PASS}'
+          value: zabbixPassword
+        -
+          macro: '{$ZABBIX_SSH_USER}'
+          value: zabbixUsername
