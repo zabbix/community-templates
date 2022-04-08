@@ -91,6 +91,7 @@ Each query requests a new token from the api and the received token will be dele
 #### Performance
 Fortunately, the api is really fast so it may be able to high frequency monitoring (not tested yet). The templates only launch a small number of queries using master items<->dependent LLDs structure. Each master item holds all the necessary data (in a huge json response), so OneView doesn't need to filtering data or processing complicated queries, it's processed on Zabbix side. Therefore, the average time of a query (include the token request/delete method) is between 0.05 and 0.2 seconds only.
 
-## Author
+## Authors
 
-Csaba Kollar
+- Csaba Kollar
+- Zabbix 6.0's patch by [Yann 'Ze' Richard](https://github.com/Zeuh) for [Université Rennes 2](https://github.com/DSI-Universite-Rennes2/).
