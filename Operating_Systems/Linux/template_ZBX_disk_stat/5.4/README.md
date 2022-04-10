@@ -4,7 +4,7 @@ Send statistic from /proc/diskstats to Zabbix
 This is small project for my Home server
 
 # Source
-[https://github.com/dusharu/ZBX_Disk_Stat](github: dusharu/ZBX_Disk_Stat)
+[github: dusharu/ZBX_Disk_Stat](https://github.com/dusharu/ZBX_Disk_Stat)
 
 
 # Features
