@@ -1,0 +1,494 @@
+zabbix_export:
+  version: '5.4'
+  date: '2022-04-10T08:45:50Z'
+  groups:
+    -
+      uuid: 64f54166a4c84403b4d8cce5896d71ab
+      name: io_block_dev
+  templates:
+    -
+      uuid: e19f5e5855094aac8c4e3fd8b4d70aa8
+      template: io_block_dev
+      name: Disk_Stat
+      description: |
+        Parse /proc/diskstats
+        https://www.kernel.org/doc/Documentation/ABI/testing/procfs-diskstats
+        
+        Need script: /usr/libexec/zabbix/disk_stat.sh
+        
+        
+        More infomation in github:
+        https://github.com/dusharu/ZBX_Disk_Stat
+      groups:
+        -
+          name: io_block_dev
+      discovery_rules:
+        -
+          uuid: b747da8902084de89248006a2f5fb4c7
+          name: get_block_dev
+          key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_discovery]'
+          delay: 1800s
+          filter:
+            evaltype: AND
+            conditions:
+              -
+                macro: '{#DEVBLK}'
+                value: '.*'
+                formulaid: A
+          description: |
+            Discovery block dev from /proc/diskstats.
+            DM(Device Mapper) device transform from dm-XX to link name in /dev/mapper/
+          item_prototypes:
+            -
+              uuid: 646e0e2043024013b19af48312d44ab1
+              name: 'IO_queue on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.io_queue[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                I/Os currently in progress
+                The only field that should go to zero. Incremented as requests are given to appropriate struct request_queue and decremented as they finish.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''io_queue'']'
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 56964eb0d1684865b364b877e1af3b95
+              name: 'Read_IO_time on $1'
+              type: CALCULATED
+              key: 'custom.blkdev.read_io_time[{#DEVBLK}]'
+              delay: 60s
+              history: 30d
+              value_type: FLOAT
+              units: ms
+              params: |
+                last(//custom.blkdev.read_sum_time_pm[{#DEVBLK}])/
+                (last(//custom.blkdev.read_operation_pm[{#DEVBLK}])+count(//custom.blkdev.read_operation_pm[{#DEVBLK}],#1,"eq","0"))
+              description: 'Time for one Read Operation'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+              trigger_prototypes:
+                -
+                  uuid: 57903a8e652d48bfa526db35a2482661
+                  expression: 'count(/io_block_dev/custom.blkdev.read_io_time[{#DEVBLK}],#20,"ge","30")>10'
+                  name: 'Read_IO_time on {#DEVBLK} is critically big'
+                  priority: AVERAGE
+                  description: |
+                    <10ms - Awesome
+                    10ms-30ms - OK
+                    >30ms - BAD for typical Disk usage
+                    
+                    Not use this metric for Backup Disk
+            -
+              uuid: 16f484305f6c47c59c85691851ac4c63
+              name: 'Read_operation_per_min on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.read_operation_pm[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                
+                This is the total number of reads completed successfully.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''read_complete'']'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: f0b50166177b4f0293def17f8c207858
+              name: 'Read_operation_per_sec on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.read_operation_ps[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                
+                This is the total number of reads completed successfully divided by total second.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''read_complete'']'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: df381b21e01041a2b52757864f2739e4
+              name: 'Read_sectors_per_sec on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.read_sectors_ps[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                
+                This is the total number of sectors read successfully  divided by total second.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''read_sector'']'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 7eaf4ece64c54d018603848d2cb90fdb
+              name: 'The total number of milliseconds spent by all reads on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.read_sum_time_pm[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                
+                This is the total number of milliseconds spent by all reads (as measured from __make_request() to end_that_request_last()).
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''read_time'']'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: aee254f8516e454bb721f200b9c404bc
+              name: 'Write_IO_time on $1'
+              type: CALCULATED
+              key: 'custom.blkdev.write_io_time[{#DEVBLK}]'
+              delay: 60s
+              history: 30d
+              value_type: FLOAT
+              units: ms
+              params: |
+                last(//custom.blkdev.write_sum_time_pm[{#DEVBLK}])/
+                (last(//custom.blkdev.write_operation_pm[{#DEVBLK}])+count(//custom.blkdev.write_operation_pm[{#DEVBLK}],#1,"eq","0"))
+              description: 'Time for one Write Operation.'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+              trigger_prototypes:
+                -
+                  uuid: 57e4554ca12a4b4eaf51f777d5660606
+                  expression: 'count(/io_block_dev/custom.blkdev.write_io_time[{#DEVBLK}],#20,"ge","30")>10'
+                  name: 'Write_IO_time on {#DEVBLK} is critically big'
+                  priority: AVERAGE
+                  description: |
+                    <10ms - Awesome
+                    10ms-30ms - OK
+                    >30ms - BAD for typical Disk usage
+                    
+                    Not use this metric for Backup Disk
+            -
+              uuid: d7cc189d85f44997aba400bd6bbb6087
+              name: 'Write_operation_per_min on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.write_operation_pm[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                This is the total number of writes completed successfully.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''write_complete'']'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 870df6f7bd704e7bbdd0fadaaafc154b
+              name: 'Write_operation_per_sec on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.write_operation_ps[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                This is the total number of writes completed successfully divided by total second.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''write_complete'']'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 3dae9ed472c6455bb742a3784cc6079c
+              name: 'Write_sectors_per_sec on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.write_sectors_ps[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                This is the total number of sectors written successfully divided by total second.
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''write_sector'']'
+                -
+                  type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 910b2c7c32fa45b5a7dab2149fb688c9
+              name: 'The total number of milliseconds spent by all writes on $1'
+              type: DEPENDENT
+              key: 'custom.blkdev.write_sum_time_pm[{#DEVBLK}]'
+              delay: '0'
+              history: 30d
+              description: |
+                https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+                This is the total number of milliseconds spent by all writes (as measured from __make_request() to end_that_request_last()).
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[''ZBX_Disk_Stat''][0][''write_time'']'
+                -
+                  type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+            -
+              uuid: 76805b5fc1b64ee49a0f6ebe69f5ef68
+              name: 'All_stat on $1'
+              key: 'system.run[/usr/libexec/zabbix/disk_stat.sh blkdev_all_stat {#DEVBLK}]'
+              delay: 60s
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: |
+                JSON raw data
+                Describe in https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst
+              request_method: POST
+              tags:
+                -
+                  tag: Application
+                  value: io_block_dev
+          graph_prototypes:
+            -
+              uuid: e70ed52043504d1c8a09e9d9563512ef
+              name: 'IOPS on {#DEVBLK}'
+              graph_items:
+                -
+                  color: '000066'
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.read_operation_ps[{#DEVBLK}]'
+                -
+                  sortorder: '1'
+                  color: 3333FF
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.write_operation_ps[{#DEVBLK}]'
+                -
+                  sortorder: '2'
+                  color: 1A7C11
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.read_io_time[{#DEVBLK}]'
+                -
+                  sortorder: '3'
+                  color: 66FF66
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.write_io_time[{#DEVBLK}]'
+            -
+              uuid: 6e3f56fafb4c40cfae38c9a83d1959cb
+              name: 'IO_queue on {#DEVBLK}'
+              graph_items:
+                -
+                  color: '000066'
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.io_queue[{#DEVBLK}]'
+                -
+                  sortorder: '1'
+                  color: 1A7C11
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.read_io_time[{#DEVBLK}]'
+                -
+                  sortorder: '2'
+                  color: 66FF66
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.write_io_time[{#DEVBLK}]'
+            -
+              uuid: feb8451d097b4f25bf3cfecd08715d44
+              name: 'Read\Write sectors(512bytes) on {#DEVBLK}'
+              graph_items:
+                -
+                  color: '000066'
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.read_sectors_ps[{#DEVBLK}]'
+                -
+                  sortorder: '1'
+                  color: 3333FF
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.write_sectors_ps[{#DEVBLK}]'
+                -
+                  sortorder: '2'
+                  color: 1A7C11
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.read_io_time[{#DEVBLK}]'
+                -
+                  sortorder: '3'
+                  color: 66FF66
+                  yaxisside: RIGHT
+                  item:
+                    host: io_block_dev
+                    key: 'custom.blkdev.write_io_time[{#DEVBLK}]'
+          request_method: POST
+          overrides:
+            -
+              name: 'SKIP DISK'
+              step: '1'
+              stop: STOP
+              filter:
+                conditions:
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '^sr[0-9]*$'
+                    formulaid: A
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '-cow$'
+                    formulaid: B
+                  -
+                    macro: '{#DEVBLK}'
+                    value: ^$
+                    formulaid: C
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '.*snapshot.*'
+                    formulaid: D
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '-real$'
+                    formulaid: E
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '^xvd[a-z]*[0-9]+$'
+                    formulaid: F
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '^[hs]d[a-z]*[0-9]+$'
+                    formulaid: G
+                  -
+                    macro: '{#DEVBLK}'
+                    value: '^loop[0-9]*$'
+                    formulaid: H
+              operations:
+                -
+                  operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: '.*'
+                  discover: NO_DISCOVER
+                -
+                  operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: '.*'
+                  discover: NO_DISCOVER
+                -
+                  operationobject: GRAPH_PROTOTYPE
+                  operator: REGEXP
+                  value: '.*'
+                  discover: NO_DISCOVER
