@@ -30,7 +30,7 @@ CONFIG
 
 
 ======================= CUT HERE ================================ 
-
+```
 
 # Mosquitto monitoring
 
@@ -48,7 +48,7 @@ CONFIG
 
 
 UserParameter=mosquitto[*],/etc/zabbix/scripts/mosquitto \$SYS/broker/$1 2>/dev/null
-
+```
 
 ======================= CUT HERE ================================ 
 
@@ -63,13 +63,13 @@ SCRIPT
 
 
 ======================= CUT HERE ================================ 
-
+```
 
 #!/bin/bash
 
 
-mosquitto\_sub -C 1 -u USERNAME -P PASSWORD -t "$1"
-
+mosquitto_sub -C 1 -u USERNAME -P PASSWORD -t "$1"
+```
 
 ======================= CUT HERE ================================ 
 
