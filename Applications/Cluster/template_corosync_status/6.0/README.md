@@ -39,87 +39,38 @@ UserParameter=check\_corosync[*], /etc/zabbix/scripts/corosync.pl $1
 
  
 
-
+```
 #!/usr/bin/perl
 
-
- 
-
-
 my $sudo = '/usr/bin/sudo';
-
-
 my $cfgtool = '/usr/sbin/corosync-cfgtool -s';
 
-
- 
-
-
-$num\_args = $#ARGV + 1;
+$num_args = $#ARGV + 1;
 
 
-if ($num\_args != 1) {
-
-
+if ($num_args != 1) {
  print "\nUsage: corosync.pl ring number\n";
-
-
  exit;
-
-
 }
-
 
 my $ringNumber = $ARGV[0];
-
-
-open( $fh, "$cfgtool |" ) or die ( "Running corosync-cfgtool failed" );
-
-
+open( $fh, "$sudo $cfgtool |" ) or die ( "Running corosync-cfgtool failed" );
 foreach my $line (<$fh>) {
-
-
  if ( $line =~ m/status\s*=\s*(\S.+)/ ) {
-
-
- my $status = $1;
-
-
- if ( $status =~ m/^ring $ringNumber/ ) {
-
-
- # print "RING NUMBER $ringNumber STATUS: $status\n";
-
-
- if ( $status =~ m/^ring $ringNumber active with no faults/ ) {
-
-
- print "0";
-
-
- } else {
-
-
- print "1";
-
-
+  my $status = $1;
+  if ( $status =~ m/^ring $ringNumber/ ) {
+   # print "RING NUMBER $ringNumber STATUS: $status\n";
+   if ( $status =~ m/^ring $ringNumber active with no faults/ ) {
+    print "0";
+   } else {
+    print "1";
+   }
+   exit;
+  }
  }
-
-
- exit;
-
-
- }
-
-
- }
-
-
 }
-
-
 close($fh) or die ( "Running corosync-cfgtool failed" );
-
+```
 
  
 
