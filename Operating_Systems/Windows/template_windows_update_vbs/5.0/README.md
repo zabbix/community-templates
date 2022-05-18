@@ -1,4 +1,4 @@
-# Number of Window Updates available for installation
+# Number of Windows Updates available for installation
 ## Overview
 The template monitors the number of available updates for installation.  
 To get data about updates, the template calls a custom script `zbx.winupdate.vbs`. The script and a detailed 
