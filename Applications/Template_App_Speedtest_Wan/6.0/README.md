@@ -6,7 +6,7 @@ To store information from the ookla speedtest cli command into Zabbix.
 * the timeout command to timeout a hanging speedtest command
 * the zabbix_sender command for sending the data to zabbix
 # Installation:
-1. Import the Speedtest.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
+1. Import the Template_App_Speedtest_Wan.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
 2. Copy the record_speedtest.sh script to somewhere on your system, e.g. /usr/local/bin/record_speedtest.sh
 3. Edit the record_speedtest script:
    - Set the SPDHOST variable to the name of the host you've applied the template too within Zabbix
