@@ -8,7 +8,7 @@ To store information from the ookla speedtest cli command into Zabbix.
 # Installation:
 1. Import the Template_App_Speedtest_Wan.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
 2. Copy the record_speedtest.sh script to somewhere on your system, e.g. /usr/local/bin/record_speedtest.sh
-3. Edit the record_speedtest script:
+3. Edit the record_speedtest.sh script:
    - Set the SPDHOST variable to the name of the host you've applied the template too within Zabbix
    - Set the ZABSRV variable to the name/IP of your Zabbix server or proxy that the host is reporting too
    - Optionally, set the PSKID and PSKFILE variables if you're using encryption in your Zabbix environment.
