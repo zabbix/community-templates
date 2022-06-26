@@ -4,11 +4,14 @@
 PSKID=""
 PSKFILE=""
 
-# Zabbix Server
+# Zabbix Server hostname or IP address
 ZABSRV=x.x.x.x
 
-# Speedtest Host
-SPDHOST=x.x.x.x
+# Speedtest Host, the name of the host you've applied the template too as it's named in the Zabbix web UI
+SPDHOST="name of the host you've applied the template too"
+
+# Optional Speedtest CLI Params
+SPEEDTESTPARAMS=""
 
 # program locations
 SPEEDTEST="$(which speedtest)"
@@ -34,7 +37,7 @@ OUTFILE=$(mktemp)
 # what time is it?
 NOW=$(date +%s)
 
-$TIMEOUT $TIMEOUTTIME $SPEEDTEST -f json 2>/dev/null > $OUTFILE
+$TIMEOUT $TIMEOUTTIME $SPEEDTEST $SPEEDTESTPARAMS -f json 2>/dev/null > $OUTFILE
 if [ $(stat -c %s $OUTFILE) -le 100 ];then
 	echo "ERROR running speedtest - output file too small - $OUTFILE"
 	echo "You may want to try running $SPEEDTEST -f json manually"

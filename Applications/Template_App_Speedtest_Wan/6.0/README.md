@@ -8,12 +8,13 @@ To store information from the ookla speedtest cli command into Zabbix.
 # Installation:
 1. Import the Template_App_Speedtest_Wan.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
 2. Copy the record_speedtest.sh script to somewhere on your system, e.g. /usr/local/bin/record_speedtest.sh
-3. Edit the record_speedtest.sh script:
+3. Set the script to be executable, e.g. `chmod +x /usr/local/bin/record_speedtest.sh`
+4. Edit the record_speedtest.sh script:
    - Set the SPDHOST variable to the name of the host you've applied the template too within Zabbix
    - Set the ZABSRV variable to the name/IP of your Zabbix server or proxy that the host is reporting too
    - Optionally, set the PSKID and PSKFILE variables if you're using encryption in your Zabbix environment.
-4. Set the {$NO_SPDTST_DATA_SECS} macro to 300 seconds (5 minutes) more than the frequency of execution, in seconds.  i.e. If you run it every 6 hours, set the macro to 21900 (6 hours * 60 minutes per hour * 60 seconds per minute, then add 300 seconds to that.)
-5. Install a crontab entry to run this script on a schedule:
+5. Set the {$NO_SPDTST_DATA_SECS} macro to 300 seconds (5 minutes) more than the frequency of execution, in seconds.  i.e. If you run it every 6 hours, set the macro to 21900 (6 hours * 60 minutes per hour * 60 seconds per minute, then add 300 seconds to that.)
+6. Install a crontab entry to run this script on a schedule:
 
     `0 */6 * * * /usr/local/bin/record_speedtest.sh # feed speedtest info into zabbix every 6 hours`
 
