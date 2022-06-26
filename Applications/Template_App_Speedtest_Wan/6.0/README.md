@@ -13,6 +13,7 @@ To store information from the ookla speedtest cli command into Zabbix.
    - Set the SPDHOST variable to the name of the host you've applied the template too within Zabbix
    - Set the ZABSRV variable to the name/IP of your Zabbix server or proxy that the host is reporting too
    - Optionally, set the PSKID and PSKFILE variables if you're using encryption in your Zabbix environment.
+   - Optionally, set the SPEEDTESTPARAMS variable to any additional needed speedtest parameters
 5. Set the {$NO_SPDTST_DATA_SECS} macro to 300 seconds (5 minutes) more than the frequency of execution, in seconds.  i.e. If you run it every 6 hours, set the macro to 21900 (6 hours * 60 minutes per hour * 60 seconds per minute, then add 300 seconds to that.)
 6. Install a crontab entry to run this script on a schedule:
 
