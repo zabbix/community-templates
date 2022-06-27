@@ -5,7 +5,7 @@ PSKID=""
 PSKFILE=""
 
 # Zabbix Server hostname or IP address
-ZABSRV=x.x.x.x
+ZABSRV="x.x.x.x"
 
 # Speedtest Host, the name of the host you've applied the template too as it's named in the Zabbix web UI
 SPDHOST="name of the host you've applied the template too"
