@@ -511,6 +511,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Discovery DHCP scopes](Operating_Systems/Windows/template_windows_dhcp_server_scopes_discovery_(snmp))
         * [OS Windows Disk Space](Operating_Systems/Windows/template_windows_disk_space_monitoring)
         * [Windows Physical Disk IOPS](Operating_Systems/Windows/template_windows_physical_drive_iops)
+        * [winnows_updates_vbscript](Operating_Systems/Windows/template_windows_update_vbs)
         * [Event Windows Backup](Operating_Systems/Windows/template_windows_wbadmin_log)
         * [OS Windows Server Baseline](Operating_Systems/Windows/template_zabbix_for_microsoft_windows_server)
         * [getWindowsMountPointsToFolders](Operating_Systems/Windows/template_zabbix_for_ntfs_mountpoins_as_folders)
