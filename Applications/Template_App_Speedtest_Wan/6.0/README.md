@@ -1,5 +1,7 @@
 # Template_App_Speedtest_Wan
 To store information from the ookla speedtest cli command into Zabbix.
+# Author
+Todd Blake
 # Requirements:
 * Zabbix version 6.0 or later
 * the speedtest cli app from speedtest.net - https://www.speedtest.net/apps/cli (NOT the one from pypi)
