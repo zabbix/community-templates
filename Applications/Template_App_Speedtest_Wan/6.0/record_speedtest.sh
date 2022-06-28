@@ -17,6 +17,8 @@ SPEEDTESTPARAMS=""
 SPEEDTEST="$(which speedtest)"
 TIMEOUT="$(which timeout)"
 ZABBIX_SENDER="$(which zabbix_sender)"
+DATE="$(which date)"
+MKTEMP="$(which mktemp)"
 
 # timeout to run speedtest
 TIMEOUTTIME=300
@@ -24,18 +26,20 @@ TIMEOUTTIME=300
 test -z "$SPEEDTEST" && echo "speedtest binary not found" && exit
 test -z "$TIMEOUT" && echo "timeout binary not found" && exit
 test -z "$ZABBIX_SENDER" && echo "zabbix_sender binary not found" && exit
+test -z "$DATE" && echo "date binary not found" && exit
+test -z "$MKTEMP" && echo "mktemp binary not found" && exit
 
-if [ "$(speedtest -V | egrep -c 'Speedtest by Ookla')" -lt 1 ];then
+if [ "$($SPEEDTEST -V | egrep -c 'Speedtest by Ookla')" -lt 1 ];then
 	echo "The speedtest binary needs to be from Ookla."
 	echo "Please visit https://www.speedtest.net/apps/cli"
 	exit
 fi
 
 # Temporary speedtest output
-OUTFILE=$(mktemp)
+OUTFILE=$($MKTEMP)
 
 # what time is it?
-NOW=$(date +%s)
+NOW=$($DATE +%s)
 
 $TIMEOUT $TIMEOUTTIME $SPEEDTEST $SPEEDTESTPARAMS -f json 2>/dev/null > $OUTFILE
 if [ $(stat -c %s $OUTFILE) -le 100 ];then
