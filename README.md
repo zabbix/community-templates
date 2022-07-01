@@ -985,8 +985,6 @@ This repository is dedicated to templates that are created and maintained by Zab
     * [Docker](Virtualization/Docker)
         * [App Docker swarm](Virtualization/Docker/template_docker_swarm_monitoring)
         * [Harbor](Virtualization/Docker/template_harbor_services_status)
-    * [Ganeti](Virtualization/Ganeti)
-        * [Ganeti by RAPI](Virtualization/Ganeti/template_ganeti)
     * [Kubernetes](Virtualization/Kubernetes)
         * [Kube by Prom API](Virtualization/Kubernetes/template_zabbix-kube-prom)
     * [Proxmox](Virtualization/Proxmox)
