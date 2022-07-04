@@ -37,7 +37,7 @@ test -z "$CAT" && echo "cat binary not found" && exit
 test -z "$EGREP" && echo "egrep binary not found" && exit
 test -z "$RM" && echo "rm binary not found" && exit
 
-if [ "$($SPEEDTEST -V | egrep -c 'Speedtest by Ookla')" -lt 1 ];then
+if [ "$($SPEEDTEST -V | $EGREP -c 'Speedtest by Ookla')" -lt 1 ];then
 	echo "The speedtest binary needs to be from Ookla."
 	echo "Please visit https://www.speedtest.net/apps/cli"
 	exit
