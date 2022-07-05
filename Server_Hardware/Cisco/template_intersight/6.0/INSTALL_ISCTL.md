@@ -42,7 +42,7 @@ mkdir /var/lib/zabbix
 
 isctl configure
 
-vi .isctl.yaml (modified output from default to json)
+Edit .isctl.yaml (modified output from default to json AND added ~/ in front of secret.key)
 
 cp .isctl.yaml /var/lib/zabbix
 
