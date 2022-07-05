@@ -34,9 +34,9 @@ wget https://github.com/cgascoig/isctl/releases/download/v0.1.15/isctl_0.1.15_Li
 
 tar zxvf isctl_0.1.15_Linux_x86_64.tar.gz
 
-cp isctl /usr/local/bin
+cp isctl /usr/lib/zabbix/externalscripts/isctl
 
-chmod 755 /usr/local/bin/isctl
+chmod 755 /usr/lib/zabbix/externalscripts/isctl
 
 mkdir /var/lib/zabbix
 
