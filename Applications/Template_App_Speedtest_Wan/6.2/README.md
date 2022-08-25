@@ -44,30 +44,43 @@ There are no discovery rules in this template.
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
-|Speedtest JSON|The raw JSON from the speedtest command.  It's parsed out for all of the other fields except the run time.|Zabbix Trapper|custom.speedtest[json]|
-|Run time|The time the record_speedtest.sh script was executed.|Zabbix Trapper|custom.speedtest[runtime]|
-|Speedtest - Download Bandwidth|The measured bandwidth in bits per second.|Dependent Item|speedtest[download.bandwidth]|
-|Speedtest - Download Bytes|The number of bytes downloaded in the test.|Dependent Item|speedtest[download.bytes]|
-|Speedtest - Download Time Elapsed|The time to execute the download test.|Dependent Item|speedtest[download.elapsed]|
-|Speedtest - External IP|The external (internet) IP address of the system executing the test.|Dependent Item|speedtest[interface.externalIp]|
-|Speedtest - Internal IP|The internal (local) IP address of the system executing the test.|Dependent Item|speedtest[interface.internalIp]|
-|Speedtest - ISP|The ISP of the system executing the test.|Dependent Item|speedtest[isp]|
-|Speedtest - Packet Loss|Packets lost during the test.|Dependent Item|speedtest[packetLoss]|
-|Speedtest - Ping Jitter|The recorded ping jitter for the test.|Dependent Item|speedtest[ping.jitter]|
-|Speedtest - Ping Latency|The recorded ping latency for the test.|Dependent Item|speedtest[ping.latency]|
-|Speedtest - Result ID|The ID at speedtest.net of the results.|Dependent Item|speedtest[result.id]|
-|Speedtest - Result URL|The URL at speedtest.net of the results.|Dependent Item|speedtest[result.url]|
-|Speedtest - Server Country|The country of the selected speedtest server.|Dependent Item|speedtest[server.country]|
-|Speedtest - Server Host|The hostname of the selected speedtest server.|Dependent Item|speedtest[server.host]|
-|Speedtest - Server ID|The speedtest ID of the selected speedtest server.|Dependent Item|speedtest[server.id]|
-|Speedtest - Server IP|The IP address of the selected speedtest server.|Dependent Item|speedtest[server.ip]|
-|Speedtest - Server Location|The geographical location (City, State in the US for example) of the selected speedtest server.|Dependent Item|speedtest[server.location]|
-|Speedtest - Server Name|The human readable speedtest.net name of the selected speedtest server.|Dependent Item|speedtest[server.name]|
-|Speedtest - Server Port|The TCP port used of the selected speedtest server.|Dependent Item|speedtest[server.port]|
-|Speedtest - Timestamp|The timestamp of the test recorded from speedtest.net.|Dependent Item|speedtest[timestamp]|
-|Speedtest - Upload Bandwidth|The measured bandwidth in bits per second.|Dependent Item|speedtest[upload.bandwidth]|
-|Speedtest - Upload Bytes|The number of bytes uploaded in the test.|Dependent Item|speedtest[upload.bytes]|
-|Speedtest - Upload Time Elapsed|The time to execute the upload test.|Dependent Item|speedtest[upload.elapsed]|
+|Speedtest - Download Bandwidth|The measured bandwidth in bits per second.|Dependent item|speedtest[download.bandwidth]|
+|Speedtest - Download Bytes|The number of bytes downloaded in the test.|Dependent item|speedtest[download.bytes]|
+|Speedtest - Download Latency (High)|The highest recorded latency during the download portion of the test.|Dependent item|speedtest[download.latency.high]|
+|Speedtest - Download Latency (IQM)|The IQM (interquartile mean) of the latency recorded during the download portion of the test.|Dependent item|speedtest[download.latency.iqm]|
+|Speedtest - Download Latency (Jitter)|The jitter recorded during the download portion of the test.|Dependent item|speedtest[download.latency.jitter]|
+|Speedtest - Download Latency (Low)|The lowest recorded latency during the download portion of the test.|Dependent item|speedtest[download.latency.low]|
+|Speedtest - Download Time Elapsed|The time to execute the download test.|Dependent item|speedtest[download.elapsed]|
+|Speedtest - External IP|The external (internet) IP address of the system executing the test.|Dependent item|speedtest[interface.externalIp]|
+|Speedtest - ISP|The ISP of the system executing the test.|Dependent item|speedtest[isp]|
+|Speedtest - Internal IP|The internal (local) IP address of the system executing the test.|Dependent item|speedtest[interface.internalIp]|
+|Speedtest - Is VPN?|Are we on a VPN while executing the test?|Dependent item|speedtest[interface.isVpn]|
+|Speedtest - JSON|The raw JSON from the speedtest command.  It's parsed out for all of the other fields except the run time.|Zabbix trapper|custom.speedtest[json]|
+|Speedtest - MAC Address|The MAC address of the interface used when executing the test|Dependent item|speedtest[interface.macAddr]|
+|Speedtest - Network Interface|The network interface used to execute the test|Dependent item|speedtest[interface.name]|
+|Speedtest - Packet Loss|Packets lost during the test.|Dependent item|speedtest[packetLoss]|
+|Speedtest - Ping Latency (Average)|The average recorded latency during the ping portion of the test.|Dependent item|speedtest[ping.latency]|
+|Speedtest - Ping Latency (High)|The highest recorded latency during the ping portion of the test.|Dependent item|speedtest[ping.high]|
+|Speedtest - Ping Latency (Jitter)|The recorded jitter during the ping portion of the test.|Dependent item|speedtest[ping.jitter]|
+|Speedtest - Ping Latency (Low)|The lowest recorded latency during the ping portion of the test.|Dependent item|speedtest[ping.low]|
+|Speedtest - Result ID|The ID at speedtest.net of the results.|Dependent item|speedtest[result.id]|
+|Speedtest - Result URL|The URL at speedtest.net of the results.|Dependent item|speedtest[result.url]|
+|Speedtest - Run time|The time the record_speedtest.sh script was executed.|Zabbix trapper|custom.speedtest[runtime]|
+|Speedtest - Server Country|The country of the selected speedtest server.|Dependent item|speedtest[server.country]|
+|Speedtest - Server Host|The hostname of the selected speedtest server.|Dependent item|speedtest[server.host]|
+|Speedtest - Server ID|The speedtest ID of the selected speedtest server.|Dependent item|speedtest[server.id]|
+|Speedtest - Server IP|The IP address of the selected speedtest server.|Dependent item|speedtest[server.ip]|
+|Speedtest - Server Location|The geographical location (City, State in the US for example) of the selected speedtest server.|Dependent item|speedtest[server.location]|
+|Speedtest - Server Name|The human readable speedtest.net name of the selected speedtest server.|Dependent item|speedtest[server.name]|
+|Speedtest - Server Port|The TCP port used of the selected speedtest server.|Dependent item|speedtest[server.port]|
+|Speedtest - Timestamp|The timestamp of the test recorded from speedtest.net.|Dependent item|speedtest[timestamp]|
+|Speedtest - Upload Bandwidth|The measured bandwidth in bits per second.|Dependent item|speedtest[upload.bandwidth]|
+|Speedtest - Upload Bytes|The number of bytes uploaded in the test.|Dependent item|speedtest[upload.bytes]|
+|Speedtest - Upload Latency (High)|The highest recorded latency during the upload portion of the test.|Dependent item|speedtest[upload.latency.high]|
+|Speedtest - Upload Latency (IQM)|The IQM (interquartile mean) of the latency recorded during the upload portion of the test.|Dependent item|speedtest[upload.latency.iqm]|
+|Speedtest - Upload Latency (Jitter)|The jitter recorded during the upload portion of the test.|Dependent item|speedtest[upload.latency.jitter]|
+|Speedtest - Upload Latency (Low)|The lowest recorded latency during the upload portion of the test.|Dependent item|speedtest[upload.latency.low]|
+|Speedtest - Upload Time Elapsed|The time to execute the upload test.|Dependent item|speedtest[upload.elapsed]|
 
 ## Triggers
 
