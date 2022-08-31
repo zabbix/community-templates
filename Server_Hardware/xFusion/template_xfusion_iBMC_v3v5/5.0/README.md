@@ -6,12 +6,12 @@ I. General Information
 
     Name:     Zabbix Plugin Packsage for xFusion Server
     Function: Query, Monitoring
-    Version:  2.0
+    Version:  2.1
 
 	
 II. Description
 
-    Integrated in the Zabbix software, xFusion Zabbix plug-in is provided as a Zabbix template. Users can directly use it or use it for secondary development. The Zabbix plug-in can be used to monitor the iBMC, HMM, CCU component, EMM, or SWI.
+    Integrated in the Zabbix software, xFusion Zabbix plug-in is provided as a Zabbix template. Users can directly use it or use it for secondary development. The Zabbix plug-in can be used to monitor the iBMC, HMM.
 
 	
 III. Compatibility Information
@@ -26,11 +26,14 @@ III. Compatibility Information
       <td><span style="white-space:nowrap;">Interface  Protocol&emsp;&emsp;&emsp;&emsp;</span></td>
    </tr>
    <tr>
-      <td>EMM</td>
+      <td>iBMC</td>
       <td>Zabbix 5.0</td>
-      <td>iBMC V380 or later</td>
-      <td>Management module: MM921</td>
-      <td> SNMP trap v2c, SNMP trap v3</td>
+      <td>iBMC V294 or later</td>
+      <td>Rack server: RH1288 V3, RH2288 V3, RH2288H V3, RH5885 V3, RH8100 V3, 1288H V5, 2288H V5, 2488 V5, 2288 V5; 
+	      High-density server: XH321 V3, XH620 V3, XH622 V3, XH628 V3; 
+	      Heterogeneous server: G560 V5; 
+	      Blade server: CH121L V5</td>
+      <td>SNMP v2c</td>
    </tr>
 </table>
 
