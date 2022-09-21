@@ -604,6 +604,7 @@ This repository is dedicated to templates that are created and maintained by Zab
     * [UPS - diogont](Power_(UPS)/template_network_ups_(generic))
     * [Nobreak Engetron](Power_(UPS)/template_nobreak_engetron)
     * [Nobreak SMS Sinus Triphases](Power_(UPS)/template_nobreak_sms_sinus_triphases)
+    * [Template_NUT](Power_(UPS)/template_nut)
     * [Xanto S1500R](Power_(UPS)/template_online_usv_xanto_s1500r)
     * [PitON](Power_(UPS)/template_piton_xm20)
     * [Powertek 1 Phase PDU](Power_(UPS)/template_powertek_1-phase_pdu)
