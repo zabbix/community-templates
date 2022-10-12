@@ -3,7 +3,7 @@
 #Tested on Zabbix 6.0
 #
 #Add to Zabbix Agent
-# UserParameter=TaskSchedulerMonitoring[*],powershell -NoProfile -ExecutionPolicy Bypass -File <path to script> "$1" "$2"
+# UserParameter=GetCerts[*],powershell -NoProfile -ExecutionPolicy Bypass -File <path to script> "$1" "$2"
 #########################################
 
 Import-Module WebAdministration
@@ -49,15 +49,20 @@ switch ($ITEM) {
 
 switch ($ITEM) {
     "CheckDays" {
-        Foreach($Cert in $CertAll | Where-Object {$_.Subject -match "$($CHECK)"}) {
+        foreach($Cert in $Certsame) {
+            Foreach( $ChildCert in  Get-Childitem -path Cert:\LocalMachine\My\$($Cert.thumbprint)) {
 
-            Foreach ($ChildItemCertDay in $Cert | Select-Object -Property @{n="ExpireInDays";e={($_.notafter - (Get-Date)).Days}}) {
-            
-                $ChildItemCertDayVar = $ChildItemCertDay | Select-Object -ExpandProperty ExpireInDays
-                Write-Output $ChildItemCertDayVar
-               
+                Foreach($IisCert in $ChildCert | Where-Object {$_.Subject -match "$($CHECK)"}) {
+
+                    Foreach ($ChildItemCertDay in $IisCert | Select-Object -Property @{n="ExpireInDays";e={($_.notafter - (Get-Date)).Days}}) {
+                    
+                        $ChildItemCertDayVar = $ChildItemCertDay | Select-Object -ExpandProperty ExpireInDays
+                        Write-Output $ChildItemCertDayVar
+                    
+                    }
+                
+                }
             }
-        
         }
     }
 }
