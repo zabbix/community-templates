@@ -16,28 +16,6 @@ The template adds monitoring of:
 * GPU Temperature of machine's shutdown
 * GPU Fan Speed
 
-
-The following agent parameters can be used to add the metrics into Zabbix.
-
-
- 
-
-
- 
-
-
-UserParameter=gpu.temp[*],nvidia-smi -q --gpu=0 |findstr /c:"GPU Current Temp"
-UserParameter=gpu.shutdowntemp[*],nvidia-smi -q --gpu=0 |findstr /c:"GPU Shutdown Temp"
-UserParameter=gpu.memtotal[*],nvidia-smi -q --gpu=0 |findstr Total
-UserParameter=gpu.used[*],nvidia-smi -q --gpu=0 |findstr Used
-UserParameter=gpu.free[*],nvidia-smi -q --gpu=0 |findstr Free
-UserParameter=gpu.fanspeed[*],nvidia-smi -q --gpu=0 |findstr Fan
-UserParameter=gpu.power[*],nvidia-smi -q --gpu=0 |findstr /c:"Power Limit"
-UserParameter=gpu.utilisation[*],nvidia-smi -q --gpu=0 |findstr /c:"Gpu"
-UserParameter=gpu.memutil[*],nvidia-smi -q --gpu=0 |findstr /c:"Memory"|findstr /c:"%"
-
-
-
 ## Author of original
 
 Richard Kavanagh
