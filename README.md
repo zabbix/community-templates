@@ -69,6 +69,8 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Template App Generic Java JMX](Applications/Java_Application/template_app_generic_java_jmx_with_metaspace)
         * [App Glassfish server.jvm](Applications/Java_Application/template_glassfish_webserver)
         * [JVM Generic](Applications/Java_Application/template_jvm_and_g1_gc_monitoring_with_jmx)
+    * [Job_Schedulers](Applications/Job_Schedulers)
+        * [IBM Tivoli Workload Scheduler](Applications/Job_Schedulers/template_ibm_tws_tivoli_workload_scheduler)
     * [Mail_servers](Applications/Mail_servers)
         * [ESA-CISCO XML Status](Applications/Mail_servers/template_cisco_esa_(_ironport_)_additional_monitoring)
         * [Exchange Mailbox Servers_RU](Applications/Mail_servers/template_exchange_2010_client_access_performance_monitoring_(rus))
