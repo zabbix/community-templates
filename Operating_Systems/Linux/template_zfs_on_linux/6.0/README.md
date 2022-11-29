@@ -11,6 +11,8 @@
 |{$ZPOOL_AVERAGE_ALERT}|<p>-</p>|`85`|Text macro|
 |{$ZPOOL_DISASTER_ALERT}|<p>-</p>|`99`|Text macro|
 |{$ZPOOL_HIGH_ALERT}|<p>-</p>|`90`|Text macro|
+|{$ZFS_FSNAME_MATCHES}|<p>Determine datasets to discover</p>|`/`|Text macro|
+|{$ZFS_FSNAME_NOTMATCHES}|<p>Determine datasets to ignore</p>|`([a-z-0-9]{64}$\|[a-z-0-9]{64}-init$)`|Text macro|
 
 
 ## Template links
@@ -60,7 +62,7 @@ There are no template links in this template.
 |Zfs dataset $1 $2|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#FILESETNAME},usedbydataset]<p>Update: 1h</p><p>LLD</p>|
 |Zfs dataset $1 $2|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#FILESETNAME},usedbysnapshots]<p>Update: 5m</p><p>LLD</p>|
 |Zfs dataset $1 $2|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#FILESETNAME},used]<p>Update: 5m</p><p>LLD</p>|
-|Zpool {#POOLNAME}: Get iostats|<p>-</p>|`Zabbix agent (active)`|vfs.file.contents[/proc/spl/kstat/zfs/{#POOLNAME}/io]<p>Update: 1m</p><p>LLD</p>|
+|Zpool {#POOLNAME}: Get iostats|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.iostat[{#POOLNAME}]<p>Update: 1m</p><p>LLD</p>|
 |Zpool {#POOLNAME} available|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#POOLNAME},available]<p>Update: 5m</p><p>LLD</p>|
 |Zpool {#POOLNAME} used|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#POOLNAME},used]<p>Update: 5m</p><p>LLD</p>|
 |Zpool {#POOLNAME} Health|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.health[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
