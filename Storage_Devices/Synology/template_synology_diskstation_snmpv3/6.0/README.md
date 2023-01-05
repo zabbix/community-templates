@@ -2,16 +2,48 @@
 
 ## Description
 
-Based on https://share.zabbix.com/storage-devices/synology/synology-diskstation SHA authpass and AES privpass are hardcoded DiskStationManager > Terminal SNMP > SNMP > Enable SNMPv3 set all values and set macros in Zabbix 
+A SNMPv3 template to monitor Synology DSM, based on https://share.zabbix.com/storage-devices/synology/synology-diskstation
+
+SHA authpass and AES privpass are hardcoded
+
+**Updates**
+
+  - 2020 April: fixed https://github.com/kko/unifi-zabbix-snmpv3/issues/4
 
 ## Overview
 
+**Setup Synology DSM**
 
-Based on https://share.zabbix.com/storage-devices/synology/synology-diskstation
-SHA authpass and AES privpass are hardcoded
-DiskStationManager > Terminal SNMP > SNMP > Enable SNMPv3 set all values
-Zabbix > Template > Macros > set Username, Passwort and PrivacyPasswort
-2020 April: fixed https://github.com/kko/unifi-zabbix-snmpv3/issues/4
+Check the official Synology documentation for your version of DSM:  
+<https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/system_snmp>
+
+Go to SNMP settings (`Control Panel > Terminal & SNMP > SNMP`) and tick (enable)
+  - "Enable SNMP service"
+  - "SNMPv3 service"
+  - "Enable SNMP privacy"
+
+Set the username, protocol and password for authentication; and also set protocol and password for "SNMP privacy".
+Record the values you set here because you have to replicate them later in Zabbix.
+
+
+**Setup Zabbix**
+
+1. Import the YAML template file in Zabbix (```Zabbix > Configuration > Templates > Import ```)
+2. Create your host and under "Templates", link this template to the host. You can find it by typing its name "Synology DiskStation SNMPv3"
+3. Under "Interfaces", add a "SNMP" interface to the host
+4. Fill the required fields with the same data you already set in DSM.
+    - "Context name": can be left empty
+    - "Security name": is the username in DSM
+    - "Security level": is "authPriv"
+    - "Authentication protocol": same as you set in DSM.   
+    - "Authentication passphrase":  Same as you set in DSM under "SNMPv3 service", "Password" field
+    - "Privacy protocol": Same as you set in DSM under "Enable SNMP privacy", "Protocol".
+    - "Privacy passphrase": Same as you set in DSM under "Enable SNMP privacy", "Password" field
+
+**Troubleshooting**
+
+- If you receive authentication errors, try tos set the Authentication / Privacy protocols to MD5+DES and if this works, then try to upgrade the encrypption step-by-step, changing only one attribute at a time. The choices what Zabbix can support and what is supported in a given version of DSM can be different. Find a common ground with the most strongest crypto. DES, SHA1 and MD5 are not considered cryptographically secure anymore.
+- If all looks good, but does not work, try to restart the Zabbix server.
 
 
 ## Author
@@ -20,14 +52,14 @@ Helmut Leonhardt
 
 ## Macros used
 
-|Name|Description|Default|Type|
-|----|-----------|-------|----|
-|{$DISK_UTIL_HIGH}|<p>-</p>|`90`|Text macro|
-|{$DISK_UTIL_WARN}|<p>-</p>|`80`|Text macro|
-|{$SNMP_AUTHPASS}|<p>-</p>|``|Text macro|
-|{$SNMP_PORT}|<p>-</p>|`161`|Text macro|
-|{$SNMP_PRIVPASS}|<p>-</p>|``|Text macro|
-|{$SNMP_USERNAME}|<p>-</p>|``|Text macro|
+| Name              | Description | Default | Type       |
+|-------------------|-------------|---------|------------|
+| {$DISK_UTIL_HIGH} | <p>-</p>    |`90`     | Text macro |
+| {$DISK_UTIL_WARN} | <p>-</p>    |`80`     | Text macro |
+| {$SNMP_AUTHPASS}  | <p>-</p>    |``       | Text macro |
+| {$SNMP_PORT}      | <p>-</p>    |`161`    | Text macro |
+| {$SNMP_PRIVPASS}  | <p>-</p>    |``       | Text macro |
+| {$SNMP_USERNAME}  | <p>-</p>    |``       | Text macro |
 
 
 ## Template links
