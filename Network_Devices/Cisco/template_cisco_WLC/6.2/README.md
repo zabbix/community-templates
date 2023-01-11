@@ -1,3 +1,6 @@
+requires zabbix 6.2(!!!)
+wifi APs are created as separate devices, with interface and data from WLC, AP direct ping, and AP-WLC ping (it is assumed that all APs have a preferred controller, in cases if there is more than one WLC)
+
 # template_Cisco_WiFi_WLC_62
 The main template assigned to the controller.
 
