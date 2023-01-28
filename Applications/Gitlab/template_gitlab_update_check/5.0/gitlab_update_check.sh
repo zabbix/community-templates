@@ -32,7 +32,7 @@ GITLABHOSTNAME=${1:?"missing arg 1 for GITLABHOSTNAME"}
 GITLABTOKEN=${2:?"missing arg 2 for GITLABTOKEN"}
 
 # Grab the Base64 encoded current version info from Gitlab instance
-GITLABBASE64VER=$(curl --header "PRIVATE-TOKEN: $GITLABTOKEN" https://$GITLABHOSTNAME/api/v4/version 2> /dev/null | base64)
+GITLABBASE64VER=$(curl --header "PRIVATE-TOKEN: $GITLABTOKEN" https://$GITLABHOSTNAME/api/v4/version 2> /dev/null | base64 -w 0)
 
 # Request the status of this software version from version.gitlab.com and get the text from the HTML response
 GITLABRESPONSE=$(curl "https://version.gitlab.com/check.svg?gitlab_info=$GITLABBASE64VER" -H "Referer: https://$GITLABHOSTNAME/" 2> /dev/null | \
