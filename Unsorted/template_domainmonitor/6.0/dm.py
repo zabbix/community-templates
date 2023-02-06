@@ -21,6 +21,53 @@ import sslpsk
 import functools
 import dns.resolver
 
+class DmMetrics:
+    """Collects metrics for domains and provides calc functions
+
+    Returns:
+        _type_: _description_
+    """
+    
+    ## Prepare Metrics
+    # Overall counts
+    domains_cert_checks_enabled = 0
+    domains_dns_checks_enabled = 0
+    
+    # Succeeded check counts
+    domains_cert_trusted = 0
+    domains_dns_spf_present = 0
+    domains_dns_dmarc_present = 0
+    domains_dns_dnssec_enabled = 0
+    
+    def get_metrics(self):
+        """
+        returns dict with metrics
+        """
+        metrics = {}
+        
+        ## CERT
+        # not counted anything /error
+        if self.domains_cert_checks_enabled == 0:
+            metrics['percent_cert_trusted'] = 0
+        else:
+            # calc %
+            metrics['percent_cert_trusted'] = round( (self.domains_cert_trusted / self.domains_cert_checks_enabled * 100),2)
+        
+        ## DNS
+        if self.domains_dns_checks_enabled == 0:
+            metrics['percent_spf_present'] = 0
+            metrics['percent_dmarc_present'] = 0
+            metrics['percent_dnssec_enabled'] = 0
+        else:
+            # calc %
+            metrics['percent_spf_present'] = round( (self.domains_dns_spf_present / self.domains_dns_checks_enabled * 100),2)
+            metrics['percent_dmarc_present'] = round( (self.domains_dns_dmarc_present / self.domains_dns_checks_enabled * 100),2)
+            metrics['percent_dnssec_enabled'] = round( (self.domains_dns_dnssec_enabled / self.domains_dns_checks_enabled * 100),2)
+        
+        return metrics    
+         
+        
+
 
 class PyZabbixPSKSocketWrapper:
     """Implements ssl.wrap_socket with PSK instead of certificates.
@@ -170,11 +217,12 @@ def check_cert_expire_days(domain_name):
     return check_result
 
 
-def check_cert_trusted(domain_name):
+def check_cert_trusted(domain_name, metrics: DmMetrics):
     """Connects to hostname per https. If cert cannot be verified, return false.
 
     Args:
         domain_name (str): domain name to connect and to check
+        metrics (dmMetrics): Metrics Object to update
     """
     check_result = {}
     
@@ -188,26 +236,33 @@ def check_cert_trusted(domain_name):
         if r.ok:
             check_result['cert_trusted'] = True
             l.debug("Cert of %s is trusted", domain_name)
+            metrics.domains_cert_trusted += 1
         if r.status_code == 403:
+            metrics.domains_cert_trusted += 1
             check_result['cert_trusted'] = True
             l.warning("Cert of %s is trusted, but connect was forbidden!", domain_name)
 
     except SSLError as e_ssl:
-        l.warning("Cert of %s is NOT trusted", domain_name)
+        l.warning("Cert of %s is NOT trusted: %s", domain_name, str(e_ssl))
         check_result['cert_trusted'] = False
     except requests.exceptions.ConnectionError as e_connect:
         l.warning("Error: Could not connect to %s: %s",
                   domain_name, str(e_connect))
-        check_result['cert_trusted'] = "Error: Could not connect"    
+        check_result['cert_trusted'] = "Error: Could not connect"
+    except Exception as e_other:
+        l.warning("Error: Could not connect to %s: %s",
+                  domain_name, str(e_other))
+        check_result['cert_trusted'] = "Error: Could not connect"
 
     return check_result
 
 
-def check_spf_present(domain_name):
+def check_spf_present(domain_name, metrics: DmMetrics):
     """Checks if Domain name has valid SPF record
 
     Args:
         domain_name (str): Domain to check for SPF
+        metrics (dmMetrics): Metrics Object to update
     """
     
     check_result = {}
@@ -216,19 +271,21 @@ def check_spf_present(domain_name):
         spf_check_result = checkdmarc.query_spf_record(domain_name)
         l.info("Found SPF record for %s", domain_name)
         check_result['spf_present'] = True
+        metrics.domains_dns_spf_present += 1
     
     except checkdmarc.SPFRecordNotFound as e_spf:
-        l.debug("No SPF record found for %s", domain_name)
+        l.debug("No SPF record found for %s: %s", domain_name, str(e_spf))
         check_result['spf_present'] = False
 
     return check_result
 
 
-def check_dmarc_present(domain_name):
+def check_dmarc_present(domain_name, metrics: DmMetrics):
     """Checks if Domain name has valid DMARC record
 
     Args:
         domain_name (str): Domain to check for DMARC
+        metrics (dmMetrics): Metrics Object to update
     """
     check_result = {}
     if not domain_exists(domain_name):
@@ -238,10 +295,11 @@ def check_dmarc_present(domain_name):
     
     try:
         dmarc_check_result = checkdmarc.query_dmarc_record(domain_name)
-        l.info("Found DMARC record for %s", domain_name)
+        l.info("Found DMARC record for %s: %s", domain_name, str(dmarc_check_result))
         check_result['dmarc_present'] = True
+        metrics.domains_dns_dmarc_present += 1
     except checkdmarc.DMARCRecordNotFound as e_dmarc:
-        l.debug("No DMARC record found for %s", domain_name)
+        l.debug("No DMARC record found for %s: %s", domain_name, str(e_dmarc))
         check_result['dmarc_present'] = False
     except (checkdmarc.DMARCRecordInWrongLocation, checkdmarc.MultipleDMARCRecords, checkdmarc.SPFRecordFoundWhereDMARCRecordShouldBe):
         l.debug("No VALID DMARC record found for %s", domain_name)
@@ -250,11 +308,12 @@ def check_dmarc_present(domain_name):
     return check_result
 
 
-def check_dnssec(domain_name):
+def check_dnssec_enabled(domain_name, metrics: DmMetrics):
     """Checks if Domain name has DNSSEC enabled
 
     Args:
         domain_name (str): Domain to check for DNSSEC
+        metrics (dmMetrics): Metrics Object to update
     """
     check_result = {}
     dnssec_enabled = checkdmarc.test_dnssec(domain_name)
@@ -279,6 +338,7 @@ def send_zabbix(dm_args, domains_with_check_results):
 
     # prepare packet to send
     zabbix_packet = []
+    
     # for all domains
     for entry in domains_with_check_results['domains']:
         # for all check results
@@ -286,11 +346,20 @@ def send_zabbix(dm_args, domains_with_check_results):
         for cr in entry['check_results'].keys():
             keyname = f"dm.{cr}[{domain_name}]"
             val = entry['check_results'][cr]
-            chunk = ZabbixMetric(host=dm_args.zabbix_host,
-                                 key=keyname, value=val)
+            chunk = ZabbixMetric(host=dm_args.zabbix_host, key=keyname, value=val)
             zabbix_packet.append(chunk)
             l.debug("item %s=%s", keyname, val)
 
+    # for all metrics
+    for entry in domains_with_check_results['metrics']:
+        val = domains_with_check_results['metrics'][entry]
+        keyname = f"dm.{entry}"
+        
+        chunk = ZabbixMetric(host=dm_args.zabbix_host, key=keyname, value=val)
+        zabbix_packet.append(chunk)
+        l.debug("item %s=%s", keyname, val)
+    
+    
     # send via trapper, check if psk provided
     if dm_args.psk:
         l.debug("Sending Trapper Items encrpyted using PSK and TLS Identity...")
@@ -375,9 +444,15 @@ def main():
     l.info("-------- Starting Domain Monitor --------")
     l.debug("Parsed arguments: %s", dm_args)
 
+    
+
+
     # read and parse domain file
     domains_with_check_results = get_domain_file(dm_args)
-
+    
+    # Prepare Metrics
+    metrics = DmMetrics()
+    
     ### Main loop executing checks for each domain
     for entry in domains_with_check_results['domains']:
         # prepare results branch
@@ -386,7 +461,7 @@ def main():
         domain_name = entry['domain']
         l.debug("----- Checks for %s starting...", domain_name)
         
-        # Only continue if domain exists / can be queried
+        # Pre-Check: Only continue if domain exists / can be queried
         if not domain_exists(domain_name):
             l.error("Domain %s does not exist. Not executing checks.", domain_name)
             error_str = "Error: Could not connect"
@@ -402,10 +477,12 @@ def main():
             # end loop for this domain
             continue
         
-
         # Execute Cert checks if enabled
         if 'cert_checks' in entry and entry['cert_checks']:
             l.debug("Cert Checks for %s enabled, executing cert checks...", domain_name)
+            
+            # Count domain to checked cert domains
+            metrics.domains_cert_checks_enabled += 1
 
             # check domains for ssl cert validity
             l.debug("Checking validity for domain %s", domain_name)
@@ -413,28 +490,34 @@ def main():
 
             # check domains for cert trust
             l.debug("Checking trust for domain %s", domain_name)
-            entry['check_results'].update(check_cert_trusted(domain_name))
+            entry['check_results'].update(check_cert_trusted(domain_name, metrics))
         else:
             l.debug("Cert Checks for %s not enabled", domain_name)
 
         if 'dns_checks' in entry and entry['dns_checks']:
             l.debug(
                 "DNS Checks for %s enabled, executing DNS checks...", domain_name)
+            
+            # Count domain to checked DNS domains
+            metrics.domains_dns_checks_enabled += 1
 
             # check for SPF presence
             l.debug("Checking SPF for domain %s", domain_name)
-            entry['check_results'].update(check_spf_present(domain_name))
+            entry['check_results'].update(check_spf_present(domain_name, metrics))
 
             # check for DMARC presence
             l.debug("Checking DMARC for domain %s", domain_name)
-            entry['check_results'].update(check_dmarc_present(domain_name))
+            entry['check_results'].update(check_dmarc_present(domain_name, metrics))
 
             # check for DNSSEC
             l.debug("Checking DNSSEC for domain %s", domain_name)
-            entry['check_results'].update(check_dnssec(domain_name))
+            entry['check_results'].update(check_dnssec_enabled(domain_name, metrics))
         else:
             l.debug("DNS Checks for %s not enabled", domain_name)
 
+    # Add calculated metrics to final dict
+    domains_with_check_results['metrics'] = metrics.get_metrics()
+    
     # If parameters are present, send results to Zabbix trapper items
     if dm_args.zabbix_server:
         if not dm_args.zabbix_host:
@@ -447,7 +530,10 @@ def main():
     else:
         l.debug("Zabbix Server not set. Not sending to Zabbix.")
 
-    # print final result = domain file with enriched check results
+    
+    
+    
+    # output final result = domain file with enriched check results
     pp = PrettyPrinter(indent=4, width=80, depth=4, compact=False)
     pretty_result = pp.pformat(domains_with_check_results)
     l.info("\n%s", pretty_result)

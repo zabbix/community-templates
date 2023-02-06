@@ -227,7 +227,17 @@ Additionally you can check the log file `log/dm.log`
 |DomainMonitor discovery|Downloads and parses domain file. Starting LLD|Script (JS)|`DM_DOMAIN_FILE`, `DM_GIT_TOKEN`|
 
 ### Items collected
-All items are collected per domain.
+*Items collected once*
+|Name|Description|
+|----|-----------|
+|Percent Certificates Trusted|% of checked Domains with trusted certificate|
+|Percent Domains with DMARC|% of checked Domains with valid DMARC DNS entry|
+|Percent Domains with DNSSEC|% of checked Domains where DNSSEC is enabled|
+|Percent Domains with SPF|% of checked Domains with valid SPF DNS entry|
+
+<br/>
+
+*Items collected per domain (LLD)*
 
 |Name|Description|
 |----|-----------|
@@ -237,6 +247,8 @@ All items are collected per domain.
 |DMARC Status|Status of valid DMARC entry|
 |DNSSEC Status|Status of DNSSEC of domain|
 |SPF Status|Status of SPF entry of domain|
+
+
 
 <br/>
 
@@ -248,21 +260,27 @@ Each trigger is created per domain.
 |Cert Not Trusted	|Cert not trusted by common browsers / self signed cert. detected|`Warning`|
 |No DMARC Record|DMARC entry was not detected for domain|`Warning`|
 |No SPF Record|No SPF record was detected for domain|`Warning`|
+|Cert Issuer Changed|Issuer of Cert differs from last check|`Average`|
 
 <br/>
 
 
 # :fast_forward: Python Script standalone
-You may run the python script standalone from command line for testing or for just getting JSON output. Following parameters can be used
+You may run the python script standalone from command line for testing or for just getting JSON output.
+```console
+# /opt/ZabbixDomainMonitor/dm.py -f https://your-server.com/domains.json
+```
+
+Following parameters can be used
 |Parameter|Description|Example|Required|
 |---------|-----------------|----------------|--------|
-|-f|Domain file to download|`https://api.github.com/repos/gitbock/ZabbixDomainMonitor/contents/example_domains.json`|Yes|
+|-f|Domain file to download|GitHub Private Repo (Token needed, see "-a") <br/>`https://api.github.com/repos/gitbock/ZabbixDomainMonitor/contents/example_domains.json` <br/><br/>GitHub Public Repo<br/> `https://github.com/gitbock/ZabbixDomainMonitor/raw/master/example_domains.json`<br/> <br/>Regular HTTPS Server<br/> `https://your-server.com/domains.json` |Yes|
 |-a|Github Token to download from private repo. Will be added as Authorization header when trying to download file|`github_pat_xxxxxxxxxxxx`|No|
 |-s|Zabbix Server IP to send results to|`127.0.0.1`|No|
 |-d|Zabbix Hostname which template is linked|`myAgent`|No|
 |--psk|The PSK needed to authenticate the agent against the server|`4DfD7fA90000000000000...00000000000`|No|
 |--psk-id|Id of PSK encrypted host.|`myAgent`|No|
-|--log-stdout|Logs not only go into log file but also printed to console while script is executing. Fur debug reaons||No|
+|--log-stdout|Logs not only go into log file `log/dm.log` but also printed to console while script is executing. Fur debug reaons||No|
 |-v|Verbose. Debug output in log file and stdout||No|
 
 

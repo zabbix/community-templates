@@ -1,4 +1,4 @@
-Zabbix.log(4, 'Starting DM discovery for cert checks...');
+Zabbix.log(4, 'Starting Domain Monitor discovery...');
 
 // init return
 var result = {};
@@ -21,7 +21,7 @@ try {
 
 } catch (error) {
     Zabbix.log(4, 'DM error fetching domains: ' + error);
-    result = { "error": error };
+    result = { "Error downloading file": String(error) };
 }
 
 try {
@@ -55,7 +55,8 @@ try {
 
 } catch (error) {
     Zabbix.log(4, 'DM error parsing domains: ' + error);
-    result = { "error": error };
+    Zabbix.log(4, 'File contents downloaded: ' + file_contents);
+    result = { "Error parsing file" : String(error) };
 }
 
 
