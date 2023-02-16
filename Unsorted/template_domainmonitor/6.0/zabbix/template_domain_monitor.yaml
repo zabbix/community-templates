@@ -1,0 +1,367 @@
+zabbix_export:
+  version: '6.2'
+  date: '2023-02-06T18:56:38Z'
+  template_groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: 08f6fa02728b44f4a6f693c5bf07fd67
+      template: 'Template DomainMonitor'
+      name: 'Template DomainMonitor'
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: 92e7d1f488904a6e95d7cf3cff99b67a
+          name: 'Percent Certificates Trusted'
+          type: TRAP
+          key: dm.percent_cert_trusted
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: 'Percent of all enabled cert checks trusted certificates'
+          tags:
+            -
+              tag: DomainMonitor
+              value: Metrics
+        -
+          uuid: 88aae221f2c64d16bace61184d25fe81
+          name: 'Percent Domains with DMARC'
+          type: TRAP
+          key: dm.percent_dmarc_present
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: 'Percent of DNS check enabled domains with valid DMARC entry'
+          tags:
+            -
+              tag: DomainMonitor
+              value: Metrics
+        -
+          uuid: cc3aaf153b7547679672270ecd3e58cf
+          name: 'Percent Domains with DNSSEC'
+          type: TRAP
+          key: dm.percent_dnssec_enabled
+          delay: '0'
+          units: '%'
+          description: 'Percent of DNS Check enabled domains with DNSSEC enabled'
+          tags:
+            -
+              tag: DomainMonitor
+              value: Metrics
+        -
+          uuid: f5ee74a195224b62b83f6042a7651f5b
+          name: 'Percent Domains with SPF'
+          type: TRAP
+          key: dm.percent_spf_present
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: 'Percentage of all DNS check enabled domains with valid SPF entry'
+          tags:
+            -
+              tag: DomainMonitor
+              value: Metrics
+        -
+          uuid: ede15ffbc8d74e3eac90f2b42991d1b2
+          name: 'Execute DomainMonitor Script'
+          key: 'dm.sh[{$DM_DOMAIN_FILE},{$DM_GIT_TOKEN},{$DM_ZABBIX_SRV},{$DM_ZABBIX_HOST},{$DM_ZABBIX_PSK},{$DM_ZABBIX_PSK_ID}]'
+          delay: 12h
+          history: 10d
+          trends: '0'
+          value_type: TEXT
+          description: 'Executes DomainMonitor Script on Zabbix Server'
+          tags:
+            -
+              tag: DomainMonitor
+              value: control
+      discovery_rules:
+        -
+          uuid: b90deeaa37344f01a195b8b078e8ef8f
+          name: 'DomainMonitor discovery'
+          type: SCRIPT
+          key: dm.discover
+          delay: 60m
+          params: |
+            Zabbix.log(4, 'Starting Domain Monitor discovery...');
+            
+            // init return
+            var result = {};
+            var file_contents;
+            
+            try {
+            
+                // get parameters from Zabbix Server Template
+                var params = JSON.parse(value);
+                Zabbix.log(4, 'Getting domain file from ' + params['DM_DOMAIN_FILE']);
+            
+                // Prepare http request with needed headers / auth for github
+                var req = new HttpRequest();
+                req.addHeader('Accept: application/vnd.github.raw+json');
+                req.addHeader('Authorization: Bearer ' + params['DM_GIT_TOKEN']);
+                req.addHeader('User-Agent: Zabbix Script API');
+            
+                // get content of file
+                file_contents = req.get(params['DM_DOMAIN_FILE']);
+            
+            } catch (error) {
+                Zabbix.log(4, 'DM error fetching domains: ' + error);
+                result = { "Error downloading file": String(error) };
+            }
+            
+            try {
+                Zabbix.log(4, 'Parsing domain file...');
+                var result_json = JSON.parse(file_contents);
+            
+                // create domain entry for each domain in json file
+                var domainList = result_json.domains;
+                result = [];
+                for (var i = 0; i < domainList.length; i++) {
+                    var entry = {};
+                    if (domainList[i].cert_checks) {
+                        entry = {
+                            "{#DM_CERTCHECK_DOMAIN_NAME}": domainList[i].domain,
+                            "{#DM_CERTCHECK_DOMAIN_DESC}": domainList[i].description,
+                        }
+                        result.push(entry);
+                    }
+                    if (domainList[i].dns_checks) {
+                        entry = {
+                            "{#DM_DNSCHECK_DOMAIN_NAME}": domainList[i].domain,
+                            "{#DM_DNSCHECK_DOMAIN_DESC}": domainList[i].description,
+                        }
+                        result.push(entry);
+                    }
+                    else {
+                        Zabbix.log(4, 'Domain ' + domainList[i].domain + ' not enabled for any checks. Not adding.');
+                    }
+                }
+            
+            
+            } catch (error) {
+                Zabbix.log(4, 'DM error parsing domains: ' + error);
+                Zabbix.log(4, 'File contents downloaded: ' + file_contents);
+                result = { "Error parsing file" : String(error) };
+            }
+            
+            
+            return JSON.stringify(result);
+          lifetime: 1h
+          description: |
+            Discovers domain definitions from file in {DM_DOMAIN_FILE} URL and adds items for domains as trapper-items.
+            
+            This does not execute the check for domains itself!
+          item_prototypes:
+            -
+              uuid: f1ec1184706d450aa7da8bc8a1fb7b58
+              name: '{#DM_CERTCHECK_DOMAIN_NAME} Certificate Expire Days'
+              type: TRAP
+              key: 'dm.cert_expire_days[{#DM_CERTCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              units: Days
+              description: 'SSL Certificate valid days until expire for {#DM_CERTCHECK_DOMAIN_NAME} ({#DM_CERTCHECK_DOMAIN_DESC})'
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: Cert_Checks
+              trigger_prototypes:
+                -
+                  uuid: f46c995909dc4496a6272dbd96ec3ffc
+                  expression: 'last(/Template DomainMonitor/dm.cert_expire_days[{#DM_CERTCHECK_DOMAIN_NAME}])<{$DM_CERT_EXPIRE_WARN_DAYS}'
+                  name: '{#DM_CERTCHECK_DOMAIN_NAME} Cert expires < {$DM_CERT_EXPIRE_WARN_DAYS} Days'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: '{#DM_CERTCHECK_DOMAIN_NAME} Certificate expires in {ITEM.LASTVALUE1} days'
+                  tags:
+                    -
+                      tag: DomainMonitor
+                      value: Cert_Checks
+            -
+              uuid: dab37eb5f5224d70a4f4d33f47d59a85
+              name: '{#DM_CERTCHECK_DOMAIN_NAME} Certificate Issuer'
+              type: TRAP
+              key: 'dm.cert_issuer[{#DM_CERTCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Certificate Issuer of Hostname {#DM_CERTCHECK_DOMAIN_NAME} ({#DM_CERTCHECK_DOMAIN_DESC})'
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: Cert_Checks
+              trigger_prototypes:
+                -
+                  uuid: bdd75ea96bff4cddbd6cff916d42ed8b
+                  expression: '(last(/Template DomainMonitor/dm.cert_issuer[{#DM_CERTCHECK_DOMAIN_NAME}],#1)<>last(/Template DomainMonitor/dm.cert_issuer[{#DM_CERTCHECK_DOMAIN_NAME}],#2))=1'
+                  name: '{#DM_CERTCHECK_DOMAIN_NAME} Cert Issuer changed'
+                  priority: AVERAGE
+                  description: 'Issuer of Domain {#DM_CERTCHECK_DOMAIN_NAME} has changed since last check!'
+                  tags:
+                    -
+                      tag: DomainMonitor
+                      value: Cert_Checks
+            -
+              uuid: ff2f06413e3e48e3b22abe3ca1d18572
+              name: '{#DM_CERTCHECK_DOMAIN_NAME} Certificate Trust'
+              type: TRAP
+              key: 'dm.cert_trusted[{#DM_CERTCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Cert of {#DM_CERTCHECK_DOMAIN_NAME} is trusted by browsers'
+              preprocessing:
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'True'
+                    - Trusted
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'False'
+                    - 'Not Trusted'
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: Cert_Checks
+              trigger_prototypes:
+                -
+                  uuid: 66904362eed84deda92db1be1b8fe649
+                  expression: 'last(/Template DomainMonitor/dm.cert_trusted[{#DM_CERTCHECK_DOMAIN_NAME}])="Not Trusted"'
+                  name: '{#DM_CERTCHECK_DOMAIN_NAME} Cert Not Trusted'
+                  url: 'https://{#DM_CERTCHECK_DOMAIN_NAME}'
+                  priority: WARNING
+                  description: 'Certificate of Domain {#DM_CERTCHECK_DOMAIN_NAME} is not trusted by browsers.'
+                  tags:
+                    -
+                      tag: DomainMonitor
+                      value: Cert_Checks
+            -
+              uuid: 3653d368a46e4b8388e7970e27534d9c
+              name: '{#DM_DNSCHECK_DOMAIN_NAME} DMARC Status'
+              type: TRAP
+              key: 'dm.dmarc_present[{#DM_DNSCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Valid DMARC Entry was found for {#DM_DNSCHECK_DOMAIN_NAME} ({#DM_DNSCHECK_DOMAIN_DESC})'
+              preprocessing:
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'True'
+                    - Present
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'False'
+                    - 'Not Present'
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: DNS_Checks
+              trigger_prototypes:
+                -
+                  uuid: 3dc028093f244f51a6dc95b055ab55d1
+                  expression: 'last(/Template DomainMonitor/dm.dmarc_present[{#DM_DNSCHECK_DOMAIN_NAME}])="Not Present"'
+                  name: '{#DM_DNSCHECK_DOMAIN_NAME} No DMARC Record'
+                  priority: WARNING
+                  tags:
+                    -
+                      tag: DomainMonitor
+                      value: DNS_Checks
+            -
+              uuid: 2bf598ea268b45afaeb02b08d89f2e77
+              name: '{#DM_DNSCHECK_DOMAIN_NAME} DNSSEC Status'
+              type: TRAP
+              key: 'dm.dnssec_enabled[{#DM_DNSCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'DNSSEC Status for {#DM_DNSCHECK_DOMAIN_NAME} ({#DM_DNSCHECK_DOMAIN_DESC})'
+              preprocessing:
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'True'
+                    - Enabled
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'False'
+                    - Disabled
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: DNS_Checks
+            -
+              uuid: 4d6d5c5bae42442ebb40d958cc27d039
+              name: '{#DM_DNSCHECK_DOMAIN_NAME} SPF Status'
+              type: TRAP
+              key: 'dm.spf_present[{#DM_DNSCHECK_DOMAIN_NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Checks if SPF record present for {#DM_DNSCHECK_DOMAIN_NAME} ({#DM_DNSCHECK_DOMAIN_DESC})'
+              preprocessing:
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'True'
+                    - Present
+                -
+                  type: STR_REPLACE
+                  parameters:
+                    - 'False'
+                    - 'Not Present'
+              tags:
+                -
+                  tag: DomainMonitor
+                  value: DNS_Checks
+              trigger_prototypes:
+                -
+                  uuid: b72f8e4be04d4da59a27741babd36e66
+                  expression: 'last(/Template DomainMonitor/dm.spf_present[{#DM_DNSCHECK_DOMAIN_NAME}])="Not Present"'
+                  name: '{#DM_DNSCHECK_DOMAIN_NAME} No SPF Record'
+                  priority: WARNING
+                  tags:
+                    -
+                      tag: DomainMonitor
+                      value: DNS_Checks
+          parameters:
+            -
+              name: DM_GIT_TOKEN
+              value: '{$DM_GIT_TOKEN}'
+            -
+              name: DM_DOMAIN_FILE
+              value: '{$DM_DOMAIN_FILE}'
+      tags:
+        -
+          tag: Application
+          value: DomainMonitor
+      macros:
+        -
+          macro: '{$DM_CERT_EXPIRE_WARN_DAYS}'
+          value: '30'
+          description: 'When to trigger alert if cert is about to expire'
+        -
+          macro: '{$DM_DOMAIN_FILE}'
+          description: 'URL to file with domain definitions on webserver. Alternative: github URL to fetch (example: https://api.github.com/repos/<USER>/<REPO>/contents/domains.json'
+        -
+          macro: '{$DM_GIT_TOKEN}'
+          description: 'For private Github Repo add Token. This will be added to GET request when accessing file.'
+        -
+          macro: '{$DM_ZABBIX_HOST}'
+          description: 'Display name of Host which awaits the trapper item updates.'
+        -
+          macro: '{$DM_ZABBIX_PSK}'
+          description: 'If PSK-encryption used to communicate with agent: PSK of this Agent'
+        -
+          macro: '{$DM_ZABBIX_PSK_ID}'
+          description: 'If PSK-encryption used to communicate with agent: the ID used for this agent'
+        -
+          macro: '{$DM_ZABBIX_SRV}'
+          description: 'Server to send trapper item updates to. 127.0.0.1 when executed on Zabbix Server itself.'
