@@ -264,7 +264,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Cisco_LAG](Network_Devices/Cisco/template_lacp_ports_monitoring)
         * [Cisco_SG220-26P.xml](Network_Devices/Cisco/template_sg220-26)
         * [Cisco_SB_SG350XG-2F10](Network_Devices/Cisco/template_sg350xg-2f10)
-        * [Cisco WLC](Network_Devices/Cisco/template_cisco_WLC)
     * [Citrix_NetScaler](Network_Devices/Citrix_NetScaler)
         * [NetScaler](Network_Devices/Citrix_NetScaler/template_basics_plus_ha)
     * [D-Link](Network_Devices/D-Link)
