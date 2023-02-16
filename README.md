@@ -695,6 +695,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Printer Xerox WorkCentre 7346](Printers/Xerox/template_xerox_workcentre_7346)
         * [Printer Xerox WorkCentre 7525](Printers/Xerox/template_xerox_workcentre_7525)
         * [Printer Xerox WorkCentre 7855](Printers/Xerox/template_xerox_workcentre_7855)
+    * [Template Printer Universal SNMPv2](Printers/template_Universal_Printer)
     * [SNMP Device](Printers/template_dell_laserprinter)
     * [Printer HP LaserJet 5500](Printers/template_hp_lj_5500,_4700,_3600)
     * [Snmp_Impressora_LLD_VERSAO-0.1](Printers/template_impressora_lld_universal)
