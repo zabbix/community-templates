@@ -320,6 +320,7 @@ def check_dnssec_enabled(domain_name, metrics: DmMetrics):
     if (dnssec_enabled):
         l.info("DNSSEC enabled for %s", domain_name)
         check_result['dnssec_enabled'] = True
+        metrics.domains_dns_dnssec_enabled += 1
     else:
         l.debug("DNSSEC NOT enabled for %s", domain_name)
         check_result['dnssec_enabled'] = False
