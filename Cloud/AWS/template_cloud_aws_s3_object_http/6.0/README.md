@@ -2,7 +2,7 @@
 
 ## Overview
 
-For Zabbix version: 6.0 and higher
+For Zabbix version: 6.0.13 and higher
 
 The template to monitor AWS S3 bucket objects (size and last modification) by HTTP via Zabbix that works without any external scripts.
 
@@ -76,8 +76,11 @@ There are no template links in this template.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----|----|----|
-| | | | | |
-https://git.zabbix.com/projects/ZBX/repos/zabbix/browse/templates/cloud/AWS/aws_s3_http/README.md?at=refs%2Ftags%2F6.0.14
+|AWS S3: Failed to get S3 objects list |<p>-</p> |`length(last(/AWS S3 bucket objects by HTTP/aws.s3.get_objects.check))>0` |WARNING | |
+|AWS S3 Object: "{#KEY}" is oversized |<p>The object size is greater than {$AWS.S3.OBJECT.SIZE.MAX.INFO} bytes.</p> |`last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_size["{#KEY}"])>{$AWS.S3.OBJECT.SIZE.MAX.INFO}` |INFORMATION | |
+|AWS S3 Object: "{#KEY}" is undersized |<p>The object size is smaller than {$AWS.S3.OBJECT.SIZE.MIN.INFO} bytes.</p> |`last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_size["{#KEY}"])<{$AWS.S3.OBJECT.SIZE.MIN.INFO}` |INFORMATION | |
+|AWS S3 Object: ["{#KEY}"]: Last Modified |<p>The object has not been modified for more than {$AWS.S3.OBJECT.MODIFIED.MAX.INFO} days.</p> |`last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_modified["{#KEY}"])>{$AWS.S3.OBJECT.MODIFIED.MAX.INFO}` |INFORMATION | |
+
 
 ## Feedback
 
