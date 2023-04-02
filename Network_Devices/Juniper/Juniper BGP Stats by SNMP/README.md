@@ -5,6 +5,8 @@
 
 This template uses SNMP-LLD to generate monitoring items that collect BGP neighbor-related information, including neighbor state, the number of route entries received, and other data.
 
+Template is made in version 6.4, which theoretically supports zabbix 5.4 or higher, try to modify the version field if you have problems with importing.
+
 ### Author
 change4826
 
