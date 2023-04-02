@@ -5,7 +5,7 @@ This template uses SNMP-LLD to generate monitoring items that collect BGP neighb
 ### Features
 
 1. Supports IPv4/IPv6 BGP neighbors.
-2. Uses preprocessing to handle IPv4/IPv6 address hex to text parsing, abbreviation, and other functions.
+2. Uses preprocessing to handle IPv4/IPv6 address hex to text parsing, abbreviation.
 
 ### Monitoring Items
 
