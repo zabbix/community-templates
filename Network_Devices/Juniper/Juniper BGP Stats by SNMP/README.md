@@ -5,6 +5,9 @@
 
 This template uses SNMP-LLD to generate monitoring items that collect BGP neighbor-related information, including neighbor state, the number of route entries received, and other data.
 
+### Author
+change4826
+
 ### Features
 
 1. Supports IPv4/IPv6 BGP neighbors.
