@@ -18,7 +18,7 @@ This template uses SNMP-LLD to generate monitoring items that collect BGP neighb
 
 ### Triggers
 
-1. Peer State: A trigger based on neighbor adjacency status, set as unclassified and can be freely adjusted as needed.
+1. Peer State: A base trigger on neighbor adjacency status, set as unclassified level and can be freely adjusted as needed.
 2. PrefixesAccepted: Triggered when the latest value is not 0 and greater than 100, and the change interval of the latest value is greater than 40% (set in {$DIFF_RATIO}) compared to the change interval at the same time the previous day.
 
 ### Macros
@@ -29,12 +29,12 @@ This template uses SNMP-LLD to generate monitoring items that collect BGP neighb
 ### LLD filters
 
 - {$IGNORE_ASN}: Defines the range or individual Autonomous System Numbers to be ignored.
-- {#PEEREMOTEADDR}: Optional, this template macro can be used to filter individual peers if needed.
+- {#PEEREMOTEADDR}: Optional, this LLD macro can be used to filter individual peers if needed.
 - {#PEERSTATE}: Only considers adjacency with an established=6 state.
 
 ### Other Suggestions
 
-- It is recommended to set trigger dependency chains: PrefixesAccepted->Peer State->other Juniper Device template triggers such as High ICMP ping loss/High ICMP ping response time/Unavailable by ICMP ping/No SNMP data collection.
+- It is recommended to set trigger dependency chains: PrefixesAccepted->Peer State->other Juniper Device template triggers such as **High ICMP ping loss/High ICMP ping response time/Unavailable by ICMP ping/No SNMP data collection**.
 - Be sure to test and make good use of LLD filters before deploying in a production environment.
 - If you encounter a Zabbix error snmp_parse_oid() during testing, you may need to add mibs -BGP4-V2-MIB-JUNIPER in /etc/snmp/snmp.conf to cancel the parsing of mib-jnx-bgpmib2.txt, or move mib-jnx-bgpmib2.txt out of the corresponding snmp-mib-path directory.
 - Tested on MX series such as MX960, MX480, MX240, etc. Other QFX51 series are also applicable, and Junos versions 12-20 are compatible.
