@@ -1,4 +1,7 @@
-## Introduction
+
+# Juniper BGP Stats by SNMP
+
+## Overview
 
 This template uses SNMP-LLD to generate monitoring items that collect BGP neighbor-related information, including neighbor state, the number of route entries received, and other data.
 
@@ -7,7 +10,7 @@ This template uses SNMP-LLD to generate monitoring items that collect BGP neighb
 1. Supports IPv4/IPv6 BGP neighbors.
 2. Uses preprocessing to handle IPv4/IPv6 address hex to text parsing, abbreviation.
 
-### Monitoring Items
+### Items
 
 1. Peer State: Represents the adjacency state of BGP neighbors.
 2. PrefixesAccepted count: Represents the number of route entries received from specific neighbors and accepted after policy filtering.
@@ -23,7 +26,7 @@ This template uses SNMP-LLD to generate monitoring items that collect BGP neighb
 1. {$DIFF_RATIO}: Used in triggers to define the change ratio of PrefixesAccepted, for example, 0.4 represents 40%.
 2. {$ACCEPT_MIN}: Used in triggers to define the minimum value of PrefixesAccepted count received.
 
-### Auto-discovery Filters
+### LLD filters
 
 - {$IGNORE_ASN}: Defines the range or individual Autonomous System Numbers to be ignored.
 - {#PEEREMOTEADDR}: Optional, this template macro can be used to filter individual peers if needed.
