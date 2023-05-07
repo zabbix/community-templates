@@ -13,10 +13,10 @@ with open(".\\Power_(UPS)\\Eaton\\Eaton_93PS\\6.4\\template_eaton_93ps.yaml",enc
   for l in res:
     print ('|'+l[0]+"|<p>-</p>|`"+l[1]+"`|"+ l[3]+"<p>Update: "+ l[4] +"</p>|")
   
-  print("|Name|Description|\n|----|-----------|\n")
+  print("|Name|Description|\n|----|-----------|")
 
   for l in res2:
-    print ('|'+l[2]+"|"+l[1]+"|\n")
+    print ('|'+l[2]+"|"+l[1]+"|")
   
 
   

@@ -107,28 +107,15 @@ There are no discovery rules in this template.
 
 |Name|Description|
 |----|-----------|
-
 |'NO ELECTRICITY on {HOST.NAME}'|last(/Eaton 93PS/UPS-ACNormal-Voltage,#1:now-0)<120|
-
 |'UPS Battery Charger Fault on {HOST.NAME}'|last(/Eaton 93PS/UPS-BatteryChargerFault)=1|
-
 |'UPS Battery Fault on {HOST.NAME}'|last(/Eaton 93PS/UPS-BatteryFaultBattery)=1|
-
 |'LESS than 20 minutest battery remaining on {HOST.NAME}'|last(/Eaton 93PS/UPS-BatteryMinutesRemaining,#1:now-0)<20|
-
 |'Humidity is to High on {HOST.NAME}'|last(/Eaton 93PS/UPS-Humidity-High)=1|
-
 |'Humidity is to Low on {HOST.NAME}'|last(/Eaton 93PS/UPS-Humidity-Low)=1|
-
 |'SERVER room is powered by UPS Battery on {HOST.NAME}'|last(/Eaton 93PS/UPS-OutputPowerSource)=1|
-
 |'Temperature is to High'|last(/Eaton 93PS/UPS-Temperature-High)=1|
-
 |'Temperature is to Low'|last(/Eaton 93PS/UPS-Temperature-Low)=1|
-
 |'Temperature is above 28C on {HOST.NAME}'|last(/Eaton 93PS/UPS-TemperatureLevel)>28|
-
 |'alarm on UPS'|last(/Eaton 93PS/upsAlarmsPresent.0)>0|
-
 |'UPS Test Elapsed Time more than 35 days'|last(/Eaton 93PS/upsTestElapsedTime.0)>35|
-
