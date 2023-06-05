@@ -48,9 +48,9 @@ No specific Zabbix configuration is required.
 |{$AWS.REGION} |<p>Amazon S3 Region code.</p> |`us-west-1` |
 |{$AWS.S3.BUCKET.NAME} |<p>S3 bucket name.</p> |`` |
 |{$AWS.SECRET.ACCESS.KEY} |<p>Secret access key.</p> |`` |
-|{$AWS.S3.OBJECT.MODIFIED.MAX.INFO} |<p>Maximum number of days an object can remain unchanged.</p> |`2` |
-|{$AWS.S3.OBJECT.SIZE.MAX.INFO} |<p>Maximum size in bytes an object can have.</p> |`31457280000` |
-|{$AWS.S3.OBJECT.SIZE.MIN.INFO} |<p>Minimum size in bytes an object can have.</p> |`5242880` |
+|{$AWS.S3.OBJECT.MODIFIED.MAX.WARN} |<p>Maximum number of days an object can remain unchanged.</p> |`2` |
+|{$AWS.S3.OBJECT.SIZE.MAX.WARN} |<p>Maximum size in bytes an object can have.</p> |`31457280000` |
+|{$AWS.S3.OBJECT.SIZE.MIN.WARN} |<p>Minimum size in bytes an object can have.</p> |`5242880` |
 
 
 ## Template links
