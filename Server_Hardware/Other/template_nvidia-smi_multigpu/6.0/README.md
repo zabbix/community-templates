@@ -65,6 +65,7 @@ Items for each GPU found
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
 |Driver version changed|The driver version has changed|<p>change(/Nvidia Multi-GPU/gpu.driver_version)<>0</p>|`Information`|
-|GPU {#ID} Temperature is extremely high|The temperature of the GPU is very high. Possibility of failure|last(/Nvidia Multi-GPU/gpu.temperature.[{#ID}])>=80|`Disaster`|
-|GPU {#ID} Temperature is high|Temperature of the graphics processor is high|<p>last(/Nvidia Multi-GPU/gpu.temperature.[{#ID}])>=65</p><p>**Dependencies**: GPU {#ID} Temperature is extremely high</p>|`Average`|
-|Problem with the fan|Fan does not spin when GPU is hot|last(/Nvidia Multi-GPU/gpu.fan.[{#ID}])=0 and last(/Nvidia Multi-GPU/gpu.temperature.[{#ID}])>60|`Disaster`|
+|GPU {#GPUID} Temperature is extremely high|The temperature of the GPU is very high. Possibility of failure|last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=80|`High`|
+|GPU {#GPUID} Temperature is high|Temperature of the graphics processor is high|<p>last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=65</p><p>**Dependencies**: GPU {#GPUID} Temperature is extremely high</p>|`Average`|
+|Problem with the fan|Fan does not spin when GPU is hot|last(/Nvidia Multi-GPU/gpu.fan.[{#GPUID}])=0 and last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>60|`High`|
+|Data retrieval error|Problem with data retrieval|nodata(/Nvidia Multi-GPU/gpu.driver_version,3m)=1|`Disaster`|
