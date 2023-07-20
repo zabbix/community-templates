@@ -57,7 +57,6 @@ Item prototypes for each GPU found
 |GPU {#GPUID} Power - {#NAME}|<p>Power consumption of the GPU</p>|`Dependent items`|gpu.power.[{#GPUID}]|
 |GPU {#GPUID} Memory Total - {#NAME}|<p>GPU memory capacity</p>|`Dependent items`|gpu.mtotal.[{#GPUID}]|
 |GPU {#GPUID} Memory Used - {#NAME}|<p>The amount of GPU memory used</p>|`Dependent items`|gpu.mused.[{#GPUID}]|
-|GPU {#GPUID} Memory Free - {#NAME}|<p>Amount of free GPU memory</p>|`Dependent items`|gpu.mfree.[{#GPUID}]|
 |GPU {#GPUID} Utilization - {#NAME}|<p>GPU utilisation</p>|`Dependent items`|gpu.utilization.[{#GPUID}]|
 |GPU {#GPUID} Temperature - {#NAME}|<p>GPU Temperature</p>|`Dependent items`|gpu.temperature.[{#GPUID}]|
 |GPU {#GPUID} Fan Speed - {#NAME}|<p>GPU Fan Speed</p>|`Dependent items`|gpu.fan.[{#GPUID}]|
@@ -67,7 +66,7 @@ Item prototypes for each GPU found
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
 |Driver version changed|The driver version has changed|<p>change(/Nvidia Multi-GPU/gpu.driver_version)<>0</p>|`Information`|
-|GPU {#GPUID} Temperature is extremely high|The temperature of the GPU is very high. Possibility of failure|last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=80|`High`|
-|GPU {#GPUID} Temperature is high|Temperature of the graphics processor is high|<p>last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=65</p><p>**Dependencies**: GPU {#GPUID} Temperature is extremely high</p>|`Average`|
-|Problem with the fan|Fan does not spin when GPU is hot|last(/Nvidia Multi-GPU/gpu.fan.[{#GPUID}])=0 and last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>60|`High`|
+|GPU {#GPUID} Temperature is extremely high|The temperature of the GPU is very high. Possibility of failure|last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=85|`High`|
+|GPU {#GPUID} Temperature is high|Temperature of the graphics processor is high|<p>last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>=80</p><p>**Dependencies**: GPU {#GPUID} Temperature is extremely high</p>|`Average`|
+|Problem with the fan|Fan does not spin when GPU is hot|last(/Nvidia Multi-GPU/gpu.fan.[{#GPUID}])=0 and last(/Nvidia Multi-GPU/gpu.temperature.[{#GPUID}])>70|`High`|
 |Error receiving data for GPU {#GPUID}|Problem with data retrieval|nodata(/Nvidia Multi-GPU/gpu.utilization.[{#GPUID}],3m)=1|`Disaster`|
