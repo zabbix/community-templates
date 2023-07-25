@@ -304,20 +304,23 @@ If you done all right now it auto discover all Unifi Dream Machine, Unifi Switch
 
 ## Unifi USW: Macros
 
-| Name                                    | Description                                           | Default | Required | Type      |
-| --------------------------------------- | ----------------------------------------------------- | ------- | -------- | --------- |
-| {$UNIFI.CPU.USAGE.HIGH}                 | Cpu % High Trigger threshold                          | `90`    | `true`   | `numeric` |
-| {$UNIFI.CPU.USAGE.HIGH.SEC}             | Cpu High Trigger Avg threshold in seconds             | `900`   | `true`   | `numeric` |
-| {$UNIFI.CPU.USAGE.WARNING}              | Cpu % Warning Trigger threshold                       | `80`    | `true`   | `numeric` |
-| {$UNIFI.CPU.USAGE.WARNING.SEC}          | Cpu Warning Trigger Avg threshold in seconds          | `900`   | `true`   | `numeric` |
-| {$UNIFI.IP}                             | Unifi Ip                                              | `-`     | `true`   | `text`    |
-| {$UNIFI.MEMORY.USAGE.HIGH}              | Memory % High Trigger threshold                       | `90`    | `true`   | `numeric` |
-| {$UNIFI.MEMORY.USAGE.HIGH.SEC}          | Memory High Trigger Avg threshold in seconds          | `900`   | `true`   | `numeric` |
-| {$UNIFI.MEMORY.USAGE.WARNING}           | Memory % Warning Trigger threshold                    | `80`    | `true`   | `numeric` |
-| {$UNIFI.MEMORY.USAGE.WARNING.SEC}       | Memory Warning Trigger Avg threshold in seconds       | `900`   | `true`   | `numeric` |
-| {$UNIFI.PASSWORD}                       | Unifi View Only Password                              | `-`     | `true`   | `numeric` |
-| {$UNIFI.USW.MAC}                        | UNIFI USW Macaddress                                  | `-`     | `true`   | `text`    |
-| {$UNIFI.USERNAME}                       | Unifi View Only Username                              | `-`     | `true`   | `numeric` |
+| Name                                    | Description                                           | Default                            | Required | Type      |
+| --------------------------------------- | ----------------------------------------------------- | ---------------------------------- | -------- | --------- |
+| {$UNIFI.CPU.USAGE.HIGH}                 | Cpu % High Trigger threshold                          | `90`                               | `true`   | `numeric` |
+| {$UNIFI.CPU.USAGE.HIGH.SEC}             | Cpu High Trigger Avg threshold in seconds             | `900`                              | `true`   | `numeric` |
+| {$UNIFI.CPU.USAGE.WARNING}              | Cpu % Warning Trigger threshold                       | `80`                               | `true`   | `numeric` |
+| {$UNIFI.CPU.USAGE.WARNING.SEC}          | Cpu Warning Trigger Avg threshold in seconds          | `900`                              | `true`   | `numeric` |
+| {$UNIFI.IP}                             | Unifi Ip                                              | `-`                                | `true`   | `text`    |
+| {$UNIFI.MEMORY.USAGE.HIGH}              | Memory % High Trigger threshold                       | `90`                               | `true`   | `numeric` |
+| {$UNIFI.MEMORY.USAGE.HIGH.SEC}          | Memory High Trigger Avg threshold in seconds          | `900`                              | `true`   | `numeric` |
+| {$UNIFI.MEMORY.USAGE.WARNING}           | Memory % Warning Trigger threshold                    | `80`                               | `true`   | `numeric` |
+| {$UNIFI.MEMORY.USAGE.WARNING.SEC}       | Memory Warning Trigger Avg threshold in seconds       | `900`                              | `true`   | `numeric` |
+| {$UNIFI.PASSWORD}                       | Unifi View Only Password                              | `-`                                | `true`   | `numeric` |
+| {$UNIFI.USW.MAC}                        | UNIFI USW Macaddress                                  | `-`                                | `true`   | `text`    |
+| {$UNIFI.USERNAME}                       | Unifi View Only Username                              | `-`                                | `true`   | `numeric` |
+| {$UNIFI.API.AUTH.URI}                   | Unifi API Authentication route                        | `api/auth/login`                   | `true`   | `text`    |
+| {$UNIFI.API.AUTH.TOKEN}                 | Unifi API Authentication cookie name                  | `TOKEN`                            | `true`   | `text`    |
+| {$UNIFI.API.URI}                        | Unifi API route                                       | `proxy/network/api/s/default/stat` | `true`   | `text`    |
 
 ## Unifi USW: Discovery rules
 
