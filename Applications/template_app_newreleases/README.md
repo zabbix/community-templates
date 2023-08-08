@@ -4,10 +4,13 @@ Checks newreleases.io for software updates you're subscribed too
 Todd Blake
 # Requirements:
 * Zabbix version 6.4 or later
-* Pi-Hole
+* A newreleases.io account and API key
 # Installation:
-1. Import the Template_App_PiHole_Updates.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
-2. Set the {$WEBPASSWORD} macro to your pihole API key.
+1. Import the Template_App_Newreleases.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host
+2. Sign up for an account at newrelease.io.
+3. Generate an API key and copy it into the {$APIKEY} macro
+4. Subscribe to software releases you're interested in on newreleases.io
+
 ## Macros used
 
 |Macro|Default Value|Description|
