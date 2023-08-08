@@ -801,7 +801,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [IPMI ASUS ASMB4](Server_Hardware/Other/template_ipmi_asus_asmb4-ikvm_asmb4-sol)
         * [MD Soft RAID](Server_Hardware/Other/template_md_raid)
         * [NVidia Sensors](Server_Hardware/Other/template_nvidia-smi_integration)
-        * [NVidia MultiGPU](Server_Hardware/Other/template_nvidia-smi_multigpu)
         * [SNMP XSCF Sun M5000](Server_Hardware/Other/template_snmp_sun_m5000_xscf)
         * [Sensors D2500CC](Server_Hardware/Other/template_zabbix-agent_d2500cc)
         * [Sensors DN2800MT](Server_Hardware/Other/template_zabbix-agent_dn2800mt)
