@@ -674,7 +674,6 @@ This repository is dedicated to templates that are created and maintained by Zab
     * [Samsung](Printers/Samsung)
         * [impressoras SIMPRESS](Printers/Samsung/template_monitorar_niveis_de_toner)
         * [Printer Samsung CLP](Printers/Samsung/template_printer_samsung_clp)
-        * [Samsung Xpress SL-C480W](Printers/Samsung/samsung_xpress_sl_c480w)
         * [SAMSUNG](Printers/Samsung/template_samsung-impressora_snmp)
         * [M2020W](Printers/Samsung/template_samsung_m2020w)
         * [Printer Samsung M Series](Printers/Samsung/template_samsung_m_series)
