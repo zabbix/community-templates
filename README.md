@@ -489,6 +489,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Module Linux systemd by Zabbix agent 2](Operating_Systems/Linux/template_systemd_service_monitoring_via_zabbix_agent_2_(native_discovery))
         * [SNMP UCD Disk](Operating_Systems/Linux/template_ucd_disks_monitoring)
         * [ZFS on Linux](Operating_Systems/Linux/template_zfs_on_linux)
+        * [Template Module Zypper updateinfo by Zabbix trapper](Operating_Systems/Linux/template_zypper_updateinfo)
     * [Mac_OS](Operating_Systems/Mac_OS)
         * [macOS Content Cache](Operating_Systems/Mac_OS/template_macos_content_caching)
     * [VMWare](Operating_Systems/VMWare)
