@@ -17,7 +17,9 @@ zabbix-mesos queries the Observability metrics endpoint, as it's described in [O
 
 1. Import global Zabbix Template (zabbix-mesos-via-http.xml) into your Zabbix server.
 2. Create or import hosts identifying your Mesos cluster masters.
-3. Assign 'Template App Mesos Master via HTTP' template to Mesos masters
+3. Create or import hosts identifying your Mesos cluster agents.
+4. Assign 'Template App Mesos Master via HTTP' template to Mesos masters
+5. Assign 'Template App Mesos Master via HTTP' template to Mesos agents
 
 
 ### Templates
@@ -31,7 +33,7 @@ The global export (zabbix-mesos-master.xml) contains following templates:
 | Templates | Description |
 | --- | --- |
 | Template App Mesos Master via HTTP | Template applied to the Mesos masters. |
-| Template App Mesos Agent via HTTP | Template applied to the Mesos masters. |
+| Template App Mesos Agent via HTTP | Template applied to the Mesos agents. |
 
 
 ### Licenses
