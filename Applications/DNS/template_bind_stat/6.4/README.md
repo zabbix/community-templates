@@ -3,6 +3,9 @@
 ## Overview
 
 **Requirements**  
+
+Instead xml2 command, which was used in previous template version, which is not present at EL8 and newer RHEL based systems this template uses jq command and parses directly Json output of Bind statistic-channels. Added more values, Graphs and Dashboard.
+
  Bind Server 9 and above  
  Zabbix Server 4+ and above  
  Zabbix Agent on monitored host
