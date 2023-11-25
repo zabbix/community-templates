@@ -79,7 +79,7 @@ There are no discovery rules in this template.
 ## Triggers
 
 |Name|Description|Expression|Recovery Expression|Severity|Dependencies and additional info|
-|----|-----------|----------|--------|--------------------------------|
+|----|-----------|----------|--------------------|--------|--------------------------------|
 |BIND: Port not opened (UDP 53) at {HOST.HOST}||`min(/DNS-bind stat jq/net.udp.listen[53],#3)<>1`|`min(/DNS-bind stat jq/net.udp.listen[53],#10)=1`|Disaster||
 
 
