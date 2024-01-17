@@ -1,4 +1,4 @@
-# Printer Xerox WorkCentre 3325
+# Printer Xerox WorkCentre 3345
 
 ## Macros used
 
