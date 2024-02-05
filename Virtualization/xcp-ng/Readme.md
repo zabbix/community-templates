@@ -33,6 +33,8 @@ Thorsten Liepert
 |----|-----------|-------|
 |{$XOA.AUTH.TOKEN}|<p>authentication token for XenOrchestra API</p>||
 |{$XOA.URL}|<p>URL to XenOrchestra (https://xen.mydomain.com)</p>||
+|{$XOA.SR.THRESHOLD.CRIT}|<p>Critical threshold for storage repository usage in percent</p>||
+|{$XOA.SR.THRESHOLD.WARN}|<p>Warning threshold for storage repository usage in percent</p>||
 
 ## Feedback
 
