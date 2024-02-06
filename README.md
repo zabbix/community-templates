@@ -188,6 +188,7 @@ This repository is dedicated to templates that are created and maintained by Zab
     * [Sinal SFP Mikrotik](Databases/template_coleta_sinal_sfp_mikrotik)
     * [Elasticsearch Cluster by HTTP zbx 4.2](Databases/template_elasticsearch_cluster_by_http_for_zabbix_4.2+)
     * [Postgres ODBC](Databases/template_postgres_odbc_database_monitoring)
+    * [Patroni](Database/template_patroni)
     * [Banco Progress Datasul](Databases/template_progress_datasul_totvs)
     * [App Nutcracker](Databases/template_twemproxy_(nutcracker))
 * [Network_Appliances](Network_Appliances)
