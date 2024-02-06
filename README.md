@@ -772,7 +772,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [H3C_basic_monitoring](Server_Hardware/H3C/template_for_h3c_hdm_1.30.x)
         * [H3C_basic_momitoring_G2](Server_Hardware/H3C/template_for_h3c_r4900_g2)
         * [H3C_RackServer_monitor](Server_Hardware/H3C/template_h3c_rackserver_monitor)
-        * [H3C_server_G3G5_basic_monitoring](Server_Hardware/H3C/template_h3c_server_G3G5_monitor)
+        * [H3C_server_basic_monitoring](Server_Hardware/H3C/template_h3c_server_monitor)
     * [HP](Server_Hardware/HP)
         * [IPMI HP DL360p Gen8](Server_Hardware/HP/template_dl360p_gen8)
         * [bl7000_EN](Server_Hardware/HP/template_hp_c7000_chassis)
