@@ -54,7 +54,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Bind queries](Applications/DNS/template_bind_recursive_queries)
         * [DNS-bind](Applications/DNS/template_bind_stat)
         * [Knot Resolver Statistics](Applications/DNS/template_knot_resolver)
-        * [Merox](Applications/DNS/template_merox)
         * [net.dns.perf](Applications/DNS/template_net.dns.perf)
         * [pihole-FTL over zabbix active agent](Applications/DNS/template_pihole_daemon_check)
     * [Excel_Export](Applications/Excel_Export)
