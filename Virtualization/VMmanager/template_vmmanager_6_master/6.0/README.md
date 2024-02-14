@@ -2,7 +2,7 @@
 
 ## Overview
 
-Version: 2021-12-29
+Version: 2024-02-14
 
 Template for monitoring VMmanager 6 master server
 It will discover hosts from VM6, if you enable it
@@ -42,6 +42,7 @@ There are no template links in this template.
 |Task {#NAME} {#ID} waiting time|<p>VMmanager 6 task waiting time</p>|`Depended item`|`tasks.task[{#ID}, waiting]`|
 |Node {#NODE_ID} {#NODE_NAME} API status|<p>API request for node status from VMmanager 6</p>|`HTTP agent`|`node[{#NODE_ID},api_status]`<p>Update: 1m</p>|
 |Node {#NODE_ID} {#NODE_NAME} bird error|<p>VMmanager 6 bird error message</p>|`Depended item`|`node[{#NODE_ID}, bird_error]`|
+|Node {#NODE_ID} {#NODE_NAME} frr error|<p>VMmanager 6 frr error message</p>|`Depended item`|`node[{#NODE_ID}, frr_error]`|
 |Node {#NODE_ID} {#NODE_NAME} cpu used|<p>Allocated cpu cores for VM on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, cpu_used]`|
 |Node {#NODE_ID} {#NODE_NAME} ha error|<p>VMmanager 6 node HA error message</p>|`Depended item`|`node[{#NODE_ID}, ha_error]`|
 |Node {#NODE_ID} {#NODE_NAME} ha state|<p>VMmanager 6 node HA state</p>|`Depended item`|`node[{#NODE_ID}, ha_state]`|
@@ -55,7 +56,6 @@ There are no template links in this template.
 |Node {#NODE_ID} {#NODE_NAME} vm active|<p>Active vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_active]`|
 |Node {#NODE_ID} {#NODE_NAME} vm crashed|<p>Crashed vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_crashed]`|
 |Node {#NODE_ID} {#NODE_NAME} vm estimated|<p>Estimated vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_estimated]`|
-|Node {#NODE_ID} {#NODE_NAME} vm moving|<p>Moving vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_moving]`|
 |Node {#NODE_ID} {#NODE_NAME} vm stopped|<p>Stopped vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_stopped]`|
 |Node {#NODE_ID} {#NODE_NAME} vm total|<p>Total vm count on VMmanager 6 node</p>|`Depended item`|`node[{#NODE_ID}, vm_total]`|
 
@@ -68,6 +68,7 @@ There are no template links in this template.
 |Task {#NAME} {#ID} running over {$TASK_MAX_RUNNING} min|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/tasks.task[{#ID}, running])>{$TASK_MAX_RUNNING}*60</p><p>**Recovery expression**: </p>|warning|
 |Task {#NAME} {#ID} waiting over {$TASK_MAX_WAITING} min|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/tasks.task[{#ID}, waiting])>{$TASK_MAX_WAITING}*60</p><p>**Recovery expression**: </p>|warning|
 |Node {#NODE_ID} {#NODE_NAME} bird error|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/node[{#NODE_ID}, bird_error])<>""</p><p>**Recovery expression**: </p>|warning|
+|Node {#NODE_ID} {#NODE_NAME} frr error|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/node[{#NODE_ID}, frr_error])<>""</p><p>**Recovery expression**: </p>|warning|
 |Node {#NODE_ID} {#NODE_NAME} crashed VM > 0|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/node[{#NODE_ID}, vm_crashed])>0</p><p>**Recovery expression**: </p>|warning|
 |Node {#NODE_ID} {#NODE_NAME} HA error|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/node[{#NODE_ID}, ha_error])<>"no_error"</p><p>**Recovery expression**: </p>|warning|
 |Node {#NODE_ID} {#NODE_NAME} status is not Active|<p>-</p>|<p>**Expression**: last(/Template VMmanager 6 Master/node[{#NODE_ID}, status])<>"active"</p><p>**Recovery expression**: </p>|warning|
