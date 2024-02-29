@@ -1,5 +1,44 @@
 # ZFS on Linux
 
+## Installation
+
+To use the Zabbix ZFS on Linux template, you must first install a correctly configured userparams file on any machines running the zabbix agent and using ZFS.
+
+### Choosing the correct userparams file
+
+There should be two different user parameters files in the same directory as this README, `userparams_zol_without_sudo.conf` and `userparams_zol_with_sudo.conf`. One uses `sudo` to run and thus you must give Zabbix the correct rights and the other doesn't use `sudo`.
+
+On recent ZFS on Linux versions (version 0.7.0+), you don't need sudo to run `zpool list` or `zfs list` so you need to copy `userparams_zol_without_sudo.conf` into `/etc/zabbix/zabbix_agentd.d` or `/etc/zabbix/zabbix_agent2.d` if using zabbix-agent2.
+
+For older ZFS on Linux versions (eg version 0.6.x), you will need to add some sudo rights with the file `userparams_zol_with_sudo.conf`. On some distributions, ZoL already includes a suitable file with all the necessary rights at `/etc/sudoers.d/zfs` but its contents are commented out, you just need to remove the comments and any user will be able to list zfs datasets and pools. An example config might look like so:
+
+```
+## Allow read-only ZoL commands to be called through sudo
+## without a password. Remove the first '#' column to enable.
+##
+## CAUTION: Any syntax error introduced here will break sudo.
+##
+## Cmnd alias specification
+Cmnd_Alias C_ZFS = \
+  /sbin/zfs "", /sbin/zfs help *, \
+  /sbin/zfs get, /sbin/zfs get *, \
+  /sbin/zfs list, /sbin/zfs list *, \
+  /sbin/zpool "", /sbin/zpool help *, \
+  /sbin/zpool iostat, /sbin/zpool iostat *, \
+  /sbin/zpool list, /sbin/zpool list *, \
+  /sbin/zpool status, /sbin/zpool status *, \
+  /sbin/zpool upgrade, /sbin/zpool upgrade -v
+
+## allow any user to use basic read-only ZFS commands
+ALL ALL = (root) NOPASSWD: C_ZFS
+```
+
+If you don't know where your userparameters directory is, this is usually `/etc/zabbix/zabbix_agentd.d`. If in doubt, just look at your `zabbix_agentd.conf` file for the line begining by `Include=`.
+
+### Editing the userparams file
+
+The path used for the `zfs` and `zpool` binaries is different under almost every Linux distro, the paths aren't even the same for Debian and Ubuntu, as one notable example. For this reason you should run `which zfs` and `which zpool` on each ZFS machine you want to monitor with Zabbix to find out the correct paths to use to run these two binaries, then you need to edit the userparams file so that every instance of `zfs` and `zpool` is called using the correct path, if your distro's path doesn't match the path used in example userparams files.
+
 ## Macros used
 
 |Name|Description|Default|Type|
