@@ -398,6 +398,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Newtec](Network_Devices/Other/template_zabbix-newtecel470_satellite_modem)
     * [Palo_Alto](Network_Devices/Palo_Alto)
         * [Palo_Alto_Firewall](Network_Devices/Palo_Alto/template_palo_alto_firewall)
+        * [Palo Alto Firewall Dynamic Routing by HTTP](Network_Devices/Palo_Alto/template_palo_alto_firewall_dynamic_routing_by_http)
         * [Palo_Alto_PA200](Network_Devices/Palo_Alto/template_palo_alto_pa-200_pan-os_ver.6.0.x)
         * [Palo Alto SNMPv3 Auth Priv](Network_Devices/Palo_Alto/template_palo_alto_snmpv3)
         * [Palo Alto SNMPv2 64-bit counters](Network_Devices/Palo_Alto/template_palo_alto_with_64-bit_counters_(snmpv2))
