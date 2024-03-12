@@ -1,0 +1,430 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 264e9f322b9c40d4b20c869e602c625b
+      template: 'Palo Alto Firewall Dynamic Routing by HTTP'
+      name: 'Palo Alto Firewall Dynamic Routing by HTTP'
+      description: |
+        Monitor dynamic routing neighbors (OSPFv2, OSPFv3, and BGP) on a Palo Alto firewall using the XML API.
+        
+        Template requires the `{$PAN_API_KEY}` macro to be entered/overridden with an API key for a user on the firewall. A superuser can be used and will work, but if setting up a limited user with an Admin Role, make sure to include the [XML API / Operational Requests] permission in the Admin Role.
+        
+        Obtaining the API key from the firewall requires using the API. This can be done one of two ways:
+        
+        1.  Use your browser to obtain the API key: Copy the URL example below and replace it with the firewall's IP/hostname as well as the username and password of the user you want to use. You should get an XML response with the API key contained within. Copy the API key and override the {$PAN_API_KEY} macro for monitored hosts.
+            - Browser URL: `https://X.X.X.X/api/?type=keygen&user=SOMEUSER&password=SUPERSECRETPASSWORD`
+        
+        2.  Use CURL to query the firewall's API and obtain the API key: Copy the command example below and replace it with the firewall's IP/hostname as well as the username and password of the user you want to use. You should get an XML response with the API key contained within. Copy the API key and override the {$PAN_API_KEY} macro for monitored hosts.
+            - > Note: If your password uses special characters, you may need to escape them with backslashes.
+            - `curl -k -G -X GET "https://X.X.X.X/api/?type=keygen" --data-urlencode "user=SOMEUSER" --data-urlencode "password=SUPER\!SECRETPASSWORD"`
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 56992db2ef094271883e23907124bdf5
+          name: 'Get BGP Neighbors'
+          type: HTTP_AGENT
+          key: bgp.neighbors
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Retrieve list of BGP neighbors and their details'
+          preprocessing:
+            - type: XML_TO_JSON
+              parameters:
+                - ''
+            - type: STR_REPLACE
+              parameters:
+                - '-'
+                - _
+            - type: STR_REPLACE
+              parameters:
+                - '@'
+                - ''
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Convert the JSON output to an array for processing by discovery and items
+                  const data = JSON.parse(value)
+                  // If there are no neighbors (data.response.result is null)
+                  if (!data.response.result) {
+                    // Return an empty array
+                    return JSON.stringify([])
+                  // If result.entry is an array
+                  } else if (Array.isArray(data.response.result.entry)) {
+                    // Return it as is
+                    return JSON.stringify(data.response.result.entry)
+                  // If result.entry is a single object and not an array
+                  } else {
+                    // Return it as an array
+                    return JSON.stringify([data.response.result.entry])
+                  }
+          timeout: 10s
+          url: 'https://{HOST.CONN}/api/'
+          query_fields:
+            - name: type
+              value: op
+            - name: cmd
+              value: '<show><routing><protocol><bgp><peer></peer></bgp></protocol></routing></show>'
+            - name: key
+              value: '{$PAN_API_KEY}'
+        - uuid: f0525eae5e034e30915d8b222055cdc2
+          name: 'High-Availability State'
+          type: HTTP_AGENT
+          key: ha.state
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Retrieve the firewall''s HA state. Used to determine if triggers should fire for states of neighbors/adjacencies.'
+          preprocessing:
+            - type: XML_TO_JSON
+              parameters:
+                - ''
+            - type: STR_REPLACE
+              parameters:
+                - '-'
+                - _
+            - type: STR_REPLACE
+              parameters:
+                - '@'
+                - ''
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Convert the JSON output to a native JS objects
+                  const data = JSON.parse(value)
+                  // If the state info does not exist in the response
+                  if (!data.response.result.group.local_info.state) {
+                    // Return a friendly message
+                    return 'No HA'
+                  // If the state info does exist in the response
+                  } else {
+                    // Return it as a string
+                    return data.response.result.group.local_info.state
+                  }
+          timeout: 10s
+          url: 'https://{HOST.CONN}/api/'
+          query_fields:
+            - name: type
+              value: op
+            - name: cmd
+              value: '<show><high-availability><state></state></high-availability></show>'
+            - name: key
+              value: '{$PAN_API_KEY}'
+        - uuid: 24a849bbebcd442a98a618704600a8f8
+          name: 'Get OSPFv2 Neighbors'
+          type: HTTP_AGENT
+          key: ospfv2.neighbors
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Retrieve list of OSPFv2 neighbors and their details'
+          preprocessing:
+            - type: XML_TO_JSON
+              parameters:
+                - ''
+            - type: STR_REPLACE
+              parameters:
+                - '-'
+                - _
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Convert the JSON output to an array for processing by discovery and items
+                  const data = JSON.parse(value)
+                  // If there are no neighbors (data.response.result is null)
+                  if (!data.response.result) {
+                    // Return an empty array
+                    return JSON.stringify([])
+                  // If result.entry is an array
+                  } else if (Array.isArray(data.response.result.entry)) {
+                    // Return it as is
+                    return JSON.stringify(data.response.result.entry)
+                  // If result.entry is a single object and not an array
+                  } else {
+                    // Return it as an array
+                    return JSON.stringify([data.response.result.entry])
+                  }
+          timeout: 10s
+          url: 'https://{HOST.CONN}/api/'
+          query_fields:
+            - name: type
+              value: op
+            - name: cmd
+              value: '<show><routing><protocol><ospf><neighbor></neighbor></ospf></protocol></routing></show>'
+            - name: key
+              value: '{$PAN_API_KEY}'
+        - uuid: be4f67985ae241f8a8b3a42afa1f066e
+          name: 'Get OSPFv3 Neighbors'
+          type: HTTP_AGENT
+          key: ospfv3.neighbors
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Retrieve list of OSPFv3 neighbors and their details'
+          preprocessing:
+            - type: XML_TO_JSON
+              parameters:
+                - ''
+            - type: STR_REPLACE
+              parameters:
+                - '-'
+                - _
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Convert the JSON output to an array for processing by discovery and items
+                  const data = JSON.parse(value)
+                  // If there are no neighbors (data.response.result is null)
+                  if (!data.response.result) {
+                    // Return an empty array
+                    return JSON.stringify([])
+                  // If result.entry is an array
+                  } else if (Array.isArray(data.response.result.entry)) {
+                    // Return it as is
+                    return JSON.stringify(data.response.result.entry)
+                  // If result.entry is a single object and not an array
+                  } else {
+                    // Return it as an array
+                    return JSON.stringify([data.response.result.entry])
+                  }
+          timeout: 10s
+          url: 'https://{HOST.CONN}/api/'
+          query_fields:
+            - name: type
+              value: op
+            - name: cmd
+              value: '<show><routing><protocol><ospfv3><neighbor></neighbor></ospfv3></protocol></routing></show>'
+            - name: key
+              value: '{$PAN_API_KEY}'
+      discovery_rules:
+        - uuid: f1c32df4d08e484695bba058c79d86a6
+          name: 'BGP Neighbors'
+          type: DEPENDENT
+          key: bgp.neighbor.discovery
+          delay: '0'
+          description: 'Pull a list of configured BGP neighbors and their states'
+          item_prototypes:
+            - uuid: 952b04ebe0a7496ea5400b4fd63b731a
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Incoming Routes (Accepted)'
+              type: DEPENDENT
+              key: 'bgp.neighbor.acceptedroutesin.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].prefix_counter.entry.incoming_accepted.first()'
+              master_item:
+                key: bgp.neighbors
+            - uuid: 7bcb216fa9854121a097171c24fc16c7
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Outgoing Routes (Advertised)'
+              type: DEPENDENT
+              key: 'bgp.neighbor.advertisedroutesout.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].prefix_counter.entry.outgoing_advertised.first()'
+              master_item:
+                key: bgp.neighbors
+            - uuid: 7740f3a50813419ab69b25b712b09107
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) State'
+              type: DEPENDENT
+              key: 'bgp.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].status.first()'
+              master_item:
+                key: bgp.neighbors
+            - uuid: 62887be5d3184673a0e973b524385e4f
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Status Flap Count'
+              type: DEPENDENT
+              key: 'bgp.neighbor.statusflaps.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].status_flap_counts.first()'
+              master_item:
+                key: bgp.neighbors
+            - uuid: 5bf671d9324240d88301eb3c619aa522
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Incoming Routes (Total)'
+              type: DEPENDENT
+              key: 'bgp.neighbor.totalroutesin.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].prefix_counter.entry.incoming_total.first()'
+              master_item:
+                key: bgp.neighbors
+            - uuid: f12388d94a444f81b5375f785683ef54
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Outgoing Routes (Total)'
+              type: DEPENDENT
+              key: 'bgp.neighbor.totalroutesout.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.vr == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.peer_group == ''{#NEIGHBOR.PEER_GROUP}'' && @.peer == ''{#NEIGHBOR.NAME}'')].prefix_counter.entry.outgoing_total.first()'
+              master_item:
+                key: bgp.neighbors
+          trigger_prototypes:
+            - uuid: cd682604e50e4b0482999b5fc762d616
+              expression: 'last(/Palo Alto Firewall Dynamic Routing by HTTP/bgp.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}])<>"Established" and last(/Palo Alto Firewall Dynamic Routing by HTTP/ha.state)<>"passive"'
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Down'
+              priority: HIGH
+              description: |
+                Neighbor state is not equal to "Established"
+                
+                If the firewall's HA status is "passive", then this trigger will not fire
+            - uuid: b6278a6641e24b66bc7812ed34baee42
+              expression: 'change(/Palo Alto Firewall Dynamic Routing by HTTP/bgp.neighbor.statusflaps.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.PEER_GROUP}.{#NEIGHBOR.NAME}])=1 and last(/Palo Alto Firewall Dynamic Routing by HTTP/ha.state)<>"passive"'
+              name: 'BGP Neighbor {#NEIGHBOR.VIRTUAL_ROUTER}/{#NEIGHBOR.PEER_GROUP}/{#NEIGHBOR.NAME} ({#NEIGHBOR.REMOTE_AS}) Flapped'
+              priority: WARNING
+              description: |
+                Neighbor flap count changed
+                
+                If the firewall's HA status is "passive", then this trigger will not fire
+              manual_close: 'YES'
+          master_item:
+            key: bgp.neighbors
+          lld_macro_paths:
+            - lld_macro: '{#NEIGHBOR.NAME}'
+              path: $.peer
+            - lld_macro: '{#NEIGHBOR.PEER_GROUP}'
+              path: $.peer_group
+            - lld_macro: '{#NEIGHBOR.REMOTE_AS}'
+              path: $.remote_as
+            - lld_macro: '{#NEIGHBOR.VIRTUAL_ROUTER}'
+              path: $.vr
+        - uuid: 6cbaa20de6bd40b4ab46f0a2ffa25bc7
+          name: 'OSPFv2 Neighbors'
+          type: DEPENDENT
+          key: ospfv2.neighbor.discovery
+          delay: '0'
+          description: 'Pull a list of OSPFv2 adjacencies and their states'
+          item_prototypes:
+            - uuid: 6ede889a67b64761b436f90ae58e3f96
+              name: 'OSPFv2 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER}) State'
+              type: DEPENDENT
+              key: 'ospfv2.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}:{#NEIGHBOR.ADDRESS}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.virtual_router == ''{#NEIGHBOR.VIRTUAL_ROUTER}'' && @.neighbor_address == ''{#NEIGHBOR.ADDRESS}'')].status.first()'
+              master_item:
+                key: ospfv2.neighbors
+              trigger_prototypes:
+                - uuid: ba23dc840f0b4363827c39a95ef5981a
+                  expression: 'change(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}:{#NEIGHBOR.ADDRESS}])=1'
+                  name: 'OSPFv2 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER}) State Changed'
+                  priority: WARNING
+                  description: 'The neighbor state changed since the last query'
+                  manual_close: 'YES'
+                - uuid: 7372a0cca43943068517339d3e35fa71
+                  expression: '(last(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}:{#NEIGHBOR.ADDRESS}])<>"full") and (last(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}:{#NEIGHBOR.ADDRESS}])<>"2way")'
+                  name: 'OSPFv2 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER}) Stuck'
+                  priority: AVERAGE
+                  description: 'Neighbor state is not equal to "full" or "2way"'
+          trigger_prototypes:
+            - uuid: 64d858956eeb4bba9eacd8657204e7c8
+              expression: 'nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}:{#NEIGHBOR.ADDRESS}],3m,"strict")=1 and nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbors,2m,"strict")=0'
+              name: 'OSPFv2 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER}) Disappeared'
+              priority: HIGH
+              description: 'The neighbor state item has no data or neighbor has disappeared from the firewall'
+          master_item:
+            key: ospfv2.neighbors
+          lld_macro_paths:
+            - lld_macro: '{#NEIGHBOR.ADDRESS}'
+              path: $.neighbor_address
+            - lld_macro: '{#NEIGHBOR.ROUTERID}'
+              path: $.neighbor_router_id
+            - lld_macro: '{#NEIGHBOR.VIRTUAL_ROUTER}'
+              path: $.virtual_router
+        - uuid: 400194a90a94481e925e30ff36848da6
+          name: 'OSPFv3 Neighbors'
+          type: DEPENDENT
+          key: ospfv3.neighbor.discovery
+          delay: '0'
+          description: 'Pull a list of OSPFv3 adjacencies and their states'
+          item_prototypes:
+            - uuid: 7a40fc7c070c41dfaf7164af83fad6a8
+              name: 'OSPFv3 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER} - Intf{#NEIGHBOR.INTERFACE_ID}) State'
+              type: DEPENDENT
+              key: 'ospfv3.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.neighbor_link_local == ''{#NEIGHBOR.ADDRESS}'' && @.local_if_id == ''{#NEIGHBOR.INTERFACE_ID}'')].state.first()'
+              master_item:
+                key: ospfv3.neighbors
+              trigger_prototypes:
+                - uuid: 09c43ed525db4c0cb6ce0cc82433c63b
+                  expression: 'change(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}])=1'
+                  name: 'OSPFv3 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER} - Intf{#NEIGHBOR.INTERFACE_ID}) State Changed'
+                  priority: WARNING
+                  description: 'The neighbor state changed since the last query'
+                  manual_close: 'YES'
+                - uuid: 0055949c42c14d84b8ecba5622b07b39
+                  expression: '(last(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}])<>"full") and (last(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}])<>"2way")'
+                  name: 'OSPFv3 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER} - Intf{#NEIGHBOR.INTERFACE_ID}) Stuck'
+                  priority: AVERAGE
+                  description: 'Neighbor state is not equal to "full" or "2way"'
+            - uuid: 8a3ddd5ae52c45c69beee1722ed85840
+              name: 'OSPFv3 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER} - Intf{#NEIGHBOR.INTERFACE_ID}) Status'
+              type: DEPENDENT
+              key: 'ospfv3.neighbor.status.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.neighbor_link_local == ''{#NEIGHBOR.ADDRESS}'' && @.local_if_id == ''{#NEIGHBOR.INTERFACE_ID}'')].status.first()'
+              master_item:
+                key: ospfv3.neighbors
+          trigger_prototypes:
+            - uuid: f1f8dcddb69d47058caaf37eb42d415e
+              expression: 'nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbor.state.[{#NEIGHBOR.VIRTUAL_ROUTER}.{#NEIGHBOR.ROUTERID}.{#NEIGHBOR.ADDRESS}.{#NEIGHBOR.INTERFACE_ID}],3m,"strict")=1 and nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbors,2m,"strict")=0'
+              name: 'OSPFv3 Neighbor {#NEIGHBOR.ROUTERID} ({#NEIGHBOR.ADDRESS} - {#NEIGHBOR.VIRTUAL_ROUTER} - Intf{#NEIGHBOR.INTERFACE_ID}) Disappeared'
+              priority: HIGH
+              description: 'The neighbor state item has no data or neighbor has disappeared from the firewall'
+          master_item:
+            key: ospfv3.neighbors
+          lld_macro_paths:
+            - lld_macro: '{#NEIGHBOR.ADDRESS}'
+              path: $.neighbor_link_local
+            - lld_macro: '{#NEIGHBOR.INTERFACE_ID}'
+              path: $.local_if_id
+            - lld_macro: '{#NEIGHBOR.ROUTERID}'
+              path: $.neighbor_id
+            - lld_macro: '{#NEIGHBOR.VIRTUAL_ROUTER}'
+              path: $.virtual_router
+  triggers:
+    - uuid: 010de81659dd4baa952c75b5ca22cdc4
+      expression: 'nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv2.neighbors,5m)=1 or nodata(/Palo Alto Firewall Dynamic Routing by HTTP/ospfv3.neighbors,5m)=1 or nodata(/Palo Alto Firewall Dynamic Routing by HTTP/bgp.neighbors,5m)=1'
+      name: 'No API data for 5 minutes'
+      priority: HIGH
