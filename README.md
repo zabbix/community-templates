@@ -1002,5 +1002,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [VM VMware UUID VM Standalone](Virtualization/VMware/template_vmware_uuid_vm_standalone)
     * [..Docker.OSLinux.ShortTermContainers](Virtualization/template_docker)
 * [Weather_Measurements](Weather_Measurements)
+    * [Ambient Weather by HTTP](Weather_Measurements/Ambient_Weather)
     * [Sonicwall SNMP - TZ600](Weather_Measurements/template_sensor_temp_e_umidade)
     * [ZBX-ESP-ENV](Weather_Measurements/template_temperature_and_humidity_monitoring_for_zabbix_using_esp8266_and_dht11_sensors)
