@@ -1,4 +1,4 @@
-# RoomAlert 3S
+# AvTech RoomAlert 3S
 
 ## Overview
 
