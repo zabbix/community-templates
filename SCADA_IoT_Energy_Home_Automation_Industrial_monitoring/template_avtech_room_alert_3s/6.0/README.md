@@ -5,7 +5,7 @@
 Zabbix template for the AVTECH Room Alert 3S environment monitor. This template can be used to monitor the temperature reading from the device's internal thermometer.
 
 
-To use, create a new host with an SNMP Interface pointing at the IP address of the Room Alert 3S. This interface may be set to SNMPv1 or SNMPv2, this template has not been tested with SNMPv3 enabled on the device.
+To use, create a new host with an SNMP Interface pointing at the IP address of the Room Alert 3S. This interface may be set to SNMPv1 or SNMPv2. This template has not been tested with SNMPv3 enabled on the device.
 
 
 Includes an 'average' alert trigger for temperatures in excess of 77°F and a 'high' alert trigger for temperatures in excess of 86°F.
