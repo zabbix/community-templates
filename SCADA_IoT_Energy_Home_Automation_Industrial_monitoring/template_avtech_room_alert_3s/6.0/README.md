@@ -2,7 +2,7 @@
 
 ## Overview
 
-Zabbix template for the AVTECH Room Alert 3S environment monitor. This template can be used to monitor the temperature reading from the device's internal thermometer.
+Zabbix template for the AvTech Room Alert 3S environment monitor. This template can be used to monitor the temperature reading from the device's internal thermometer.
 
 
 To use, create a new host with an SNMP Interface pointing at the IP address of the Room Alert 3S. This interface may be set to SNMPv1 or SNMPv2. This template has not been tested with SNMPv3 enabled on the device.
@@ -26,17 +26,17 @@ There are no discovery rules in this template.
 
 ## Items collected
 
-| Name                                 | Description                                                | Type         | Key and additional info                                        |
-|--------------------------------------|------------------------------------------------------------|--------------|----------------------------------------------------------------|
-| Internal Sensor: Temperature C       | <p>Temperature reading from the internal thermometer</p>   | `SNMP agent` | temp.celcius[Internal Sensor]<p>Update: 1m</p>                 |
-| Internal Sensor: Temperature F       | <p>Temperature reading from the internal thermometer</p>   | `SNMP agent` | temp.fahrenheit[Internal Sensor]<p>Update: 1m</p>              |
-| External Sensor: Temperature C       | <p>Temperature reading from the sensor</p>                 | `SNMP agent` | temp.celcius[External Sensor]<p>Update: 1m</p>                 |
-| External Sensor: Temperature F       | <p>Temperature reading from the sensor</p>                 | `SNMP agent` | temp.fahrenheit[External Sensor]<p>Update: 1m</p>              |
-| External Sensor: Heat Index C        | <p>Heat index reading from the sensor</p>                  | `SNMP agent` | heat_index.celcius[External Sensor]<p>Update: 1m</p>           |
-| External Sensor: Heat Index F        | <p>Heat index reading from the sensor</p>                  | `SNMP agent` | heat_index.fahrenheit[External Sensor]<p>Update: 1m</p>        |
-| External Sensor: Dew Point C         | <p>Dew point reading from the sensor</p>                   | `SNMP agent` | dew_point.celcius[External Sensor]<p>Update: 1m</p>            |
-| External Sensor: Dew Point F         | <p>Dew point reading from the sensor</p>                   | `SNMP agent` | dew_point.fahrenheit[External Sensor]<p>Update: 1m</p>         |
-| External Sensor: Relative Humidity % | <p>Current % relative humidity reading from the sensor</p> | `SNMP agent` | humidity[External Sensor]<p>Update: 1m</p>                     |
+| Name                                 | Description                                                | Type         | Key and additional info                                 |
+|--------------------------------------|------------------------------------------------------------|--------------|---------------------------------------------------------|
+| Internal Sensor: Temperature C       | <p>Temperature reading from the internal thermometer</p>   | `SNMP agent` | temp.celsius[Internal Sensor]<p>Update: 1m</p>          |
+| Internal Sensor: Temperature F       | <p>Temperature reading from the internal thermometer</p>   | `SNMP agent` | temp.fahrenheit[Internal Sensor]<p>Update: 1m</p>       |
+| External Sensor: Temperature C       | <p>Temperature reading from the sensor</p>                 | `SNMP agent` | temp.celsius[External Sensor]<p>Update: 1m</p>          |
+| External Sensor: Temperature F       | <p>Temperature reading from the sensor</p>                 | `SNMP agent` | temp.fahrenheit[External Sensor]<p>Update: 1m</p>       |
+| External Sensor: Heat Index C        | <p>Heat index reading from the sensor</p>                  | `SNMP agent` | heat_index.celsius[External Sensor]<p>Update: 1m</p>    |
+| External Sensor: Heat Index F        | <p>Heat index reading from the sensor</p>                  | `SNMP agent` | heat_index.fahrenheit[External Sensor]<p>Update: 1m</p> |
+| External Sensor: Dew Point C         | <p>Dew point reading from the sensor</p>                   | `SNMP agent` | dew_point.celsius[External Sensor]<p>Update: 1m</p>     |
+| External Sensor: Dew Point F         | <p>Dew point reading from the sensor</p>                   | `SNMP agent` | dew_point.fahrenheit[External Sensor]<p>Update: 1m</p>  |
+| External Sensor: Relative Humidity % | <p>Current % relative humidity reading from the sensor</p> | `SNMP agent` | humidity[External Sensor]<p>Update: 1m</p>              |
 
 
 
