@@ -363,8 +363,8 @@ _**Feedbacks are welcome.**_
 
 ### DASHBOARD EXAMPLE
 
-![Dashboard example](images/nvr_dashboard.png)
+![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard.png)
 ---
-![Dashboard example](images/nvr_dashboard2.png)
+![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard2.png)
 ---
-![Dashboard example](images/grafana_dash_nvd_3316_P.png)
+![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/grafana_dash_nvd_3316_P.png)
