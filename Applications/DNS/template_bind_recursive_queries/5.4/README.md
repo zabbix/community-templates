@@ -2,44 +2,37 @@
 
 ## Description
 
-/etc/zabbix/zabbix_agentd.d/userparameter_bind.conf: UserParameter=bind.tcpcl,/bin/cat /tmp/namedtcp.log UserParameter=bind.udpcl,/bin/cat /tmp/namedudp.log --------------- cron every 30 sec: /var/spool/cron/root: SHELL=/bin/sh PATH=/sbin:/bin:/usr/sbin:/usr/bin 0-59 * * * * /etc/zabbix/custom/named.sh 0-59 * * * * ( sleep 30; /etc/zabbix/custom/named.sh ) /etc/zabbix/custom/named.sh: #!/bin/bash /usr/local/named/sbin/rndc status > /tmp/rndcstatus cat /tmp/rndcstatus | grep tcp | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedtcp.log cat /tmp/rndcstatus | grep recursive | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedudp.log ----------------------------- add key for rndc in config of named
+Shows recursive queries on your BIND server. Triggers on excesive usage. Best for caching servers.
 
 ## Overview
 
-Shows recursive queries on your BIND server. Triggers on excesive usage. Best for caching servers.
+Installation description:
 
+/etc/zabbix/zabbix_agentd.d/userparameter_bind.conf:
+```
+UserParameter=bind.tcpcl,/bin/cat /tmp/namedtcp.log
+UserParameter=bind.udpcl,/bin/cat /tmp/namedudp.log
+```
 
- 
+---------------
+cron every 30 sec:
 
+```
+/var/spool/cron/root: SHELL=/bin/sh PATH=/sbin:/bin:/usr/sbin:/usr/bin
+0-59 * * * * /etc/zabbix/custom/named.sh
+0-59 * * * * ( sleep 30; /etc/zabbix/custom/named.sh )
+```
 
-Instalation description:
+/etc/zabbix/custom/named.sh:
+```bash
+ #!/bin/bash
+ /usr/local/named/sbin/rndc status > /tmp/rndcstatus
+ cat /tmp/rndcstatus | grep tcp | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedtcp.log
+ cat /tmp/rndcstatus | grep recursive | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedudp.log
+```
+----------------------------- 
 
-
-/etc/zabbix/zabbix\_agentd.d/userparameter\_bind.conf:  
-  
-UserParameter=bind.tcpcl,/bin/cat /tmp/namedtcp.log  
-UserParameter=bind.udpcl,/bin/cat /tmp/namedudp.log  
-  
----------------  
-cron every 30 sec:  
- /var/spool/cron/root:   
-  
-SHELL=/bin/sh  
-PATH=/sbin:/bin:/usr/sbin:/usr/bin  
-0-59 * * * * /etc/zabbix/custom/named.sh  
-0-59 * * * * ( sleep 30; /etc/zabbix/custom/named.sh )  
-  
-chmod +x /etc/zabbix/custom/named.sh:  
-  
-#!/bin/bash  
-/usr/local/named/sbin/rndc status > /tmp/rndcstatus  
-cat /tmp/rndcstatus | grep tcp | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedtcp.log  
-cat /tmp/rndcstatus | grep recursive | awk '{ print $3 }' | cut -d '/' -f 1 > /tmp/namedudp.log  
-  
------------------------------  
 add key for rndc in config of named
-
-
 
 ## Macros used
 
@@ -64,4 +57,3 @@ There are no discovery rules in this template.
 ## Triggers
 
 There are no triggers in this template.
-
