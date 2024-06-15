@@ -125,7 +125,7 @@ _**Feedbacks are welcome.**_
 
 <table>
     <tr>
-        <td>CPU Usage</td>
+        <td>CPU Utilization</td>
     </tr>
     <tr>
         <td>Device Channel Number</td>
