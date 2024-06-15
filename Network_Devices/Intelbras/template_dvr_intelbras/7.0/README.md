@@ -1,15 +1,15 @@
 # Zabbix SNMP Template - NVR Intelbras / Dahua
 
 <div align="right">
-  <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix70">
-    <img src="https://img.shields.io/badge/Release-700-blue?logo=azurepipelines&amp;color=0aa8d2">
-  </a>
-  <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix60">
-    <img src="https://img.shields.io/badge/Release-6022-blue?logo=azurepipelines&amp;color=0aa8d2">
-  </a>
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/badge/License-GPL3-blue?logo=opensourceinitiative&logoColor=fff">
-  </a>
+    <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix70">
+        <img src="https://img.shields.io/badge/Release-701-blue?logo=azurepipelines&amp;color=0aa8d2">
+    </a>
+    <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix60">
+        <img src="https://img.shields.io/badge/Release-6022-blue?logo=azurepipelines&amp;color=0aa8d2">
+    </a>
+    <a href="./LICENSE">
+        <img src="https://img.shields.io/badge/License-GPL3-blue?logo=opensourceinitiative&logoColor=fff">
+    </a>
 </div>
 
 <BR>
@@ -55,9 +55,9 @@ _**Feedbacks are welcome.**_
         width: 100%;
   }
   td, th {
-	    border: 1px solid #dddddd;
-	    text-align: left;
-	    padding: 8px;
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
   }
   tr:nth-child(even) {
         background-color: #dddddd;
@@ -70,45 +70,54 @@ _**Feedbacks are welcome.**_
 
 <table>
     <tr>
-	<th><b>Name</b></th>
-	<th><b>Default</b></th>
+        <th><b>Name</b></th>
+        <th><b>Default value</b></th>
+        <th><b>Description</b></th>
     </tr>
     <tr>
         <td>{$API_PASS}</td>
-	<td></td>
+        <td></td>
+        <td>Set your API password if used</td>
     </tr>
     <tr>
         <td>{$API_USER}</td>
-	<td>admin</td>
+        <td>admin</td>
+        <td>Set your API user if used</td>
     </tr>
     <tr>
         <td>{$DISK_FREE_WARN}</td>
-	<td>0</td>
+        <td>100</td>
+        <td>Disk free percentage threshold. Set to 100 if the disk stays full</td>
     </tr>
     <tr>
         <td>{$MEDIA_PORT}</td>
         <td>37777</td>
+        <td>Media port for image access</td>
     </tr>
     <tr>
         <td>{$SNMP.TIMEOUT}</td>
         <td>5m</td>
+        <td>SNMP availability timeout threshold</td>
     </tr>
     <tr>
         <td>{$WEB_PORT}</td>
-	<td>80</td>
+        <td>80</td>
+        <td>HTTP port for WEB UI access</td>
     </tr>
     <tr>
         <td>{$WEB_SERVICE}</td>
         <td>http</td>
+        <td>Set your Web service (http or https)</td>
     </tr>
     <tr>
-	<td><i>Network Interface macros</i></td>
-	<td></td>
+        <td><i>Network Interface macros</i></td>
+        <td></td>
+        <td><i>For interface discovery</i></td>
     </tr>
 </table>
 
-> **Essas macros devem ser alteradas a nível de Host para refletir as portas de seu host monitorado.** \
-> _**These macros should be changed at Host level to reflect your monitored host ports.**_
+> **Essas macros devem ser alteradas a nível de Host para refletir as configurações de seu host monitorado.** \
+> _**These macros should be changed at Host level to reflect your monitored host configuration.**_
 
 <BR>
 
@@ -119,7 +128,22 @@ _**Feedbacks are welcome.**_
         <td>CPU Usage</td>
     </tr>
     <tr>
+        <td>Device Channel Number</td>
+    </tr>
+    <tr>
+        <td>Device contact details</td>
+    </tr>
+    <tr>
+        <td>Device description</td>
+    </tr>
+    <tr>
         <td>Device IP</td>
+    </tr>
+    <tr>
+        <td>Device location</td>
+    </tr>
+    <tr>
+        <td>Device name</td>
     </tr>
     <tr>
         <td>Device Serial Number</td>
@@ -134,34 +158,43 @@ _**Feedbacks are welcome.**_
         <td>Device Type</td>
     </tr>
     <tr>
+        <td>Device Walk Network</td>
+    </tr>
+    <tr>
+        <td>Device Walk Remote Cam</td>
+    </tr>
+    <tr>
+        <td>Device Walk Storage</td>
+    </tr>
+    <tr>
+        <td>Device Walk System General</td>
+    </tr>
+    <tr>
+        <td>Device Walk System Info</td>
+    </tr>
+    <tr>
+        <td>Memory Total</td>
+    </tr>
+    <tr>
         <td>Memory Utilization</td>
     </tr>
     <tr>
-        <td>NVR Performance Media</td>
+        <td>TCP Performance Media</td>
     </tr>
     <tr>
-        <td>NVR Performance Web</td>
+        <td>TCP Performance Web</td>
     </tr>
     <tr>
-        <td>SNMP agent availability</td>
+        <td>SNMP Agent Availability</td>
     </tr>
     <tr>
-        <td>SNMP traps (fallback)</td>
+        <td>SNMP Traps Fallback</td>
     </tr>
     <tr>
-        <td>System contact details</td>
+        <td>System OS Name</td>
     </tr>
     <tr>
-        <td>System description</td>
-    </tr>
-    <tr>
-        <td>System location</td>
-    </tr>
-    <tr>
-        <td>System name</td>
-    </tr>
-    <tr>
-        <td>System object ID</td>
+        <td>System OS Version</td>
     </tr>
     <tr>
         <td>System Status</td>
@@ -186,7 +219,7 @@ _**Feedbacks are welcome.**_
         <td>Device IP changed</td>
     </tr>
     <tr>
-        <td>Device Status Changed</td>
+        <td>Device Status Changed to Bad</td>
     </tr>
     <tr>
         <td>Device System Version changed</td>
@@ -198,7 +231,7 @@ _**Feedbacks are welcome.**_
         <td>No SNMP data collection</td>
     </tr>
     <tr>
-        <td>System has been restarted (uptime < 10m) - <i>Depends on: No SNMP data collection</i></td>
+        <td>System has been restarted (uptime < 10m)</td>
     </tr>
     <tr>
         <td>System name has changed</td>
@@ -207,7 +240,10 @@ _**Feedbacks are welcome.**_
         <td>System Status Offline</td>
     </tr>
     <tr>
-        <td>Unavailable by Media Port</td>
+        <td>Unresponsive Media Port</td>
+    </tr>
+    <tr>
+        <td>Unresponsive Web Port</td>
     </tr>
 </table>
 
@@ -220,10 +256,10 @@ _**Feedbacks are welcome.**_
         <td>Camera Discovery <i>(items, trigger)</i></td>
     </tr>
     <tr>
-	    <td>Disk Discovery <i>(items, trigger, graph)</i></td>
+        <td>Disk Discovery <i>(items, trigger, graph)</i></td>
     </tr>
     <tr>
-	    <td>Network interfaces discovery <i>(items, trigger, graph)</i></td>
+        <td>Network interfaces discovery <i>(items, trigger, graph)</i></td>
     </tr>
 </table>
 
@@ -245,43 +281,46 @@ _**Feedbacks are welcome.**_
         <td>Disk Name</td>
     </tr>
     <tr>
-        <td>Disk Percent Free</td>
-    </tr>
-    <tr>
         <td>Disk Size</td>
     </tr>
     <tr>
         <td>Disk Status</td>
     </tr>
     <tr>
-        <td>Disk Used</td>
+        <td>Disk Usage</td>
     </tr>
     <tr>
-        <td>Interface: Bits received</td>
+        <td>Disk Utilization</td>
     </tr>
     <tr>
-  	    <td>Interface: Bits sent</td>
+        <td>Interface Admin status</td>
     </tr>
     <tr>
-      	<td>Interface: Inbound packets discarded</td>
+        <td>Interface Bits received</td>
     </tr>
     <tr>
-  	    <td>Interface: Inbound packets with errors</td>
+        <td>Interface Bits sent</td>
     </tr>
     <tr>
-      	<td>Interface: Interface type</td>
+        <td>Interface Inbound packets discarded</td>
     </tr>
     <tr>
-  	    <td>Interface: Operational status</td>
+        <td>Interface Inbound packets with errors</td>
     </tr>
     <tr>
-      	<td>Interface: Outbound packets discarded</td>
+        <td>Interface Operational status</td>
     </tr>
     <tr>
-  	    <td>Interface: Outbound packets with errors</td>
+        <td>Interface Outbound packets discarded</td>
     </tr>
     <tr>
-      	<td>Interface: Speed</td>
+        <td>Interface Outbound packets with errors</td>
+    </tr>
+    <tr>
+        <td>Interface Speed</td>
+    </tr>
+    <tr>
+        <td>Interface Type</td>
     </tr>
 </table>
 
@@ -291,16 +330,16 @@ _**Feedbacks are welcome.**_
 
 <table>
     <tr>
-        <td>Camera disconnected</td>
-    </tr>
-    <tr>
         <td>Camera absent</td>
     </tr>
     <tr>
-        <td>Disk ERROR</td>
+        <td>Camera disconnected</td>
     </tr>
     <tr>
-        <td>Disk free space is low</td>
+        <td>Disk Error</td>
+    </tr>
+    <tr>
+        <td>Disk Utilization is High</td>
     </tr>
     <tr>
         <td>Interface: Ethernet has changed to lower speed than it was before</td>
@@ -325,16 +364,16 @@ _**Feedbacks are welcome.**_
         <td>CPU Utilization</td>
     </tr>
     <tr>
-        <td>Disk Usage <i>(discovery)</i></td>
-    </tr>
-    <tr>
-        <td>Interface: Network traffic <i>(discovery)</i></td>
-    </tr>
-    <tr>
         <td>Memory Utilization</td>
     </tr>
     <tr>
         <td>NVR Response Time</td>
+    </tr>
+    <tr>
+        <td>Disk Usage <i>(discovery)</i></td>
+    </tr>
+    <tr>
+        <td>Interface: Network traffic <i>(discovery)</i></td>
     </tr>
 </table>
 
@@ -343,7 +382,7 @@ _**Feedbacks are welcome.**_
 ### DASHBOARDS
 
 <table>
-	<tr>
+    <tr>
         <td>NVR Dashboard</td>
     </tr>
 </table>
@@ -364,7 +403,11 @@ _**Feedbacks are welcome.**_
 ### DASHBOARD EXAMPLE
 
 ![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard.png)
+
 ---
+
 ![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard2.png)
+
 ---
+
 ![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/grafana_dash_nvd_3316_P.png)
