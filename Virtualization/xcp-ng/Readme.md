@@ -22,7 +22,7 @@ Thorsten Liepert
 
 ## Setup
 
-1. Generate an access token at XenOrchestra for aa user with read access.
+1. [Generate](https://docs.xcp-ng.org/management/manage-at-scale/xo-api/#authentication) an access token at XenOrchestra for aa user with read access.
 2. Create a host for the XenOrchestra host and link template "Xen Orchestra by HTTP"
 3. Configure macro "{$XOA.AUTH.TOKEN}" with generated access token
 4. Configure macro "{$XOA.URL}" with url to XenOrchestra e.g. https://xen.mydomain.com
