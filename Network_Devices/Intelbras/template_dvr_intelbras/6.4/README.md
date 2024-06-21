@@ -1,17 +1,18 @@
 # Zabbix SNMP Template - NVR Intelbras / Dahua
 
 <div align="right">
-<a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix64">
-	<img src="https://img.shields.io/badge/Release-647-blue?logo=azurepipelines&amp;color=0aa8d2" alt="For Zabbix 6.4">
-</a>
-<a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix60">
-	<img src="https://img.shields.io/badge/Release-6022-blue?logo=azurepipelines&amp;color=0aa8d2" alt="For Zabbix 6.0">
-</a>
-<a href="./LICENSE">
-	<img src="https://img.shields.io/badge/License-GPL3-blue?logo=opensourceinitiative&logoColor=fff" alt="License GPL3">
-</a>
+  <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix70">
+    <img src="https://img.shields.io/badge/Release-700-blue?logo=azurepipelines&amp;color=0aa8d2">
+  </a>
+  <a href="https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/releases/tag/zabbix60">
+    <img src="https://img.shields.io/badge/Release-6022-blue?logo=azurepipelines&amp;color=0aa8d2">
+  </a>
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/License-GPL3-blue?logo=opensourceinitiative&logoColor=fff">
+  </a>
 </div>
 
+<BR>
 
 ### OVERVIEW
 
@@ -43,6 +44,7 @@ _**Feedbacks are welcome.**_
 ---
 #### ➡️ [*Como importar templates/How to import templates.*](https://www.zabbix.com/documentation/current/en/manual/xml_export_import/templates#importing)
 ---
+
 <BR>
 
 <!--
@@ -65,6 +67,7 @@ _**Feedbacks are welcome.**_
 
 
 ### MACROS USED
+
 <table>
     <tr>
 	<th><b>Name</b></th>
@@ -106,264 +109,262 @@ _**Feedbacks are welcome.**_
 
 > **Essas macros devem ser alteradas a nível de Host para refletir as portas de seu host monitorado.** \
 > _**These macros should be changed at Host level to reflect your monitored host ports.**_
+
 <BR>
-
-
-### TEMPLATE LINKS
-<table>
-  <tr>
-        <td><del><a href="https://www.zabbix.com/integrations/snmp#interfaces_simple_snmp">Interfaces Simple SNMP</a> <i>(Network interfaces discovery)</i></del></td>
-  </tr>
-  <tr>
-	<td><i><b>Não mais suportada</b> - Itens e Macros ainda estão presentes</i></td>
-  </tr>
-  <tr>
-	<td><i><b>Not supported anymore</b> - Items and Macros are still present</i></td>
-  </tr>
-</table>
-<BR>
-
 
 ### ITEMS
-<table>
-  <tr>
-        <td>CPU Usage</td>
-  </tr>
-  <tr>
-        <td>Device IP</td>
-  </tr>
-  <tr>
-        <td>Device Serial Number</td>
-  </tr>
-  <tr>
-        <td>Device Status</td>
-  </tr>
-  <tr>
-        <td>Device System Version</td>
-  </tr>
-  <tr>
-        <td>Device Type</td>
-  </tr>
-  <tr>
-        <td>Memory Utilization</td>
-  </tr>
-  <tr>
-        <td>NVR Performance Media</td>
-  </tr>
-  <tr>
-        <td>NVR Performance Web</td>
-  </tr>
-  <tr>
-        <td>SNMP agent availability</td>
-  </tr>
-  <tr>
-        <td>SNMP traps (fallback)</td>
-  </tr>
-  <tr>
-        <td>System contact details</td>
-  </tr>
-  <tr>
-        <td>System description</td>
-  </tr>
-  <tr>
-        <td>System location</td>
-  </tr>
-  <tr>
-        <td>System name</td>
-  </tr>
-  <tr>
-        <td>System object ID</td>
-  </tr>
-  <tr>
-        <td>System Status</td>
-  </tr>
-  <tr>
-        <td>System Time</td>
-  </tr>
-  <tr>
-        <td>Uptime Enterprise</td>
-  </tr>
-</table>
-<BR>
 
+<table>
+    <tr>
+        <td>CPU Usage</td>
+    </tr>
+    <tr>
+        <td>Device IP</td>
+    </tr>
+    <tr>
+        <td>Device Serial Number</td>
+    </tr>
+    <tr>
+        <td>Device Status</td>
+    </tr>
+    <tr>
+        <td>Device System Version</td>
+    </tr>
+    <tr>
+        <td>Device Type</td>
+    </tr>
+    <tr>
+        <td>Memory Utilization</td>
+    </tr>
+    <tr>
+        <td>NVR Performance Media</td>
+    </tr>
+    <tr>
+        <td>NVR Performance Web</td>
+    </tr>
+    <tr>
+        <td>SNMP agent availability</td>
+    </tr>
+    <tr>
+        <td>SNMP traps (fallback)</td>
+    </tr>
+    <tr>
+        <td>System contact details</td>
+    </tr>
+    <tr>
+        <td>System description</td>
+    </tr>
+    <tr>
+        <td>System location</td>
+    </tr>
+    <tr>
+        <td>System name</td>
+    </tr>
+    <tr>
+        <td>System object ID</td>
+    </tr>
+    <tr>
+        <td>System Status</td>
+    </tr>
+    <tr>
+        <td>System Time</td>
+    </tr>
+    <tr>
+        <td>Uptime Enterprise</td>
+    </tr>
+</table>
+
+<BR>
 
 ### TRIGGERS
+
 <table>
-  <tr>
+    <tr>
         <td>CPU High Utilization</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Device IP changed</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Device Status Changed</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Device System Version changed</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Memory High Utilization</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>No SNMP data collection</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>System has been restarted (uptime < 10m) - <i>Depends on: No SNMP data collection</i></td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>System name has changed</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>System Status Offline</td>
-  </tr>
+    </tr>
+    <tr>
+        <td>Unavailable by Media Port</td>
+    </tr>
 </table>
+
 <BR>
 
-
 ### DISCOVERY RULES
+
 <table>
     <tr>
         <td>Camera Discovery <i>(items, trigger)</i></td>
     </tr>
     <tr>
-	<td>Disk Discovery <i>(items, trigger, graph)</i></td>
+	    <td>Disk Discovery <i>(items, trigger, graph)</i></td>
     </tr>
     <tr>
-	<td>Network interfaces discovery <i>(items, trigger, graph)</i></td>
+	    <td>Network interfaces discovery <i>(items, trigger, graph)</i></td>
     </tr>
 </table>
-<BR>
 
+<BR>
 
 ### ITEM PROTOTYPES
-<table>
-  <tr>
-        <td>Camera IP</td>
-  </tr>
-  <tr>
-        <td>Camera Name</td>
-  </tr>
-  <tr>
-        <td>Camera Status</td>
-  </tr>
-  <tr>
-        <td>Disk Name</td>
-  </tr>
-  <tr>
-        <td>Disk Percent Free</td>
-  </tr>
-  <tr>
-        <td>Disk Size</td>
-  </tr>
-  <tr>
-        <td>Disk Status</td>
-  </tr>
-  <tr>
-        <td>Disk Used</td>
-  </tr>
-  <tr>
-	<td>Interface: Bits received</td>
-  </tr>
-  <tr>
-	<td>Interface: Bits sent</td>
-  </tr>
-  <tr>
-	<td>Interface: Inbound packets discarded</td>
-  </tr>
-  <tr>
-	<td>Interface: Inbound packets with errors</td>
-  </tr>
-  <tr>
-	<td>Interface: Interface type</td>
-  </tr>
-  <tr>
-	<td>Interface: Operational status</td>
-  </tr>
-  <tr>
-	<td>Interface: Outbound packets discarded</td>
-  </tr>
-  <tr>
-	<td>Interface: Outbound packets with errors</td>
-  </tr>
-  <tr>
-	<td>Interface: Speed</td>
-  </tr>
-</table>
-<BR>
 
+<table>
+    <tr>
+        <td>Camera IP</td>
+    </tr>
+    <tr>
+        <td>Camera Name</td>
+    </tr>
+    <tr>
+        <td>Camera Status</td>
+    </tr>
+    <tr>
+        <td>Disk Name</td>
+    </tr>
+    <tr>
+        <td>Disk Percent Free</td>
+    </tr>
+    <tr>
+        <td>Disk Size</td>
+    </tr>
+    <tr>
+        <td>Disk Status</td>
+    </tr>
+    <tr>
+        <td>Disk Used</td>
+    </tr>
+    <tr>
+        <td>Interface: Bits received</td>
+    </tr>
+    <tr>
+  	    <td>Interface: Bits sent</td>
+    </tr>
+    <tr>
+      	<td>Interface: Inbound packets discarded</td>
+    </tr>
+    <tr>
+  	    <td>Interface: Inbound packets with errors</td>
+    </tr>
+    <tr>
+      	<td>Interface: Interface type</td>
+    </tr>
+    <tr>
+  	    <td>Interface: Operational status</td>
+    </tr>
+    <tr>
+      	<td>Interface: Outbound packets discarded</td>
+    </tr>
+    <tr>
+  	    <td>Interface: Outbound packets with errors</td>
+    </tr>
+    <tr>
+      	<td>Interface: Speed</td>
+    </tr>
+</table>
+
+<BR>
 
 ### TRIGGER PROTOTYPES
-<table>
-  <tr>
-        <td>Camera disconnected</td>
-  </tr>
-  <tr>
-        <td>Camera absent</td>
-  </tr>
-  <tr>
-        <td>Disk ERROR</td>
-  </tr>
-  <tr>
-        <td>Disk free space is low</td>
-  </tr>
-  <tr>
-        <td>Interface: Ethernet has changed to lower speed than it was before</td>
-  </tr>
-  <tr>
-        <td>Interface: High bandwidth usage</td>
-  </tr>
-  <tr>
-        <td>Interface: High error rate</td>
-  </tr>
-  <tr>
-        <td>Interface: Link down</td>
-  </tr>
-</table>
-<BR>
 
+<table>
+    <tr>
+        <td>Camera disconnected</td>
+    </tr>
+    <tr>
+        <td>Camera absent</td>
+    </tr>
+    <tr>
+        <td>Disk ERROR</td>
+    </tr>
+    <tr>
+        <td>Disk free space is low</td>
+    </tr>
+    <tr>
+        <td>Interface: Ethernet has changed to lower speed than it was before</td>
+    </tr>
+    <tr>
+        <td>Interface: High bandwidth usage</td>
+    </tr>
+    <tr>
+        <td>Interface: High error rate</td>
+    </tr>
+    <tr>
+        <td>Interface: Link down</td>
+    </tr>
+</table>
+
+<BR>
 
 ### GRAPHS
+
 <table>
-  <tr>
+    <tr>
         <td>CPU Utilization</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Disk Usage <i>(discovery)</i></td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Interface: Network traffic <i>(discovery)</i></td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>Memory Utilization</td>
-  </tr>
-  <tr>
+    </tr>
+    <tr>
         <td>NVR Response Time</td>
-  </tr>
+    </tr>
 </table>
+
 <BR>
 
-
 ### DASHBOARDS
+
 <table>
 	<tr>
         <td>NVR Dashboard</td>
-  </tr>
+    </tr>
 </table>
+
 <BR>
 
-
 ### WEB SCENARIOS
+
 <table>
-  <tr>
+    <tr>
         <td>NVR Web Performance</td>
-  </tr>
+    </tr>
 </table>
+
 <BR>
 
 
 ### DASHBOARD EXAMPLE
-![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard.png)
+
+![Dashboard example](images/nvr_dashboard.png)
 ---
-![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/nvr_dashboard2.png)
+![Dashboard example](images/nvr_dashboard2.png)
 ---
-![Dashboard example](https://github.com/diasdmhub/Intelbras_NVR_Zabbix_Template/blob/main/images/grafana_dash_nvd_3316_P.png)
+![Dashboard example](images/grafana_dash_nvd_3316_P.png)
