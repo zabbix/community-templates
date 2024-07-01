@@ -47,7 +47,7 @@ There are no template links in this template.<br></br>
 |{$EKARA.INTERVAL}|Define at which frequency to refresh the data|`15m`|
 |{$EKARA.LOGIN}|Put your Ekara login here| - |
 |{$EKARA.PASSWORD}|Put your password here|`SECRET_TEXT`|
-|{$EKARA.URL}|Username to connect to the Ekara API|`https://ekara.ip-label.net/`|
+|{$EKARA.URL}|Url to connect to the Ekara API|`https://api.ekara.ip-label.net/`|
 
 ## Items
 
