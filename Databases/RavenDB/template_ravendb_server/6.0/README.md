@@ -57,6 +57,7 @@ There are no discovery rules in this template.
 | IOPS read | - | SNMP_AGENT | server.iops.read |
 | IOPS write | - | SNMP_AGENT | server.iops.write |
 | IOwait | - | SNMP_AGENT | server.iowait |
+| License Expiration Left | - | SNMP_AGENT | server.license.expirationLeft |
 | Low memory flag | - | SNMP_AGENT | server.lowMemory |
 | Machine CPU usage | - | SNMP_AGENT | server.machine.cpu.util |
 | Total SWAP size | - | SNMP_AGENT | server.machine.swap.totalSize |
@@ -99,6 +100,8 @@ There are no discovery rules in this template.
 | Free space lower than 5% | - | last(/RavenDB server/server.disk.freeSpacePercentage)<=5 | HIGH |
 | Free space lower than 15% | - | last(/RavenDB server/server.disk.freeSpacePercentage)<=15 | AVERAGE |
 | IOwait is high | - | avg(/RavenDB server/server.iowait,30s)>20 | AVERAGE |
+| Server license expires in less than 3 days | - | last(/RavenDB server/server.license.expirationLeft)<=259200 | HIGH |
+| Server license expires in less than 14 days | - | last(/RavenDB server/server.license.expirationLeft)<=1209600 | WARNING |
 | Low Memory mode | - | last(/RavenDB server/server.lowMemory)>0 | WARNING |
 | High Machine CPU usage | - | avg(/RavenDB server/server.machine.cpu.util,60s)>70 | WARNING |
 | Managed mem is high | - | last(/RavenDB server/server.memory.managed)>={$MANAGED_MEMORY_THRESHOLD} | AVERAGE |
