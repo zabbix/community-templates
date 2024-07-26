@@ -56,7 +56,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Knot Resolver Statistics](Applications/DNS/template_knot_resolver)
         * [net.dns.perf](Applications/DNS/template_net.dns.perf)
         * [pihole-FTL over zabbix active agent](Applications/DNS/template_pihole_daemon_check)
-        * [Unbound - Recursive DNS/6.2](Applications/DNS/template_unbound_recursive/6.2)
     * [Excel_Export](Applications/Excel_Export)
         * [NEXUS 3xxx](Applications/Excel_Export/template_nexus_3xxx)
     * [Firewall](Applications/Firewall)
