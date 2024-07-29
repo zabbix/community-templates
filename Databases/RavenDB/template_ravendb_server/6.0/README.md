@@ -11,9 +11,11 @@ Zabbix template for RavenDB via SNMP.
     - `MANAGED_MEMORY_THRESHOLD` around 75% of total machine RAM
     - `UNMANAGED_MEMORY_THRESHOLD` around 25% of total machine RAM
 
-## Author
+## Authors
 
-RavenDB
+Grzegorz Lachowski
+
+Bartosz Piekarski
 
 ## Macros used
 
