@@ -1,0 +1,786 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    -
+      uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    -
+      uuid: 384b543467e442ba9310853fad7bc2c0
+      template: 'Ekara Template'
+      name: 'Ekara Template'
+      description: |
+        This is the template to monitor Ekara metrics into Zabbix.
+
+        Suggestions are welcome.
+
+        Good luck :)
+      groups:
+        -
+          name: Templates/Applications
+      items:
+        -
+          uuid: 9a0f932d3b52481781ab268975c7c964
+          name: 'Get all apps & active scenarios'
+          type: SCRIPT
+          key: get.apps.active.scenarios
+          delay: 10m
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            function getAuthToken(url, login, password)
+            {
+                var response;
+                var request = new HttpRequest();
+
+                request.addHeader('Content-Type: application/json');
+
+                Zabbix.log(4, '[EKARA API] Request: POST ' + url + 'auth/login {"email": "' + login + '", "password": "********"}');
+
+                response = request.post(url + "auth/login", '{"email": "' + login + '", "password": "' + password + '"}');
+
+                Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                if (response !== null) {
+                    try {
+                        response = JSON.parse(response);
+                    }
+                    catch (error) {
+                        Zabbix.log(3, '[EKARA API] Authentification failed: No response.');
+                    }
+                }
+
+                if (typeof response !== 'object' || !response.token) {
+                    throw 'Authentification failed. Check debug log for more information.';
+                }
+
+                return response.token;
+            }
+
+            function ekaraFetch(method, url, data, auth_token)
+            {
+                if (typeof auth_token === 'undefined' || auth_token === '') {
+                    throw 'Authentication token is missing or empty.';
+                }
+
+                var response;
+                var request = new HttpRequest();
+
+                request.addHeader('Content-Type: application/json');
+                request.addHeader('Authorization: Bearer ' + auth_token);
+
+                if (typeof data !== 'undefined') {
+                    data = JSON.stringify(data);
+                }
+
+                Zabbix.log(4, '[EKARA API] Request: ' + method + ' ' + url + ' ' + data);
+
+                response = request.post(url, data);
+
+                Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                if (response !== null) {
+                    try {
+                        response = JSON.parse(response);
+                    }
+                    catch (error) {
+                        Zabbix.log(3, '[EKARA API] Failed to parse response: ' + error);
+                    }
+                }
+
+                if (typeof response !== 'object' || typeof response === 'undefined' || response === null) {
+                    throw 'Process response failed. Check debug log for more information.';
+                }
+
+                if (request.getStatus() < 200 || request.getStatus() >= 300) {
+                    var message = 'Request failed with status code ' + request.getStatus();
+
+                    if (response.message) {
+                        message += ': ' + response.message;
+                    }
+
+                    throw message + ' Check debug log for more information.';
+                }
+
+                return response;
+            }
+
+            function myScriptGetScenariosStatuses(ekara)
+            {
+                var auth_token = getAuthToken(ekara.url, ekara.login, ekara.password);
+                var method = 'post';
+                var data = {};
+
+                response = ekaraFetch(method, ekara.url + 'adm-api/scenarios', data, auth_token);
+
+                Zabbix.log(4, '[EKARA API] Response: ' + response);
+                return JSON.stringify(response);
+            }
+
+            try {
+                var zabbix_params = JSON.parse(value);
+                var required_params = ['login', 'url', 'password'];
+                var ekara = {};
+
+                for (var i = 0; i < required_params.length; i++) {
+                    if (typeof zabbix_params[required_params[i]] === 'undefined' || zabbix_params[required_params[i]] === '' || typeof zabbix_params !== 'object') {
+                        throw 'Required parameter "' + required_params[i] + '" is missing or empty.';
+                    }
+
+                    if (!zabbix_params.url.endsWith('/')) {
+                        zabbix_params.url += '/';
+                    }
+                }
+
+                ekara = {
+                    login: zabbix_params.login,
+                    url: zabbix_params.url,
+                    password: zabbix_params.password
+                };
+
+                return myScriptGetScenariosStatuses(ekara);
+            } catch (error) {
+                Zabbix.log(3, '[EKARA API] Error: ' + error);
+                return JSON.stringify({error: error});
+            }
+          description: 'Get all information of the scenarios'
+          parameters:
+            -
+              name: login
+              value: '{$EKARA.LOGIN}'
+            -
+              name: password
+              value: '{$EKARA.PASSWORD}'
+            -
+              name: url
+              value: '{$EKARA.URL}'
+          tags:
+            -
+              tag: purpose
+              value: 'raw JSON'
+        -
+          uuid: e578563f85bc486c8e4ccd4a30d5071f
+          name: 'Get all apps & active scenarios check'
+          type: DEPENDENT
+          key: get.apps.active.scenarios.check
+          delay: '0'
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: 'Data collection check'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.error
+              error_handler: CUSTOM_VALUE
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 3h
+          master_item:
+            key: get.apps.active.scenarios
+          tags:
+            -
+              tag: purpose
+              value: 'script checkers'
+          triggers:
+            -
+              uuid: 61aafae459074279a3be46ea9a173b64
+              expression: 'length(last(/Ekara Template/get.apps.active.scenarios.check))>0'
+              name: 'Get all apps & active scenarios: Failed'
+              priority: WARNING
+        -
+          uuid: 82b019b40def4051866bf860c694c455
+          name: 'Get all scenarios statuses'
+          type: SCRIPT
+          key: get.scenarios.statuses
+          delay: 10m
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            function getAuthToken(url, login, password)
+            {
+                var response;
+                var request = new HttpRequest();
+
+                request.addHeader('Content-Type: application/json');
+
+                Zabbix.log(4, '[EKARA API] Request: POST ' + url + 'auth/login {"email": "' + login + '", "password": "********"}');
+
+                response = request.post(url + "auth/login", '{"email": "' + login + '", "password": "' + password + '"}');
+
+                Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                if (response !== null) {
+                    try {
+                        response = JSON.parse(response);
+                    }
+                    catch (error) {
+                        Zabbix.log(3, '[EKARA API] Authentification failed: No response.');
+                    }
+                }
+
+                if (typeof response !== 'object' || !response.token) {
+                    throw 'Authentification failed. Check debug log for more information.';
+                }
+
+                return response.token;
+            }
+
+            function ekaraFetch(method, url, data, auth_token)
+            {
+                if (typeof auth_token === 'undefined' || auth_token === '') {
+                    throw 'Authentication token is missing or empty.';
+                }
+
+                var response;
+                var request = new HttpRequest();
+
+                request.addHeader('Content-Type: application/json');
+                request.addHeader('Authorization: Bearer ' + auth_token);
+
+                if (typeof data !== 'undefined') {
+                    data = JSON.stringify(data);
+                }
+
+                Zabbix.log(4, '[EKARA API] Request: ' + method + ' ' + url + ' ' + data);
+
+                response = request.post(url, data);
+
+                Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                if (response !== null) {
+                    try {
+                        response = JSON.parse(response);
+                    }
+                    catch (error) {
+                        Zabbix.log(3, '[EKARA API] Failed to parse response: ' + error);
+                    }
+                }
+
+                if (typeof response !== 'object' || typeof response === 'undefined' || response === null) {
+                    throw 'Process response failed. Check debug log for more information.';
+                }
+
+                if (request.getStatus() < 200 || request.getStatus() >= 300) {
+                    var message = 'Request failed with status code ' + request.getStatus();
+
+                    if (response.message) {
+                        message += ': ' + response.message;
+                    }
+
+                    throw message + ' Check debug log for more information.';
+                }
+
+                return response;
+            }
+
+            function myScriptGetScenariosStatuses(ekara)
+            {
+                var auth_token = getAuthToken(ekara.url, ekara.login, ekara.password);
+                var method = 'post';
+                var data = {
+                    "statusFilter": []
+                };
+
+                response = ekaraFetch(method, ekara.url + 'results-api/scenarios/status', data, auth_token);
+
+                Zabbix.log(4, '[EKARA API] Response: ' + response);
+                return JSON.stringify(response);
+            }
+
+            try {
+                var zabbix_params = JSON.parse(value);
+                var required_params = ['login', 'url', 'password'];
+                var ekara = {};
+
+                for (var i = 0; i < required_params.length; i++) {
+                    if (typeof zabbix_params[required_params[i]] === 'undefined' || zabbix_params[required_params[i]] === '' || typeof zabbix_params !== 'object') {
+                        throw 'Required parameter "' + required_params[i] + '" is missing or empty.';
+                    }
+
+                    if (!zabbix_params.url.endsWith('/')) {
+                        zabbix_params.url += '/';
+                    }
+                }
+
+                ekara = {
+                    login: zabbix_params.login,
+                    url: zabbix_params.url,
+                    password: zabbix_params.password
+                };
+
+                return myScriptGetScenariosStatuses(ekara);
+            } catch (error) {
+                Zabbix.log(3, '[EKARA API] Error: ' + error);
+                return JSON.stringify({error: error});
+            }
+          description: 'Get the statuses of the scenarios'
+          parameters:
+            -
+              name: login
+              value: '{$EKARA.LOGIN}'
+            -
+              name: password
+              value: '{$EKARA.PASSWORD}'
+            -
+              name: url
+              value: '{$EKARA.URL}'
+          tags:
+            -
+              tag: purpose
+              value: 'raw JSON'
+        -
+          uuid: a34e0abf825e4b45ab4d30d6f471847e
+          name: 'Get all scenarios statuses check'
+          type: DEPENDENT
+          key: get.scenarios.statuses.check
+          delay: '0'
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: 'Data collection check'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.error
+              error_handler: CUSTOM_VALUE
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 3h
+          master_item:
+            key: get.scenarios.statuses
+          tags:
+            -
+              tag: purpose
+              value: 'script checkers'
+          triggers:
+            -
+              uuid: 43ea4b7b471c49e8b71571bb5cee3372
+              expression: 'length(last(/Ekara Template/get.scenarios.statuses.check))>0'
+              name: 'Get all scenarios statuses: Failed'
+              priority: WARNING
+      discovery_rules:
+        -
+          uuid: 82c4dfc25e2741e4880feebd75daf9e5
+          name: 'Set Ekara items'
+          type: DEPENDENT
+          key: set.ekara.items
+          delay: '0'
+          filter:
+            conditions:
+              -
+                macro: '{#SCENARIO.STATE}'
+                value: '1'
+                formulaid: A
+          description: 'This discovery rule will discover the metrics for each scenarios'
+          item_prototypes:
+            -
+              uuid: 22a876858e5242ddbbca9a1aa936f032
+              name: '{#SCENARIO.NAME}: availability'
+              type: DEPENDENT
+              key: 'get.scenarios.availability[{#SCENARIO.ID}]'
+              delay: '0'
+              units: '%'
+              description: 'Get the availability of the scenario'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.kpis[?(@.label==''availability'')].value.first()'
+              master_item:
+                key: 'get.scenarios.results[{#SCENARIO.ID}]'
+              tags:
+                -
+                  tag: application
+                  value: '{#SCENARIO.APP}'
+                -
+                  tag: purpose
+                  value: display
+                -
+                  tag: scenario
+                  value: '{#SCENARIO.NAME}'
+                -
+                  tag: type
+                  value: '{#SCENARIO.TYPE}'
+            -
+              uuid: f167781d72f54a238b9029bfac61b90d
+              name: '{#SCENARIO.NAME}: {#SCENARIO.METRIC}'
+              type: DEPENDENT
+              key: 'get.scenarios.metric[{#SCENARIO.ID}]'
+              delay: '0'
+              units: ms
+              description: 'Get the metric of the scenario if available'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.kpis[?(@.label==''{#SCENARIO.METRIC}'')].value.first()'
+              master_item:
+                key: 'get.scenarios.results[{#SCENARIO.ID}]'
+              tags:
+                -
+                  tag: application
+                  value: '{#SCENARIO.APP}'
+                -
+                  tag: metric
+                  value: '{#SCENARIO.METRIC}'
+                -
+                  tag: purpose
+                  value: display
+                -
+                  tag: scenario
+                  value: '{#SCENARIO.NAME}'
+                -
+                  tag: type
+                  value: '{#SCENARIO.TYPE}'
+            -
+              uuid: eacf78a9924445d7a6f9886dbaa2b744
+              name: '{#SCENARIO.NAME}: results check'
+              type: DEPENDENT
+              key: 'get.scenarios.results.check[{#SCENARIO.ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'Data collection check'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - $.error
+                  error_handler: CUSTOM_VALUE
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 3h
+              master_item:
+                key: 'get.scenarios.results[{#SCENARIO.ID}]'
+              tags:
+                -
+                  tag: application
+                  value: '{#SCENARIO.APP}'
+                -
+                  tag: purpose
+                  value: 'script checkers'
+                -
+                  tag: scenario
+                  value: '{#SCENARIO.NAME}'
+              trigger_prototypes:
+                -
+                  uuid: 233a5d5a5ade467b81c62de66ece7f7b
+                  expression: 'length(last(/Ekara Template/get.scenarios.results.check[{#SCENARIO.ID}]))>0'
+                  name: '{#SCENARIO.NAME}: Failed to get results'
+                  priority: WARNING
+            -
+              uuid: a1d96dcfbe804bda9249e13cd6e9c772
+              name: '{#SCENARIO.NAME}: results'
+              type: SCRIPT
+              key: 'get.scenarios.results[{#SCENARIO.ID}]'
+              delay: '{$EKARA.INTERVAL}'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              params: |
+                function getAuthToken(url, login, password)
+                {
+                    var response;
+                    var request = new HttpRequest();
+
+                    request.addHeader('Content-Type: application/json');
+
+                    Zabbix.log(4, '[EKARA API] Request: POST ' + url + 'auth/login {"email": "' + login + '", "password": "********"}');
+
+                    response = request.post(url + "auth/login", '{"email": "' + login + '", "password": "' + password + '"}');
+
+                    Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                    if (response !== null) {
+                        try {
+                            response = JSON.parse(response);
+                        }
+                        catch (error) {
+                            Zabbix.log(3, '[EKARA API] Authentification failed: No response.');
+                        }
+                    }
+
+                    if (typeof response !== 'object' || !response.token) {
+                        throw 'Authentification failed. Check debug log for more information.';
+                    }
+
+                    return response.token;
+                }
+
+                function ekaraFetch(method, url, data, auth_token)
+                {
+                    if (typeof auth_token === 'undefined' || auth_token === '') {
+                        throw 'Authentication token is missing or empty.';
+                    }
+
+                    var response;
+                    var request = new HttpRequest();
+
+                    request.addHeader('Content-Type: application/json');
+                    request.addHeader('Authorization: Bearer ' + auth_token);
+
+                    if (typeof data !== 'undefined') {
+                        data = JSON.stringify(data);
+                    }
+
+                    Zabbix.log(4, '[EKARA API] Request: ' + method + ' ' + url + ' ' + data);
+
+                    response = request.post(url, data);
+
+                    Zabbix.log(4, '[EKARA API] Response:', response, 'Status:', request.getStatus());
+
+                    if (response !== null) {
+                        try {
+                            response = JSON.parse(response);
+                        }
+                        catch (error) {
+                            Zabbix.log(3, '[EKARA API] Failed to parse response: ' + error);
+                        }
+                    }
+
+                    if (typeof response !== 'object' || typeof response === 'undefined' || response === null) {
+                        throw 'Process response failed. Check debug log for more information.';
+                    }
+
+                    if (request.getStatus() < 200 || request.getStatus() >= 300) {
+                        var message = 'Request failed with status code ' + request.getStatus();
+
+                        if (response.message) {
+                            message += ': ' + response.message;
+                        }
+
+                        throw message + ' Check debug log for more information.';
+                    }
+
+                    return response;
+                }
+
+                function myScriptGetScenariosInfos(ekara) {
+                    var auth_token = getAuthToken(ekara.url, ekara.login, ekara.password);
+                    var method = 'post';
+                    var data = {
+                        "filters": {
+                            "measurementIds": [
+                                "string"
+                            ]
+                        }
+                    };
+
+                    now = new Date().toJSON();
+                    if (ekara.interval.slice(-1) == 'm') {
+                        interval = parseInt(ekara.interval) * 1000 * 60;
+                    } else if (ekara.interval.slice(-1) == 'h'){
+                        interval = parseInt(ekara.interval) * 1000 * 60 * 60;
+                    } else {
+                        interval = parseInt(ekara.interval) * 1000;
+                    }
+
+                    prev = new Date();
+                    prev = prev - interval;
+                    prev = new Date(prev).toJSON();
+
+                    response = ekaraFetch(method, ekara.url + 'results-api/results/' + ekara.scenario_id + '?from=' + prev + '&to=' + now, data, auth_token);
+
+                    Zabbix.log(4, '[EKARA API] Response: ' + response);
+                    return JSON.stringify(response);
+                }
+
+                try {
+                    var zabbix_params = JSON.parse(value);
+                    var required_params = ['login', 'url', 'password', 'scenario_id', 'interval'];
+                    var ekara = {};
+
+                    for (var i = 0; i < required_params.length; i++) {
+                        if (typeof zabbix_params[required_params[i]] === 'undefined' || zabbix_params[required_params[i]] === '' || typeof zabbix_params !== 'object') {
+                            throw 'Required parameter "' + required_params[i] + '" is missing or empty.';
+                        }
+
+                        if (!zabbix_params.url.endsWith('/')) {
+                            zabbix_params.url += '/';
+                        }
+                    }
+
+                    ekara = {
+                        login: zabbix_params.login,
+                        url: zabbix_params.url,
+                        password: zabbix_params.password,
+                        scenario_id: zabbix_params.scenario_id,
+                        interval: zabbix_params.interval
+                    };
+
+                    return myScriptGetScenariosInfos(ekara);
+                } catch (error) {
+                    Zabbix.log(3, '[EKARA API] Error: ' + error);
+                    return JSON.stringify({error: error});
+                }
+              description: 'Get the results for each scenarios'
+              parameters:
+                -
+                  name: interval
+                  value: '{$EKARA.INTERVAL}'
+                -
+                  name: login
+                  value: '{$EKARA.LOGIN}'
+                -
+                  name: password
+                  value: '{$EKARA.PASSWORD}'
+                -
+                  name: scenario_id
+                  value: '{#SCENARIO.ID}'
+                -
+                  name: url
+                  value: '{$EKARA.URL}'
+              tags:
+                -
+                  tag: application
+                  value: '{#SCENARIO.APP}'
+                -
+                  tag: purpose
+                  value: 'raw JSON'
+                -
+                  tag: scenario
+                  value: '{#SCENARIO.NAME}'
+          graph_prototypes:
+            -
+              uuid: 9c37a2827974415ba5bbb1f8bd3e2c4a
+              name: '{#SCENARIO.NAME}: graph availability'
+              graph_items:
+                -
+                  color: 199C0D
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ekara Template'
+                    key: 'get.scenarios.availability[{#SCENARIO.ID}]'
+            -
+              uuid: 756a40591f77477d92d21420762625c2
+              name: '{#SCENARIO.NAME}: graph {#SCENARIO.METRIC}'
+              graph_items:
+                -
+                  color: 199C0D
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ekara Template'
+                    key: 'get.scenarios.metric[{#SCENARIO.ID}]'
+          master_item:
+            key: get.apps.active.scenarios
+          lld_macro_paths:
+            -
+              lld_macro: '{#SCENARIO.APP}'
+              path: '$.[''applicationName'']'
+            -
+              lld_macro: '{#SCENARIO.ID}'
+              path: '$.[''id'']'
+            -
+              lld_macro: '{#SCENARIO.METRIC}'
+              path: '$.[''preferredMetric'']'
+            -
+              lld_macro: '{#SCENARIO.NAME}'
+              path: '$.[''name'']'
+            -
+              lld_macro: '{#SCENARIO.STATE}'
+              path: '$.[''active'']'
+            -
+              lld_macro: '{#SCENARIO.TYPE}'
+              path: '$.[''plugins''][1].[''Name'']'
+        -
+          uuid: d645a1ce797d4e56a6cd139db5603565
+          name: 'Set Ekara status items'
+          type: DEPENDENT
+          key: set.ekara.status.items
+          delay: '0'
+          description: 'This discovery rule will just discover the status of scenarios'
+          item_prototypes:
+            -
+              uuid: 8338d08c2b37420bb06558df8199aa90
+              name: '{#SCENARIO.NAME}: status'
+              type: DEPENDENT
+              key: 'get.scenarios.statuses[{#SCENARIO.ID}]'
+              delay: '0'
+              valuemap:
+                name: 'String map for scenarios statuses'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$[?(@.scenarioId==''{#SCENARIO.ID}'')].currentStatus.first()'
+              master_item:
+                key: get.scenarios.statuses
+              tags:
+                -
+                  tag: purpose
+                  value: display
+                -
+                  tag: scenario
+                  value: '{#SCENARIO.NAME}'
+              trigger_prototypes:
+                -
+                  uuid: b5d54d6073f944a880ce67004298065f
+                  expression: 'last(/Ekara Template/get.scenarios.statuses[{#SCENARIO.ID}])<>1'
+                  name: '{#SCENARIO.NAME}: Status is not success'
+                  opdata: 'Status: {ITEM.VALUE}'
+                  priority: AVERAGE
+                  description: 'Trigger a problem if the scenario''s status isn''t successful'
+          master_item:
+            key: get.scenarios.statuses
+          lld_macro_paths:
+            -
+              lld_macro: '{#SCENARIO.ID}'
+              path: '$.[''scenarioId'']'
+            -
+              lld_macro: '{#SCENARIO.NAME}'
+              path: '$.[''scenarioName'']'
+      macros:
+        -
+          macro: '{$EKARA.INTERVAL}'
+          value: 15m
+          description: 'Define at which frequency to refresh the data'
+        -
+          macro: '{$EKARA.LOGIN}'
+          description: 'Put your Ekara login here'
+        -
+          macro: '{$EKARA.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'Put your password here'
+        -
+          macro: '{$EKARA.URL}'
+          value: 'https://api.ekara.ip-label.net/'
+          description: 'Here is the URL to Ekara'
+      valuemaps:
+        -
+          uuid: 0b113aa895334e9ba9ddb822e3ecbbc1
+          name: 'String map for scenarios statuses'
+          mappings:
+            -
+              value: '0'
+              newvalue: Unknown
+            -
+              value: '1'
+              newvalue: Success
+            -
+              value: '2'
+              newvalue: Failure
+            -
+              value: '3'
+              newvalue: Aborted
+            -
+              type: IN_RANGE
+              value: 4-5
+              newvalue: 'No execution'
+            -
+              value: '6'
+              newvalue: Stopped
+            -
+              value: '7'
+              newvalue: Excluded
+            -
+              value: '8'
+              newvalue: Degraded

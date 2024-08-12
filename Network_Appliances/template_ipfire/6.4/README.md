@@ -13,13 +13,13 @@ Supports monitoring of:
 - IPFire services (default IPFire services and possible Addon services)
 - Pakfire status (Installed version, Available update(s))
 - Network stats (Line quality, Open Connections, Firewall hits)
-- OpenVPN clients and stats (OpenVPN client discovery, OpenVPN client properties, Traffic stats)
+- OpenVPN clients and stats (OpenVPN client discovery, OpenVPN client properties, Traffic stats, Client/Server/CA Certificate validation)
 
 Use in conjunction with a default Template OS Linux-template for CPU/Memory/Storage monitoring of the IPFire appliance/instance.
 
 This template was created for:
 
-- IPFire 2.27 - Core update 179
+- IPFire 2.29 - Core update 185
 
 **Warning**: This template will *NOT* work on earlier versions of IPFire due to changes to the Zabbix Agent addon.
 
@@ -54,6 +54,7 @@ No specific Zabbix configuration is required
 |{$IPFIRE.OVPN.COMMONNAME.MATCHES} |<p>OpenVPN clients with common name matching this regex will be discovered</p>|`^.*$` |
 |{$IPFIRE.OVPN.COMMONNAME.NOTMATCHES} |<p>OpenVPN clients with common name matching this regex will not be discovered</p>|`CHANGE_IF_NEEDED` |
 |{$IPFIRE.OVPN.STATE.MATCHES} |<p>OpenVPN clients with a state (on/off) matching this regex will be discovered.</p>|`on` |
+|{$IPFIRE.OVPN.CERT.EXPIRY.WARN} |<p>Number of days until the OpenVPN server or CA certificate expires.</p>|`7` |
 
 #### Notes about $IPFIRE.SERVICE.TRIGGER
 This template does not 'detect' if you have manually disabled a service in IPFire, so by default it will alarm you when any service is down. This is done on purpose so that you will also be notified if a service is unintentionly disabled.
@@ -64,6 +65,12 @@ For example to disable the OpenVPN service trigger add `{$IPFIRE.SERVICE.TRIGGER
 
 Or you could opt to use the variables `{$IPFIRE.SERVICENAME.MATCHES}` and/or `{$IPFIRE.SERVICENAME.NOT_MATCHES}` to filter out services
 you don't want to be monitored at all.
+
+#### OpenVPN Client discovery
+This template is actually a set of 2 and includes a second template `IPFire OpenVPN Client by Zabbix agent` specificaly for use by the OpenVPN Client discovery defined in the main template `IPFire by Zabbix agent active`.
+
+If the OpenVPN Service of the IPFire instance is enabled, the main template will discover any configured OpenVPN clients (see `{$IPFIRE.OVPN.*}` macro's to set filters), create those as new hosts in Zabbix and link the `IPFire OpenVPN Client by Zabbix agent` template to them.
+Those client hosts will then start collecting OpenVPN statistics specific to those clients.
 
 ## Credits
 
