@@ -1,0 +1,350 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-03-08T20:29:12Z'
+  groups:
+    -
+      uuid: c2c162144c2d4c5491c8801193af4945
+      name: Templates/Cloud
+  templates:
+    -
+      uuid: da938aefcceb410cbc6bf06fbe96ab1d
+      template: 'AWS S3 bucket objects by HTTP'
+      name: 'AWS S3 bucket objects by HTTP'
+      description: |
+        The template gets AWS S3 bucket objects through the script item by making HTTP requests to the S3 API.
+        Don't forget to read the README.md for the correct setup of the template.
+        
+        You can discuss this template on our public templates repository https://github.com/zabbix/community-templates
+      groups:
+        -
+          name: Templates/Cloud
+      items:
+        -
+          uuid: c3da66ce5fda488fbe5b0429521360f0
+          name: 'AWS S3: Get bucket objects'
+          type: SCRIPT
+          key: aws.s3.get_objects
+          delay: 1d
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            var AwsS3 = {
+                params: {},
+            
+                setParams: function (params) {
+                    ['access_key', 'secret_key', 'region', 'bucket_name'].forEach(function (field) {
+                        if (typeof params !== 'object' || typeof params[field] === 'undefined' || params[field] === '') {
+                            throw 'Required param is not set: "' + field + '".';
+                        }
+                    });
+            
+                    AwsS3.params = params;
+                },
+            
+                sign: function (key, message) {
+                    var hex = hmac('sha256', key, message);
+            
+                    if ((hex.length % 2) === 1) {
+                        throw 'Invalid length of a hex string!';
+                    }
+            
+                    var result = new Int8Array(hex.length / 2);
+                    for (var i = 0, b = 0; i < hex.length; i += 2, b++) {
+                        result[b] = parseInt(hex.substring(i, i + 2), 16);
+                    }
+            
+                    return result;
+                },
+            
+                request: function (method, region, service, bucket_name, request_data) {
+                    if (typeof request_data === 'undefined' || request_data === null) {
+                        request_data = '';
+                    }
+                    else {
+                        request_data = JSON.stringify(request_data)
+                    }
+            
+                    var amzdate = (new Date()).toISOString().replace(/\.\d+Z/, 'Z').replace(/[-:]/g, ''),
+                        date = amzdate.replace(/T\d+Z/, ''),
+                        host = bucket_name + '.s3.' + region + '.amazonaws.com',
+                        canonical_uri = '/',
+                        canonical_query_string = 'list-type=2',
+                        canonical_headers = 'host:' + host + '\n' + 'x-amz-content-sha256:' + sha256(request_data) + '\n' + 'x-amz-date:' + amzdate + '\n',
+                        signed_headers = 'host;x-amz-content-sha256;x-amz-date',
+                        canonical_request = method + '\n' + canonical_uri + '\n' + canonical_query_string + '\n' + canonical_headers + '\n' + signed_headers + '\n' + sha256(request_data),
+                        credential_scope = date + '/' + region + '/' + service + '/' + 'aws4_request',
+                        request_string = 'AWS4-HMAC-SHA256' + '\n' + amzdate + '\n' + credential_scope + '\n' + sha256(canonical_request),
+                        key = AwsS3.sign('AWS4' + AwsS3.params.secret_key, date);
+            
+                    key = AwsS3.sign(key, region);
+                    key = AwsS3.sign(key, service);
+                    key = AwsS3.sign(key, 'aws4_request');
+            
+                    var request = new HttpRequest(),
+                        url = 'https://' + host + canonical_uri + '?' + canonical_query_string;
+            
+                    if (typeof AwsS3.params.proxy !== 'undefined' && AwsS3.params.proxy !== '') {
+                        request.setProxy(AwsS3.params.proxy);
+                    }
+                    request.addHeader('x-amz-date: ' + amzdate);
+                    request.addHeader('Host: ' + host);
+                    request.addHeader('x-amz-content-sha256: ' + sha256(request_data));
+                    request.addHeader('Authorization: ' + 'AWS4-HMAC-SHA256 Credential=' + AwsS3.params.access_key + '/' + credential_scope + ', ' + 'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + hmac('sha256', key, request_string));
+            
+                    Zabbix.log(4, '[ AWS S3 ] Sending request: ' + url);
+            
+                    response = request.get(url, request_data);
+                    Zabbix.log(4, '[ AWS S3 ] Received response with status code ' + request.getStatus() + ': ' + XML.toJson(response));
+            
+                    if (request.getStatus() !== 200) {
+                        throw 'Request failed with status code ' + request.getStatus() + ': ' + response;
+                    }
+            
+                    if (response !== null) {
+                        try {
+                            response = JSON.parse(XML.toJson(response));
+                        }
+                        catch (error) {
+                            throw 'Failed to parse response received from AWS S3 API. Check debug log for more information.';
+                        }
+                    }
+            
+                    return response;
+                },
+            
+                getObjectsList: function () {
+                    result = AwsS3.request('GET', AwsS3.params.region, 's3', AwsS3.params.bucket_name, null);
+            
+                    if (typeof result !== 'object' || typeof result.ListBucketResult !== 'object') {
+                        throw 'Cannot list bucket objects from AWS S3 API. Check debug log for more information.';
+                    }
+            
+                    return result.ListBucketResult;
+                }
+            };
+            
+            try {
+                AwsS3.setParams(JSON.parse(value));
+            
+                return JSON.stringify(AwsS3.getObjectsList());
+            }
+            catch (error) {
+                // return error
+                error += (String(error).endsWith('.')) ? '' : '.';
+                Zabbix.log(3, '[ AWS S3 ] ERROR: ' + error);
+                return JSON.stringify({'error': error});
+            }
+          description: |
+            Gets some or all (up to 1,000) of the objects in a bucket.
+            https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
+          timeout: 15s
+          parameters:
+            -
+              name: access_key
+              value: '{$AWS.ACCESS.KEY.ID}'
+            -
+              name: secret_key
+              value: '{$AWS.SECRET.ACCESS.KEY}'
+            -
+              name: region
+              value: '{$AWS.REGION}'
+            -
+              name: bucket_name
+              value: '{$AWS.S3.BUCKET.NAME}'
+          tags:
+            -
+              tag: component
+              value: raw
+        -
+          uuid: 62809b4c74c041f08e5a7e068f4b2d12
+          name: 'AWS S3: Get bucket objects check'
+          type: DEPENDENT
+          key: aws.s3.get_objects.check
+          delay: '0'
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          description: 'Data collection check.'
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.error
+              error_handler: CUSTOM_VALUE
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 3h
+          master_item:
+            key: aws.s3.get_objects
+          tags:
+            -
+              tag: component
+              value: status
+          triggers:
+            -
+              uuid: 56f8d2fc675c43e4b8e9dcd28011c165
+              expression: 'length(last(/AWS S3 bucket objects by HTTP/aws.s3.get_objects.check))>0'
+              name: 'AWS S3: Failed to get S3 objects list'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                -
+                  tag: scope
+                  value: availability
+      discovery_rules:
+        -
+          uuid: 8837904efdd34a93832ab9171a42914d
+          name: 'Bucket Objects discovery'
+          type: DEPENDENT
+          key: aws.s3.objects.discovery
+          delay: '0'
+          description: 'Discovery bucket objects.'
+          item_prototypes:
+            -
+              uuid: 47f8bdfd83224ebca6d80cfffaf1751e
+              name: 'AWS S3 Object: ["{#KEY}"]: Last Modified'
+              type: DEPENDENT
+              key: 'aws.s3.bucket.object_modified["{#KEY}"]'
+              delay: '0'
+              history: 7d
+              units: 'days ago'
+              description: 'How many days ago the object was modified.'
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.Contents[?(@.Key== ''{#KEY}'')].LastModified.first()'
+                  error_handler: DISCARD_VALUE
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      function dateDiffInDays(a, b) {
+                        var MS_PER_DAY = 1000 * 60 * 60 * 24;
+                        // Discard the time and time-zone information.
+                        const utc1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+                        const utc2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+                      
+                        return Math.floor((utc2 - utc1) / MS_PER_DAY);
+                      }
+                      
+                      s3_object_last_modified = new Date(value);
+                      today = new Date();
+                      return dateDiffInDays(s3_object_last_modified, today);
+              master_item:
+                key: aws.s3.get_objects
+              tags:
+                -
+                  tag: component
+                  value: object
+                -
+                  tag: content
+                  value: modified
+              trigger_prototypes:
+                -
+                  uuid: 5ca17f5c06ee47878fe4300a867dcf35
+                  expression: 'last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_modified["{#KEY}"])>{$AWS.S3.OBJECT.MODIFIED.MAX.WARN:"{#KEY}"}'
+                  name: 'AWS S3 Object: "{#KEY}": Last Modified'
+                  priority: WARNING
+                  description: 'The object has not been modified for more than {$AWS.S3.OBJECT.MODIFIED.MAX.WARN} days.'
+                  tags:
+                    -
+                      tag: scope
+                      value: availability
+            -
+              uuid: 76fab373386d4f77b27d1637e192d614
+              name: 'AWS S3 Object: ["{#KEY}"]: Size'
+              type: DEPENDENT
+              key: 'aws.s3.bucket.object_size["{#KEY}"]'
+              delay: '0'
+              history: 7d
+              units: B
+              description: |
+                Size in bytes of the object.
+                https://docs.aws.amazon.com/AmazonS3/latest/API/API_Object.html#AmazonS3-Type-Object-Size
+              preprocessing:
+                -
+                  type: JSONPATH
+                  parameters:
+                    - '$.Contents[?(@.Key== ''{#KEY}'')].Size.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: aws.s3.get_objects
+              tags:
+                -
+                  tag: component
+                  value: object
+                -
+                  tag: content
+                  value: size
+              trigger_prototypes:
+                -
+                  uuid: 7954978a4e704c8794d930fd0e757894
+                  expression: 'last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_size["{#KEY}"])>{$AWS.S3.OBJECT.SIZE.MAX.WARN:"{#KEY}"}'
+                  name: 'AWS S3 Object: "{#KEY}" is oversized'
+                  priority: WARNING
+                  description: 'The object size is greater than {$AWS.S3.OBJECT.SIZE.MAX.WARN} bytes.'
+                  tags:
+                    -
+                      tag: scope
+                      value: capacity
+                -
+                  uuid: 9671c2d8c2ea4b5e955efb93f7ee84a5
+                  expression: 'last(/AWS S3 bucket objects by HTTP/aws.s3.bucket.object_size["{#KEY}"])<{$AWS.S3.OBJECT.SIZE.MIN.WARN:"{#KEY}"}'
+                  name: 'AWS S3 Object: "{#KEY}" is undersized'
+                  priority: WARNING
+                  description: 'The object size is smaller than {$AWS.S3.OBJECT.SIZE.MIN.WARN} bytes.'
+                  tags:
+                    -
+                      tag: scope
+                      value: capacity
+          master_item:
+            key: aws.s3.get_objects
+          lld_macro_paths:
+            -
+              lld_macro: '{#KEY}'
+              path: $.Key
+          preprocessing:
+            -
+              type: JSONPATH
+              parameters:
+                - $.Contents
+      tags:
+        -
+          tag: class
+          value: software
+        -
+          tag: target
+          value: aws
+        -
+          tag: target
+          value: s3
+      macros:
+        -
+          macro: '{$AWS.ACCESS.KEY.ID}'
+          description: 'Access key ID.'
+        -
+          macro: '{$AWS.REGION}'
+          value: us-west-1
+          description: 'Amazon S3 Region code.'
+        -
+          macro: '{$AWS.S3.BUCKET.NAME}'
+          description: 'S3 bucket name.'
+        -
+          macro: '{$AWS.S3.OBJECT.MODIFIED.MAX.WARN}'
+          value: '2'
+          description: 'Maximum number of days an object can remain unchanged.'
+        -
+          macro: '{$AWS.S3.OBJECT.SIZE.MAX.WARN}'
+          value: '31457280000'
+          description: 'Maximum size in bytes an object can have.'
+        -
+          macro: '{$AWS.S3.OBJECT.SIZE.MIN.WARN}'
+          value: '5242880'
+          description: 'Minimum size in bytes an object can have.'
+        -
+          macro: '{$AWS.SECRET.ACCESS.KEY}'
+          type: SECRET_TEXT
+          description: 'Secret access key.'

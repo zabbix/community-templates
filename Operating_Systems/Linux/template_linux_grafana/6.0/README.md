@@ -17,7 +17,7 @@ Please, if have any suggestions or problems, please contact me: https://github.c
 Grafana Dashboard:
 
 
-<https://grafana.com/dashboards/5363>
+<https://grafana.com/grafana/dashboards/5363>
 
 
 
