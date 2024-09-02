@@ -19,7 +19,7 @@ Monitors:
 
 ## Author
 
-Christos Diamantis
+Christos Diamantis (christos-diamantis)
 
 ## Macros used
 
