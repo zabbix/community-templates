@@ -87,7 +87,7 @@ The test is only done in small lab environments. In a large environment, monitor
 | ------- | -------| -------| -------|
 | bsnAPTable | Enumerate Access Point and create prototype for each | SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPName <br>Update: 1h|
 | cLMobilityGroupMembersOperEntry | Enumurate Mobility Group Member and createprotoype for each | SNMP Agent | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperNodeAddress <br>Update: 1h|
-| cLWlanSsid | Enumerate SSID and create prototype for each | SNMP Agent | CISCO-LWAPP-WLAN-MIB::cLWlanSsid <br>Update: 1h |
+| cLWlanProfileName | Enumerate SSID and create prototype for each | SNMP Agent | CISCO-LWAPP-WLAN-MIB::cLWlanProfileName<br>Update: 1h |
 
 
 ## Items collected
