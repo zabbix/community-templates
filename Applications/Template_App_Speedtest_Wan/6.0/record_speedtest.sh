@@ -38,9 +38,9 @@ test -z "$EGREP" && echo "egrep binary not found" && exit
 test -z "$RM" && echo "rm binary not found" && exit
 
 if [ "$($SPEEDTEST -V | $EGREP -c 'Speedtest by Ookla')" -lt 1 ];then
-        echo "The speedtest binary needs to be from Ookla."
-        echo "Please visit https://www.speedtest.net/apps/cli"
-        exit
+	echo "The speedtest binary needs to be from Ookla."
+	echo "Please visit https://www.speedtest.net/apps/cli"
+	exit
 fi
 
 # Temporary speedtest output
@@ -51,20 +51,20 @@ NOW=$($DATE +%s)
 
 "$TIMEOUT" "$TIMEOUTTIME" "$SPEEDTEST" "$SPEEDTESTPARAMS" -f json 2>/dev/null > "$OUTFILE"
 if [ "$($STAT -c %s "$OUTFILE")" -le 100 ];then
-        echo "ERROR running speedtest - output file too small - $OUTFILE"
-        echo "You may want to try running $SPEEDTEST -f json manually"
-        echo "and/or checking the contents of $OUTFILE"
-        exit
+	echo "ERROR running speedtest - output file too small - $OUTFILE"
+	echo "You may want to try running $SPEEDTEST -f json manually"
+	echo "and/or checking the contents of $OUTFILE"
+	exit
 fi
 
 F="$($CAT "$OUTFILE")"
 
 # do we have PSKID and PSKFILE?
 if [ -f "$PSKFILE" ] && [ -n "$PSKID" ];then
-        $ZABBIX_SENDER --tls-connect psk --tls-psk-identity "$PSKID" --tls-psk-file "$PSKFILE" -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[runtime]" -o "$NOW" > /dev/null 2>&1
-        $ZABBIX_SENDER --tls-connect psk --tls-psk-identity "$PSKID" --tls-psk-file "$PSKFILE" -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[json]" -o "$F" > /dev/null 2>&1
+	$ZABBIX_SENDER --tls-connect psk --tls-psk-identity "$PSKID" --tls-psk-file "$PSKFILE" -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[runtime]" -o "$NOW" > /dev/null 2>&1
+	$ZABBIX_SENDER --tls-connect psk --tls-psk-identity "$PSKID" --tls-psk-file "$PSKFILE" -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[json]" -o "$F" > /dev/null 2>&1
 else
-        $ZABBIX_SENDER -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[runtime]" -o "$NOW" > /dev/null 2>&1
-        $ZABBIX_SENDER -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[json]" -o "$F" > /dev/null 2>&1
+	$ZABBIX_SENDER -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[runtime]" -o "$NOW" > /dev/null 2>&1
+	$ZABBIX_SENDER -z "$ZABSRV" -s "$SPDHOST" -k "custom.speedtest[json]" -o "$F" > /dev/null 2>&1
 fi
 $RM -f "$OUTFILE"
