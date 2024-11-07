@@ -1,11 +1,11 @@
-# Eltex MES SNMPv2
+# Eltex MES by SNMP
 
 ## Overview
 
 Added to the Eltex MES switches, serial number, MAC address, firmware version.
 
 
-15.02.2018 Add SFP healt (C, Volt, mA, Out power [mW/dBm], Input power [mW/dBm]). 
+del 15.02.2018 Add SFP healt (C, Volt, mA, Out power [mW/dBm], Input power [mW/dBm]). 
 
 
 23.02.2018 Add Screens and Aliase to Screens
@@ -13,10 +13,6 @@ Added to the Eltex MES switches, serial number, MAC address, firmware version.
 
 
 ## Macros used
-
-|Name|Description|Default|Type|
-|----|-----------|-------|----|
-|{$SNMP_COMMUNITY}|<p>-</p>|`public`|Text macro|
 
 
 ## Template links
@@ -86,4 +82,3 @@ There are no template links in this template.
 |Error OUT {HOST.NAME} interface {#SNMPVALUE} (LLD)|<p>-</p>|<p>**Expression**: last(/Eltex MES SNMPv2/ifOutErrors[{#SNMPVALUE}])>0</p><p>**Recovery expression**: </p>|warning|
 |Operational status was changed on {HOST.NAME} interface {#SNMPVALUE} (LLD)|<p>-</p>|<p>**Expression**: (last(/Eltex MES SNMPv2/ifOperStatus[{#SNMPVALUE}],#1)<>last(/Eltex MES SNMPv2/ifOperStatus[{#SNMPVALUE}],#2))=1</p><p>**Recovery expression**: </p>|information|
 |Utilization > 50% IN {HOST.NAME} interface {#SNMPVALUE} ({#IFNAME}) (LLD)|<p>-</p>|<p>**Expression**: (avg(/Eltex MES SNMPv2/ifHCInOctets[{#SNMPVALUE}],5m)*0.000001)>(last(/Eltex MES SNMPv2/speed_on_[{#SNMPVALUE}])/2) or (avg(/Eltex MES SNMPv2/ifHCOutOctets[{#SNMPVALUE}],5m)*0.000001)>(last(/Eltex MES SNMPv2/speed_on_[{#SNMPVALUE}])/2)</p><p>**Recovery expression**: </p>|warning|
-|Затухание на SFP порту {#SNMPVALUE} (LLD)|<p>Потери мощности на оптической линии.</p>|<p>**Expression**: avg(/Eltex MES SNMPv2/rlPhyTestGetResult.InPow[{#SNMPVALUE}],5m)<(avg(/Eltex MES SNMPv2/rlPhyTestGetResult.OutPow[{#SNMPVALUE}],5m)*2)</p><p>**Recovery expression**: </p>|average|
