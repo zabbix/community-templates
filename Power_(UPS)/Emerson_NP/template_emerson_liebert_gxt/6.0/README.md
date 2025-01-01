@@ -86,6 +86,7 @@ There are no template links in this template.
 |System Description|<p>-</p>|`SNMP agent`|sysDescr<p>Update: 1m</p>|
 |Battery Charge Remaining|<p>-</p>|`SNMP agent`|upsEstimatedChargeRemaining<p>Update: 1m</p>|
 |Ups Output Voltage|<p>-</p>|`SNMP agent`|upsConfigOutputVoltage<p>Update: 30s</p>|
+|Ups Output Current|<p>-</p>|`SNMP agent`|lcUpsOutputCurrent<p>Update: 30s</p>|
 |System Manufacturer|<p>-</p>|`SNMP agent`|lgpAgentIdenManufacturer<p>Update: 1m</p>|
 |System Network Card Model|<p>-</p>|`SNMP agent`|lgpAgentIdenModel<p>Update: 1m</p>|
 |Battery Voltage|<p>-</p>|`SNMP agent`|upsBatteryVoltage<p>Update: 30s</p>|
