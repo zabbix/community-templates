@@ -25,7 +25,7 @@ zabbix_export:
         Created by Robin Roevens (robin.roevens (at) disroot.org)
       vendor:
         name: RobinR1
-        version: 6.4-0.4
+        version: 6.4-0.6
       groups:
         - name: Templates/Applications
       items:
@@ -100,14 +100,44 @@ zabbix_export:
         - uuid: a01561b00aab4406a38e34440658848d
           name: 'IPFire: Services: Get'
           type: ZABBIX_ACTIVE
-          key: ipfire.services
+          key: ipfire.services.get
           history: '0'
           trends: '0'
           value_type: TEXT
-          description: 'Get a list of IPFire service using agent script ipfire_services.pl'
+          description: 'Get state of IPFire service'
           tags:
             - tag: component
               value: raw
+        - uuid: f34db223c2b84e14b3ceb6a257cfa870
+          name: 'IPFire: Services: Last services refresh'
+          type: DEPENDENT
+          key: ipfire.services.last_refresh
+          delay: '0'
+          history: 1d
+          trends: '0'
+          units: unixtime
+          description: 'Timestamp of last time the services data in Zabbix was refreshed by the agent.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return Math.floor(Date.now() / 1000)'
+          master_item:
+            key: ipfire.services.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: b1b626f0761e4755b3c365ad7897d08c
+              expression: 'nodata(/IPFire by Zabbix agent active/ipfire.services.last_refresh,5m)=1'
+              name: 'IPFire: No new services data received'
+              event_name: 'IPFire: No new services data received (no new data for more than 5m)'
+              priority: AVERAGE
+              description: |
+                Unable to renew IPFire services data for at least 5m. 
+                Check zabbix_agentd logging in IPFire system logs for possible reasons.
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: 45efac8b0c984815b9cf5c2790373911
           name: 'IPFire: Core-Update available'
           type: DEPENDENT
@@ -119,9 +149,10 @@ zabbix_export:
           preprocessing:
             - type: REGEX
               parameters:
-                - 'Core-Update available: (.*)'
+                - 'Core-Update available: (yes|no)'
                 - \1
-              error_handler: DISCARD_VALUE
+              error_handler: CUSTOM_ERROR
+              error_handler_params: 'Unable to parse input'
             - type: JAVASCRIPT
               parameters:
                 - |
@@ -481,6 +512,160 @@ zabbix_export:
                 - tag: scope
                   value: security
       discovery_rules:
+        - uuid: f3b894900b444b008d8d85929b6042d0
+          name: 'Guardian discovery'
+          type: DEPENDENT
+          key: ipfire.guardian.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#SERVICENAME}'
+                value: ^guardian$
+                formulaid: A
+              - macro: '{#SERVICESTATE}'
+                value: '1'
+                formulaid: B
+          item_prototypes:
+            - uuid: 160a5d2b5fb54c19a5a019108c4d76a1
+              name: 'IPFire: Addon: guardian: # of blocked hosts'
+              type: ZABBIX_ACTIVE
+              key: 'ipfire.guardian.blocked.count[{#SINGLETON}]'
+              description: 'Total number of currently blocked hosts by Guardian'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: guardian
+          master_item:
+            key: ipfire.services.get
+          lld_macro_paths:
+            - lld_macro: '{#SERVICENAME}'
+              path: $.servicename
+            - lld_macro: '{#SERVICESTATE}'
+              path: $.state
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#SINGLETON}'
+              path: $.singleton
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
+                  discovery_items = JSON.parse(value);
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  return JSON.stringify(discovery_items);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 37ff821e85834653afd07ab41c1d44ed
+          name: 'Intrusion Prevention discovery'
+          type: DEPENDENT
+          key: ipfire.ips.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#SERVICENAME}'
+                value: ^suricata$
+                formulaid: A
+              - macro: '{#SERVICESTATE}'
+                value: '1'
+                formulaid: B
+          item_prototypes:
+            - uuid: fb31f293c7f1498497294b7bdde06487
+              name: 'IPFire: Intrusion Prevention System: Throughput: Get'
+              key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              history: '0'
+              trends: '0'
+              value_type: CHAR
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: b9ed6ff6c4404191a3f5230adda19422
+              name: 'IPFire: Intrusion Prevention System: Throughput: Bypassed'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[bypassed{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.bypassed
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+            - uuid: 0986afa3fcd8400ea8566c5a5a064004
+              name: 'IPFire: Intrusion Prevention System: Throughput: Scanned'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[scanned{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.scanned
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+            - uuid: ea02e1143b4b4750850435f215dc54e9
+              name: 'IPFire: Intrusion Prevention System: Throughput: Whitelisted'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[whitelisted{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.whitelisted
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+          master_item:
+            key: ipfire.services.get
+          lld_macro_paths:
+            - lld_macro: '{#SERVICENAME}'
+              path: $.servicename
+            - lld_macro: '{#SERVICESTATE}'
+              path: $.state
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#SINGLETON}'
+              path: $.singleton
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
+                  discovery_items = JSON.parse(value);
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  return JSON.stringify(discovery_items);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
         - uuid: 61c015898168475892226c0d1cc752d8
           name: 'Firewall chains discovery'
           type: DEPENDENT
@@ -1150,19 +1335,19 @@ zabbix_export:
                   value: service
                 - tag: service
                   value: openvpn
-          trigger_prototypes:
-            - uuid: 16156984f21243a09a9c486e28dafd01
-              expression: '(nodata(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.get[{#SINGLETON}],5m)=1 or time()-last(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}])>5m)'
-              name: 'IPFire: OpenVPN: Statusreport outdated'
-              priority: AVERAGE
-              description: |
-                Did not receive a recent OpenVPN status report. OpenVPN client data is probably outdated and/or inaccurate.
-                Check if Zabbix Agent is running and properly configured to send OpenVPN status reports (UserParameter: ipfire.ovpn.statusreport.get) and/or OpenVPN server configuration is the IPFire default.
-              tags:
-                - tag: scope
-                  value: availability
+              trigger_prototypes:
+                - uuid: 16156984f21243a09a9c486e28dafd01
+                  expression: '(nodata(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}],5m)=1 or time()-last(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}])>5m)'
+                  name: 'IPFire: OpenVPN: Statusreport outdated'
+                  priority: AVERAGE
+                  description: |
+                    Did not receive a recent OpenVPN status report. OpenVPN client data is probably outdated and/or inaccurate.
+                    Check if Zabbix Agent is running and properly configured to send OpenVPN status reports (UserParameter: ipfire.ovpn.statusreport.get) and/or OpenVPN server configuration is the IPFire default.
+                  tags:
+                    - tag: scope
+                      value: availability
           master_item:
-            key: ipfire.services
+            key: ipfire.services.get
           lld_macro_paths:
             - lld_macro: '{#SERVICENAME}'
               path: $.servicename
@@ -1176,9 +1361,9 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  // Filter out toggling parts: pid, memory, onboot & add singleton
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
                   discovery_items = JSON.parse(value);
-                  discovery_items.map(function (item) { ['pid','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
                   return JSON.stringify(discovery_items);
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -1212,7 +1397,7 @@ zabbix_export:
                     - '$[?(@.servicename == "{#SERVICENAME}")].memory.first()'
                   error_handler: DISCARD_VALUE
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: memory
@@ -1235,28 +1420,30 @@ zabbix_export:
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '1'
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: service
                 - tag: service
                   value: '{#SERVICENAME}'
             - uuid: 865fe738cfb34752b83605930b3cf180
-              name: 'IPFire: {#SERVICE}: Pid'
+              name: 'IPFire: {#SERVICE}: Pids'
               type: DEPENDENT
-              key: 'ipfire.services.pid[{#SERVICENAME}]'
+              key: 'ipfire.services.pids[{#SERVICENAME}]'
               delay: '0'
               history: 7d
+              trends: '0'
+              value_type: CHAR
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.servicename == "{#SERVICENAME}")].pid.first()'
+                    - '$[?(@.servicename == "{#SERVICENAME}")].pids.first()'
                   error_handler: DISCARD_VALUE
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: os
@@ -1277,7 +1464,7 @@ zabbix_export:
                   parameters:
                     - '$[?(@.servicename == "{#SERVICENAME}")].state.first()'
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: service
@@ -1293,7 +1480,7 @@ zabbix_export:
                     - tag: scope
                       value: availability
           master_item:
-            key: ipfire.services
+            key: ipfire.services.get
           lld_macro_paths:
             - lld_macro: '{#SERVICENAME}'
               path: $.servicename
@@ -1307,7 +1494,7 @@ zabbix_export:
                 - |
                   // Filter out toggling parts: state, pid, memory, onboot & add singleton
                   discovery_items = JSON.parse(value);
-                  discovery_items.map(function (item) { ['state','pid','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  discovery_items.map(function (item) { ['state','pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
                   return JSON.stringify(discovery_items);
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -1382,7 +1569,7 @@ zabbix_export:
         This template is applied to discovered OpenVPN client hosts by the template IPFire by Zabbix agent and is not meant to be applied manually to any hosts.
       vendor:
         name: RobinR1
-        version: 6.4-0.4
+        version: 6.4-0.6
       groups:
         - name: Templates/Modules
       items:
