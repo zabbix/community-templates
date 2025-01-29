@@ -6,7 +6,7 @@ This template monitors an [IPFire](https://www.ipfire.org/) [appliance](https://
 
 ## Overview
 
-For Zabbix version: 6.0
+For Zabbix version: 7.0
 
 Supports monitoring of:
 - IPFire general stats (Number of current DHCPd clients)
