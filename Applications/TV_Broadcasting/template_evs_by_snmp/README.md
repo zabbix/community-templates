@@ -13,6 +13,13 @@ It uses the new OID method for SNMP OID Discovery, where a Walk Item is used wit
 
 There is also numerous Value Mapping added to Items, to ease the readout of the raw integer values returned.
 
+NOTE: It requires the following four EVS MIB-files imported into Zabbix in order to work:
+
+evs-xserver-mib 1.mib
+evs-server-mib 1.mib
+evs-product-mib 1.mib
+evs-global-reg 1.mib
+
 
 ## Author
 
