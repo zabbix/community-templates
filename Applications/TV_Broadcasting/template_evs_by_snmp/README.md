@@ -11,7 +11,7 @@ Is also auto discovery of the RAID array. It will show the RAID status, aswell a
 
 It uses the new OID method for SNMP OID Discovery, where a Walk Item is used with dependent Item and Trigger prototypes. This is supported from Zabbix ver 6.4 and higher.
 
-There is also numerous Value Mapping added to Items, to ease the status readout of integer values returned.
+There is also numerous Value Mapping added to Items, to ease the readout of the raw integer values returned.
 
 
 ## Author
@@ -62,7 +62,16 @@ Timecode input status
 XNet Connection state
 XNet DB State not OK
 XNet Traffic not normal
-{HOST.HOST} Recorder Field Counter
-{HOST.NAME} Thermal Status
+Recorder Field Counter
+Thermal Status
 Video Standard
 RAID Status
+
+## Graphs
+
+EVS Current Free Space (pie)
+EVS Free Space over time (stacked)
+
+## Dashboard
+
+One simple dashboard, showing free space and current problems per EVS
