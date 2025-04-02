@@ -31,7 +31,7 @@ Robin Roevens
 
 ## Setup
 
-- Install and configure [IPFire addon `zabbix_agentd`](https://wiki.ipfire.org/addons/zabbix_agentd) using Pakfire
+- Install and configure [IPFire addon `zabbix_agentd`](https://www.ipfire.org/docs/addons/zabbix_agentd) using Pakfire
 - Make sure the IPFire builtin specific userparameters are enabled in `/etc/zabbix_agentd/zabbix_agentd.conf` (which should be by default)
 
 ### Upgrade note:

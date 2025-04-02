@@ -6,7 +6,7 @@ This template monitors an [IPFire](https://www.ipfire.org/) [appliance](https://
 
 ## Overview
 
-For Zabbix version: 6.0
+For Zabbix version: 7.2
 
 Supports monitoring of:
 - IPFire general stats (Number of current DHCPd clients)
@@ -31,7 +31,7 @@ Robin Roevens
 
 ## Setup
 
-- Install and configure [IPFire addon `zabbix_agentd`](https://wiki.ipfire.org/addons/zabbix_agentd) using Pakfire
+- Install and configure [IPFire addon `zabbix_agentd`](https://www.ipfire.org/docs/addons/zabbix_agentd) using Pakfire
 - Make sure the IPFire builtin specific userparameters are enabled in `/etc/zabbix_agentd/zabbix_agentd.conf` (which should be by default)
 
 ### Upgrade note:
