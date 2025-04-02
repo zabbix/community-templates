@@ -1,5 +1,5 @@
 zabbix_export:
-  version: '6.4'
+  version: '7.0'
   template_groups:
     - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
       name: Templates/Applications
@@ -25,7 +25,7 @@ zabbix_export:
         Created by Robin Roevens (robin.roevens (at) disroot.org)
       vendor:
         name: RobinR1
-        version: 6.4-0.4
+        version: 7.0-0.7
       groups:
         - name: Templates/Applications
       items:
@@ -56,8 +56,8 @@ zabbix_export:
           type: ZABBIX_ACTIVE
           key: ipfire.net.fw.hits.raw
           history: '0'
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'Raw data item for retrieving firewall hits on all forwarding chains'
           tags:
             - tag: component
@@ -100,14 +100,45 @@ zabbix_export:
         - uuid: a01561b00aab4406a38e34440658848d
           name: 'IPFire: Services: Get'
           type: ZABBIX_ACTIVE
-          key: ipfire.services
+          key: ipfire.services.get
           history: '0'
-          trends: '0'
           value_type: TEXT
-          description: 'Get a list of IPFire service using agent script ipfire_services.pl'
+          trends: '0'
+          description: 'Get state of IPFire service'
+          timeout: 10s
           tags:
             - tag: component
               value: raw
+        - uuid: f34db223c2b84e14b3ceb6a257cfa870
+          name: 'IPFire: Services: Last services refresh'
+          type: DEPENDENT
+          key: ipfire.services.last_refresh
+          delay: '0'
+          history: 1d
+          trends: '0'
+          units: unixtime
+          description: 'Timestamp of last time the services data in Zabbix was refreshed by the agent.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return Math.floor(Date.now() / 1000)'
+          master_item:
+            key: ipfire.services.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: b1b626f0761e4755b3c365ad7897d08c
+              expression: 'nodata(/IPFire by Zabbix agent active/ipfire.services.last_refresh,5m)=1'
+              name: 'IPFire: No new services data received'
+              event_name: 'IPFire: No new services data received (no new data for more than 5m)'
+              priority: AVERAGE
+              description: |
+                Unable to renew IPFire services data for at least 5m. 
+                Check zabbix_agentd logging in IPFire system logs for possible reasons.
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: 45efac8b0c984815b9cf5c2790373911
           name: 'IPFire: Core-Update available'
           type: DEPENDENT
@@ -119,9 +150,10 @@ zabbix_export:
           preprocessing:
             - type: REGEX
               parameters:
-                - 'Core-Update available: (.*)'
+                - 'Core-Update available: (yes|no)'
                 - \1
-              error_handler: DISCARD_VALUE
+              error_handler: CUSTOM_ERROR
+              error_handler_params: 'Unable to parse input'
             - type: JAVASCRIPT
               parameters:
                 - |
@@ -216,7 +248,8 @@ zabbix_export:
           key: pakfire.core-version
           delay: '0'
           history: 7d
-          value_type: FLOAT
+          value_type: CHAR
+          trends: '0'
           preprocessing:
             - type: REGEX
               parameters:
@@ -335,8 +368,9 @@ zabbix_export:
           key: pakfire.status
           delay: 10m
           history: '0'
-          trends: '0'
           value_type: TEXT
+          trends: '0'
+          timeout: 10s
           tags:
             - tag: component
               value: raw
@@ -481,6 +515,161 @@ zabbix_export:
                 - tag: scope
                   value: security
       discovery_rules:
+        - uuid: f3b894900b444b008d8d85929b6042d0
+          name: 'Guardian discovery'
+          type: DEPENDENT
+          key: ipfire.guardian.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#SERVICENAME}'
+                value: ^guardian$
+                formulaid: A
+              - macro: '{#SERVICESTATE}'
+                value: '1'
+                formulaid: B
+          item_prototypes:
+            - uuid: 160a5d2b5fb54c19a5a019108c4d76a1
+              name: 'IPFire: Addon: guardian: # of blocked hosts'
+              type: ZABBIX_ACTIVE
+              key: 'ipfire.guardian.blocked.count[{#SINGLETON}]'
+              description: 'Total number of currently blocked hosts by Guardian'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: guardian
+          master_item:
+            key: ipfire.services.get
+          lld_macro_paths:
+            - lld_macro: '{#SERVICENAME}'
+              path: $.servicename
+            - lld_macro: '{#SERVICESTATE}'
+              path: $.state
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#SINGLETON}'
+              path: $.singleton
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
+                  discovery_items = JSON.parse(value);
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  return JSON.stringify(discovery_items);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 37ff821e85834653afd07ab41c1d44ed
+          name: 'Intrusion Prevention discovery'
+          type: DEPENDENT
+          key: ipfire.ips.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#SERVICENAME}'
+                value: ^suricata$
+                formulaid: A
+              - macro: '{#SERVICESTATE}'
+                value: '1'
+                formulaid: B
+          item_prototypes:
+            - uuid: fb31f293c7f1498497294b7bdde06487
+              name: 'IPFire: Intrusion Prevention System: Throughput: Get'
+              type: ZABBIX_ACTIVE
+              key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              history: '0'
+              value_type: CHAR
+              trends: '0'
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: b9ed6ff6c4404191a3f5230adda19422
+              name: 'IPFire: Intrusion Prevention System: Throughput: Bypassed'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[bypassed{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.bypassed
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+            - uuid: 0986afa3fcd8400ea8566c5a5a064004
+              name: 'IPFire: Intrusion Prevention System: Throughput: Scanned'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[scanned{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.scanned
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+            - uuid: ea02e1143b4b4750850435f215dc54e9
+              name: 'IPFire: Intrusion Prevention System: Throughput: Whitelisted'
+              type: DEPENDENT
+              key: 'ipfire.ips.throughput[whitelisted{#SINGLETON}]'
+              delay: '0'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.whitelisted
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'ipfire.ips.throughput.get[{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: suricata
+          master_item:
+            key: ipfire.services.get
+          lld_macro_paths:
+            - lld_macro: '{#SERVICENAME}'
+              path: $.servicename
+            - lld_macro: '{#SERVICESTATE}'
+              path: $.state
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#SINGLETON}'
+              path: $.singleton
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
+                  discovery_items = JSON.parse(value);
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  return JSON.stringify(discovery_items);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
         - uuid: 61c015898168475892226c0d1cc752d8
           name: 'Firewall chains discovery'
           type: DEPENDENT
@@ -495,6 +684,8 @@ zabbix_export:
                 value: '{$IPFIRE.FW_CHAIN.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
                 formulaid: B
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
           description: 'Discovery of firewall chains in filter table to create "firewall hits" items/chain'
           item_prototypes:
             - uuid: e754323822f04c6b9e2e77bca43344fe
@@ -557,6 +748,8 @@ zabbix_export:
               - macro: '{#STATE}'
                 value: '{$IPFIRE.OVPN.STATE.MATCHES}'
                 formulaid: C
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
           description: 'Discovers configured OpenVPN clients'
           host_prototypes:
             - uuid: 37dc62b5f94c4979bfca33e8ab7ae7cb
@@ -599,6 +792,7 @@ zabbix_export:
               - macro: '{#SERVICESTATE}'
                 value: '1'
                 formulaid: B
+          enabled_lifetime_type: DISABLE_NEVER
           item_prototypes:
             - uuid: ecd52470e79a4a8da9c16a0f069c1714
               name: 'IPFire OpenVPN: CA Cert: Issuer'
@@ -606,8 +800,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.issuer[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The field identifies the entity that has signed and issued the certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -624,8 +818,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.message[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'Last check result message.'
               preprocessing:
                 - type: JSONPATH
@@ -689,8 +883,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.public_key_algorithm[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The digital signature algorithm is used to verify the signature of a certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -707,8 +901,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.serial_number[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The serial number is a positive integer assigned by the CA to each certificate. It is unique for each certificate issued by a given CA. Non-conforming CAs may issue certificates with serial numbers that are negative or zero.'
               preprocessing:
                 - type: JSONPATH
@@ -725,8 +919,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.sha1_fingerprint[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
               preprocessing:
                 - type: JSONPATH
@@ -753,8 +947,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.signature_algorithm[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The algorithm identifier for the algorithm used by the CA to sign the certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -771,8 +965,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.subject[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The field identifies the entity associated with the public key stored in the subject public key field.'
               preprocessing:
                 - type: JSONPATH
@@ -789,8 +983,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.validation[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The certificate validation result. Possible values: valid/invalid/valid-but-self-signed'
               preprocessing:
                 - type: JSONPATH
@@ -815,8 +1009,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert.version[{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The version of the encoded certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -833,8 +1027,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cacert[{#SINGLETON}]'
               delay: 15m
               history: '0'
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'Returns the JSON with attributes of the OpenVPN CA certificate.'
               preprocessing:
                 - type: CHECK_JSON_ERROR
@@ -852,8 +1046,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.issuer[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The field identifies the entity that has signed and issued the certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -870,8 +1064,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.message[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'Last check result message.'
               preprocessing:
                 - type: JSONPATH
@@ -935,8 +1129,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.public_key_algorithm[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The digital signature algorithm is used to verify the signature of a certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -953,8 +1147,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.serial_number[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The serial number is a positive integer assigned by the CA to each certificate. It is unique for each certificate issued by a given CA. Non-conforming CAs may issue certificates with serial numbers that are negative or zero.'
               preprocessing:
                 - type: JSONPATH
@@ -971,8 +1165,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.sha1_fingerprint[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
               preprocessing:
                 - type: JSONPATH
@@ -999,8 +1193,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.signature_algorithm[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The algorithm identifier for the algorithm used by the CA to sign the certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -1017,8 +1211,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.subject[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'The field identifies the entity associated with the public key stored in the subject public key field.'
               preprocessing:
                 - type: JSONPATH
@@ -1035,8 +1229,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.validation[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The certificate validation result. Possible values: valid/invalid/valid-but-self-signed'
               preprocessing:
                 - type: JSONPATH
@@ -1061,8 +1255,8 @@ zabbix_export:
               key: 'ipfire.ovpn.cert.version[server{#SINGLETON}]'
               delay: '0'
               history: 7d
-              trends: '0'
               value_type: CHAR
+              trends: '0'
               description: 'The version of the encoded certificate.'
               preprocessing:
                 - type: JSONPATH
@@ -1079,8 +1273,8 @@ zabbix_export:
               key: 'ipfire.ovpn.clientcert[server{#SINGLETON}]'
               delay: 15m
               history: '0'
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'Returns the JSON with attributes of a certificate of the requested site.'
               preprocessing:
                 - type: CHECK_JSON_ERROR
@@ -1119,8 +1313,8 @@ zabbix_export:
               type: ZABBIX_ACTIVE
               key: 'ipfire.ovpn.statusreport.get[{#SINGLETON}]'
               history: '0'
-              trends: '0'
               value_type: TEXT
+              trends: '0'
               description: 'Get OpenVPN status report containing list of connected clients and routing tables'
               preprocessing:
                 - type: DISCARD_UNCHANGED
@@ -1150,19 +1344,19 @@ zabbix_export:
                   value: service
                 - tag: service
                   value: openvpn
-          trigger_prototypes:
-            - uuid: 16156984f21243a09a9c486e28dafd01
-              expression: '(nodata(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.get[{#SINGLETON}],5m)=1 or time()-last(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}])>5m)'
-              name: 'IPFire: OpenVPN: Statusreport outdated'
-              priority: AVERAGE
-              description: |
-                Did not receive a recent OpenVPN status report. OpenVPN client data is probably outdated and/or inaccurate.
-                Check if Zabbix Agent is running and properly configured to send OpenVPN status reports (UserParameter: ipfire.ovpn.statusreport.get) and/or OpenVPN server configuration is the IPFire default.
-              tags:
-                - tag: scope
-                  value: availability
+              trigger_prototypes:
+                - uuid: 16156984f21243a09a9c486e28dafd01
+                  expression: '(nodata(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}],5m)=1 or time()-last(/IPFire by Zabbix agent active/ipfire.ovpn.statusreport.timestamp[{#SINGLETON}])>5m)'
+                  name: 'IPFire: OpenVPN: Statusreport outdated'
+                  priority: AVERAGE
+                  description: |
+                    Did not receive a recent OpenVPN status report. OpenVPN client data is probably outdated and/or inaccurate.
+                    Check if Zabbix Agent is running and properly configured to send OpenVPN status reports (UserParameter: ipfire.ovpn.statusreport.get) and/or OpenVPN server configuration is the IPFire default.
+                  tags:
+                    - tag: scope
+                      value: availability
           master_item:
-            key: ipfire.services
+            key: ipfire.services.get
           lld_macro_paths:
             - lld_macro: '{#SERVICENAME}'
               path: $.servicename
@@ -1176,9 +1370,9 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  // Filter out toggling parts: pid, memory, onboot & add singleton
+                  // Filter out toggling parts: pids, memory, onboot & add singleton
                   discovery_items = JSON.parse(value);
-                  discovery_items.map(function (item) { ['pid','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  discovery_items.map(function (item) { ['pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
                   return JSON.stringify(discovery_items);
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -1198,6 +1392,7 @@ zabbix_export:
                 value: '{$IPFIRE.SERVICENAME.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
                 formulaid: B
+          enabled_lifetime_type: DISABLE_NEVER
           item_prototypes:
             - uuid: 64ab99104e5c4a748745fbc1d02b1803
               name: 'IPFire: {#SERVICE}: Memory usage'
@@ -1212,7 +1407,7 @@ zabbix_export:
                     - '$[?(@.servicename == "{#SERVICENAME}")].memory.first()'
                   error_handler: DISCARD_VALUE
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: memory
@@ -1235,28 +1430,30 @@ zabbix_export:
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '1'
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: service
                 - tag: service
                   value: '{#SERVICENAME}'
             - uuid: 865fe738cfb34752b83605930b3cf180
-              name: 'IPFire: {#SERVICE}: Pid'
+              name: 'IPFire: {#SERVICE}: Pids'
               type: DEPENDENT
-              key: 'ipfire.services.pid[{#SERVICENAME}]'
+              key: 'ipfire.services.pids[{#SERVICENAME}]'
               delay: '0'
               history: 7d
+              value_type: CHAR
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.servicename == "{#SERVICENAME}")].pid.first()'
+                    - '$[?(@.servicename == "{#SERVICENAME}")].pids.first()'
                   error_handler: DISCARD_VALUE
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: os
@@ -1277,7 +1474,7 @@ zabbix_export:
                   parameters:
                     - '$[?(@.servicename == "{#SERVICENAME}")].state.first()'
               master_item:
-                key: ipfire.services
+                key: ipfire.services.get
               tags:
                 - tag: component
                   value: service
@@ -1293,7 +1490,7 @@ zabbix_export:
                     - tag: scope
                       value: availability
           master_item:
-            key: ipfire.services
+            key: ipfire.services.get
           lld_macro_paths:
             - lld_macro: '{#SERVICENAME}'
               path: $.servicename
@@ -1307,7 +1504,7 @@ zabbix_export:
                 - |
                   // Filter out toggling parts: state, pid, memory, onboot & add singleton
                   discovery_items = JSON.parse(value);
-                  discovery_items.map(function (item) { ['state','pid','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
+                  discovery_items.map(function (item) { ['state','pids','memory', 'onboot'].forEach(function(key) { delete item[key] }); item['singleton'] = "" });
                   return JSON.stringify(discovery_items);
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -1351,6 +1548,537 @@ zabbix_export:
         - macro: '{$IPFIRE.SERVICENAME.NOT_MATCHES}'
           value: CHANGE_IF_NEEDED
           description: 'Services matching this regex will not be discovered'
+      dashboards:
+        - uuid: 0f62a493631b4a59bf5c86986a8df2c2
+          name: 'IPFire: Overview'
+          pages:
+            - widgets:
+                - type: item
+                  name: 'Internet Gateway'
+                  width: '8'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: 'Internet gateway status'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.net.gateway.ping
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: D32F2F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 2E7D32
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: item
+                  name: 'Reboot required'
+                  'y': '2'
+                  width: '8'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: 'Reboot required'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: pakfire.reboot-required
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 2E7D32
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: D32F2F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: svggraph
+                  name: 'Firewall hits'
+                  'y': '4'
+                  width: '22'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: FF465C
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'IPFire: Firewall: Hits on chain *'
+                    - type: INTEGER
+                      name: ds.0.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: QGVQA
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'Line quality'
+                  x: '8'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: 'Line quality'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: STRING
+                      name: down_color
+                      value: 388E3C
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.net.gateway.pingtime
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: STRING
+                      name: updown_color
+                      value: 388E3C
+                    - type: STRING
+                      name: up_color
+                      value: C62828
+                - type: svggraph
+                  name: 'Line quality'
+                  x: '8'
+                  'y': '2'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: axisx
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 81C784
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.net.gateway.pingtime
+                    - type: INTEGER
+                      name: lefty
+                      value: '0'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: QJOGG
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: item
+                  name: 'Open connections'
+                  x: '17'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'Open connections'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: STRING
+                      name: down_color
+                      value: 388E3C
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: 'vfs.file.contents["/proc/sys/net/netfilter/nf_conntrack_count"]'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: STRING
+                      name: updown_color
+                      value: 388E3C
+                    - type: STRING
+                      name: up_color
+                      value: C62828
+                - type: svggraph
+                  name: 'Open connections'
+                  x: '17'
+                  'y': '2'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: axisx
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: CC6600
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: 'vfs.file.contents["/proc/sys/net/netfilter/nf_conntrack_count"]'
+                    - type: INTEGER
+                      name: lefty
+                      value: '0'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: DSVZN
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: svggraph
+                  name: 'IPS Throughput'
+                  x: '22'
+                  'y': '4'
+                  width: '22'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 00FFBF
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'IPFire: Intrusion Prevention System: Throughput: *'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: or.0.color
+                      value: 80FF00
+                    - type: STRING
+                      name: or.0.items.0
+                      value: 'IPFire: Intrusion Prevention System: Throughput: Bypassed'
+                    - type: STRING
+                      name: or.1.color
+                      value: 0080FF
+                    - type: STRING
+                      name: or.1.items.0
+                      value: 'IPFire: Intrusion Prevention System: Throughput: Whitelisted'
+                    - type: STRING
+                      name: or.2.color
+                      value: FF0000
+                    - type: STRING
+                      name: or.2.items.0
+                      value: 'IPFire: Intrusion Prevention System: Throughput: Scanned'
+                    - type: STRING
+                      name: reference
+                      value: YWZTO
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'Active DHCP leases'
+                  x: '26'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'Active DHCP leases'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: STRING
+                      name: down_color
+                      value: 388E3C
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.dhcpd.clients
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: STRING
+                      name: updown_color
+                      value: 388E3C
+                    - type: STRING
+                      name: up_color
+                      value: C62828
+                - type: svggraph
+                  name: 'Active DHCP leases'
+                  x: '26'
+                  'y': '2'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: axisx
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 673AB7
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.dhcpd.clients
+                    - type: INTEGER
+                      name: lefty
+                      value: '0'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: WFWUZ
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: item
+                  name: 'Active Captive Portal clients'
+                  x: '35'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'Active Captive Portal clients'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: STRING
+                      name: down_color
+                      value: 388E3C
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.captive.clients
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_size
+                      value: '10'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: STRING
+                      name: updown_color
+                      value: 388E3C
+                    - type: STRING
+                      name: up_color
+                      value: C62828
+                - type: svggraph
+                  name: 'Active Captive Portal users'
+                  x: '35'
+                  'y': '2'
+                  width: '9'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: axisx
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: FFD54F
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'IPFire by Zabbix agent active'
+                        key: ipfire.captive.clients
+                    - type: INTEGER
+                      name: lefty
+                      value: '0'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: XZRAF
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: dataover
+                  name: 'Pakfire status'
+                  x: '44'
+                  width: '16'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: style
+                      value: '1'
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: component
+                    - type: STRING
+                      name: tags.0.value
+                      value: pakfire
+                - type: problems
+                  name: 'Recent problems'
+                  x: '44'
+                  'y': '6'
+                  width: '28'
+                  height: '3'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: AEUFI
+                - type: honeycomb
+                  name: 'Services state'
+                  x: '60'
+                  width: '12'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'IPFire: *: State'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: component
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: service
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("IPFire: (.*): State", \1)}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '40'
+                    - type: STRING
+                      name: reference
+                      value: COOZL
+                    - type: INTEGER
+                      name: secondary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: D32F2F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 2E7D32
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
       valuemaps:
         - uuid: 57ac5ee3ecd34a36a30119db05e5a738
           name: 'Boolean Yes/no'
@@ -1382,7 +2110,7 @@ zabbix_export:
         This template is applied to discovered OpenVPN client hosts by the template IPFire by Zabbix agent and is not meant to be applied manually to any hosts.
       vendor:
         name: RobinR1
-        version: 6.4-0.4
+        version: 7.0-0.7
       groups:
         - name: Templates/Modules
       items:
@@ -1469,8 +2197,8 @@ zabbix_export:
           type: SCRIPT
           key: ipfire.ovpn.client.commonname
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           params: 'return "{$IPFIRE.OVPN.CLIENT.COMMONNAME}";'
           description: 'OpenVPN Client connection name as configured in IPFire WUI'
           inventory_link: ALIAS
@@ -1478,6 +2206,7 @@ zabbix_export:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
+          timeout: 3s
           tags:
             - tag: component
               value: system
@@ -1534,7 +2263,7 @@ zabbix_export:
           preprocessing:
             - type: CHECK_NOT_SUPPORTED
               parameters:
-                - ''
+                - '-1'
               error_handler: CUSTOM_VALUE
               error_handler_params: '0'
           tags:
@@ -1545,8 +2274,8 @@ zabbix_export:
           type: SCRIPT
           key: ipfire.ovpn.client.name
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           params: 'return "{$IPFIRE.OVPN.CLIENT.NAME}";'
           description: 'OpenVPN Client name as configured in IPFire WUI'
           inventory_link: NAME
@@ -1554,6 +2283,7 @@ zabbix_export:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
+          timeout: 3s
           tags:
             - tag: component
               value: system
@@ -1563,8 +2293,8 @@ zabbix_export:
           key: ipfire.ovpn.client.real_address
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'Real IP address of client'
           preprocessing:
             - type: JSONPATH
@@ -1593,8 +2323,8 @@ zabbix_export:
           type: SCRIPT
           key: ipfire.ovpn.client.remark
           history: 7d
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           params: 'return "{$IPFIRE.OVPN.CLIENT.REMARK}";'
           description: 'OpenVPN Client remark as configured in IPFire WUI'
           inventory_link: NOTES
@@ -1602,6 +2332,7 @@ zabbix_export:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
+          timeout: 3s
           tags:
             - tag: component
               value: system
@@ -1632,6 +2363,7 @@ zabbix_export:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
+          timeout: 3s
           tags:
             - tag: component
               value: system
@@ -1640,8 +2372,8 @@ zabbix_export:
           type: SCRIPT
           key: ipfire.ovpn.client.type
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           params: 'return "{$IPFIRE.OVPN.CLIENT.TYPE}";'
           description: 'OpenVPN Client type'
           inventory_link: TYPE
@@ -1651,6 +2383,7 @@ zabbix_export:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
+          timeout: 3s
           tags:
             - tag: component
               value: system
@@ -1660,8 +2393,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.issuer
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'The field identifies the entity that has signed and issued the certificate.'
           preprocessing:
             - type: JSONPATH
@@ -1678,8 +2411,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.message
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'Last check result message.'
           preprocessing:
             - type: JSONPATH
@@ -1743,8 +2476,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.public_key_algorithm
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The digital signature algorithm is used to verify the signature of a certificate.'
           preprocessing:
             - type: JSONPATH
@@ -1761,8 +2494,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.serial_number
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The serial number is a positive integer assigned by the CA to each certificate. It is unique for each certificate issued by a given CA. Non-conforming CAs may issue certificates with serial numbers that are negative or zero.'
           preprocessing:
             - type: JSONPATH
@@ -1779,8 +2512,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.sha1_fingerprint
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
           preprocessing:
             - type: JSONPATH
@@ -1808,8 +2541,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.signature_algorithm
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The algorithm identifier for the algorithm used by the CA to sign the certificate.'
           preprocessing:
             - type: JSONPATH
@@ -1826,8 +2559,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.subject
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'The field identifies the entity associated with the public key stored in the subject public key field.'
           preprocessing:
             - type: JSONPATH
@@ -1844,8 +2577,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.validation
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The certificate validation result. Possible values: valid/invalid/valid-but-self-signed'
           preprocessing:
             - type: JSONPATH
@@ -1871,8 +2604,8 @@ zabbix_export:
           key: ipfire.ovpn.clientcert.version
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'The version of the encoded certificate.'
           preprocessing:
             - type: JSONPATH
@@ -1888,8 +2621,8 @@ zabbix_export:
           key: 'ipfire.ovpn.clientcert[{$IPFIRE.OVPN.CLIENT.NAME}]'
           delay: 15m
           history: '0'
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'Returns the JSON with attributes of a certificate of the requested site.'
           preprocessing:
             - type: CHECK_JSON_ERROR
@@ -1925,8 +2658,8 @@ zabbix_export:
           key: ipfire.ovpn.routing_table.virtual_address
           delay: '0'
           history: 7d
-          trends: '0'
           value_type: CHAR
+          trends: '0'
           description: 'Virtual IP address of client'
           preprocessing:
             - type: JSONPATH
@@ -1945,8 +2678,8 @@ zabbix_export:
           name: 'OpenVPN Client: Statusreport: Get'
           key: ipfire.ovpn.statusreport.get
           history: '0'
-          trends: '0'
           value_type: TEXT
+          trends: '0'
           description: 'Get OpenVPN status report containing list of connected clients and routing tables'
           preprocessing:
             - type: DISCARD_UNCHANGED
@@ -1981,6 +2714,436 @@ zabbix_export:
         - macro: '{$IPFIRE.OVPN.CLIENT.TYPE}'
           value: FILLED_IN_BY_HOST_DISCOVERY
           description: 'OpenVPN client type'
+      dashboards:
+        - uuid: 0ba8d53e5ef6408bb2e953ec2b53785c
+          name: 'OpenVPN Client summary'
+          pages:
+            - widgets:
+                - type: item
+                  name: 'OpenVPN Client name'
+                  width: '28'
+                  hide_header: 'YES'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.name
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                - type: item
+                  name: 'OpenVPN Client Connection state'
+                  'y': '2'
+                  width: '17'
+                  hide_header: 'YES'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.connected
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '3'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 4CAF50
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: svggraph
+                  name: 'OpenVPN Client Traffic'
+                  'y': '4'
+                  width: '38'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 4CAF50
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 29B6F6
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.bytes_out
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.bytes_in
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: DKTEG
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'OpenVPN Client VPN IP'
+                  x: '17'
+                  'y': '2'
+                  width: '8'
+                  height: '1'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: desc_h_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: desc_size
+                      value: '25'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.routing_table.virtual_address
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '50'
+                    - type: INTEGER
+                      name: value_v_pos
+                      value: '2'
+                - type: item
+                  name: 'OpenVPN Client Remote IP'
+                  x: '17'
+                  'y': '3'
+                  width: '8'
+                  height: '1'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: desc_h_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: desc_size
+                      value: '25'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.real_address
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '50'
+                    - type: INTEGER
+                      name: value_v_pos
+                      value: '2'
+                - type: item
+                  name: 'OpenVPN Client: Last connection time'
+                  x: '25'
+                  'y': '2'
+                  width: '19'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '25'
+                    - type: INTEGER
+                      name: desc_h_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.connected_since
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_size
+                      value: '25'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: 'OpenVPN Client Common name'
+                  x: '28'
+                  width: '27'
+                  hide_header: 'YES'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.commonname
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                - type: itemhistory
+                  name: 'OpenVPN Client certificate details'
+                  x: '38'
+                  'y': '4'
+                  width: '34'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.subject
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'OpenVPN Client: Cert: Subject'
+                    - type: ITEM
+                      name: columns.1.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.issuer
+                    - type: STRING
+                      name: columns.1.name
+                      value: 'OpenVPN Client: Cert: Issuer'
+                    - type: ITEM
+                      name: columns.2.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.serial_number
+                    - type: STRING
+                      name: columns.2.name
+                      value: 'OpenVPN Client: Cert: Serial number'
+                    - type: ITEM
+                      name: columns.3.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.public_key_algorithm
+                    - type: STRING
+                      name: columns.3.name
+                      value: 'OpenVPN Client: Cert: Public key algorithm'
+                    - type: ITEM
+                      name: columns.4.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.signature_algorithm
+                    - type: STRING
+                      name: columns.4.name
+                      value: 'OpenVPN Client: Cert: Signature algorithm'
+                    - type: ITEM
+                      name: columns.5.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.sha1_fingerprint
+                    - type: INTEGER
+                      name: columns.5.monospace_font
+                      value: '1'
+                    - type: STRING
+                      name: columns.5.name
+                      value: 'OpenVPN Client: Cert: Fingerprint'
+                    - type: ITEM
+                      name: columns.6.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.not_before
+                    - type: STRING
+                      name: columns.6.name
+                      value: 'OpenVPN Client: Cert: Valid from'
+                    - type: ITEM
+                      name: columns.7.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.not_after
+                    - type: STRING
+                      name: columns.7.name
+                      value: 'OpenVPN Client: Cert: Expires on'
+                    - type: ITEM
+                      name: columns.8.itemid
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.clientcert.message
+                    - type: STRING
+                      name: columns.8.name
+                      value: 'OpenVPN Client: Cert: Last validation status'
+                    - type: STRING
+                      name: reference
+                      value: EUIVT
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '1'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '9'
+                    - type: STRING
+                      name: time_period.from
+                      value: now-1d
+                    - type: STRING
+                      name: time_period.to
+                      value: now
+                - type: item
+                  name: 'OpenVPN Client: Last activity'
+                  x: '44'
+                  'y': '2'
+                  width: '17'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '25'
+                    - type: INTEGER
+                      name: desc_h_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.routing_table.last_ref
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_size
+                      value: '25'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: 'OpenVPN Client State'
+                  x: '55'
+                  width: '17'
+                  hide_header: 'YES'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.state
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '3'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 4CAF50
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: item
+                  name: 'OpenVPN Client Last connection duration'
+                  x: '61'
+                  'y': '2'
+                  width: '11'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: desc_h_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'IPFire OpenVPN Client by Zabbix agent'
+                        key: ipfire.ovpn.client.connection.duration
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                    - type: INTEGER
+                      name: time_h_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: time_v_pos
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
       valuemaps:
         - uuid: 87dfebb2a9784886b12efe44d8044ee3
           name: 'OpenVPN Client access status'
@@ -2038,3 +3201,17 @@ zabbix_export:
           item:
             host: 'IPFire by Zabbix agent active'
             key: 'vfs.file.contents["/proc/sys/net/netfilter/nf_conntrack_count"]'
+    - uuid: 0e204a1d9d5e4ef5beebf0385a218256
+      name: 'OpenVPN Client Traffic'
+      graph_items:
+        - color: 29B6F6
+          calc_fnc: ALL
+          item:
+            host: 'IPFire OpenVPN Client by Zabbix agent'
+            key: ipfire.ovpn.client.bytes_in
+        - sortorder: '1'
+          color: 4CAF50
+          calc_fnc: ALL
+          item:
+            host: 'IPFire OpenVPN Client by Zabbix agent'
+            key: ipfire.ovpn.client.bytes_out
