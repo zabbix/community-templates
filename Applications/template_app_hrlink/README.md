@@ -10,7 +10,7 @@ This template is intended for monitoring the service HR-Link (https://hr-link.ru
 
 ## Author
 
-Vadim Gurko
+Vadim Gurko <VA.Gurko@yandex.ru>
 
 ## Setup
 
@@ -24,7 +24,7 @@ Import the Template_App_HR-Link.yaml template into your Zabbix instance (Configu
 
 ## Template links
 
-Information and plug-in are available here: https://github.com/VAGurko/zabbix_template_hrlink
+Information and plug-in are available here: https://github.com/VAGurko/zabbix-community-templates/tree/main/Applications/template_app_hrlink
 
 The procedure for making changes is described here: https://github.com/VAGurko/zabbix-community-templates/wiki/Порядок-внесения-изменений-в-шаблон
 
@@ -61,7 +61,7 @@ The procedure for making changes is described here: https://github.com/VAGurko/z
 
 ## Known issues
 
-You can report problems here: https://github.com/VAGurko/zabbix_template_hrlink/issues
+You can report problems here: https://github.com/VAGurko/zabbix-community-templates/issues
 
 ## References
 
