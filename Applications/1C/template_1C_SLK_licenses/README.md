@@ -10,7 +10,7 @@ This template is intended for monitoring the service SLK licenses (https://licen
 
 ## Author
 
-Vadim Gurko <VA.Gurko@yandex.ru>
+Vadim Gurko
 
 ## Setup
 
