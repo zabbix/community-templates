@@ -53,8 +53,11 @@ There are no template links in this template.
 |{#CONTAINER_NAME}: |N/A|Dependent Item|podman.ps.containers.Status[{#CONTAINER_NAME}]|podman.ps|Character|Yes (JSON Path)|
 
 ## Trigger Prototypes
-|Name|Description|Expression|Priority|
-|----|-----------|----------|--------|
+|Name|Description|Expression|Priority|Recovery|
+|----|-----------|----------|--------|--------|
+|{#CONTAINER_NAME} Has Recently Restarted|N/A|change(/Template - RHEL 9 - Ansible Automation Platform/podman.ps.containers.StartedAt[{#CONTAINER_NAME}])>0 or change(/Template - RHEL 9 - Ansible Automation Platform/podman.ps.containers.Restarts[{#CONTAINER_NAME}])>0|Warning|Yes
+|{#CONTAINER_NAME} Is Not Running|N/A|last(/Template - RHEL 9 - Ansible Automation Platform/podman.ps.containers.State[{#CONTAINER_NAME}])<>"running"|Average|Yes|
+|{#CONTAINER_NAME} Is Offline|N/A|last(/Template - RHEL 9 - Ansible Automation Platform/podman.ps.containers.exited[{#CONTAINER_NAME}])="true"|High|Yes|
 
 ## Special Notes
 Two host-level changes must be made. One will modify the Zabbix Agent configuration to include an additional user parameter. The other is a sudo change to allow zabbix to "change users" to the target user(s). Change the $USER variable to the user running your pods.
@@ -64,3 +67,9 @@ UserParameter=podman.ps,sudo -u $USER podman ps -a --format json
 
 ## Sudo Change (visudo /etc/sudoers.d/zabbix)
 zabbix  ALL=($USER) NOPASSWD: /usr/bin/podman ps -a --format json
+
+## Tested with
+(Agent): Zabbix Agent2 v7.0.X
+(Server): Zabbix Server v7.0.X
+(Guest OS): RHEL 9.X
+(Podman): 4.9.4
