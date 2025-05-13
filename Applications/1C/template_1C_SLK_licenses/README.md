@@ -16,6 +16,12 @@ Vadim Gurko
 
 Import the Template_App_1C_SLK_licenses.yaml template into your Zabbix instance (Configuration --> Templates --> Import), and apply the template to a host.
 
+To access the API, enable API access in the settings:
+
+Open in a browser http://localhost:9099/settings, enable the API and specify your username and password.
+
+After that, restart the SLK licensing service.
+
 ## Zabbix configuration
 
 |Name|Description| Default     | Type         |
