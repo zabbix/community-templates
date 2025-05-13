@@ -69,7 +69,7 @@ UserParameter=podman.ps,sudo -u $USER podman ps -a --format json
 zabbix  ALL=($USER) NOPASSWD: /usr/bin/podman ps -a --format json
 
 ## Tested with
-(Agent): Zabbix Agent2 v7.0.X
-(Server): Zabbix Server v7.0.X
-(Guest OS): RHEL 9.X
-(Podman): 4.9.4
+(Agent): Zabbix Agent2 v7.0.X <br/>
+(Server): Zabbix Server v7.0.X <br/>
+(Guest OS): RHEL 9.X <br/>
+(Podman): 4.9.4 <br/>
