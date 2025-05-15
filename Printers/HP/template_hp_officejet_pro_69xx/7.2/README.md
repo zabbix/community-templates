@@ -43,4 +43,14 @@ There are no discovery rules in this template.
 
 ## Triggers
 
-There are no triggers in this template.
+
+|Name|Description|Expression|Priority|
+|----|-----------|----------|--------|
+|Empty Ink - Magenta|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/magenta)=0 and nodata(/Printer HP OfficeJet Pro 69xx/magenta.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|high|
+|Ink low - Magenta ({ITEM.LASTVALUE})|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/magenta)<3 and nodata(/Printer HP OfficeJet Pro 69xx/magenta.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|info|
+|Empty Ink - Cyan|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/cyan)=0 and nodata(/Printer HP OfficeJet Pro 69xx/cyan.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|high|
+|Ink low - Cyan ({ITEM.LASTVALUE})|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/cyan)<3 and nodata(/Printer HP OfficeJet Pro 69xx/cyan.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|info|
+|Empty Ink - Yellow|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/yellow)=0 and nodata(/Printer HP OfficeJet Pro 69xx/yellow.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|high|
+|Ink low - Yellow ({ITEM.LASTVALUE})|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/yellow)<3 and nodata(/Printer HP OfficeJet Pro 69xx/yellow.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|info|
+|Empty Ink - Black|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/black)=0 and nodata(/Printer HP OfficeJet Pro 69xx/black.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|high|
+|Ink low - Black ({ITEM.LASTVALUE})|<p>-</p>|<p>**Expression**: last(/Printer HP OfficeJet Pro 69xx/black)<3 and nodata(/Printer HP OfficeJet Pro 69xx/black.cartridge.type,3w)=0 and nodata(/Printer HP OfficeJet Pro 69xx/model,3w)=0</p>|info|
