@@ -34,7 +34,7 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Get all Deployments|<p>Master Item for creating Deployments Discovery Rule</p>|`HTTP agent`|get.prefect.all.deployments|
-|Get unpaused Deployments|<p>Master Item for creating unpaused Deployments Discovery Rule</p>|`HTTP agent`|get.prefect.all.deployments|
+|Get unpaused Deployments|<p>Master Item for creating unpaused Deployments Discovery Rule</p>|`HTTP agent`|get.prefect.unpaused.deployments|
 |Deployment {#DEPLOYMENTNAME} Ready State|<p>Item for checking Deployment Ready or not ready state</p>|`Dependet item`|deployment.ready.state[{#DEPLOYMENTID}]|
 |Deployment {#DEPLOYMENTNAME} Active State|<p>Item for checking if Deployment is active or paused</p>|`Dependet item`|deployment.ready.active[{#DEPLOYMENTID}]|
 |Flow Run {#FLOWNAME}|<p>Master Item getting flows to get Flow Runs</p>|`HTTP agent`|flow.run[{#FLOWNAME}_{#DEPLOYMENTID}]|
