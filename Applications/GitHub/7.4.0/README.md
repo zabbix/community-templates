@@ -17,13 +17,13 @@ If a change is detected (new commit), a trigger is fired so the user can be noti
 
 ## Macros
 
-| Name                  | Description                                                                 | Default   |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| `{$GITHUB_REPO}`       | GitHub repository in the format `owner/repo` (e.g., `zabbix/zabbix`)        |
-| `{$GITHUB_FILE}`       | Relative path to file or folder (e.g., `templates/`, `myfile.yaml`)         |
-|                        | Leave empty to monitor the entire repository                                |
-| `{$GITHUB_BRANCH}`     | Name of the Git branch to monitor (e.g., `main`, `master`)                  |
-| `{$GITHUB_UPDATE_INTERVAL}` | How often the GitHub API should be queried     |
+| Name                      | Description                                                                                         | Default   |
+|---------------------------|-----------------------------------------------------------------------------------------------------|-----------|
+| `{$GITHUB_REPO}`          | GitHub repository in the format `owner/repo` (e.g., `zabbix/zabbix`)                                | `zabbix/community-templates`          |
+| `{$GITHUB_FILE}`          | Relative path to file or folder (e.g., `templates/`, `myfile.yaml`). Leave empty for full repo.     | *(empty)* |
+| `{$GITHUB_BRANCH}`        | Name of the Git branch to monitor (e.g., `main`, `master`)                                          | `main`    |
+| `{$GITHUB_UPDATE_INTERVAL}` | How often (in seconds) the GitHub API should be queried                                            | `1h`    |
+
 
 ## Item Details
 
