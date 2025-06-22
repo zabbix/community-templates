@@ -17,7 +17,7 @@ If a change is detected (new commit), a trigger is fired so the user can be noti
 
 ## Macros
 
-| Macro                  | Description                                                                 |
+| Name                  | Description                                                                 | Default   
 |------------------------|-----------------------------------------------------------------------------|
 | `{$GITHUB_REPO}`       | GitHub repository in the format `owner/repo` (e.g., `zabbix/zabbix`)        |
 | `{$GITHUB_FILE}`       | Relative path to file or folder (e.g., `templates/`, `myfile.yaml`)         |
@@ -27,16 +27,17 @@ If a change is detected (new commit), a trigger is fired so the user can be noti
 
 ## Item Details
 
-- **Type:** HTTP agent
-- **Key:** `github.commit.sha`
-- **Preprocessing:** JSONPath  
-  - Use `$.body[0].sha` if body is wrapped  
-- **Required HTTP Header:**  
-  - `User-Agent: ZabbixMonitor`
+
+| Item Key            | Name                     | Type       | Update Interval (s)         | Preprocessing                                    |
+| ------------------- | ------------------------ | ---------- | --------------------------- | ------------------------------------------------ |
+| `github.commit.sha` | GitHub latest commit SHA | HTTP Agent | `{$GITHUB_UPDATE_INTERVAL}` | JSONPath: `$.body[0].sha` |
 
 ## Trigger
 
-- Fires if the latest commit SHA changes between checks
+| Name                         | Expression                                   | Severity | Description                                        |
+| ---------------------------- | -------------------------------------------- | -------- | -------------------------------------------------- |
+| New Commit | change(/GitHub commit by HTTP/github.commit.sha)=1 | Info     | Fires when a new commit is detected on the target. |
+
 
 ## Requirements
 
@@ -48,5 +49,3 @@ If a change is detected (new commit), a trigger is fired so the user can be noti
 - Monitor upstream changes to Zabbix templates
 - Get notified when someone updates a script or config in GitHub
 - Watch critical files in your own repositories
-
-
