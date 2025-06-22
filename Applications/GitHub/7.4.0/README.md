@@ -17,7 +17,7 @@ If a change is detected (new commit), a trigger is fired so the user can be noti
 
 ## Macros
 
-| Name                  | Description                                                                 | Default   
+| Name                  | Description                                                                 | Default   |
 |------------------------|-----------------------------------------------------------------------------|
 | `{$GITHUB_REPO}`       | GitHub repository in the format `owner/repo` (e.g., `zabbix/zabbix`)        |
 | `{$GITHUB_FILE}`       | Relative path to file or folder (e.g., `templates/`, `myfile.yaml`)         |
