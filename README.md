@@ -49,3 +49,13 @@ Due to the large and growing number of templates, we no longer maintain a full l
 - Each template folder contains a dedicated README with installation and usage instructions.
 
 If you cannot find a suitable template, feel free to open an issue or contribute one.
+
+## Contributors
+
+<a href="https://github.com/zabbix-community/community-templates/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=zabbix-community/community-templates" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+Details: https://github.com/zabbix-community/community-templates/graphs/contributors
