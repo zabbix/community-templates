@@ -13,10 +13,6 @@ The original repository has not been actively maintained for some time, with sev
 
 We would like to express our appreciation and give full credit to the original authors and contributors of the [Zabbix community-templates](https://github.com/zabbix/community-templates) for their excellent work. Without their contributions, this project would not exist.
 
-## Contributing
-
-We welcome contributions from the community. Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
-
 ## License
 
 This project retains the same license as the upstream repository. See [LICENSE](./LICENSE) for details.
