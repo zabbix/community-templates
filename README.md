@@ -184,7 +184,6 @@ This repository is dedicated to templates that are created and maintained by Zab
     * [Others](Databases/Others)
         * [App Elasticsearch Cluster by Zabbix agent](Databases/Others/template_app_elasticsearch_cluster_by_zabbix_agent)
         * [Clickhouse](Databases/Others/template_clickhouse)
-        * [MaxDB DBMMonitor](Databases/Others/template_sap_maxdb79_monitor)
     * [Sinal SFP Mikrotik](Databases/template_coleta_sinal_sfp_mikrotik)
     * [Elasticsearch Cluster by HTTP zbx 4.2](Databases/template_elasticsearch_cluster_by_http_for_zabbix_4.2+)
     * [Template App Patroni Cluster monitoring by HTTP](Databases/template_patroni)
