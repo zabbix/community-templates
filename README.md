@@ -1,5 +1,7 @@
 # Zabbix public templates
 
+⚠️ Thank you for your patience and for your contributions! We've been tied up with other template-related commitments over the past few months, but we'll resume a regular PR reviews soon. ⚠️
+
 ## A place for community driven integrations with Zabbix
 
 ![Template Repository](https://github.com/zabbix/community-templates/actions/workflows/update_readme.yml/badge.svg)
