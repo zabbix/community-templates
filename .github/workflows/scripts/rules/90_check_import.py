@@ -30,7 +30,8 @@ def run_check(skip: bool = False) -> dict:
             zapi = ZabbixAPI(
                 url="http://localhost:8080", validate_certs=False)
             zapi.login(user="Admin", password="zabbix")
-        except:
+        except APIRequestError as error:
+            print(f'Zabbix API not ready yet: {error.data}')
             time.sleep(3)
         else:
             break
