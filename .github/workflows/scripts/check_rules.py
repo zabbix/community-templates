@@ -2,7 +2,15 @@
 
 import glob
 import os
+import json
 from tabulate import tabulate
+
+with open('.github/outputs/all_changed_files.json', 'r') as file_list:
+    changed_files = json.load(file_list)
+
+print("# Changed files:\n\n")
+for file in changed_files:
+    print(f"* {file}")
 
 folder_rules = '.github/workflows/scripts/rules'
 
@@ -20,8 +28,15 @@ rules = dict(sorted(rules.items()))
 
 out_table = []
 headers_table = [
-        'Step', 'Status', 'Message'
+        'Step', 'Mark','Status', 'Message'
     ]
+
+mark_map = {
+    'success': ':white_check_mark:',
+    'fail': ':x:',
+    'error': ':warning:',
+    'skip': ':fast_forward:'
+}
 
 is_failed = False
 
@@ -39,10 +54,12 @@ for rule in rules:
     
     out_table.append([
         result['step'],
+        mark_map.get(result['status'], ':interrobang:'),
         result['status'],
         result['message']
     ])
 
+print("\n# Rules check results:\n\n")
 print(tabulate(out_table, headers=headers_table, tablefmt="github"))
 
 if is_failed:
