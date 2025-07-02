@@ -28,12 +28,12 @@ def run_check(skip: bool = False) -> dict:
     for x in range(10):
         try:
             zapi = ZabbixAPI(
-                url="http://localhost:8080", 
+                url="http://127.0.0.1:8080", 
                 validate_certs=False, 
                 skip_version_check=True,
                 timeout=10)
             zapi.login(user="Admin", password="zabbix")
-        except APIRequestError as error:
+        except:
             time.sleep(3)
         else:
             break
