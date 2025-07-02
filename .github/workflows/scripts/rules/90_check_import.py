@@ -28,7 +28,7 @@ def run_check(skip: bool = False) -> dict:
     for x in range(10):
         try:
             zapi = ZabbixAPI(
-                url="http://localhost:8080/api_jsonrpc.php", validate_certs=False)
+                url="http://localhost:8080", validate_certs=False)
             zapi.login(user="Admin", password="zabbix")
         except:
             time.sleep(3)
