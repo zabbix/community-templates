@@ -127,6 +127,10 @@ def run_check(skip: bool = False) -> dict:
                     "templateDashboards":{
                     "createMissing": true,
                     "updateExisting": true
+                    },
+                    "template_groups": {
+                    "createMissing": true,
+                    "updateExisting": true
                     }
                 },
                 "source": ""
@@ -134,7 +138,8 @@ def run_check(skip: bool = False) -> dict:
                 """
 
                 params = json.loads(json_data)
-                params['source'] = read_file.read()
+                with open(file, 'r', encoding='utf-8') as read_file:
+                    params['source'] = read_file.read()
 
                 if file.endswith(('.yaml', '.YAML')):
                     params['format'] = 'yaml'
