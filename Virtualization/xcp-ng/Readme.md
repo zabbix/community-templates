@@ -14,7 +14,11 @@ Zabbix version: 6.0 and higher.
 ## Tested versions
 
 This template has been tested on:
-- XenOrchestra CE
+- XenOrchestra 5 CE (from sources)
+- Zabbix 6.0
+- Zabbix 6.4
+- Zabbix 7.0
+- Zabbix 7.2
 
 ## Author
 
@@ -22,10 +26,11 @@ Thorsten Liepert
 
 ## Setup
 
-1. [Generate](https://docs.xcp-ng.org/management/manage-at-scale/xo-api/#authentication) an access token at XenOrchestra for aa user with read access.
+1. [Generate](https://docs.xcp-ng.org/management/manage-at-scale/xo-api/#authentication) an access token at XenOrchestra for a [user](https://xen-orchestra.com/docs/users.html) with read access.
 2. Create a host for the XenOrchestra host and link template "Xen Orchestra by HTTP"
 3. Configure macro "{$XOA.AUTH.TOKEN}" with generated access token
 4. Configure macro "{$XOA.URL}" with url to XenOrchestra e.g. https://xen.mydomain.com
+5. (optional) Configure macro "{$XOA.PROXY.URL}" to use a proxy.
 
 ### Macros used
 
@@ -33,6 +38,7 @@ Thorsten Liepert
 |----|-----------|-------|
 |{$XOA.AUTH.TOKEN}|<p>authentication token for XenOrchestra API</p>||
 |{$XOA.URL}|<p>URL to XenOrchestra (https://xen.mydomain.com)</p>||
+|{$XOA.PROXY.URL}|<p>Proxy URL if needed to reach {$XOA.URL}</p>||
 |{$XOA.SR.THRESHOLD.CRIT}|<p>Critical threshold for storage repository usage in percent</p>||
 |{$XOA.SR.THRESHOLD.WARN}|<p>Warning threshold for storage repository usage in percent</p>||
 
