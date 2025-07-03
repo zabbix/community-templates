@@ -5,7 +5,7 @@ import os
 import json
 from tabulate import tabulate
 
-with open('.github/outputs/all_changed_files.json', 'r') as file_list:
+with open('.github/outputs/all_changed_files.json', 'r', encoding='utf-8') as file_list:
     changed_files = json.load(file_list)
 
 print("# Changed files:\n\n")
@@ -34,8 +34,9 @@ headers_table = [
 mark_map = {
     'success': ':white_check_mark:',
     'fail': ':x:',
-    'error': ':warning:',
-    'skip': ':fast_forward:'
+    'error': ':no_entry_sign:',
+    'skip': ':fast_forward:',
+    'warning': ':warning:',
 }
 
 is_failed = False

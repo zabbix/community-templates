@@ -23,7 +23,7 @@ def run_check(skip: bool = False) -> dict:
             'message': ''
         }
     
-    with open('.github/outputs/all_changed_files.json', 'r') as file_list:
+    with open('.github/outputs/all_changed_files.json', 'r', encoding='utf-8') as file_list:
         changed_files = json.load(file_list)
 
     for file in changed_files:

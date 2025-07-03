@@ -44,7 +44,7 @@ def run_check(skip: bool = False) -> dict:
             'message': f'Failed to wait for Zabbix API to be ready'
         }
 
-    with open('.github/outputs/all_changed_files.json', 'r') as file_list:
+    with open('.github/outputs/all_changed_files.json', 'r', encoding='utf-8') as file_list:
         changed_files = json.load(file_list)
     try:
         for file in changed_files:
@@ -54,6 +54,8 @@ def run_check(skip: bool = False) -> dict:
                         data_obj = yaml.load(read_file)
                         if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
                             file_type = 'template'
+                        elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
+                            file_type = 'mediatype'
                     except:
                         pass
 
@@ -62,6 +64,8 @@ def run_check(skip: bool = False) -> dict:
                         data_obj = json.load(read_file)
                         if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
                             file_type = 'template'
+                        elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
+                            file_type = 'mediatype'
                     except:
                         pass
 
@@ -70,13 +74,15 @@ def run_check(skip: bool = False) -> dict:
                         data_obj = etree.fromstring(read_file.read())
                         if data_obj.xpath('//zabbix_export/templates'):
                             file_type = 'template'
+                        elif data_obj.xpath('//zabbix_export/media_types'):
+                            file_type = 'mediatype'
                     except:
                         pass
 
                 else:
                     file_type = 'unknown'
 
-            if file_type == 'template':
+            if file_type == 'template' or file_type == 'mediatype':
                 json_data = """
                 {
                 "rules": {
@@ -129,6 +135,10 @@ def run_check(skip: bool = False) -> dict:
                     "updateExisting": true
                     },
                     "template_groups": {
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "mediaTypes": {
                     "createMissing": true,
                     "updateExisting": true
                     }
