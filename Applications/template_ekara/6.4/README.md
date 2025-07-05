@@ -18,7 +18,7 @@ The template is designed to interface with Ekara APIs to display in customized d
 
 *Data collection -> Templates -> Import*
 
-![ImportTemplate](./doc/import.png)
+![ImportTemplate](./files/import.png)
 
 ### Fill up these macros
 
