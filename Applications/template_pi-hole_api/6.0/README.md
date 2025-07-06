@@ -93,7 +93,9 @@ Undefined_ID
 
 ## Macros used
 
-There are no macros links in this template.
+|Name|Description|Default|Type|
+|----|-----------|-------|----|
+|{$WEB.PORT}|<p>Web interface port</p>|`80`|Text macro|
 
 ## Template links
 
