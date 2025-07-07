@@ -1,0 +1,217 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-04-17T18:35:46Z'
+  groups:
+    -
+      uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    -
+      uuid: 97a6d8bd5f614b94a40bd8ed3078ff23
+      template: 'Router Log Preprocessed'
+      name: 'Router Log Preprocessed'
+      description: |
+        This template accepts traps from preprocessed log entries. The template ensure that the logs can lead to actionable alerts and provide an overview of clients currently connected to the wireless network.
+        Currently, there is defined triggers for new clients to the network (via cabled or WiFi) or disconnections from the WiFi network.
+        
+        This approach uses a flow where data is pushed to Zabbix to ensure that the data is available in Zabbix as soon as they are ready.  
+        
+        An implementation of a preprocessor for ASUS compatible router logs (using dnsmasq-dchp and wlceventd process logs) can be found on GitHub at https://github.com/mastdi/router-log-preprocessor but this template is not limited to that implementation.
+      groups:
+        -
+          name: 'Templates/Network devices'
+      discovery_rules:
+        -
+          uuid: 5dccd4c035d0459f831414915608bc97
+          name: 'RLP: dnsmasq-dhcp client discovery'
+          type: TRAP
+          key: 'rlp.client_discovery[dnsmasq-dhcp]'
+          delay: '0'
+          description: 'Discovers clients that have received a DHCPACK message from the DHCP server.'
+          item_prototypes:
+            -
+              uuid: 9509e092b14f4dc7ba2c9d6458d0769d
+              name: 'Client {#MAC}: Hostname'
+              type: TRAP
+              key: 'rlp.dnsmasq_dhcp[hostname,{#MAC}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'When a device requests an IP address lease from a DHCP server, it can optionally include its hostname in the request message. If provided the hostname will be set. Otherwise an empty string will be used as the hostname.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: dnsmasq-dhcp
+            -
+              uuid: 22e52cf743154254ba553b576727fedc
+              name: 'Client {#MAC}: IP address'
+              type: TRAP
+              key: 'rlp.dnsmasq_dhcp[ip_address,{#MAC}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'The IP address assigned to the client in the DHCPACK message, which indicates to the client that it should use this address as its assigned IP address on the network.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: dnsmasq-dhcp
+          trigger_prototypes:
+            -
+              uuid: df67f6725b3949fe9f7b26cbb5b5462d
+              expression: 'count(/Router Log Preprocessed/rlp.dnsmasq_dhcp[ip_address,{#MAC}],#2)=1 and count(/Router Log Preprocessed/rlp.dnsmasq_dhcp[hostname,{#MAC}],#1) >= 0'
+              recovery_mode: NONE
+              name: 'Client {#MAC} got assigned an IP address for the first time'
+              opdata: 'Hostname: {ITEM.LASTVALUE2} - IP: {ITEM.VALUE1}'
+              description: |
+                When a client is assigned an IP address they usually have access to the network (either internal or external network).
+                
+                The severity is not classified since this is sometimes the expected behavior. This trigger can be used to spot if a client have gained access to the network - either via wireless network or cable. If the client were not expected the severity can manually be upgraded and proper actions to deal with the unexpected behavior can be taken.
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+          lld_macro_paths:
+            -
+              lld_macro: '{#MAC}'
+              path: $.mac
+        -
+          uuid: 9d9ccb6bdff84cd084def694879269af
+          name: 'RLP: wlceventd client discovery'
+          type: TRAP
+          key: 'rlp.client_discovery[wlceventd]'
+          delay: '0'
+          description: 'Discovers clients that have trying or successfully connected to the network based on entries from the wlceventd log.'
+          item_prototypes:
+            -
+              uuid: c766d1b7ef7747568e5763f0a472a699
+              name: 'Client {#MAC}: WLC event'
+              type: TRAP
+              key: 'rlp.wlceventd[event,{#MAC}]'
+              delay: '0'
+              description: |
+                Wireless LAN Controllers (WLCs) generate various event types to provide information about the status of the wireless network and associated devices. Most common event types include:
+                - Disassociated: This event indicates that a previously associated wireless client device has disconnected from the AP.
+                - Deauth_ind: This event indicates that the WLC or AP has initiated the deauthentication process for the specified client device. The event may include additional information about the reason for the deauthentication, such as the specific security or policy violation that triggered the action.
+                - Authenticated: This event indicates that a wireless client device has successfully completed the authentication process and is now authorized to access the network.
+                - Associated: This event indicates that a wireless client device has successfully associated with an access point (AP) managed by the WLC.
+                - Re-Associated: This event indicates that a previously associated wireless client device has re-associated with the same AP or a different AP.
+              valuemap:
+                name: WlcEvent
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: wlceventd
+            -
+              uuid: 28dbd6204b364e33916ea428e47b7ad6
+              name: 'Client {#MAC}: WLC location'
+              type: TRAP
+              key: 'rlp.wlceventd[location,{#MAC}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'The ID the system uses to identify this radio.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: wlceventd
+            -
+              uuid: 9b81b7353f69407ebe167f9bf9ccc363
+              name: 'Client {#MAC}: WLC reason'
+              type: TRAP
+              key: 'rlp.wlceventd[reason,{#MAC}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'The ID the system uses to identify this radio.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: wlceventd
+            -
+              uuid: 45f0e81f0195466d88c6c3a1d0fdfa0d
+              name: 'Client {#MAC}: WLC RSSI'
+              type: TRAP
+              key: 'rlp.wlceventd[rssi,{#MAC}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Received Signal Strength Indicator.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: wlceventd
+            -
+              uuid: 8b7f16afb54649eeb7c66b694bd8c4e7
+              name: 'Client {#MAC}: WLC status'
+              type: TRAP
+              key: 'rlp.wlceventd[status,{#MAC}]'
+              delay: '0'
+              description: 'The status field may contain a variety of different values, depending on the context and specific details of the event being reported, and may be further defined or customized by the network administrator or system administrator responsible for managing the WLC.'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+                -
+                  tag: process
+                  value: wlceventd
+          trigger_prototypes:
+            -
+              uuid: eae8ca086a6749c080e282b66e24ede4
+              expression: 'last(/Router Log Preprocessed/rlp.wlceventd[event,{#MAC}])<=1500000 and length(last(/Router Log Preprocessed/rlp.wlceventd[reason,{#MAC}])) >= 0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Router Log Preprocessed/rlp.wlceventd[event,{#MAC}])>1500000 and nodata(/Router Log Preprocessed/rlp.wlceventd[event,{#MAC}],10m,"strict")'
+              name: 'Client {#MAC}: Lost connection to the wireless network'
+              opdata: '{ITEM.VALUE2}'
+              priority: HIGH
+              description: |
+                A client have lost connection to the wireless network.
+                It can be useful to correlate this trigger with the reason 
+                
+                This trigger can be disabled if the expected behavior is to allow clients to connect and disconnect to the network on demand.
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: client
+                  value: '{#MAC}'
+          lld_macro_paths:
+            -
+              lld_macro: '{#MAC}'
+              path: $.mac
+      valuemaps:
+        -
+          uuid: b52d2e9f2f674e4a8501c8bf1c510509
+          name: WlcEvent
+          mappings:
+            -
+              value: '0'
+              newvalue: DISASSOCIATED
+            -
+              value: '1000000'
+              newvalue: DEAUTH_IND
+            -
+              value: '2000000'
+              newvalue: AUTHENTICATED
+            -
+              value: '3000000'
+              newvalue: ASSOCIATED
+            -
+              value: '4000000'
+              newvalue: RE-ASSOCIATED

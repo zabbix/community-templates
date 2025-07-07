@@ -14,6 +14,29 @@ There are no template links in this template.
 |----|-----------|----|----|
 |MSSQL Multi Instance Discovery|<p>Discovers multiple SQL Server Instances</p>|`Zabbix agent`|windowssqlinstances.discovery<p>Update: 300</p>|
 
+## Agent Setup
+On the Zabbix Agent copy the following powershell script to a Zabbix Script Directory.
+
+In this case **C:\Program Files\Zabbix Agent 2\Scripts** was manually created and the file put into **C:\Program Files\Zabbix Agent 2\Scripts\windowssqlinstances.ps1**
+
+```powershell windowssqlinstances.ps1
+$services = Get-Service "mssql$*"|Select-Object -ExpandProperty Name
+$instances=@()
+
+foreach ($service in $services) {
+    $instances += [PSCustomObject]@{
+		"{#INSTANCES}" = $service
+	}
+}
+
+$instances|ConvertTo-Json
+```
+### Additional Zabbix Agent Config 
+Additionally the **windowssqlinstances.ps1** script has to be registered in the Zabbix Agent as UserParameter, so the Agent knows, when to execute the script.
+
+```shell
+UserParameter=windowssqlinstances.discovery[*],powershell.exe -command "& 'C:\Program Files\Zabbix Agent 2\Scripts\windowssqlinstances.ps1'"
+```
 
 ## Items collected
 

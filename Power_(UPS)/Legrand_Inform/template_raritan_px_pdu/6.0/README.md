@@ -2,7 +2,7 @@
 
 ## Overview
 
-Works with Raritan PDU PX2 / PX3 and ATS PX3 products
+Works with Raritan PDU PX2 / PX3 / PX4 and ATS PX3 products
 
 
 Discovery rules:
@@ -18,9 +18,10 @@ With advanced power function (See <https://www.zabbix.com/forum/zabbix-help/3855
 
 
 
-## Author
+## Authors
 
 eric_at_2037
+abrenner
 
 ## Macros used
 
@@ -62,43 +63,43 @@ There are no template links in this template.
 |Outlet Controller number|<p>-</p>|`SNMP agent`|outletControllerCount<p>Update: 3600</p>|
 |Device Frequency|<p>-</p>|`SNMP agent`|pduRatedFrequency<p>Update: 3600</p>|
 |Contact|<p>-</p>|`SNMP agent`|sysContact<p>Update: 3600</p>|
-|OnOff Status of Outlet $1|<p>-</p>|`SNMP agent`|OnOffStatus[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
-|Current Capability of Outlet $1|<p>-</p>|`SNMP agent`|OutletCurrent[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
-|Name of Outlet $1|<p>-</p>|`SNMP agent`|OutletName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Type of Outlet $1|<p>-</p>|`SNMP agent`|outletReceptacleDescriptor[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Voltage Capability of Outlet $1|<p>-</p>|`SNMP agent`|OutletVolts[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
-|Name of Inlet $1|<p>-</p>|`SNMP agent`|InletName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|State of powerFactor on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermspowerFactor[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|powerFactor of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermspowerFactor[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|apparentPower of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsapparentPower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|activePower of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsactivePower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|activeEnergy of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsactiveEnergy[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Frequency of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValueFrequency[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Current of Inlet $1|<p>-</p>|`Calculated`|measurementsInletSensorUsableValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of Voltage on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsVoltage[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of Current on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Type of Inlet $1|<p>-</p>|`SNMP agent`|inletPlugDescriptor[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|State of apparentPower on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsapparentPower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of activePower on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsactivePower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of activeEnergy on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsactiveEnergy[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of Frequency on Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorStateFrequency[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|RAW Current of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorRAWValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Current DecimalDigits of Inlet $1|<p>-</p>|`SNMP agent`|inletSensorDecimalDigitsrmsCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Volatage Capability of Inlet $1|<p>-</p>|`SNMP agent`|inletRatedVoltage[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Current Capability of Inlet $1|<p>-</p>|`SNMP agent`|inletRatedCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Voltage of Inlet $1|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsVoltage[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Sensor DecimalDigits of External Sensor $1|<p>-</p>|`SNMP agent`|externalSensorDecimalDigits[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Serial Number of External Sensor $1|<p>-</p>|`SNMP agent`|externalSensorSerialNumber[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Type of External Sensor $1|<p>-</p>|`SNMP agent`|externalSensorType[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Unit of External Sensor $1|<p>-</p>|`SNMP agent`|externalSensorUnits[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|RAW Value of Sensor $1|<p>-</p>|`SNMP agent`|measurementsExternalSensorRAWValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of External Sensor $1|<p>-</p>|`SNMP agent`|measurementsExternalSensorState[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|OnOff Status of Outlet|<p>-</p>|`SNMP agent`|OnOffStatus[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+|Current Capability of Outlet|<p>-</p>|`SNMP agent`|OutletCurrent[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+|Name of Outlet|<p>-</p>|`SNMP agent`|OutletName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Type of Outlet|<p>-</p>|`SNMP agent`|outletReceptacleDescriptor[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Voltage Capability of Outlet|<p>-</p>|`SNMP agent`|OutletVolts[{#SNMPVALUE}]<p>Update: 300</p><p>LLD</p>|
+|Name of Inlet|<p>-</p>|`SNMP agent`|InletName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|State of powerFactor on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermspowerFactor[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|powerFactor of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermspowerFactor[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|apparentPower of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsapparentPower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|activePower of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsactivePower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|activeEnergy of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsactiveEnergy[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Frequency of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValueFrequency[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Current of Inlet|<p>-</p>|`Calculated`|measurementsInletSensorUsableValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of Voltage on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsVoltage[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of Current on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Type of Inlet|<p>-</p>|`SNMP agent`|inletPlugDescriptor[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|State of apparentPower on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsapparentPower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of activePower on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsactivePower[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of activeEnergy on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStatermsactiveEnergy[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of Frequency on Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorStateFrequency[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|RAW Current of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorRAWValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Current DecimalDigits of Inlet|<p>-</p>|`SNMP agent`|inletSensorDecimalDigitsrmsCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Volatage Capability of Inlet|<p>-</p>|`SNMP agent`|inletRatedVoltage[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Current Capability of Inlet|<p>-</p>|`SNMP agent`|inletRatedCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Voltage of Inlet|<p>-</p>|`SNMP agent`|measurementsInletSensorValuermsVoltage[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Sensor DecimalDigits of External Sensor|<p>-</p>|`SNMP agent`|externalSensorDecimalDigits[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Serial Number of External Sensor|<p>-</p>|`SNMP agent`|externalSensorSerialNumber[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Type of External Sensor|<p>-</p>|`SNMP agent`|externalSensorType[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Unit of External Sensor|<p>-</p>|`SNMP agent`|externalSensorUnits[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|RAW Value of Sensor|<p>-</p>|`SNMP agent`|measurementsExternalSensorRAWValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|State of External Sensor|<p>-</p>|`SNMP agent`|measurementsExternalSensorState[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
 |Value of Sensor {#SNMPVALUE}|<p>-</p>|`Calculated`|measurementsExternalSensorUsableValue[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|State of  Overcurrent Protector $1|<p>-</p>|`SNMP agent`|measurementsOverCurrentProtectorSensorStatermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Current of  Overcurrent Protector $1|<p>-</p>|`SNMP agent`|measurementsOverCurrentProtectorSensorValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
-|Name of Overcurrent Protector $1|<p>-</p>|`SNMP agent`|overCurrentProtectorName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Capability of  Overcurrent Protector  $1|<p>-</p>|`SNMP agent`|overCurrentProtectorRatedCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
-|Type of  Overcurrent Protector  $1|<p>-</p>|`SNMP agent`|overCurrentProtectorType[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|State of  Overcurrent Protector|<p>-</p>|`SNMP agent`|measurementsOverCurrentProtectorSensorStatermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Current of  Overcurrent Protector|<p>-</p>|`SNMP agent`|measurementsOverCurrentProtectorSensorValuermsCurrent[{#SNMPVALUE}]<p>Update: 60</p><p>LLD</p>|
+|Name of Overcurrent Protector|<p>-</p>|`SNMP agent`|overCurrentProtectorName[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Capability of Overcurrent Protector|<p>-</p>|`SNMP agent`|overCurrentProtectorRatedCurrent[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
+|Type of  Overcurrent Protector|<p>-</p>|`SNMP agent`|overCurrentProtectorType[{#SNMPVALUE}]<p>Update: 3600</p><p>LLD</p>|
 
 
 ## Triggers
