@@ -103,7 +103,7 @@ Key triggers include:
 
 ## Pre-Equalization Statistics
 
-![Pre-Equalization Analysis Example](img/preeq.png)
+![Pre-Equalization Analysis Example](files/img/preeq.png)
 
 > **DISCLAIMER:** The pre-equalization analysis features described below are based on preliminary deployment data. Continuous monitoring, data collection, and user feedback are required to validate and improve the accuracy of these measurements. Interpretation of results should be done with caution as the system's precision is still being evaluated through real-world deployments.
 
@@ -265,13 +265,13 @@ Example areas covered:
 - Error rates
 - Security states
 
-![Tagging Structure](img/tags.png)
+![Tagging Structure](files/img/tags.png)
 
 ### Network Interface Discovery
 
 The template uses Low-Level Discovery (LLD) with filtering to automatically detect and monitor network interfaces. The discovery process uses a customizable filter:
 
-![LLD Filter Configuration](img/lld.png)
+![LLD Filter Configuration](files/img/lld.png)
 
 ```yaml
 filter:

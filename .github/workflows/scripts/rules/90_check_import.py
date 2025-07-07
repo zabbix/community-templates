@@ -18,6 +18,8 @@ def run_check(skip: bool = False) -> dict:
     """
     Check able to import template to Zabbix instance.
     """
+
+    skip = False
     step_name = 'Check import to Zabbix instance'
     if skip:
         return {
@@ -423,6 +425,8 @@ def run_check(skip: bool = False) -> dict:
                         last_error = error
                         continue
                 else:
+                    # print(f'Import error... File: {file} Zabbix: {zapi.url} Data: {last_error}')
+                    # continue
                     return {
                         'step': step_name,
                         'status': 'fail',

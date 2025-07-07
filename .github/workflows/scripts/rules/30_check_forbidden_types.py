@@ -26,6 +26,8 @@ def run_check(skip: bool = False) -> dict:
     """ 
     Check for forbidden file types.
     """
+
+    skip = False
     step_name = 'Check forbidden file types'
 
     if skip:

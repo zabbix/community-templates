@@ -24,6 +24,8 @@ def run_check(skip: bool = False) -> dict:
     """
     Check if file structure is valid.
     """
+
+    skip = False
     step_name = 'Check file structure'
     if skip:
         return {

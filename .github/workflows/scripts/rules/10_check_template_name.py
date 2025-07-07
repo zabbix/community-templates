@@ -14,10 +14,13 @@ yaml.width = 4096
 regx_template = r'^template_[.a-zA-Z0-9()_-]+$'
 regx_mediatype = r'^mediatype_[.a-zA-Z0-9()_-]+$'
 
+
 def run_check(skip: bool = False) -> dict:
     """
     Check if the template name is valid.
     """
+    skip = False
+
     step_name = 'Check template file name'
     if skip:
         return {
@@ -81,7 +84,8 @@ def run_check(skip: bool = False) -> dict:
                     file_type = 'unknown'
 
             if file_type == 'template':
-                template_file_name = os.path.splitext(os.path.basename(file))[0]
+                template_file_name = os.path.splitext(
+                    os.path.basename(file))[0]
                 if not re.match(regx_template, template_file_name):
                     return {
                         'step': step_name,
@@ -89,7 +93,8 @@ def run_check(skip: bool = False) -> dict:
                         'message': f'Template file name "{template_file_name}" is invalid. Regular expression: ' + regx_template
                     }
             elif file_type == 'mediatype':
-                mediatype_file_name = os.path.splitext(os.path.basename(file))[0]
+                mediatype_file_name = os.path.splitext(
+                    os.path.basename(file))[0]
                 if not re.match(regx_mediatype, mediatype_file_name):
                     return {
                         'step': step_name,
