@@ -1,8 +1,6 @@
 # Template App Patroni Cluster monitoring by HTTP  
-### Change-log & Migration notes (Zabbix 5.0 → 7.4)
 
 ## 1  Why this upgrade?
-The original XML was exported from Zabbix 5.0.  
 Zabbix 7.x introduces a stricter export schema (UUID-based
 identifiers, no `<applications>` blocks, renamed tags, textual enums,
 etc.). Attempting to import the old file caused multiple
