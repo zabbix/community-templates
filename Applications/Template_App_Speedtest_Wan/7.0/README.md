@@ -21,6 +21,13 @@ Todd Blake
 
     `0 */6 * * * /usr/local/bin/record_speedtest.sh # feed speedtest info into zabbix every 6 hours`
 
+# Docker:
+Alternatively to collect the speedtest data, a docker container can be run:
+
+```bash
+$ docker run --rm -e ZABBIX_SERVER="123.123.123.123" -e SPEEDTEST_HOST="my-speedtest-host" -e SPEEDTESTPARAMS="--accept-license" siegy22/speedtest-cli-zabbix
+```
+
 # Example Dashboard
 ![Example Dashboard](dashboard.png?raw=true "Example Dashboard")
 
