@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+
+import glob
+import os
+import json
+from tabulate import tabulate
+
+
+def filter_forbidden(file):
+
+    forbidden_names = [
+        './.github/',
+        './.git/',
+        './.gitignore',
+        './docs/',
+        './LICENSE',
+        './README.md',
+        './.venv/'
+    ]
+
+    for name in forbidden_names:
+        if file.lower().startswith(name.lower()):
+            return False
+    return True
+
+
+changed_files = []
+
+for path, subdirs, files in os.walk('.'):
+    if files:
+        for file in files:
+            changed_files.append(os.path.join(path, file))
+
+
+changed_files = list(filter(filter_forbidden, changed_files))
+
+with open('.github/outputs/all_changed_files.json', 'w', encoding='utf-8') as file_list:
+    json.dump(changed_files, file_list, indent=4, ensure_ascii=False)
+
+print("# Changed files:\n\n")
+for file in changed_files:
+    print(f"* {file}")
+
+folder_rules = '.github/workflows/scripts/rules'
+
+rules = {}
+
+for filename_rule in glob.glob(os.path.join(folder_rules, '*.py')):
+    rule_name = os.path.splitext(os.path.basename(filename_rule))[0]
+    try:
+        rules[rule_name] = __import__(
+            f'rules.{rule_name}', fromlist=['object'])
+    except ImportError as e:
+        print(f"Error importing rule {rule_name}: {e}")
+        continue
+
+rules = dict(sorted(rules.items()))
+
+out_table = []
+headers_table = [
+    'Step', 'Mark', 'Status', 'Message'
+]
+
+mark_map = {
+    'success': ':white_check_mark:',
+    'fail': ':x:',
+    'error': ':no_entry_sign:',
+    'skip': ':fast_forward:',
+    'warning': ':warning:',
+}
+
+is_failed = False
+
+for rule in rules:
+    try:
+        result = rules[rule].run_check(is_failed)
+        is_failed = is_failed or result['status'] == 'error' or result['status'] == 'fail'
+    except:
+        result = {
+            'step': rule,
+            'status': 'error',
+            'message': 'Error running rule'
+        }
+        is_failed = True
+
+    out_table.append([
+        result['step'],
+        mark_map.get(result['status'], ':interrobang:'),
+        result['status'],
+        result['message']
+    ])
+
+print("\n# Rules check results:\n\n")
+print(tabulate(out_table, headers=headers_table, tablefmt="github"))
+
+if is_failed:
+    exit(1)
+else:
+    exit(0)
