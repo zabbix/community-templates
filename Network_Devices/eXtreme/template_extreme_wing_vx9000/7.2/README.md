@@ -16,7 +16,7 @@ All SNMP OIDs, discovery rules, item prototypes, host prototypes and value maps 
 | Template Name     | Description                                               |
 |-------------------|-----------------------------------------------------------|
 | **wing‑vx9000**   | Monitors controller-level metrics: global client count, ICMP reachability, adopted AP IPs, etc. :contentReference[oaicite:1]{index=1} |
-| **wing‑vx9000_AP**| Automatically applied to each AP discovered under the controller; collects AP‑specific metrics like CPU, RAM, uptime, serial, ping, etc. :contentReference[oaicite:2]{index=2} |
+| **wing‑vx9000_AP**| Automatically applied to each AP discovered under the controller; collects AP‑specific metrics like CPU, RAM, uptime, serial, ping, etc.|
 
 ---
 
