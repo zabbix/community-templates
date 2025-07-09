@@ -107,7 +107,7 @@ All of the above are set in the **WING AP data** host prototype
 | **Service state**               | 0 → Down, 1 → Up                                 |
 | **zabbix.host.available**       | 0 → not available, 1 → available, 2 → unknown    |
 
-All defined in `eXtremeTemplate.yaml` 
+All defined in `template_extreme_wing_vx9000.yaml` 
 
 ---
 
