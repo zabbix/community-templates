@@ -63,7 +63,6 @@ All of the above are set in the **WING AP data** host prototype
 
 | Name                      | Type         | Key              | Notes                                  |
 |---------------------------|--------------|------------------|----------------------------------------|
-| adopted IPs               | SNMP_AGENT   | `adoptedApIPs`   | SNMP walk, disabled by default         |
 | Global Clients Connected  | SNMP_AGENT   | `GlobalClientCount` | Total connected clients             |
 | ICMP ping                 | SIMPLE       | `icmpping`       | Checks controller reachability         |
 
