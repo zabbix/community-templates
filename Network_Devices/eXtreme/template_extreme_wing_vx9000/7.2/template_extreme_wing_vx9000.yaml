@@ -1,0 +1,322 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  host_groups:
+    - uuid: f2481361f99448eea617b7b1d4765566
+      name: 'Discovered hosts'
+  templates:
+    - uuid: 3abe26d9e31b44b3bd396123416df1c2
+      template: wing-vx9000
+      name: wing-vx9000
+      groups:
+        - name: Templates
+      items:
+        - uuid: 15f9ff276b4748959a88abe0c4ccbcaf
+          name: 'Global Clients Connected'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.388.50.1.4.1.15.1.0
+          key: GlobalClientCount
+          description: |
+            -- 1.3.6.1.4.1.388.50.1.4.1.15.1
+            wingStatsNocGlobalClientCount OBJECT-TYPE
+            SYNTAX Unsigned32
+            MAX-ACCESS read-only
+            STATUS current
+            DESCRIPTION
+            "Global client count
+            
+            XPath: /wing-stats/noc/global_client_count"
+            ::= { wingStatsNocGlobalClient 1 }
+          tags:
+            - tag: client
+              value: clients
+        - uuid: bc21af2b141c44aab5cb3fa7bfad07b5
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: icmpping
+          triggers:
+            - uuid: 1fdda995a37d419ea0d618ad395f84d6
+              expression: 'max(/wing-vx9000/icmpping,5m)=0'
+              name: 'controller ICMP ping Lost connection 5 minutes ago'
+              priority: HIGH
+      discovery_rules:
+        - uuid: 3cab2226eab94677a6e732b76ba7704d
+          name: 'WING AP data'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#APNAME},1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.9,{#APIP},1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.13]'
+          key: wingApdata
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          item_prototypes:
+            - uuid: 8124c2c3c5594d00bef6aa739f3a7d8c
+              name: 'AP {#SNMPINDEX}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.9.{#SNMPINDEX}.{#SNMPINDEX}'
+              key: 'apName[{#SNMPINDEX}]'
+              value_type: TEXT
+              status: DISABLED
+              discover: NO_DISCOVER
+          host_prototypes:
+            - uuid: 19d4efedc17b42019ed8c05e3899d3aa
+              host: '{#APNAME}'
+              name: '{#APNAME}'
+              inventory_mode: AUTOMATIC
+              group_links:
+                - group:
+                    name: 'Discovered hosts'
+              templates:
+                - name: wing-vx9000_AP
+              macros:
+                - macro: '{$APIP}'
+                  value: '{#APIP}'
+                - macro: '{$APNAME}'
+                  value: '{#APNAME}'
+                - macro: '{$APTYPE}'
+                  value: '{#APTYPE}'
+                - macro: '{$APUPTIME}'
+                  value: '{#APUPTIME}'
+                - macro: '{$SNMPINDEX}'
+                  value: '{#SNMPINDEX}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  value = JSON.parse(value)
+                  for (i in value){
+                    var txt = value[i]["{#SNMPINDEX}"]
+                    var tam = (txt.length - 1)/2
+                    txt = value[i]["{#SNMPINDEX}"].slice(0,tam)
+                    value[i]["{#SNMPINDEX}"] = value[i]["{#SNMPINDEX}"].slice(0,tam)
+                  }
+                  return JSON.stringify(value)
+        - uuid: 658adc200f2642888c88a7ed6f6620c9
+          name: 'WING SSID data'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SSID},1.3.6.1.4.1.388.50.1.3.4.1.1.4]'
+          key: wingSsids
+          item_prototypes:
+            - uuid: 7102069f7e6449d399009064aaf440a2
+              name: 'Wireless:{#SSID}'
+              type: SNMP_AGENT
+              snmp_oid: 'walk[1.3.6.1.4.1.388.50.1.4.2.25.3.1.1.10]'
+              key: 'clients[{#SSID}]'
+              trends: '0'
+              preprocessing:
+                - type: SNMP_WALK_TO_JSON
+                  parameters:
+                    - '{#ID}'
+                    - 1.3.6.1.4.1.388.50.1.4.2.25.3.1.1.10
+                    - '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      value = JSON.parse(value)
+                      var ssids = []
+                      for (i in value){
+                        var txt = value[i]["{#ID}"]
+                        if (ssids.length == 0){
+                            ssids.push(txt)
+                        }
+                        else{
+                          var undiscovered = 1
+                          for (j in ssids){
+                              if (ssids[j] == txt){
+                                  undiscovered = 0
+                                  break
+                              }
+                          }
+                          if (undiscovered){
+                              ssids.push(txt)
+                          }
+                        }
+                      }
+                       
+                      var json = []
+                       
+                      for (j in ssids){
+                          var name = ssids[j]
+                          var count = 0
+                          for (i in value){
+                              var txt = value[i]["{#ID}"]
+                              if (name == txt){
+                                  count = count + 1
+                              }
+                          }
+                          var jsonObject = {
+                          'ssid': ssids[j],
+                          'count': count
+                          };
+                          json.push(jsonObject)
+                      }
+                       
+                      return JSON.stringify(json)
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ssid==''{#SSID}'')].count.first()'
+              tags:
+                - tag: SSIDs
+                  value: ssids
+      valuemaps:
+        - uuid: 7b252652fd49481689a6940bc7761d8e
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 9c9b60934edf4a1693182809cdb42cd9
+          name: zabbix.host.available
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
+    - uuid: 7bee2f109afb4cc6900362f274ab8f20
+      template: wing-vx9000_AP
+      name: wing-vx9000_AP
+      groups:
+        - name: Templates
+      items:
+        - uuid: dc56fb5e61fe41bbb7c3692f3acaa500
+          name: 'AP clients connected'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.4.{$SNMPINDEX}.{$SNMPINDEX}'
+          key: 'apClientsConnected[{$APNAME}]'
+          units: clients
+        - uuid: 26243bd66e754c369993513314d4eafa
+          name: 'AP cpu info'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.4.1.1.15.{$SNMPINDEX}'
+          key: 'apcpuinfo[{$APNAME}]'
+          value_type: TEXT
+          description: |
+            -- 1.3.6.1.4.1.388.50.1.4.2.4.1.1.15
+            		wingStatsDevSysCpu OBJECT-TYPE
+            			SYNTAX DisplayString
+            			MAX-ACCESS read-only
+            			STATUS current
+            			DESCRIPTION
+            				"Current cpu info
+            
+            				XPath: /wing-stats/device[mac=key1]/system/cpu"
+            			::= { wingStatsDevSysEntry 15 }
+        - uuid: 3e7e50b20df044e1a3efe28423afe60c
+          name: 'AP firmware'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.4.1.1.3.{$SNMPINDEX}'
+          key: 'apfirmware[{$APNAME}]'
+          value_type: TEXT
+        - uuid: 94db21b93b954baab7c5bcab8c6ac4f8
+          name: 'AP model'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.4.1.1.23.{$SNMPINDEX}'
+          key: 'apmodel[{$APNAME}]'
+          value_type: TEXT
+        - uuid: 086dc6b5ccee4792a9a1970efdd18140
+          name: 'AP mac address of parent wireless controller'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.12.{$SNMPINDEX}.{$SNMPINDEX}'
+          key: 'apparent[{$APNAME}]'
+          value_type: TEXT
+          description: |
+            -- 1.3.6.1.4.1.388.50.1.4.2.25.1.1.1.12
+            		wingStatsDevWlApInfoAdoptedTo OBJECT-TYPE
+            			SYNTAX MacAddress
+            			MAX-ACCESS read-only
+            			STATUS current
+            			DESCRIPTION
+            				"MAC address of the parent wireless controller that the AP
+            				is adopted to.
+            
+            				XPath: /wing-stats/device[mac=key1]/wireless/ap-info[mac=key2]/adopted_to"
+            			::= { wingStatsDevWlApInfoEntry 12 }
+          preprocessing:
+            - type: SNMP_GET_VALUE
+              parameters:
+                - '2'
+        - uuid: e3cbf98f193a46bd92b2931b3d509012
+          name: 'AP percentage cpu usage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.2.1.1.8.{$SNMPINDEX}'
+          key: 'appercentagecpuusage[{$APNAME}]'
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+        - uuid: 58d18dcf1558410683053cc57c9ff048
+          name: 'AP percentage ram usage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.2.1.1.3.{$SNMPINDEX}'
+          key: 'apramusage[{$APNAME}]'
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var percentage = (1000 - value)/10
+                  return percentage
+        - uuid: 4c0444ab67004ef08f9a28ef854bc0a3
+          name: 'AP serial number'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.1.1.5.{$SNMPINDEX}'
+          key: 'apserialnumber[{$APNAME}]'
+          value_type: TEXT
+        - uuid: 145f09164ca84b1ebb19c8e59db189f8
+          name: 'AP uptime'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.388.50.1.4.2.4.1.1.14.{$SNMPINDEX}'
+          key: 'apuptime[{$APNAME}]'
+          trends: '0'
+          units: seconds
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var value = value.split(' ')
+                  var seconds = 0
+                  for (var i = 0; i < value.length; i = i + 2) {
+                    var number = Number(value[i])
+                    if (value[i+1] == 'days,'){
+                        seconds = seconds + number*86400
+                    }
+                    if (value[i+1] == 'hours'){
+                        seconds = seconds + number*3600
+                    }
+                    if (value[i+1] == 'minutes'){
+                        seconds = seconds + number*60
+                    }
+                  }
+                  return seconds
+        - uuid: 680fececcf2b4e87b874230422d3241f
+          name: 'AP ping'
+          type: SIMPLE
+          key: 'icmpping[{$APIP}]'
+          triggers:
+            - uuid: 856ddafcfd4644f893b9d67021edc75e
+              expression: 'max(/wing-vx9000_AP/icmpping[{$APIP}],5m)=0'
+              name: 'AP {$APNAME} ICMP ping Lost connection 5 minutes ago'
+              priority: HIGH
+      valuemaps:
+        - uuid: 0e1c89068d694feaba9814d91b3af9f2
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 6e39b31bc2364094b793701f56f62ebc
+          name: zabbix.host.available
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
