@@ -50,6 +50,3 @@ This template was originally developed by nikosch86 and then heavily modified an
 
 
 ---
-
-
-
