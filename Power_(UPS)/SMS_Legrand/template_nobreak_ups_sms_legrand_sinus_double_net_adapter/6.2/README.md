@@ -18,7 +18,7 @@ This template is designed for monitoring SMS Double II DSP UPS systems with 10 a
 The template uses SNMP community string "sms" by default and polls data every 30 seconds for optimal balance between monitoring accuracy and system performance.
 
 ## Author
-Marlon J dos Anjos
+Gustavo Heidrich Grunwald
 
 ## Macros used
 |Name|Description|Default|
