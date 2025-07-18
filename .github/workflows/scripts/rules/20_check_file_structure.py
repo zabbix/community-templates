@@ -22,11 +22,11 @@ regx_readme = r'(template_[.a-zA-Z0-9()_-]+|mediatype_[.a-zA-Z0-9()_-]+)(\/\d.\d
 
 def run_check(skip: bool = False) -> dict:
     """
-    Check if file structure is valid.
+    Check if directory structure is valid.
     """
 
     skip = False
-    step_name = 'Check file structure'
+    step_name = 'Check directory structure'
     if skip:
         return {
             'step': step_name,
