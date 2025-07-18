@@ -150,6 +150,71 @@ To enable these items:
 2. Find items with `status: DISABLED`
 3. Enable and configure with appropriate queue names
 
+## Future Enhancements
+
+This template currently provides comprehensive data collection but could be enhanced with the following components:
+
+### Triggers (Not Yet Implemented)
+
+The template would benefit from triggers for critical conditions:
+
+```yaml
+# Example triggers that could be added:
+- Runtime Status != RUNNING
+- Clustering Problems detected
+- Out of Memory Error = True
+- Low Memory Status = True
+- Queue Wait Time > threshold
+- Download/Upload Failures > threshold
+- Dead Letter Messages > 0
+- Jetty Queue Size > threshold
+- ActiveMQ Memory Usage > 90%
+- Execution Workers = 0 (in cluster)
+```
+
+### Suggested Trigger Macros
+
+Additional macros for trigger thresholds:
+
+| Macro | Description | Suggested Default |
+|-------|-------------|-------------------|
+| `{$BOOMI.QUEUE_WAIT_TIME.MAX}` | Maximum acceptable queue wait time (ms) | `30000` |
+| `{$BOOMI.FAILURE_COUNT.MAX}` | Maximum failures before alerting | `10` |
+| `{$BOOMI.MEMORY_USAGE.MAX}` | Maximum memory usage percentage | `90` |
+| `{$BOOMI.JETTY_QUEUE.MAX}` | Maximum Jetty queue size | `50` |
+| `{$BOOMI.DEAD_LETTERS.MAX}` | Maximum dead letter messages | `0` |
+
+### Dashboards
+
+Pre-built dashboards could include:
+- **Boomi Runtime Overview**: Status, health, and key metrics
+- **Execution Performance**: Queue times, execution counts, worker status
+- **Resource Utilization**: Memory, disk, thread usage
+- **Message Flow**: Incoming/outgoing message statistics
+- **Cluster Health**: Multi-node cluster monitoring
+
+### Value Mappings
+
+Value mappings for better visualization:
+- Runtime Status codes (0=RUNNING, 1=INITIALIZING, etc.)
+- Boolean values (True/False for memory status, clustering problems)
+- Health status text mappings
+
+### Discovery Rules
+
+Potential auto-discovery capabilities:
+- Queue discovery for dynamic queue monitoring
+- Cluster node discovery for multi-node environments
+- Account discovery for multi-tenant monitoring
+
+### Additional Items
+
+Future monitoring additions could include:
+- JVM garbage collection metrics
+- Network interface statistics
+- File system usage for Boomi directories
+- Process-specific execution metrics
+
 ## Troubleshooting
 
 ### Common Issues
