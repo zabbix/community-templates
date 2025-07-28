@@ -18,7 +18,7 @@ The template is designed to interface with Ekara APIs to display in customized d
 
 *Data collection -> Templates -> Import*
 
-![ImportTemplate](./files/import.png)
+![ImportTemplate](./doc/import.png)
 
 ### Fill up these macros
 
@@ -45,9 +45,8 @@ There are no template links in this template.<br></br>
 |Macro|Description|Default value|
 |-|-|-|
 |{$EKARA.INTERVAL}|Define at which frequency to refresh the data|`15m`|
-|{$EKARA.LOGIN}|Put your Ekara login here| - |
-|{$EKARA.PASSWORD}|Put your password here|`SECRET_TEXT`|
-|{$EKARA.URL}|Url to connect to the Ekara API|`https://api.ekara.ip-label.net/`|
+|{$EKARA.API_KEY}|Put your Ekara API key here|`SECRET_TEXT`|
+|{$EKARA.URL}|Ekara API endpoint URL|`https://ekara.ip-label.net/`|
 
 ## Items
 
