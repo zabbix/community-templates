@@ -94,6 +94,11 @@ There are no template links in this template.
 |ZFS ARC stat "$1"|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[arc_dnode_limit]<p>Update: 1m</p>|
 |ZFS ARC stat "$1"|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[hdr_size]<p>Update: 1m</p>|
 |ZFS ARC stat "$1"|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[dnode_size]<p>Update: 1m</p>|
+|ZFS ARC L2 stat "hits"|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[l2_hits]<p>Update: 1m</p>|
+|ZFS ARC L2 stat "misses"|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[l2_misses]<p>Update: 1m</p>|
+|ZFS ARC L2 current size|<p>-</p>|`Zabbix agent (active)`|zfs.arcstats[l2_size]<p>Update: 1m</p>|
+|ZFS ARC L2 Cache Hit Ratio|<p>-</p>|`Calculated`|zfs.arcstats_l2_hit_ratio<p>Update: 1m</p>|
+|ZFS ARC L2 total read|<p>-</p>|`Calculated`|zfs.arcstats_l2_total_read<p>Update: 1m</p>|
 |Zfs dataset $1 compressratio|<p>-</p>|`Zabbix agent (active)`|zfs.get.compressratio[{#FILESETNAME}]<p>Update: 30m</p><p>LLD</p>|
 |Zfs dataset $1 $2|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#FILESETNAME},available]<p>Update: 5m</p><p>LLD</p>|
 |Zfs dataset $1 $2|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#FILESETNAME},referenced]<p>Update: 5m</p><p>LLD</p>|
@@ -114,6 +119,19 @@ There are no template links in this template.
 |vdev {#VDEV}: READ error counter|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Zabbix agent (active)`|zfs.vdev.error_counter.read[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
 |vdev {#VDEV}: WRITE error counter|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Zabbix agent (active)`|zfs.vdev.error_counter.write[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
 |vdev {#VDEV}: total number of errors|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'.</p>|`Calculated`|zfs.vdev.error_total[{#VDEV}]<p>Update: 5m</p><p>LLD</p>|
+|ZIL commit count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_commit_count]<p>Update: 1m</p>|
+|ZIL commit writer count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_commit_writer_count]<p>Update: 1m</p>|
+|ZIL intent transaction size|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_copied_bytes]<p>Update: 1m</p>|
+|ZIL intent transaction copied count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_copied_count]<p>Update: 1m</p>|
+|ZIL intent transactions count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_count]<p>Update: 1m</p>|
+|ZIL intent transactions indirect size|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_indirect_bytes]<p>Update: 1m</p>|
+|ZIL intent transaction indirect count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_indirect_count]<p>Update: 1m</p>|
+|ZIL intent transaction metaslab normal size|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_metaslab_normal_bytes]<p>Update: 1m</p>|
+|ZIL intent transaction metaslab normal count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_metaslab_normal_count]<p>Update: 1m</p>|
+|ZIL intent transaction metaslab slog size|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_metaslab_slog_bytes]<p>Update: 1m</p>|
+|ZIL intent transaction metaslab slog count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_metaslab_slog_count]<p>Update: 1m</p>|
+|ZIL intent transaction need copy size|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_needcopy_bytes]<p>Update: 1m</p>|
+|ZIL intent transaction need copy count|<p>-</p>|`Zabbix agent (active)`|zfs.zil[zil_itx_needcopy_count]<p>Update: 1m</p>|
 
 
 ## Triggers
