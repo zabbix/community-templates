@@ -18,14 +18,14 @@ dslimp (https://github.com/dslimp)
 - [zabbix_template_supervisor.xml](zabbix_template_supervisor.xml)
 
 ## Script Links
-- [script/supervisor.py](script/supervisor.py)
+- [files/script/supervisor.py](files/script/supervisor.py)
 
 ## Setup
-- Download the [script/supervisor.py](script/supervisor.py) script from this repository and place it in zabbix script directory
+- Download the [files/script/supervisor.py](files/script/supervisor.py) script from this repository and place it in zabbix script directory
 - Run `chmod +x supervisor.py` to make the script executable
 - Test executing the script from the CLI of your Zabbix server by running the python script inputing the command and socket like `./supervisor.py discovery /var/run/supervisor.sock`
 - Make sure the output is either applications and haven'tß error
-- Download and install [supervisor.conf](supervisor.conf) to zabbix_agent.d config directory
+- Download and install [files/supervisor.conf](files/supervisor.conf) to zabbix_agent.d config directory
 - Once the script works OK, download the [zabbix_template_supervisor.xml](zabbix_template_supervisor.xml) Zabbix template from this repository and import it into your Zabbix server
 - Apply the imported template to the host
 - Check the latest data to make sure you are getting the proper value from the script

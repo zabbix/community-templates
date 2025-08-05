@@ -9,7 +9,7 @@ Shows recursive queries on your BIND server. Triggers on excesive usage. Best fo
 Installation description:
 
 /etc/zabbix/zabbix_agentd.d/userparameter_bind.conf:
-``
+```
 UserParameter=bind.tcpcl,/bin/cat /tmp/namedtcp.log
 UserParameter=bind.udpcl,/bin/cat /tmp/namedudp.log
 ```
