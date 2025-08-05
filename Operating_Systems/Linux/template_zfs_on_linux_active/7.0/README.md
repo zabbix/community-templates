@@ -4,6 +4,8 @@
 
 To use the Zabbix ZFS on Linux template, you must first install a correctly configured userparams file on any machines running the zabbix agent and using ZFS.
 
+Additionally, for monitoring of scrub and resilver stats you must install the ZED integration script.
+
 ### Choosing the correct userparams file
 
 There should be two different user parameters files in the same directory as this README, `userparams_zol_without_sudo.conf` and `userparams_zol_with_sudo.conf`. One uses `sudo` to run and thus you must give Zabbix the correct rights and the other doesn't use `sudo`.
@@ -39,6 +41,41 @@ If you don't know where your userparameters directory is, this is usually `/etc/
 
 The path used for the `zfs` and `zpool` binaries is different under almost every Linux distro, the paths aren't even the same for Debian and Ubuntu, as one notable example. For this reason you should run `which zfs` and `which zpool` on each ZFS machine you want to monitor with Zabbix to find out the correct paths to use to run these two binaries, then you need to edit the userparams file so that every instance of `zfs` and `zpool` is called using the correct path, if your distro's path doesn't match the path used in example userparams files.
 
+### Installing the ZED integration script
+
+By default ZFS does not provide a reliable way to get the stats from the most recent scrub or resilver, nor does it record these details. The details of most recent scrub _or_ resilver will be available in the output of `zfs status`, but only until the next scan starts.
+
+As a workaround for this a script has been written to extract stats and timestamps from zfs and record them as custom properties on the root dataset for each pool. This script is a zedlet that will be run by the [ZFS Event Daemon (ZED)](https://openzfs.github.io/openzfs-docs/man/master/8/zed.8.html) whenever a scrub or resilver completes.
+
+To install the script:
+
+1. Work out the "installed zedlets" directory for your platform, for example:
+   ``` bash
+   ZEDLETDIR=$(find /etc/zfs/zed.d/ -type l | head -1 | xargs readlink -f | awk 'BEGIN{OFS=FS="/"};NF--' | sort -u)
+   ```
+1. Copy `scan_finish-zabbix.sh` from this directory to the "installed zedlets" directory and make it executable and owned by root
+1. Link `scan_finish-zabbix.sh` to the "enabled zedlets" directory (always `/etc/zfs/zed.d/`) as `scrub_finish-zabbix.sh` and `resilver_finish-zabbix.sh`
+   ``` bash
+   ln -s ${ZEDLETDIR}/scan_finish-zabbix.sh /etc/zfs/zed.d/scrub_finish-zabbix.sh
+   ln -s ${ZEDLETDIR}/scan_finish-zabbix.sh /etc/zfs/zed.d/resilver_finish-zabbix.sh
+   ```
+1. Restart the ZED daemon to ensure it detects the new scripts
+   ``` bash
+   # On distros using systemd
+   systemctl restart zed
+   ```
+1. Run `set-zfs-scan-defaults.sh` from this directory to set all dataset properties used to the default values
+1. Optionally, run `scan_finish-zabbix.sh` once to set the data for the most recent scan/resilver
+   ``` bash
+   # When running manually need to provide values for variables (usually these are set by zed)
+   export ZPOOL=$(which zpool)
+   export ZFS=$(which zfs)
+   for ZEVENT_POOL in $(zpool status | grep 'pool:' | cut -d':' -f 2); do
+      export ZEVENT_POOL
+      bash /etc/zfs/zed.d/resilver_finish-zabbix.sh || echo failed for ${ZEVENT_POOL}
+   done
+   ```
+
 ## Macros used
 
 |Name|Description|Default|Type|
@@ -52,7 +89,7 @@ The path used for the `zfs` and `zpool` binaries is different under almost every
 |{$ZPOOL_HIGH_ALERT}|<p>-</p>|`90`|Text macro|
 |{$ZFS_FSNAME_MATCHES}|<p>Determine datasets to discover</p>|`/`|Text macro|
 |{$ZFS_FSNAME_NOTMATCHES}|<p>Determine datasets to ignore</p>|`([a-z-0-9]{64}$\|[a-z-0-9]{64}-init$)`|Text macro|
-
+|{$ZPOOL_MAX_SCRUB_INTERVAL}|<p>Allowed time between scrubs (in days)</p>|`40`|Text macro|
 
 ## Template links
 
@@ -110,7 +147,16 @@ There are no template links in this template.
 |Zpool {#POOLNAME} available|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#POOLNAME},available]<p>Update: 5m</p><p>LLD</p>|
 |Zpool {#POOLNAME} used|<p>-</p>|`Zabbix agent (active)`|zfs.get.fsinfo[{#POOLNAME},used]<p>Update: 5m</p><p>LLD</p>|
 |Zpool {#POOLNAME} Health|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.health[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
-|Zpool {#POOLNAME} scrub status|<p>Detect if the pool is currently scrubbing itself. This is not a bad thing itself, but it slows down the entire pool and should be terminated when on production server during business hours if it causes a noticeable slowdown.</p>|`Zabbix agent (active)`|zfs.zpool.scrub[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} scrub status|<p>Detect if the pool is currently scrubbing itself. This is not a bad thing itself, but it slows down the entire pool and should be terminated when on production server during business hours if it causes a noticeable slowdown.</p>|`Zabbix agent (active)`|zfs.zpool.scrub.status[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} scrub timestamp|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.scrub.timestamp[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} scrub repaired|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.scrub.repaired[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} scrub length|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.scrub.length[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} scrub errors|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.scrub.errors[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} resilver status|<p>Detect if the pool is currently resilvering. An unexpected resilver is likely indicative of a problem, so in such an event it is advisable to check the pool.</p>|`Zabbix agent (active)`|zfs.zpool.resilver.status[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} resilver timestamp|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.resilver.timestamp[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} resilver repaired|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.resilver.repaired[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} resilver length|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.resilver.length[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
+|Zpool {#POOLNAME} resilver errors|<p>-</p>|`Zabbix agent (active)`|zfs.zpool.resilver.errors[{#POOLNAME}]<p>Update: 5m</p><p>LLD</p>|
 |Zpool {#POOLNAME} read throughput|<p>-</p>|`Dependent item`|zfs.zpool.iostat.nread[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
 |Zpool {#POOLNAME} write throughput|<p>-</p>|`Dependent item`|zfs.zpool.iostat.nwritten[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
 |Zpool {#POOLNAME} IOPS: reads|<p>-</p>|`Dependent item`|zfs.zpool.iostat.reads[{#POOLNAME}]<p>Update: 0</p><p>LLD</p>|
@@ -154,7 +200,10 @@ There are no template links in this template.
 |More than {$ZPOOL_AVERAGE_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (85/100)</p><p>**Recovery expression**: </p>|average|
 |More than {$ZPOOL_DISASTER_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (99/100)</p><p>**Recovery expression**: </p>|disaster|
 |More than {$ZPOOL_HIGH_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (90/100)</p><p>**Recovery expression**: </p>|high|
-|Zpool {#POOLNAME} is scrubbing for more than 12h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub[{#POOLNAME}],12h)=0</p><p>**Recovery expression**: </p>|average|
-|Zpool {#POOLNAME} is scrubbing for more than 24h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub[{#POOLNAME}],24h)=0</p><p>**Recovery expression**: </p>|high|
+|Zpool {#POOLNAME} is scrubbing for more than 12h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub.status[{#POOLNAME}],12h)=0</p><p>**Recovery expression**: </p>|average|
+|Zpool {#POOLNAME} is scrubbing for more than 24h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub.status[{#POOLNAME}],24h)=0</p><p>**Recovery expression**: </p>|high|
+|Zpool {#POOLNAME} no scrub for over {$ZPOOL_MAX_SCRUB_INTERVAL} days on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: now() - last(/ZFS on Linux/zfs.zpool.scrub.timestamp[{#POOLNAME}],#1) > {$ZPOOL_MAX_SCRUB_INTERVAL} * 1d</p><p>**Recovery expression**: </p>|warning|
+|Zpool {#POOLNAME} is resilvering on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: last(/ZFS on Linux/zfs.zpool.resilver.status[{#POOLNAME}])=0</p><p>**Recovery expression**: </p>|warning|
+|Zpool {#POOLNAME} has recently resilvered on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: change(/ZFS on Linux/zfs.zpool.resilver.timestamp[{#POOLNAME}])<>0</p><p>**Recovery expression**: </p>|warning|
 |Zpool {#POOLNAME} is {ITEM.VALUE} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: find(/ZFS on Linux/zfs.zpool.health[{#POOLNAME}],,"like","ONLINE")=0</p><p>**Recovery expression**: </p>|high|
 |vdev {#VDEV} has encountered {ITEM.VALUE} errors on {HOST.NAME} (LLD)|<p>This device has experienced an unrecoverable error. Determine if the device needs to be replaced. If yes, use 'zpool replace' to replace the device. If not, clear the error with 'zpool clear'. You may also run a zpool scrub to check if some other undetected errors are present on this vdev.</p>|<p>**Expression**: last(/ZFS on Linux/zfs.vdev.error_total[{#VDEV}])>0</p><p>**Recovery expression**: </p>|high|
