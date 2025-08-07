@@ -18,11 +18,11 @@ Sophos version 20 or higher is required, as this version allows you to monitor I
 
 **New Feature Added: IPsec Site-to-Site VPN Discovery**
 -   Automatically discovers all configured IPsec tunnels using SNMP.
--   Creates item prototypes for each tunnel to monitor its **Connection Status** and **Activation Status**.
--   Includes two intelligent trigger prototypes:
-    1.  A **high-severity** alert for real connection failures (a tunnel that was previously active has dropped).
-    2.  A **low-severity** informational alert when a tunnel is intentionally disabled in the firewall configuration.
--   This logic avoids false positives for backup/failover links and planned maintenance.
+-   Creates item prototypes for each tunnel to monitor its Connection Status and Activation Status.
+-   Includes three intelligent trigger prototypes for granular alerting:
+    1. A **Disaster-severity** alert for critical connection failures (a tunnel that was Active has dropped to Inactive).
+    2. A **High-severity** alert for degraded connections (when a tunnel becomes Partially Active).
+-   This layered logic correctly identifies real failures, alerts on degraded states, and avoids false positives for backup links or planned maintenance.
 
 **MIBs Used:**
 * SFOS-FIREWALL-MIB
@@ -111,7 +111,7 @@ Includes specific triggers for Sophos services and intelligent triggers for the 
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
-|ALERT: VPN connection {#VPN_NAME} is down|<p>Fires if a previously active VPN connection drops. Ignores tunnels that were already disconnected.</p>|<p>**Expression**: (last(...)conn.status...=0 or 2) and min(...)conn.status...,5m)=1</p>|Disaster|
-|INFO: VPN {#VPN_NAME} has been disabled|<p>Fires with a low priority if a VPN tunnel is intentionally disabled in the firewall configuration.</p>|<p>**Expression**: last(...)activation.status...=0</p>|Information|
+|ALERT: VPN connection {#VPN_NAME} is down|<p>Fires with Disaster severity if a fully **Active** connection drops to **Inactive**.</p>|<p>**Expression**: `last(conn.status)=0 and last(conn.status,#2)=1 and last(activation.status)=1`</p>|Disaster|
+|ALERT: VPN connection {#VPN_NAME} is degraded|<p>Fires with High severity if an enabled connection is in a **Partially Active** state.</p>|<p>**Expression**: `last(conn.status)=2 and last(activation.status)=1`</p>|High|
 |Memory utilization high|<p>Fires if memory usage is above {$MEMORY_UTIL_MAX}.</p>|<p>**Expression**: avg(/.../memoryPercentUsage,15m)>{$MEMORY_UTIL_MAX}</p>|High|
 |Interface {#IFNAME}({#IFALIAS}): Link down|<p>Fires if an interface link goes down (inherited from linked template).</p>|<p>**Expression**: ...</p>|Average|
