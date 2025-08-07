@@ -1,0 +1,3167 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 512de161946b46af952076320eb2b366
+      template: 'Template Proxmox VE REST API'
+      name: 'Template Proxmox VE REST API'
+      description: |
+        Zabbix template for monitoring Proxmox VE virtual machines using the REST API. No Zabbix agent is required inside the VMs.
+        
+        Created by Thomas Rzen.  
+        For documentation, updates, and source code, visit:  
+        https://github.com/Garfieldttt/Zabbix-Template-Proxmox-VE-REST-API
+      groups:
+        - name: Templates
+      items:
+        - uuid: 9a98e0c1e615419d8c3fc835aba5b216
+          name: 'PVE backup raw'
+          type: HTTP_AGENT
+          key: pve.backup.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Zabbix JavaScript-Preprocessing for VZDUMP grouping and bckpid assignment
+                  // 1. Parse input (string or already object)
+                  var obj = (typeof value === 'string') ? JSON.parse(value) : value;
+                  
+                  // 2. Determine data array
+                  var dataArr = [];
+                  if (obj.data && obj.data instanceof Array) {
+                      dataArr = obj.data;
+                  } else if (obj.body && obj.body.data && obj.body.data instanceof Array) {
+                      dataArr = obj.body.data;
+                  }
+                  if (dataArr.length === 0) {
+                      return JSON.stringify({ total: 0, data: [] });
+                  }
+                  
+                  // 3. Filter for vzdump type and sort by starttime
+                  var dumps = [];
+                  for (var i = 0; i < dataArr.length; i++) {
+                      if (dataArr[i].type === 'vzdump') {
+                          dumps.push(dataArr[i]);
+                      }
+                  }
+                  dumps.sort(function(a, b) {
+                      return a.starttime - b.starttime;
+                  });
+                  
+                  // 4. Default empty IDs to "pve"
+                  for (i = 0; i < dumps.length; i++) {
+                      if (!dumps[i].id) {
+                          dumps[i].id = 'pve';
+                      }
+                  }
+                  
+                  // 5. Group by id and merge times/metadata
+                  var groups = {};
+                  for (i = 0; i < dumps.length; i++) {
+                      var e = dumps[i];
+                      var key = e.id;
+                      if (!groups[key]) {
+                          groups[key] = {
+                              id:        e.id,
+                              node:      e.node,
+                              status:    e.status,
+                              pid:       e.pid,
+                              upid:      e.upid,
+                              starttime: e.starttime,
+                              endtime:   e.endtime,
+                              repTime:   e.starttime
+                          };
+                      } else {
+                          var g = groups[key];
+                          if (e.starttime < g.starttime) {
+                              g.starttime = e.starttime;
+                          }
+                          if (e.endtime > g.endtime) {
+                              g.endtime = e.endtime;
+                          }
+                          if (e.starttime > g.repTime) {
+                              g.pid     = e.pid;
+                              g.status  = e.status;
+                              g.upid    = e.upid;
+                              g.repTime = e.starttime;
+                          }
+                      }
+                  }
+                  
+                  // 6. Sort keys: numeric IDs ascending, then "pve"
+                  var ids = Object.keys(groups).sort(function(a, b) {
+                      var na = parseInt(a, 10);
+                      var nb = parseInt(b, 10);
+                      var aNum = !isNaN(na);
+                      var bNum = !isNaN(nb);
+                      if (aNum && bNum) {
+                          return na - nb;
+                      }
+                      if (aNum) {
+                          return -1;
+                      }
+                      if (bNum) {
+                          return 1;
+                      }
+                      return a < b ? -1 : (a > b ? 1 : 0);
+                  });
+                  
+                  // 7. Build result array and assign bckpid from id
+                  var resultData = [];
+                  for (i = 0; i < ids.length; i++) {
+                      var g = groups[ids[i]];
+                      delete g.repTime;
+                      // Assign bckpid to the original id value
+                      g.bckpid = g.id;
+                      resultData.push(g);
+                  }
+                  
+                  // 8. Return JSON
+                  return JSON.stringify({
+                      total: resultData.length,
+                      data:  resultData
+                  });
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          output_format: JSON
+        - uuid: 8dc9614f15df4bd2914b15a03731dc02
+          name: 'PVE CPU cores'
+          type: DEPENDENT
+          key: pve.cores
+          delay: '0'
+          trends: '0'
+          units: '!Cores'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpuinfo.cores
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 6a0405792aa8410c8c87b82f66659827
+          name: 'PVE CPU utilization'
+          type: DEPENDENT
+          key: pve.cpu.utilization
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpu
+            - type: MULTIPLIER
+              parameters:
+                - '100'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 8d7c1e46d5444b06ad419ffab9415d44
+          name: 'PVE CPU info'
+          type: DEPENDENT
+          key: pve.cpuinfo
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpuinfo.model
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: aff51cdfad424764ab637ceec7b54ff3
+          name: 'PVE CPU threads'
+          type: DEPENDENT
+          key: pve.cpus
+          delay: '0'
+          trends: '0'
+          units: '!Threads'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpuinfo.cpus
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: bfca65a711d34b0d9543249fe9174097
+          name: 'PVE current kernel'
+          type: DEPENDENT
+          key: pve.current.kernel
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data["current-kernel"].release'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Kernel
+        - uuid: b8f220b1fc734381a51d0561efa13bef
+          name: 'PVE disks raw'
+          type: HTTP_AGENT
+          key: pve.disks.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  (function(){
+                    var root, out = [];
+                  
+                    // 1) JSON parsen – bei Fehler leeres Ergebnis zurückliefern
+                    try {
+                      root = JSON.parse(value);
+                    } catch (e) {
+                      return JSON.stringify({ data: [] }, null, 2);
+                    }
+                  
+                    // 2) Größe "32G","512M" → Bytes
+                    function parseSize(sizeStr) {
+                      var m = /^(\d+(?:\.\d+)?)([KMGTP])B?$/i.exec(sizeStr);
+                      if (!m) return 0;
+                      var v = parseFloat(m[1]), u = m[2].toUpperCase();
+                      var mult = { K: 1024, M: 1024**2, G: 1024**3, T: 1024**4, P: 1024**5 }[u] || 1;
+                      return Math.round(v * mult);
+                    }
+                  
+                    // 3) Prüft, ob irgendein Statistik-Wert > 0 ist
+                    function hasStats(s) {
+                      return (
+                        (s.rd_bytes         || 0) > 0 ||
+                        (s.wr_bytes         || 0) > 0 ||
+                        (s.unmap_bytes      || 0) > 0 ||
+                        (s.flush_operations || 0) > 0 ||
+                        (s.rd_operations    || 0) > 0 ||
+                        (s.wr_operations    || 0) > 0 ||
+                        (s.idle_time_ns     || 0) > 0
+                      );
+                    }
+                  
+                    // 4) Falls root.data ein Array ist, darüber iterieren
+                    if (Array.isArray(root.data)) {
+                      root.data.forEach(function(vm) {
+                        var vmid   = vm.vmid;
+                        var cfg    = vm.config     || {};       // aus Deinem kombinierten JSON
+                        var stats  = vm.blockstat   || {};       // aus Deinem kombinierten JSON
+                  
+                        Object.keys(stats).forEach(function(blk) {
+                          var s = stats[blk] || {};
+                          if (!hasStats(s)) return;
+                  
+                          // Größe entweder aus config[blk] parsen oder vm.maxdisk verwenden
+                          var sizeLine = cfg[blk] || '';
+                          var m = /size=([^, ]+)/.exec(sizeLine);
+                          var maxdisk = m ? parseSize(m[1]) : (vm.maxdisk || 0);
+                  
+                          out.push({
+                            vmid:             vmid,
+                            block:            blk,
+                            maxdisk:          maxdisk,
+                            rd_bytes:         s.rd_bytes         || 0,
+                            wr_bytes:         s.wr_bytes         || 0,
+                            unmap_bytes:      s.unmap_bytes      || 0,
+                            flush_operations: s.flush_operations || 0,
+                            rd_operations:    s.rd_operations    || 0,
+                            wr_operations:    s.wr_operations    || 0,
+                            idle_time_ns:     s.idle_time_ns     || 0
+                          });
+                        });
+                      });
+                    }
+                  
+                    // 5) Immer gültiges JSON zurückgeben
+                    return JSON.stringify({ data: out }, null, 2);
+                  })();
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/qemu?full=1'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: ee746cfba83e43e0af3053d86bcb2c9c
+          name: 'PVE load average (15 min)'
+          type: DEPENDENT
+          key: pve.loadaverage.fifteen
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.loadavg[2]'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: b0e142359bce47d288156cac52b3cda0
+          name: 'PVE load average (5 min)'
+          type: DEPENDENT
+          key: pve.loadaverage.fiveminute
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.loadavg[1]'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: e30e7acbdeb144f1a9b2ef6147df229b
+          name: 'PVE load average (1 min)'
+          type: DEPENDENT
+          key: pve.loadaverage.oneminute
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.loadavg[0]'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 86a2555f26f04ef99e267d5045947de1
+          name: 'PVE localtime'
+          type: DEPENDENT
+          key: pve.localtime
+          delay: '0'
+          trends: '0'
+          units: unixtime
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.time
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Localtime
+        - uuid: 05dec93dcbcc4c4c8db9642f51016ee0
+          name: 'PVE machine type'
+          type: DEPENDENT
+          key: pve.machine.type
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data["current-kernel"].machine'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Kernel
+        - uuid: 7a0e1ff3f96c4695a2642bf3aa80e092
+          name: 'PVE memory available'
+          type: DEPENDENT
+          key: pve.memory.free
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.memory.free
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: e61c53e9214544d5ba50d64223564aad
+          name: 'PVE memory total'
+          type: DEPENDENT
+          key: pve.memory.total
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.memory.total
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: ab8adc650a764a7f81847578f9360f63
+          name: 'PVE memory used'
+          type: DEPENDENT
+          key: pve.memory.used
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.memory.used
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: ce497662bfd34c9da21c071e7b9b95ce
+          name: 'PVE CPU MHz'
+          type: DEPENDENT
+          key: pve.mhz
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          units: '!MHz'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpuinfo.mhz
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 56a5d7af7e034c53941a3ba7f64fff65
+          name: 'PVE lxc raw'
+          type: HTTP_AGENT
+          key: pve.nodes.lxc.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/lxc'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: 9c7336fea970423989c113561052fd32
+          name: 'PVE qemu raw'
+          type: HTTP_AGENT
+          key: pve.nodes.qemu.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/qemu?full=1'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: 294f426f0a9a492598bbf7ea7ba46d9d
+          name: 'PVE nodes raw'
+          type: HTTP_AGENT
+          key: pve.nodes.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: 8ffa4568f4d4410dad143171f541d544
+          name: 'Disk rootfs avail'
+          type: DEPENDENT
+          key: pve.rootfs.avail
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.rootfs.avail
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Disk
+        - uuid: a3091fd210f446c68cef528c2151b2be
+          name: 'Disk rootfs size'
+          type: DEPENDENT
+          key: pve.rootfs.size
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.rootfs.total
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Disk
+        - uuid: e9857891ed7b4259b5accd82e4ef59d9
+          name: 'Disk rootfs used'
+          type: DEPENDENT
+          key: pve.rootfs.used
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.rootfs.used
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Disk
+        - uuid: 6e6cfbb1bd554a6c94e3c712a4387900
+          name: 'PVE CPU sockets'
+          type: DEPENDENT
+          key: pve.sockets
+          delay: '0'
+          trends: '0'
+          units: '!Sockets'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.cpuinfo.sockets
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 894e2a471b4e441e9cf76143b1961e21
+          name: 'PVE status raw'
+          type: HTTP_AGENT
+          key: pve.status
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/status'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: e7ccf26004ff4d73b849ec2f0ba9f3a5
+          name: 'PVE storage raw'
+          type: HTTP_AGENT
+          key: pve.storage.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/storage'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: fc7f8aba309848fe818a194eae131210
+          name: 'PVE boot mode'
+          type: DEPENDENT
+          key: pve.system.boot.mode
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data["boot-info"].mode'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Boot
+        - uuid: 6d8d3b4ace0349838ddb4681d733df82
+          name: 'PVE secureboot'
+          type: DEPENDENT
+          key: pve.system.boot.secureboot
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          valuemap:
+            name: 'PVE secureboot'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data["boot-info"].secureboot'
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Boot
+        - uuid: 8cbc645bf73d4654afa40ff9245ac67c
+          name: 'PVE tasks raw'
+          type: HTTP_AGENT
+          key: pve.tasks.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var obj = JSON.parse(value);
+                      if (!obj || !obj.body || !Array.isArray(obj.body.data)) {
+                          return JSON.stringify({ error: "Invalid structure" });
+                      }
+                  
+                      var records = obj.body.data;
+                      var grouped = {};
+                  
+                      for (var i = 0; i < records.length; i++) {
+                          var e = records[i];
+                          if (!e || !e.id || !e.type) continue;
+                  
+                          var id = e.id;
+                          var type = e.type;
+                          var key = id + '|' + type;
+                  
+                          var start = e.starttime || e.pstart || 0;
+                  
+                          // Wenn kein Eintrag vorhanden oder dieser neuer ist: ersetzen
+                          if (!grouped[key] || start > (grouped[key].starttime || grouped[key].pstart || 0)) {
+                              var copy = {};
+                              for (var k in e) {
+                                  copy[k] = e[k];
+                              }
+                              copy.grpid = id;
+                              grouped[key] = copy;
+                          }
+                      }
+                  
+                      var resultList = [];
+                      for (var k in grouped) {
+                          resultList.push(grouped[k]);
+                      }
+                  
+                      // Nach numerischer ID sortieren (falls möglich)
+                      resultList.sort(function(a, b) {
+                          var aid = parseInt(a.id, 10);
+                          var bid = parseInt(b.id, 10);
+                          if (!isNaN(aid) && !isNaN(bid)) return aid - bid;
+                          return (a.id || '').localeCompare(b.id || '');
+                      });
+                  
+                      obj.body.data = resultList;
+                      obj.body.total = resultList.length;
+                  
+                      return JSON.stringify(obj);
+                  } catch (err) {
+                      return JSON.stringify({ error: "Parsing failed", detail: err.message });
+                  }
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          output_format: JSON
+        - uuid: 6b6b792bf6cd4440acd22a5701f84201
+          name: 'PVE timezone'
+          type: DEPENDENT
+          key: pve.timezone
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.timezone
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Timezone
+        - uuid: 65168f3bf85e4d4d9c4e56b56a66ca43
+          name: 'PVE uptime'
+          type: DEPENDENT
+          key: pve.uptime
+          delay: '0'
+          trends: '0'
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.uptime
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Uptime
+        - uuid: b23531b01ce04f8f9f96042acce215ae
+          name: 'PVE user raw'
+          type: HTTP_AGENT
+          key: pve.user.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/access/users'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          output_format: JSON
+        - uuid: 6ab7180a35904b229e889d93696c65ad
+          name: 'PVE version'
+          type: HTTP_AGENT
+          key: pve.version
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.version
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/version'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Version
+      discovery_rules:
+        - uuid: 91bb690f87b743cb8045704ac4a4c9e0
+          name: 'Discover backup'
+          type: DEPENDENT
+          key: discover.backup
+          delay: '0'
+          lifetime_type: DELETE_IMMEDIATELY
+          lifetime: '0'
+          item_prototypes:
+            - uuid: b4dc3c9faf174b36a46ce730a1e0953e
+              name: 'Backup endtime {#ID}'
+              type: DEPENDENT
+              key: 'backup.endtime[{#BCKPID}]'
+              delay: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].endtime'
+                  error_handler: DISCARD_VALUE
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.backup.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+            - uuid: 44af4c4fba8a485ca2d6076bed9e01b4
+              name: 'Backup starttime {#ID}'
+              type: DEPENDENT
+              key: 'backup.starttime[{#BCKPID}]'
+              delay: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].starttime'
+                  error_handler: DISCARD_VALUE
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.backup.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+            - uuid: a43334f185c049cb9b1eb4a6b3e813d5
+              name: 'Backup status {#ID}'
+              type: DEPENDENT
+              key: 'backup.status[{#BCKPID}]'
+              delay: '0'
+              valuemap:
+                name: 'Tasks status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].status'
+                  error_handler: DISCARD_VALUE
+                - type: REGEX
+                  parameters:
+                    - '(?<=^\[")(?:OK|running|stopped|error|unknown error)(?="\]$)'
+                    - \0
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '4'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - OK
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - running
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - stopped
+                    - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - error
+                    - '3'
+              master_item:
+                key: pve.backup.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+              trigger_prototypes:
+                - uuid: 6c0aa697138548fe8407c82d28d31a4a
+                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALER:"{#ID}"}'
+                  name: 'Backup for {#ID} failed'
+                  opdata: 'Backup status: {ITEM.LASTVALUE}'
+                  priority: HIGH
+                  description: |
+                    0. OK: All clear, no errors detected
+                    1. running: VM/CT is currently active
+                    2. stopped: VM/CT has been shut down
+                    3. error: General execution failure; check logs for details
+                    4. unknown error: Cannot classify status, please check Proxmox for details
+                  manual_close: 'YES'
+          graph_prototypes:
+            - uuid: 1f9f9b88b6394562ae09774bf5190e68
+              name: 'Backup status {#ID}'
+              graph_items:
+                - color: 8E24AA
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'backup.status[{#BCKPID}]'
+          master_item:
+            key: pve.backup.raw
+          lld_macro_paths:
+            - lld_macro: '{#BCKPID}'
+              path: $.bckpid
+            - lld_macro: '{#ID}'
+              path: $.id
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 553940a5f79343cbb87e6eef7f446131
+          name: 'Discover lxc'
+          type: DEPENDENT
+          key: discover.lxc
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 2d
+          item_prototypes:
+            - uuid: f3cb91ceded94abdbfa33caf387e0c0c
+              name: 'CPU utilization of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.cpuusage[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].cpu'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: MULTIPLIER
+                  parameters:
+                    - '100'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: CPU
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 483a80bba4b74224975b0cf7e357f89a
+              name: 'Disk usage {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.disk[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].disk'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Disk
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 2509e132d7d54099b6c4d8289e97cb3e
+              name: 'Disk size of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.maxdisk[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].maxdisk'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Disk
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 2a3ccec2dbd74927a54d9ca75c3529cf
+              name: 'Max memory of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.maxmem[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].maxmem'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Memory
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: d7aba53d95e64bd59d5372246dad17bc
+              name: 'Max swap of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.maxswap[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].maxswap'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Memory
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 58c148d323b24f7a824f2934d219d16c
+              name: 'Memory utilization of  {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.memusage[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].mem'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Memory
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 698ac639b14248dbabc4ceef3e8fd5e4
+              name: 'Name of  {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.name[{#VMID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].name'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Name
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: aa2f7ca8da024df69361be1ca848fec0
+              name: 'Network input of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.netin.current[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netin'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Network
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: fb486db6286b4946857ed786ad1bc0cf
+              name: 'Network input of {#VMID} (cumulative)'
+              type: DEPENDENT
+              key: 'lxc.netin[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netin'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Network
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 158e682159ed4261aa1769f2adb6a714
+              name: 'Network output of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.netout.current[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netout'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Network
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 8986ace9cd0249018576c7f2d1c6b86d
+              name: 'Network output of {#VMID} (cumulative)'
+              type: DEPENDENT
+              key: 'lxc.netout[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              description: 'Cumulative host-level network input (bytes received) on Proxmox host for LXC {#VMID}, since last LXC start.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netout'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Network
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: ce7c0a635f1a40eeab81f76e560938fd
+              name: 'LXC status {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.status[{#VMID}]'
+              delay: '0'
+              valuemap:
+                name: 'VM  and LXC status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].status'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - stopped
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - running
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - paused
+                    - '2'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Status
+                - tag: LXC-Container
+                  value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: ff83e8f239e246b0a1c385029fe3941d
+                  expression: |
+                    min(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
+                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1
+                  name: 'LXC {#VMID} status is stopped'
+                  priority: HIGH
+                  description: |
+                    To permanently suppress the “LXC stopped” trigger warning on the host, set the host macro:
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 – Enable the “LXC stopped” trigger. 
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 will disable the alert for that item.
+                  manual_close: 'YES'
+            - uuid: 761b499cf31f463e86c66bf0e8d38e1e
+              name: 'Swap utilization of  {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.swap[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].swap'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Memory
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 1ae982bc1d8a4b76b36be2157a1b0b77
+              name: 'LXC uptime {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.uptime[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].uptime'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Uptime
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: c7bbbaca7d8e478fb27073d449592ce6
+              name: 'CPU count of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.vcpu[{#VMID}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].cpus'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: CPU
+                - tag: LXC-Container
+                  value: '{#VMID}'
+          graph_prototypes:
+            - uuid: 69f379a5df7a4a10aa08f507d27adb35
+              name: 'LXC CPU utilization {#VMID}'
+              graph_items:
+                - color: 0D47A1
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.cpuusage[{#VMID}]'
+            - uuid: 1879f420b8344b57829327af81fe59e6
+              name: 'LXC Cumulative network input/output since {#VMID} start'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.netin.current[{#VMID}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.netout[{#VMID}]'
+            - uuid: db5004ac56a648cba11ccc852f4aeede
+              name: 'LXC Current network input/output {#VMID}'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.netin.current[{#VMID}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.netout.current[{#VMID}]'
+            - uuid: d1ce123e0cda47c8b3352cac115f059e
+              name: 'LXC Disk usage {#VMID}'
+              yaxismax: '0'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: EXPLODED
+              graph_items:
+                - color: 388E3C
+                  calc_fnc: MIN
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.maxdisk[{#VMID}]'
+                - sortorder: '1'
+                  color: 0040FF
+                  calc_fnc: MIN
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.disk[{#VMID}]'
+            - uuid: a02d03993bbb446cae8abc6124d36330
+              name: 'LXC Memory utilization {#VMID}'
+              graph_items:
+                - color: 1565C0
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.memusage[{#VMID}]'
+                - sortorder: '1'
+                  color: 2E7D32
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.maxmem[{#VMID}]'
+            - uuid: 42127aaa69bb44d5b018190469cc46ca
+              name: 'LXC status {#VMID}'
+              graph_items:
+                - color: 5E35B1
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.status[{#VMID}]'
+            - uuid: 53d79ba0d5cb428bb5100629359e18ad
+              name: 'LXC Swap utilization {#VMID}'
+              graph_items:
+                - color: 1565C0
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.memusage[{#VMID}]'
+                - sortorder: '1'
+                  color: 2E7D32
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.maxmem[{#VMID}]'
+          master_item:
+            key: pve.nodes.lxc.raw
+          lld_macro_paths:
+            - lld_macro: '{#TYPE}'
+              path: $.type
+            - lld_macro: '{#VMID}'
+              path: $.vmid
+            - lld_macro: '{#VM_NAME}'
+              path: $.name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 83905502b5b94a61b6ec0e5811338fcb
+          name: 'Discover nodes'
+          type: DEPENDENT
+          key: discover.nodes
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 2d
+          item_prototypes:
+            - uuid: c9e02f2d6c5b4cebacf8a212ef76da59
+              name: 'Node fingerprint {#NODE_NAME}'
+              type: DEPENDENT
+              key: 'node.fingerprint[{#NODE_NAME}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.node=="{#NODE_NAME}")].ssl_fingerprint'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.raw
+              tags:
+                - tag: PVE
+                  value: Node
+            - uuid: 1979ad3ae5fe4a0da27b22efbf783b68
+              name: 'Node status {#NODE_NAME}'
+              type: DEPENDENT
+              key: 'node.status[{#NODE_NAME}]'
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: 'Node status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.node=="{#NODE_NAME}")].status'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - online
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - offline
+                    - '0'
+              master_item:
+                key: pve.nodes.raw
+              tags:
+                - tag: PVE
+                  value: Node
+              trigger_prototypes:
+                - uuid: e85b8277a1824f2daf365df1a8ce8de2
+                  expression: 'min(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=0 and {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1'
+                  name: 'Node status {#NODE_NAME} offline'
+                  priority: HIGH
+                  description: |
+                    Use the following host macros to control the “Node status” trigger for each Proxmox node:
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1 activates the “Node status” trigger
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=0 deactivates (suppresses) the “Node status” trigger
+            - uuid: 635870600dec41d382d8aab1217591e2
+              name: 'Node uptime {#NODE_NAME}'
+              type: DEPENDENT
+              key: 'node.uptime[{#NODE_NAME}]'
+              delay: '0'
+              trends: '0'
+              units: s
+              valuemap:
+                name: 'Node status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.node=="{#NODE_NAME}")].uptime'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.raw
+              tags:
+                - tag: PVE
+                  value: Node
+          graph_prototypes:
+            - uuid: 98596bad3f0e48b8a8dad405d1ee1ae9
+              name: 'Node status {#NODE_NAME}'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'node.status[{#NODE_NAME}]'
+            - uuid: 4ba4071765ef4551b01cd57a588d8bff
+              name: 'Node uptime {#NODE_NAME}'
+              graph_items:
+                - color: 0040FF
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'node.uptime[{#NODE_NAME}]'
+          master_item:
+            key: pve.nodes.raw
+          lld_macro_paths:
+            - lld_macro: '{#NODE_NAME}'
+              path: $.node
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 1745a92cd0a04b02baa97d96e61c486d
+          name: 'Discover qemu'
+          type: DEPENDENT
+          key: discover.qemu
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 2d
+          item_prototypes:
+            - uuid: bc762ee4ac6741bba3d7ecf96ef740c3
+              name: 'Balloon minimum memory {#VMID}'
+              type: DEPENDENT
+              key: 'vm.baloonmin[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              description: |
+                Minimum balloon size on Proxmox host for VM {#VMID}
+                Note: The balloon size can only be determined when the VM is running.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].balloon_min'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Memory
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: d828297876d94d078596f76f0da43c38
+              name: 'Balloon memory {#VMID}'
+              type: DEPENDENT
+              key: 'vm.baloon[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              description: |
+                Balloon size on Proxmox host for VM {#VMID}
+                Note: The balloon size can only be determined when the VM is running.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].balloon'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Memory
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 0fc8ad38f86d4fea84b11a629fe2ad64
+              name: 'CPU utilization of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.cpuusage[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].cpu'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: MULTIPLIER
+                  parameters:
+                    - '100'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: CPU
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: e1ed112879054da082fbcaeac3de5830
+                  expression: 'min(/Template Proxmox VE REST API/vm.cpuusage[{#VMID}],300)>{$CPU_USAGE_AVERAGE:"{#VMID}"}'
+                  name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_AVERAGE:"{#VMID}"}% for 5 minutes'
+                  priority: AVERAGE
+                  description: |
+                    To permanently suppress the “CPU high” trigger warning on the host, set the host macro:
+                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=1 Enable the “VM stopped” trigger. 
+                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=0 will disable the alert for that item.
+                  dependencies:
+                    - name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
+                      expression: 'min(/Template Proxmox VE REST API/vm.cpuusage[{#VMID}],300)>{$CPU_USAGE_HIGH:"{#VMID}"}'
+                - uuid: 4205c0d40f154884b9cdc12210a0d566
+                  expression: 'min(/Template Proxmox VE REST API/vm.cpuusage[{#VMID}],300)>{$CPU_USAGE_HIGH:"{#VMID}"}'
+                  name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
+                  priority: HIGH
+                  description: |
+                    To permanently suppress the “CPU high” trigger warning on the host, set the host macro:
+                    {$CPU_USAGE_HIGH:"{#VMID}"}=1  Enable the “VM stopped” trigger. 
+                    {$CPU_USAGE_HIGH:"{#VMID}"}=0 will disable the alert for that item.
+            - uuid: afb82acd76a840a78bd57034d0312f7f
+              name: 'Machine type of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.machinetype[{#VMID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'The running-machine field reports the QEMU machine type and version that the VM is currently using (for example, pc-i440fx-9.2+pve1), indicating the emulated hardware platform and Proxmox-specific patch level.'
+              valuemap:
+                name: 'VM  and LXC status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})][''running-machine'']'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: 'Machine type'
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 391c9ab003cf44a2beb1a4de59af10f0
+              name: 'Max memory of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.maxmem[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].maxmem'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Memory
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 714ffb3297174a01bc6484daf01e63dc
+              name: 'Memory utilization of  {#VMID}'
+              type: DEPENDENT
+              key: 'vm.memusage[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].mem'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Memory
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 0b5c2c3327b9487c8434f39ed092fb48
+              name: 'VM name {#VMID}'
+              type: DEPENDENT
+              key: 'vm.name[{#VMID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].name'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: f213d9b4cf524e6a962a8f24f2103be6
+              name: 'Network input of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.netin.current[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              description: 'Cumulative host-level network input (bytes received) on Proxmox host for VM {#VMID}, since last VM start.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netin'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Network
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 350a32b273344b4cb6aadd606cf122ad
+              name: 'Network input of {#VMID} (cumulative)'
+              type: DEPENDENT
+              key: 'vm.netin[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netin'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Network
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 14fe3a64b0c74e72a80e05caf917576e
+              name: 'Network output of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.netout.current[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netout'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Network
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: a366431a4e224a6c9e093c86c54f4d66
+              name: 'Network output of {#VMID} (cumulative)'
+              type: DEPENDENT
+              key: 'vm.netout[{#VMID}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].netout'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Network
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: af362128b77d4de6b966c158b913ae65
+              name: 'Disk size of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.size.maxdisk[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].maxdisk'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Disk
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 7a1dd24b92cb4324a8afebaf8c46db17
+              name: 'VM status {#VMID}'
+              type: DEPENDENT
+              key: 'vm.status[{#VMID}]'
+              delay: '0'
+              valuemap:
+                name: 'VM  and LXC status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].status'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - stopped
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - running
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - paused
+                    - '2'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Status
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: ac085aa97edb40dcb08272e859a39e36
+                  expression: 'min(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1'
+                  name: 'VM {#VMID} status is stopped'
+                  priority: HIGH
+                  description: |
+                    To permanently suppress the “VM stopped” trigger warning on the host, set the host macro:
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 Enable the “VM stopped” trigger. 
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 Disable the alert for that item.
+            - uuid: cccaa9f83c114274bb6de7c343fa6030
+              name: 'VM uptime {#VMID}'
+              type: DEPENDENT
+              key: 'vm.uptime[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].uptime'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Uptime
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 512aaa5f8427472e9ba4b976ac38d5fc
+              name: 'CPU count of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.vcpu[{#VMID}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].cpus'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: CPU
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+          graph_prototypes:
+            - uuid: 466cbbbcc546410880cdc89fc18496c0
+              name: 'VM CPU utilization {#VMID}'
+              graph_items:
+                - color: 0D47A1
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.cpuusage[{#VMID}]'
+            - uuid: a9fbf2a1b5554bbf81e0b11d2b5ac957
+              name: 'VM Cumulative network input/output, since {#VMID} start'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: MAX
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.netin[{#VMID}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: MAX
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.netout[{#VMID}]'
+            - uuid: 9a01fe6c5b9b43c3bf5287caa9453e47
+              name: 'VM Current network input/output {#VMID}'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: MAX
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.netin.current[{#VMID}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: MAX
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.netout.current[{#VMID}]'
+            - uuid: 4a78e07a7bf04c50b779ed61e65c39d8
+              name: 'VM Memory utilization {#VMID}'
+              graph_items:
+                - color: 1565C0
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.memusage[{#VMID}]'
+                - sortorder: '1'
+                  color: 2E7D32
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.maxmem[{#VMID}]'
+            - uuid: 23fbf7d228b544d58f95ccb0cd8230f5
+              name: 'VM status {#VMID}'
+              graph_items:
+                - color: 5E35B1
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.status[{#VMID}]'
+          master_item:
+            key: pve.nodes.qemu.raw
+          lld_macro_paths:
+            - lld_macro: '{#TYPE}'
+              path: $.type
+            - lld_macro: '{#VMID}'
+              path: $.vmid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 14efa82386b54af18a8e26377422dd57
+          name: 'Discover storage'
+          type: DEPENDENT
+          key: discover.storage
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 2d
+          item_prototypes:
+            - uuid: 07551137b00f485bbbe712b675cf2b75
+              name: 'Storage active status {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.active[{#STORAGE_NAME}]'
+              delay: '0'
+              valuemap:
+                name: 'Storage active status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].active'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+            - uuid: 8e1de775d9524b27b37ad414ce961d9b
+              name: 'Storage availble {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.avail[{#STORAGE_NAME}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].avail'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+              trigger_prototypes:
+                - uuid: 2b032af2b5d54593a4f5910d6ae3f912
+                  expression: 'min(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}],900)<32212254720 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
+                  name: 'Storage [{#STORAGE_NAME}] low available space'
+                  event_name: 'Current available space: {ITEM.LASTVALUE}'
+                  priority: AVERAGE
+                  description: |
+                    Use the following host macros to control the “Storage low available space” trigger for each storage:
+                    {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
+                    {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
+                - uuid: cf31e839babb4b8a90b395ad3df47023
+                  expression: 'min(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}],900)=0 and {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1'
+                  name: 'Storage [{#STORAGE_NAME}] not available'
+                  priority: AVERAGE
+                  description: |
+                    Use the following host macros to control the “Storage not available” trigger for each storage:
+                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage not available” trigger
+                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage not available” trigger
+            - uuid: 7f8d7a2cbdab48f097d46c92b870bb1b
+              name: 'Storage content {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.content[{#STORAGE_NAME}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].content'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+            - uuid: 4f6028533a65470ca71894fdfd256d20
+              name: 'Storage type {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.name[{#STORAGE_NAME}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].type'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+            - uuid: 37b0fd0f4af0451c9b4b6bae31ed0ab2
+              name: 'Storage shared status {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.shared[{#STORAGE_NAME}]'
+              delay: '0'
+              trends: '0'
+              description: 'Indicates whether the storage {#STORAGE_NAME} is shared across the cluster (Shared = 1) or available only locally (Not Shared = 0).'
+              valuemap:
+                name: 'Storage shared status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].shared'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+            - uuid: 1d760dcaa1124491a918f1b73f20c6d3
+              name: 'Storage total {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.size[{#STORAGE_NAME}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].total'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+            - uuid: 68f65c17913043368ffbe2db02887a10
+              name: 'Storage used {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.used[{#STORAGE_NAME}]'
+              delay: '0'
+              units: Bytes
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].used'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
+          graph_prototypes:
+            - uuid: e49e5464b78446aabd4313abefda14c1
+              name: 'Storage active state {#STORAGE_NAME}'
+              graph_items:
+                - color: 00FF00
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'storage.active[{#STORAGE_NAME}]'
+            - uuid: b5e6a1f14c5b4752a18926ed9a269f9f
+              name: 'Storage usage {#STORAGE_NAME}'
+              yaxismax: '0'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: EXPLODED
+              graph_items:
+                - color: 0040FF
+                  calc_fnc: LAST
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'storage.used[{#STORAGE_NAME}]'
+                - sortorder: '1'
+                  color: 388E3C
+                  calc_fnc: LAST
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'storage.avail[{#STORAGE_NAME}]'
+          master_item:
+            key: pve.storage.raw
+          lld_macro_paths:
+            - lld_macro: '{#STORAGE_NAME}'
+              path: $.storage
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: eb63de9ec0e6489e9da820ee39cd1f00
+          name: 'Discover tasks'
+          type: DEPENDENT
+          key: discover.tasks
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#TYPE}'
+                value: '.*\bvzdump\b.*'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          lifetime_type: DELETE_IMMEDIATELY
+          lifetime: '0'
+          item_prototypes:
+            - uuid: be929b6a65ab46109a509d6f96b2348b
+              name: 'Task endtime {#TYPE} {#ID}'
+              type: DEPENDENT
+              key: 'task.endtime[{#GRPID},{#TYPE}]'
+              delay: '0'
+              trends: '0'
+              units: unixtime
+              valuemap:
+                name: 'Tasks status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].endtime'
+                  error_handler: DISCARD_VALUE
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.tasks.raw
+              tags:
+                - tag: PVE
+                  value: Tasks
+            - uuid: 1b938d0bb1b542e281b2d554d24225b4
+              name: 'Task starttime {#TYPE} {#ID}'
+              type: DEPENDENT
+              key: 'task.starttime[{#GRPID},{#TYPE}]'
+              delay: '0'
+              trends: '0'
+              units: unixtime
+              valuemap:
+                name: 'Tasks status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].starttime'
+                  error_handler: DISCARD_VALUE
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.tasks.raw
+              tags:
+                - tag: PVE
+                  value: Tasks
+            - uuid: 07fbf01babe4452487bcc8fa7de63d1e
+              name: 'Task Status: {#TYPE} {#ID}'
+              type: DEPENDENT
+              key: 'task.status[{#GRPID},{#TYPE}]'
+              delay: '0'
+              trends: '0'
+              description: |
+                0. OK: All clear, no errors detected.
+                1. running: VM/CT is currently active.
+                2. stopped: VM/CT has been shut down.
+                3. error: General execution failure; check logs for details.
+                4. unexpected status: Returned state not anticipated by the script/API.
+                5. CT locked (disk): Container’s disk is locked (e.g. during backup or migration).
+                6. timeout waiting on system: Operation exceeded its time limit and was aborted.
+                7. Failed to run vncproxy.: Unable to start the VNC proxy process.
+                8. unable to read tail (got 0 b): Failed to read log tail; zero bytes returned.
+                9. interrupted by signal: Process was terminated by a signal (e.g. SIGINT/SIGTERM).
+                10. unknown error: Cannot classify status, please check Proxmox for details
+              valuemap:
+                name: 'Tasks status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].status'
+                  error_handler: DISCARD_VALUE
+                - type: REGEX
+                  parameters:
+                    - '^\["(?:OK|running|stopped|error|unexpected status|CT is locked \(disk\)|timeout waiting on systemd|Failed to run vncproxy\.|unable to read tail \(got 0 byte\)|interrupted by signal)"\]$'
+                    - \0
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: '10'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - OK
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - running
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - stopped
+                    - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - error
+                    - '3'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'unexpected status'
+                    - '4'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'CT is locked (disk)'
+                    - '5'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'timeout waiting on systemd'
+                    - '6'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'Failed to run vncproxy.'
+                    - '7'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'unable to read tail (got 0 bytes)'
+                    - '8'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'interrupted by signal'
+                    - '9'
+              master_item:
+                key: pve.tasks.raw
+              tags:
+                - tag: PVE
+                  value: Tasks
+              trigger_prototypes:
+                - uuid: 19e5d067d25941169192a9ff6461b787
+                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALER:"{#GRPID}"}=1 and {$ENABLE_TASK_STATUS_ALERT}=1'
+                  name: 'Proxmox task {#TYPE} {#ID} failed'
+                  opdata: 'Current task status: {ITEM.LASTVALUE}'
+                  priority: WARNING
+                  description: |
+                    Use the following host macro to control the “Proxmox task failed” trigger for each task:
+                    
+                    {$ENABLE_TASK_STATUS_ALERT:"{#GRPID}"}=1 activates the “Proxmox task failed” trigger
+                    {$ENABLE_TASK_STATUS_ALERT:"{#GRPID}"}=0 deactivates (suppresses) the “Proxmox task failed” trigger
+                  manual_close: 'YES'
+          graph_prototypes:
+            - uuid: 3d3673ff518e45a2979ecfbb6aa8b5e6
+              name: 'Tast status {#TYPE} {#ID}'
+              graph_items:
+                - color: 00897B
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'task.status[{#GRPID},{#TYPE}]'
+          master_item:
+            key: pve.tasks.raw
+          lld_macro_paths:
+            - lld_macro: '{#GRPID}'
+              path: $.grpid
+            - lld_macro: '{#ID}'
+              path: $.id
+            - lld_macro: '{#TYPE}'
+              path: $.type
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.body.data[*]'
+        - uuid: c16a8fe279a84b10bc7f06f3ab2bca76
+          name: 'Discover users'
+          type: DEPENDENT
+          key: discover.users
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 2d
+          item_prototypes:
+            - uuid: cff659d3e7064b4f8859897c14c65531
+              name: 'User {#USERID} Email'
+              type: DEPENDENT
+              key: 'user.email[{#USERID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')].email'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'No email address available.'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+            - uuid: e0646641bbaf459f91c778475294cdb4
+              name: 'User {#USERID} expiration date'
+              type: DEPENDENT
+              key: 'user.exouration[{#USERID}]'
+              delay: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')].expire'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+              trigger_prototypes:
+                - uuid: 749e797e101a40abb81a572dcd08bc06
+                  expression: 'fuzzytime(/Template Proxmox VE REST API/user.exouration[{#USERID}],{$USER_EXPIRE_TIME:"{#USERID}"})=1'
+                  name: 'User {#USERID} expires within 2 days'
+                  priority: WARNING
+                  description: |
+                    Use the following host macro to set the warning threshold for user expiration:
+                    {$USER_EXPIRE_TIME:"{#USERID}"}=2d → trigger fires when user {#USERID} expires within 2 days
+                    {$USER_EXPIRE_TIME:"{#USERID}"}=5d → trigger fires when user {#USERID} expires within 5 days
+                  manual_close: 'YES'
+            - uuid: 37f116aa74d3484eab60a3d3bdc07e96
+              name: 'User {#USERID} first name'
+              type: DEPENDENT
+              key: 'user.firstname[{#USERID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')].firstname'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'No first name available.'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+            - uuid: 0daf7cd2ef1a42bba8c93d146a97bc71
+              name: 'User {#USERID} last name'
+              type: DEPENDENT
+              key: 'user.lastname[{#USERID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')].lastname'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'No last name available.'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+            - uuid: 1f2e0a7b47fb48daabf36e89c244b329
+              name: 'User {#USERID} authentication module'
+              type: DEPENDENT
+              key: 'user.name[{#USERID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')][''realm-type'']'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+            - uuid: fb638464be9845839d4e7aab0b473b2f
+              name: 'User {#USERID} status'
+              type: DEPENDENT
+              key: 'user.status[{#USERID}]'
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: 'User status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.userid==''{#USERID}'')].enable'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+              master_item:
+                key: pve.user.raw
+              tags:
+                - tag: User
+                  value: '{#USERID}'
+          master_item:
+            key: pve.user.raw
+          lld_macro_paths:
+            - lld_macro: '{#USERID}'
+              path: $.userid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.body.data[*]'
+      macros:
+        - macro: '{$CPU_USAGE_AVERAGE}'
+          value: '85'
+          description: 'Average CPU usage threshold (%) for warning level trigger'
+        - macro: '{$CPU_USAGE_HIGH}'
+          value: '99'
+          description: 'High CPU usage threshold (%) for warning level trigger'
+        - macro: '{$ENABLE_BACKUP_ALER}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$ENABLE_NODE_STATUS_ALERT}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$ENABLE_STORAGE_AVAILABLE_ALER}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$ENABLE_STORAGE_INACTIVE_ALERT}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$ENABLE_TASK_ALER}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$ENABLE_TASK_STATUS_ALERT}'
+          value: '1'
+        - macro: '{$ENABLE_VM_STOP_ALERT}'
+          value: '1'
+          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$PVE_API_TOKEN}'
+          type: SECRET_TEXT
+          description: 'The API token secret used to authenticate with the Proxmox VE REST API.'
+        - macro: '{$PVE_API_TOKEN_ID}'
+          value: Zabbix
+          description: 'The identifier (name) of the Proxmox VE API token.'
+        - macro: '{$PVE_API_USER}'
+          value: root@pam
+          description: 'The Proxmox VE username (including realm, e.g. “root@pam”) for API authentication.'
+        - macro: '{$PVE_IP}'
+          value: 192.168.10.222
+          description: 'The IP address or hostname of the Proxmox VE API server.'
+        - macro: '{$PVE_NODE}'
+          value: pve
+          description: 'The Proxmox VE node identifier (e.g. “pve”) used in API endpoint paths.'
+        - macro: '{$PVE_PORT}'
+          value: '8006'
+          description: 'The TCP port number on which the Proxmox VE API listens (default: 8006).'
+        - macro: '{$USER_EXPIRE_TIME}'
+          value: 2d
+          description: 'Number of days before a user’s account expiration at which the trigger will fire.'
+      dashboards:
+        - uuid: 1da128e63dee45edb72c71b3c66161aa
+          name: 'Proxmox VE – Monitoring Dashboard'
+          auto_start: 'NO'
+          pages:
+            - name: PVE
+              widgets:
+                - type: item
+                  width: '36'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.version
+                - type: graph
+                  'y': '2'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Rootfs usage'
+                    - type: STRING
+                      name: reference
+                      value: KQFTA
+                - type: piechart
+                  name: 'Load average'
+                  'y': '8'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 00897B
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'PVE Load Average (1 min)'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 0040FF
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'PVE Load Average (5 min)'
+                    - type: STRING
+                      name: ds.2.color
+                      value: 8E24AA
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'PVE Load Average (15 min)'
+                    - type: INTEGER
+                      name: space
+                      value: '3'
+                - type: item
+                  x: '36'
+                  width: '36'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.uptime
+                - type: graph
+                  x: '36'
+                  'y': '2'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cpu.utilization
+                    - type: STRING
+                      name: reference
+                      value: AHCZQ
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+                - type: graph
+                  x: '36'
+                  'y': '8'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'PVE Memory utilization'
+                    - type: STRING
+                      name: reference
+                      value: NIAVA
+            - name: Storage
+              widgets:
+                - type: graphprototype
+                  name: 'Storage utilization'
+                  width: '72'
+                  height: '12'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '3'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Storage usage {#STORAGE_NAME}'
+                    - type: STRING
+                      name: reference
+                      value: QJARJ
+                    - type: INTEGER
+                      name: rows
+                      value: '2'
+                - type: graphprototype
+                  name: 'Storage active status'
+                  'y': '12'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Storage active state {#STORAGE_NAME}'
+                    - type: STRING
+                      name: reference
+                      value: QNNKA
+            - name: QEMU/KVM-VMs
+              widgets:
+                - type: graphprototype
+                  name: 'CPU utilization'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM CPU utilization {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: FOMZW
+                - type: graphprototype
+                  name: 'Memory utilization'
+                  'y': '6'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Memory utilization {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: PFTWA
+                - type: graphprototype
+                  name: 'Network input/output'
+                  'y': '12'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Cumulative network input/output, since {#VMID} start'
+                    - type: STRING
+                      name: reference
+                      value: DVCMV
+                - type: graphprototype
+                  name: 'Cumulative network input/output, since last restart'
+                  'y': '18'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Cumulative network input/output, since {#VMID} start'
+                    - type: STRING
+                      name: reference
+                      value: LUBJD
+                - type: graphprototype
+                  name: 'VM status'
+                  'y': '24'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM status {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: CTHGS
+            - name: 'LXC - Container'
+              widgets:
+                - type: graphprototype
+                  name: 'LXC CPU utilization'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC CPU utilization {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: CCXOQ
+                - type: graphprototype
+                  name: 'Disk usage'
+                  'y': '6'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Disk usage {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: ISNCW
+                - type: graphprototype
+                  name: 'Memory utilization'
+                  'y': '12'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Memory utilization {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: GSNZQ
+                - type: graphprototype
+                  name: 'Swap utilization'
+                  'y': '18'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Swap utilization {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: WLFTP
+                - type: graphprototype
+                  name: 'Network input/output'
+                  'y': '24'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Current network input/output {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: UINSW
+                - type: graphprototype
+                  name: 'Cumulative network input/output, since last restart'
+                  'y': '30'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Cumulative network input/output since {#VMID} start'
+                    - type: STRING
+                      name: reference
+                      value: CPGUH
+                - type: graphprototype
+                  name: 'LXC status'
+                  'y': '36'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC status {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: FZSWY
+            - name: Backup
+              widgets:
+                - type: graphprototype
+                  name: 'Backup status'
+                  width: '72'
+                  height: '16'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Backup status {#ID}'
+                    - type: STRING
+                      name: reference
+                      value: BCVLV
+                    - type: INTEGER
+                      name: rows
+                      value: '4'
+            - name: Nodes
+              widgets:
+                - type: graphprototype
+                  name: 'Node status'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Node status {#NODE_NAME}'
+                    - type: STRING
+                      name: reference
+                      value: FYIKD
+                - type: graphprototype
+                  name: 'Node uptime'
+                  'y': '6'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Node uptime {#NODE_NAME}'
+                    - type: STRING
+                      name: reference
+                      value: KAUFW
+            - name: Tasks
+              widgets:
+                - type: graphprototype
+                  name: 'Task status'
+                  width: '72'
+                  height: '12'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '3'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Tast status {#TYPE} {#ID}'
+                    - type: STRING
+                      name: reference
+                      value: FTWEP
+                    - type: INTEGER
+                      name: rows
+                      value: '2'
+            - name: Network
+              widgets:
+                - type: graphprototype
+                  name: 'VM Current network input/output'
+                  width: '72'
+                  height: '7'
+                  hide_header: 'YES'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Current network input/output {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: HPWQA
+                - type: graphprototype
+                  name: 'VM Cumulative network input/output'
+                  'y': '7'
+                  width: '72'
+                  height: '7'
+                  hide_header: 'YES'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Cumulative network input/output, since {#VMID} start'
+                    - type: STRING
+                      name: reference
+                      value: VZJUU
+                - type: graphprototype
+                  name: 'LXC Current network input/output'
+                  'y': '14'
+                  width: '72'
+                  height: '7'
+                  hide_header: 'YES'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Current network input/output {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: SXZEY
+                - type: graphprototype
+                  name: 'LXC Cumulative network input/output'
+                  'y': '21'
+                  width: '72'
+                  height: '7'
+                  hide_header: 'YES'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Cumulative network input/output since {#VMID} start'
+                    - type: STRING
+                      name: reference
+                      value: KFZIP
+      valuemaps:
+        - uuid: ec064a4b227f46ddbfdec0d7f2ae6572
+          name: 'Backup status'
+          mappings:
+            - value: '0'
+              newvalue: OK
+            - value: '1'
+              newvalue: running
+            - value: '2'
+              newvalue: stopped
+            - value: '3'
+              newvalue: error
+            - value: '4'
+              newvalue: 'unknown error'
+        - uuid: dd3c4133c6ef47b5bcefc8e68eaeee27
+          name: 'Node status'
+          mappings:
+            - value: '0'
+              newvalue: offline
+            - value: '1'
+              newvalue: online
+        - uuid: 0c2c3eccf2504239a1bb1d01c84aa41f
+          name: 'PVE secureboot'
+          mappings:
+            - value: '0'
+              newvalue: disabled
+            - value: '1'
+              newvalue: enabled
+        - uuid: a0392eedd7b0402aa6f2b57585b32407
+          name: 'Storage active status'
+          mappings:
+            - value: '1'
+              newvalue: Active
+            - value: '0'
+              newvalue: Inactive
+        - uuid: d85ef945bc45430fbd1df03f496ed80d
+          name: 'Storage shared status'
+          mappings:
+            - value: '0'
+              newvalue: 'Not shared'
+            - value: '1'
+              newvalue: Shared
+        - uuid: 535b169e396041918e4c9aa183e86fc9
+          name: 'Tasks status'
+          mappings:
+            - value: '0'
+              newvalue: OK
+            - value: '1'
+              newvalue: running
+            - value: '2'
+              newvalue: stopped
+            - value: '3'
+              newvalue: error
+            - value: '4'
+              newvalue: 'unexpected status'
+            - value: '5'
+              newvalue: 'CT is locked (disk)'
+            - value: '6'
+              newvalue: 'timeout waiting on systemd'
+            - value: '7'
+              newvalue: 'Failed to run vncproxy.'
+            - value: '8'
+              newvalue: 'unable to read tail (got 0 bytes)'
+            - value: '9'
+              newvalue: 'interrupted by signal'
+            - value: '10'
+              newvalue: 'unknown error'
+        - uuid: 6ce95767698f4713adfa2dcf4618d86b
+          name: 'User status'
+          mappings:
+            - value: '0'
+              newvalue: disabled
+            - value: '1'
+              newvalue: enabled
+        - uuid: 052ad39480884912aebd6a34a8c2ff51
+          name: 'VM  and LXC status'
+          mappings:
+            - value: '0'
+              newvalue: stopped
+            - value: '1'
+              newvalue: running
+            - value: '2'
+              newvalue: paused
+  triggers:
+    - uuid: bdaeac3c76ec44ef96bf78ca83ba0dad
+      expression: 'min(/Template Proxmox VE REST API/pve.loadaverage.oneminute,900) >= last(/Template Proxmox VE REST API/pve.cpus)'
+      name: 'High CPU average'
+      opdata: 'Current cpu average: {ITEM.LASTVALUE1}'
+      priority: AVERAGE
+  graphs:
+    - uuid: bbdef5c2775146b4ad30ac91ad877624
+      name: 'Load average'
+      type: STACKED
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: MIN
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.loadaverage.oneminute
+        - sortorder: '1'
+          color: '274482'
+          calc_fnc: MIN
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.loadaverage.fiveminute
+        - sortorder: '2'
+          color: 9C27B0
+          calc_fnc: MIN
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.loadaverage.fifteen
+    - uuid: 0fc25cb79f674267825c8f5c3e87869e
+      name: 'PVE Memory utilization'
+      graph_items:
+        - color: 2E7D32
+          calc_fnc: ALL
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.memory.total
+        - sortorder: '1'
+          color: 1565C0
+          calc_fnc: ALL
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.memory.used
+    - uuid: bb1b46e208df4f429e6e28e9c6627687
+      name: 'Rootfs usage'
+      yaxismax: '0'
+      show_work_period: 'NO'
+      show_triggers: 'NO'
+      type: EXPLODED
+      graph_items:
+        - color: 0040FF
+          calc_fnc: MIN
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.rootfs.used
+        - sortorder: '1'
+          color: 388E3C
+          calc_fnc: MIN
+          item:
+            host: 'Template Proxmox VE REST API'
+            key: pve.rootfs.avail
