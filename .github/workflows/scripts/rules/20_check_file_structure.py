@@ -160,7 +160,7 @@ def run_check(skip: bool = False) -> dict:
 
                 fail_message = ''
                 if not re.search(regx_readme, file):
-                    fail_message += f'README.md file allow only in "<template_xxx>/<version>/" folder. File: {file}. '
+                    fail_message += f'README.md file allow only in "template_xxx/X.X/" folder. File: {file}. '
 
                 if fail_message != '':
                     return {
@@ -173,7 +173,7 @@ def run_check(skip: bool = False) -> dict:
                 
                 fail_message = ''
                 if not re.search(regx_other, file):
-                    fail_message += f'Other files allow only in "<template_xxx>/<version>/files/" folder. File: {file}. '
+                    fail_message += f'Other files allow only in "template_xxx/X.X/files/" folder. File: {file}. '
 
                 if fail_message != '':
                     return {
