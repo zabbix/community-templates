@@ -1,0 +1,141 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: ef81c29813294464bb79177c5eced4cf
+      template: 'Zabbix template semaphore task monitoring'
+      name: 'Zabbix template semaphore task monitoring'
+      description: |
+        Author: Thomas Rzen  
+        Source: https://github.com/Garfieldttt/zabbix-semaphore/tree/zabbix
+        
+        This template enables agentless monitoring of Ansible Semaphore via its REST API.
+        
+        Features:
+        - Fetches templates from a specified Semaphore project (via macro {$PROJECT_NUMBER})
+        - Uses Low-Level Discovery (LLD) to detect templates dynamically
+        - Extracts and monitors the last task status per template
+        - Automatically maps statuses (success, error, running, stopped) to numeric values
+        - Triggers alerts when tasks fail (configurable per template via macro {$ENABLE_TRIGGER})
+        
+        Requirements:
+        - Semaphore instance with API access
+        - Valid API token set in macro {$API_TOKEN}
+        - Accessible Semaphore API URL in macro {$SEMAPHORE_URL}
+      groups:
+        - name: Templates
+      items:
+        - uuid: 59ceff5c10084e4ba92f8e83c03527e2
+          name: Semaphor-raw
+          type: HTTP_AGENT
+          key: semaphore.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          timeout: 60s
+          url: '{$SEMAPHORE_URL}/api/project/{$PROJECT_NUMBER}/templates'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$API_TOKEN}'
+            - name: Accept
+              value: application/json
+      discovery_rules:
+        - uuid: b316cbc7553545a9a0f277d30b82f4a0
+          name: semaphor-discover
+          type: DEPENDENT
+          key: semaphor.discover
+          delay: '0'
+          item_prototypes:
+            - uuid: 3fc4c552ab534252ab22230b935a4082
+              name: 'Task {#NAME}'
+              type: DEPENDENT
+              key: 'task.status[{#ID}]'
+              delay: '0'
+              valuemap:
+                name: Task-status
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id=={#ID})].last_task.status'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: STR_REPLACE
+                  parameters:
+                    - stopped
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - success
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - error
+                    - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - running
+                    - '3'
+                - type: STR_REPLACE
+                  parameters:
+                    - waiting
+                    - '4'
+              master_item:
+                key: semaphore.raw
+              tags:
+                - tag: Semaphore
+                  value: task-status
+              trigger_prototypes:
+                - uuid: bb8e442fd6a348fe83031d1270f52466
+                  expression: 'last(/Zabbix template semaphore task monitoring/task.status[{#ID}])=2 and {$ENABLE_TRIGGER:"{#ID}"}=1'
+                  name: 'Task {#NAME} Task-ID {#LAST_TASK_ID} failed'
+                  opdata: 'Status: {ITEM.LASTVALUE}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: semaphore.raw
+          lld_macro_paths:
+            - lld_macro: '{#ID}'
+              path: $.id
+            - lld_macro: '{#LAST_TASK_ID}'
+              path: $.last_task.id
+            - lld_macro: '{#NAME}'
+              path: $.name
+            - lld_macro: '{#STATUS}'
+              path: $.status
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[*]'
+      macros:
+        - macro: '{$API_TOKEN}'
+          type: SECRET_TEXT
+          description: 'Semaphore API token for authentication (Bearer token)'
+        - macro: '{$ENABLE_TRIGGER}'
+          value: '1'
+          description: 'Enables task failure triggers (1 = enabled, 0 = disabled)'
+        - macro: '{$PROJECT_NUMBER}'
+          value: '1'
+          description: 'Semaphore project ID (e.g., 1 for Project with ID 1)'
+        - macro: '{$SEMAPHORE_URL}'
+          value: 'http://192.168.10.105:3000'
+          description: 'Base URL of the Semaphore API (including port)'
+      valuemaps:
+        - uuid: 95b2e9f21739492dab9e8f3bcdd4830e
+          name: Task-status
+          mappings:
+            - value: '0'
+              newvalue: stopped
+            - value: '1'
+              newvalue: success
+            - value: '2'
+              newvalue: error
+            - value: '3'
+              newvalue: running
+            - value: '4'
+              newvalue: waiting
