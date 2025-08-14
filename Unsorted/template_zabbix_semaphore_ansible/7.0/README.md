@@ -1,6 +1,6 @@
 # Zabbix Template Semaphore Ansible Task Monitoring
 
-This Zabbix template enables agentless monitoring of Ansible Semaphore via its REST API. It dynamically discovers Semaphore templates in a project, fetches each template’s last task status, maps statuses to numeric values, and can trigger alerts on failures.
+This Zabbix template enables agentless monitoring of Ansible Semaphore via its REST API. It dynamically discovers Semaphore templates in a project, fetches each template’s last task status, maps statuses to numeric values, and can trigger alerts on failures or long-running tasks.
 
 ---
 
@@ -20,6 +20,7 @@ This Zabbix template enables agentless monitoring of Ansible Semaphore via its R
 
 2. **Generate the Token**  
    - Navigate to **User → API Tokens** (or similar in your Semaphore version) and click **Create Token**.  
+
 ---
 
 ## Installation
@@ -59,11 +60,12 @@ This Zabbix template enables agentless monitoring of Ansible Semaphore via its R
 | `{$SEMAPHORE_URL}`    | `http://192.168.10.105:3000`            | Base URL of the Semaphore API (including port)    |
 | `{$PROJECT_NUMBER}`   | `1`                                     | ID of the Semaphore project to monitor            |
 
-### Optional Trigger Macro
+### Optional Trigger Macros
 
-| Macro               | Default | Description                                      |
-|---------------------|---------|--------------------------------------------------|
-| `{$ENABLE_TRIGGER}` | `1`     | Enable task-failure alerts (1 = enabled, 0 = off)|
+| Macro                   | Default | Description                                                                 |
+|-------------------------|---------|-----------------------------------------------------------------------------|
+| `{$ENABLE_TRIGGER}`     | `1`     | Enable task-failure alerts (1 = enabled, 0 = off)                           |
+| `{#JOB_RUNNING_TIME}`   | `5h`    | Time period the job must remain in running state before triggering an alert |
 
 ---
 
@@ -87,27 +89,3 @@ This Zabbix template enables agentless monitoring of Ansible Semaphore via its R
 ### Trigger Prototypes
 
 - **Task {#NAME} Task-ID {#LAST_TASK_ID} failed**  
-  ```
-  {last(/Zabbix Template Semaphore Task Monitoring/task.status[{#ID}])=2  
-   and {$ENABLE_TRIGGER:"{#ID}"}=1}  
-  ```  
-  - **Severity:** Warning  
-  - **Manual close:** Yes  
-
----
-
-## Value Maps
-
-- **Task-status**  
-
-| Value | Meaning  |
-|-------|----------|
-| `0`   | stopped  |
-| `1`   | success  |
-| `2`   | error    |
-| `3`   | running  |
-| `4`   | waiting  |
-
----
-
-> **Source:** https://github.com/Garfieldttt/zabbix-semaphore/tree/zabbix
