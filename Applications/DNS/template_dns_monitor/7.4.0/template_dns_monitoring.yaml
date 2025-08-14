@@ -1,0 +1,139 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 3ba9839d24c841d8a79a387fa2f91dc2
+      template: 'DNS Monitoring'
+      name: 'DNS Monitoring'
+      groups:
+        - name: Templates
+      items:
+        - uuid: b42576aeadb444cb9a492fa342e6b57e
+          name: 'DNS Target Configuration'
+          type: SCRIPT
+          key: dns.targets.config.json
+          value_type: TEXT
+          params: |
+            // DNS Monitoring Configuration
+            // Customize this configuration to match your monitoring requirements
+            var config = [
+                {
+                    "{#SERVER}": "1.1.1.1",
+                    "{#SERVERNAME}": "CloudFlare",
+                    "{#DOMAINS}": ["example.com", "google.com", "cloudflare.com"]
+                },
+                {
+                    "{#SERVER}": "8.8.8.8",
+                    "{#SERVERNAME}": "Google",
+                    "{#DOMAINS}": ["example.com", "google.com", "cloudflare.com"]
+                },
+                {
+                    "{#SERVER}": "9.9.9.9",
+                    "{#SERVERNAME}": "Quad9",
+                    "{#DOMAINS}": ["example.com", "google.com", "cloudflare.com"]
+                }
+            ];
+            
+            var output = [];
+            
+            for (var i = 0; i < config.length; i++) {
+                var serverIp = config[i]["{#SERVER}"];
+                var serverName = config[i]["{#SERVERNAME}"];
+                var domains = config[i]["{#DOMAINS}"];
+            
+            
+                for (var j = 0; j < domains.length; j++) {
+                    var domain = domains[j];
+                    output.push({
+                        "{#SERVER}": serverIp,
+                        "{#SERVERNAME}": serverName,
+                        "{#DOMAIN}": domain,
+            
+                    });
+                }
+            }
+            
+            return JSON.stringify({ "data": output });
+      discovery_rules:
+        - uuid: 9946ee14d2324a9a87e540004d19bbb6
+          name: 'DNS Target Discovery'
+          type: DEPENDENT
+          key: dns.targets.discovery
+          item_prototypes:
+            - uuid: f1187971641545fb9d09709be11363d8
+              name: '{#SERVERNAME} ({#SERVER}): {#DOMAIN} - DNS Get'
+              type: ZABBIX_ACTIVE
+              key: 'net.dns.get[{#SERVER},{#DOMAIN}]'
+              value_type: TEXT
+            - uuid: a786fe69c0c54f61b31c5a1be9ad7460
+              name: '{#SERVERNAME} ({#SERVER}): {#DOMAIN} - DNS Perf'
+              type: ZABBIX_ACTIVE
+              key: 'net.dns.perf[{#SERVER},{#DOMAIN}]'
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: MATCHES_REGEX
+                  parameters:
+                    - '^[\d\.]+$'
+                  error_handler: DISCARD_VALUE
+              trigger_prototypes:
+                - uuid: 97e7222bce9a4e569bd936a627d5b0ff
+                  expression: 'count(/DNS Monitoring/net.dns.perf[{#SERVER},{#DOMAIN}],5m,"gt",0.5)>=2'
+                  name: '{#SERVERNAME} ({#SERVER}) - High DNS Latency'
+                  priority: WARNING
+                  description: 'Fires if 2 or more monitored domain lookups for this server take longer than 0.5 seconds within the last 5 minutes.'
+          master_item:
+            key: dns.targets.config.json
+        - uuid: 552b74dfb93f477190baee55d4284d8f
+          name: 'DNS Servers Discovery'
+          type: DEPENDENT
+          key: dns.targets.servers.discovery
+          item_prototypes:
+            - uuid: 660cf799fc7347cf9a7fdef518748765
+              name: '{#SERVERNAME} Average DNS Performance ({#SERVER})'
+              type: CALCULATED
+              key: 'dns.server.perf.avg[{#SERVER}]'
+              value_type: FLOAT
+              units: s
+              params: 'avg(last_foreach(/*/net.dns.perf[{#SERVER},*]))'
+            - uuid: 54f9ff4d886b4363a15459a916eecb19
+              name: '{#SERVERNAME} DNS Server Availability ({#SERVER})'
+              type: ZABBIX_ACTIVE
+              key: 'net.tcp.port[{#SERVER},53]'
+              trigger_prototypes:
+                - uuid: 726a820f2a8e442793fe0ec26f0d707f
+                  expression: 'last(/DNS Monitoring/net.tcp.port[{#SERVER},53])=0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/DNS Monitoring/net.tcp.port[{#SERVER},53])=1'
+                  name: '{#SERVERNAME} DNS Server is down ({#SERVER})'
+                  priority: HIGH
+                  description: 'The DNS server {#SERVERNAME} ({#SERVER}) is not responding on TCP port 53.'
+          master_item:
+            key: dns.targets.config.json
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var input = JSON.parse(value);
+                  var uniqueServers = {};
+                  
+                  for (var i = 0; i < input.data.length; i++) {
+                      var serverIp = input.data[i]["{#SERVER}"];
+                      var serverName = input.data[i]["{#SERVERNAME}"];
+                      
+                      if (!uniqueServers[serverIp]) {
+                          uniqueServers[serverIp] = serverName;
+                      }
+                  }
+                  
+                  var output = [];
+                  for (var serverIp in uniqueServers) {
+                      output.push({
+                          "{#SERVER}": serverIp,
+                          "{#SERVERNAME}": uniqueServers[serverIp] // Pass both macros
+                      });
+                  }
+                  
+                  return JSON.stringify({ "data": output });
