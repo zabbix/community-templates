@@ -170,6 +170,12 @@ zabbix_export:
           tags:
             - tag: PVE
               value: CPU
+          triggers:
+            - uuid: 9551ed5e07264f4a90f57a8b8f2c8530
+              expression: 'min(/Template Proxmox VE REST API/pve.cpu.utilization,300)=90'
+              name: 'High CPU usage on {HOST.NAME} (>90%)'
+              opdata: 'CPU utilization: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
         - uuid: 8d7c1e46d5444b06ad419ffab9415d44
           name: 'PVE CPU info'
           type: DEPENDENT
@@ -1192,6 +1198,8 @@ zabbix_export:
                   expression: |
                     min(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
                     and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1'
                   name: 'LXC {#VMID} status is stopped'
                   priority: HIGH
                   description: |
@@ -1868,6 +1876,7 @@ zabbix_export:
                     To permanently suppress the “VM stopped” trigger warning on the host, set the host macro:
                     {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 Enable the “VM stopped” trigger. 
                     {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 Disable the alert for that item.
+                  manual_close: 'YES'
             - uuid: cccaa9f83c114274bb6de7c343fa6030
               name: 'VM uptime {#VMID}'
               type: DEPENDENT
@@ -2036,15 +2045,6 @@ zabbix_export:
                 - tag: PVE
                   value: Storage
               trigger_prototypes:
-                - uuid: 2b032af2b5d54593a4f5910d6ae3f912
-                  expression: 'min(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}],900)<32212254720 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
-                  name: 'Storage [{#STORAGE_NAME}] low available space'
-                  event_name: 'Current available space: {ITEM.LASTVALUE}'
-                  priority: AVERAGE
-                  description: |
-                    Use the following host macros to control the “Storage low available space” trigger for each storage:
-                    {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
-                    {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
                 - uuid: cf31e839babb4b8a90b395ad3df47023
                   expression: 'min(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}],900)=0 and {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1'
                   name: 'Storage [{#STORAGE_NAME}] not available'
@@ -2163,6 +2163,34 @@ zabbix_export:
               tags:
                 - tag: PVE
                   value: Storage
+          trigger_prototypes:
+            - uuid: 2b032af2b5d54593a4f5910d6ae3f912
+              expression: |
+                ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
+                 / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 90 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
+              name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 90%)'
+              opdata: 'Total: {ITEM.LASTVALUE1}, Available: {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: |
+                Use the following host macros to control the “Storage low available space” trigger for each storage:
+                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
+                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
+              dependencies:
+                - name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 95%)'
+                  expression: |
+                    ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
+                     / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 95 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
+            - uuid: 3827182fb0fe498d8e4c09401168d998
+              expression: |
+                ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
+                 / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 95 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
+              name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 95%)'
+              opdata: 'Total: {ITEM.LASTVALUE1}, Available: {ITEM.LASTVALUE2}'
+              priority: HIGH
+              description: |
+                Use the following host macros to control the “Storage low available space” trigger for each storage:
+                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
+                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
           graph_prototypes:
             - uuid: e49e5464b78446aabd4313abefda14c1
               name: 'Storage active state {#STORAGE_NAME}'
@@ -3113,6 +3141,24 @@ zabbix_export:
       name: 'High CPU average'
       opdata: 'Current cpu average: {ITEM.LASTVALUE1}'
       priority: AVERAGE
+    - uuid: d7b8381cedda4cd0bcb28053cd731ddf
+      expression: '(last(/Template Proxmox VE REST API/pve.memory.used) / last(/Template Proxmox VE REST API/pve.memory.total)) * 100 > 90'
+      name: 'High memory usage on {HOST.NAME} (>90%)'
+      opdata: 'Memory used: {ITEM.LASTVALUE1}'
+      priority: AVERAGE
+    - uuid: 6ec8009a0c62481d85fb57b7eb83e6f2
+      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 90'
+      name: 'High root filesystem usage on {HOST.NAME} (>90%)'
+      opdata: 'Disk usage: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+      priority: AVERAGE
+      dependencies:
+        - name: 'High root filesystem usage on {HOST.NAME} (>95%)'
+          expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 95'
+    - uuid: d621a5f2dbce40c5a96d7f5573ede065
+      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 95'
+      name: 'High root filesystem usage on {HOST.NAME} (>95%)'
+      opdata: 'Disk usage: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+      priority: HIGH
   graphs:
     - uuid: bbdef5c2775146b4ad30ac91ad877624
       name: 'Load average'
