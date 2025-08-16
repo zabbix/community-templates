@@ -27,105 +27,157 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  // Zabbix JavaScript-Preprocessing for VZDUMP grouping and bckpid assignment
-                  // 1. Parse input (string or already object)
-                  var obj = (typeof value === 'string') ? JSON.parse(value) : value;
+                  // Zabbix JS preprocessing: Backups (VZDUMP/PBS) aus Task-Feed extrahieren + gruppieren (ES5.1)
+                  try {
+                      var obj = (typeof value === 'string') ? JSON.parse(value) : value;
                   
-                  // 2. Determine data array
-                  var dataArr = [];
-                  if (obj.data && obj.data instanceof Array) {
-                      dataArr = obj.data;
-                  } else if (obj.body && obj.body.data && obj.body.data instanceof Array) {
-                      dataArr = obj.body.data;
-                  }
-                  if (dataArr.length === 0) {
-                      return JSON.stringify({ total: 0, data: [] });
-                  }
-                  
-                  // 3. Filter for vzdump type and sort by starttime
-                  var dumps = [];
-                  for (var i = 0; i < dataArr.length; i++) {
-                      if (dataArr[i].type === 'vzdump') {
-                          dumps.push(dataArr[i]);
+                      // 0) Datenquelle bestimmen
+                      var dataArr = [];
+                      if (obj && obj.data && obj.data instanceof Array) {
+                          dataArr = obj.data;
+                      } else if (obj && obj.body && obj.body.data && obj.body.data instanceof Array) {
+                          dataArr = obj.body.data;
                       }
-                  }
-                  dumps.sort(function(a, b) {
-                      return a.starttime - b.starttime;
-                  });
-                  
-                  // 4. Default empty IDs to "pve"
-                  for (i = 0; i < dumps.length; i++) {
-                      if (!dumps[i].id) {
-                          dumps[i].id = 'pve';
+                      if (!dataArr || !dataArr.length) {
+                          return JSON.stringify({ total: 0, data: [] });
                       }
-                  }
                   
-                  // 5. Group by id and merge times/metadata
-                  var groups = {};
-                  for (i = 0; i < dumps.length; i++) {
-                      var e = dumps[i];
-                      var key = e.id;
-                      if (!groups[key]) {
-                          groups[key] = {
-                              id:        e.id,
-                              node:      e.node,
-                              status:    e.status,
-                              pid:       e.pid,
-                              upid:      e.upid,
-                              starttime: e.starttime,
-                              endtime:   e.endtime,
-                              repTime:   e.starttime
-                          };
-                      } else {
-                          var g = groups[key];
-                          if (e.starttime < g.starttime) {
-                              g.starttime = e.starttime;
+                      // Hilfsfunktionen
+                      function firstDefined(a, b, c, d) {
+                          if (a !== null && a !== undefined) return a;
+                          if (b !== null && b !== undefined) return b;
+                          if (c !== null && c !== undefined) return c;
+                          if (d !== null && d !== undefined) return d;
+                          return null;
+                      }
+                      function toEpochMs(v) {
+                          if (v === null || v === undefined) return -Infinity;
+                          if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v; // sec->ms
+                          if (typeof v === "string") {
+                              var n = parseFloat(v);
+                              if (!isNaN(n)) return n < 1000000000000 ? n * 1000 : n;
+                              var t = v.replace(/\s+/, "T");
+                              var p = Date.parse(t);
+                              return isNaN(p) ? -Infinity : p;
                           }
-                          if (e.endtime > g.endtime) {
-                              g.endtime = e.endtime;
+                          return -Infinity;
+                      }
+                  
+                      // Breiter Backup-Matcher
+                      var reVzdump = /vzdump/i;
+                      var reBackup = /backup/i;              // generisch (PBS/Proxmox Backup)
+                      var rePbs    = /\bpbs\b/i;             // "pbs" als eigenes Wort
+                      var rePmxb   = /proxmox[- ]?backup/i;  // "proxmox-backup" / "proxmox backup"
+                  
+                      function isBackup(e) {
+                          if (!e) return false;
+                          var t = (e.type != null) ? String(e.type) : "";
+                          var u = (typeof e.upid === "string") ? e.upid : "";
+                          if (reVzdump.test(t) || reBackup.test(t) || rePbs.test(t) || rePmxb.test(t)) return true;
+                          if (reVzdump.test(u) || reBackup.test(u) || rePbs.test(u) || rePmxb.test(u)) return true;
+                          return false;
+                      }
+                  
+                      // 1) Filtern + Zeiten normalisieren
+                      var dumps = [];
+                      for (var i = 0; i < dataArr.length; i++) {
+                          var e = dataArr[i];
+                          if (!isBackup(e)) continue;
+                  
+                          var startRaw = firstDefined(e.starttime, e.start, e.begin, e.pstart);
+                          var endRaw   = firstDefined(e.endtime, e.end, null, null);
+                  
+                          var copy = {};
+                          for (var k in e) { if (e.hasOwnProperty(k)) copy[k] = e[k]; }
+                          copy._startMs = toEpochMs(startRaw);
+                          copy._endMs   = toEpochMs(endRaw);
+                          dumps.push(copy);
+                      }
+                  
+                      if (!dumps.length) {
+                          // Keine als Backup erkannten Einträge im gelieferten Feed
+                          return JSON.stringify({ total: 0, data: [] });
+                      }
+                  
+                      // 2) Sortieren nach Start
+                      dumps.sort(function(a, b) { return a._startMs - b._startMs; });
+                  
+                      // 3) fehlende/leer ID -> "pve"
+                      for (i = 0; i < dumps.length; i++) {
+                          if (dumps[i].id === null || dumps[i].id === undefined || String(dumps[i].id) === "") {
+                              dumps[i].id = "pve";
                           }
-                          if (e.starttime > g.repTime) {
-                              g.pid     = e.pid;
-                              g.status  = e.status;
-                              g.upid    = e.upid;
-                              g.repTime = e.starttime;
+                      }
+                  
+                      // 4) Gruppieren pro id, neueste Metadaten übernehmen
+                      var groups = {};
+                      for (i = 0; i < dumps.length; i++) {
+                          var e2 = dumps[i];
+                          var key = String(e2.id);
+                  
+                          if (!groups[key]) {
+                              groups[key] = {
+                                  id:        key,
+                                  node:      e2.node,
+                                  status:    e2.status,
+                                  pid:       e2.pid,
+                                  upid:      e2.upid,
+                                  starttime: e2.starttime,
+                                  endtime:   e2.endtime,
+                                  _startMs:  e2._startMs,
+                                  _endMs:    e2._endMs,
+                                  _repMs:    e2._startMs
+                              };
+                          } else {
+                              var g = groups[key];
+                              if (e2._startMs < g._startMs) {
+                                  g._startMs  = e2._startMs;
+                                  g.starttime = e2.starttime;
+                              }
+                              if (e2._endMs > g._endMs) {
+                                  g._endMs  = e2._endMs;
+                                  g.endtime = e2.endtime;
+                              }
+                              if (e2._startMs > g._repMs) {
+                                  g.pid     = e2.pid;
+                                  g.status  = e2.status;
+                                  g.upid    = e2.upid;
+                                  g._repMs  = e2._startMs;
+                              }
                           }
                       }
+                  
+                      // 5) IDs sortieren (numerisch zuerst), "pve" zuletzt
+                      var ids = [];
+                      for (var id in groups) { if (groups.hasOwnProperty(id)) ids.push(id); }
+                      ids.sort(function(a, b) {
+                          if (a === "pve" && b !== "pve") return 1;
+                          if (b === "pve" && a !== "pve") return -1;
+                          var na = parseFloat(a), nb = parseFloat(b);
+                          var aNum = isFinite(na), bNum = isFinite(nb);
+                          if (aNum && bNum) return na - nb;
+                          if (aNum) return -1;
+                          if (bNum) return 1;
+                          a = String(a); b = String(b);
+                          if (a < b) return -1;
+                          if (a > b) return 1;
+                          return 0;
+                      });
+                  
+                      // 6) Ergebnis
+                      var resultData = [];
+                      for (i = 0; i < ids.length; i++) {
+                          var g2 = groups[ids[i]];
+                          delete g2._startMs; delete g2._endMs; delete g2._repMs;
+                          g2.bckpid = g2.id;
+                          resultData.push(g2);
+                      }
+                  
+                      return JSON.stringify({ total: resultData.length, data: resultData });
+                  
+                  } catch (err) {
+                      return JSON.stringify({ error: "Parsing failed", detail: String(err && err.message || err) });
                   }
-                  
-                  // 6. Sort keys: numeric IDs ascending, then "pve"
-                  var ids = Object.keys(groups).sort(function(a, b) {
-                      var na = parseInt(a, 10);
-                      var nb = parseInt(b, 10);
-                      var aNum = !isNaN(na);
-                      var bNum = !isNaN(nb);
-                      if (aNum && bNum) {
-                          return na - nb;
-                      }
-                      if (aNum) {
-                          return -1;
-                      }
-                      if (bNum) {
-                          return 1;
-                      }
-                      return a < b ? -1 : (a > b ? 1 : 0);
-                  });
-                  
-                  // 7. Build result array and assign bckpid from id
-                  var resultData = [];
-                  for (i = 0; i < ids.length; i++) {
-                      var g = groups[ids[i]];
-                      delete g.repTime;
-                      // Assign bckpid to the original id value
-                      g.bckpid = g.id;
-                      resultData.push(g);
-                  }
-                  
-                  // 8. Return JSON
-                  return JSON.stringify({
-                      total: resultData.length,
-                      data:  resultData
-                  });
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks'
           headers:
@@ -224,90 +276,6 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Kernel
-        - uuid: b8f220b1fc734381a51d0561efa13bef
-          name: 'PVE disks raw'
-          type: HTTP_AGENT
-          key: pve.disks.raw
-          history: 1d
-          value_type: TEXT
-          trends: '0'
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  (function(){
-                    var root, out = [];
-                  
-                    // 1) JSON parsen – bei Fehler leeres Ergebnis zurückliefern
-                    try {
-                      root = JSON.parse(value);
-                    } catch (e) {
-                      return JSON.stringify({ data: [] }, null, 2);
-                    }
-                  
-                    // 2) Größe "32G","512M" → Bytes
-                    function parseSize(sizeStr) {
-                      var m = /^(\d+(?:\.\d+)?)([KMGTP])B?$/i.exec(sizeStr);
-                      if (!m) return 0;
-                      var v = parseFloat(m[1]), u = m[2].toUpperCase();
-                      var mult = { K: 1024, M: 1024**2, G: 1024**3, T: 1024**4, P: 1024**5 }[u] || 1;
-                      return Math.round(v * mult);
-                    }
-                  
-                    // 3) Prüft, ob irgendein Statistik-Wert > 0 ist
-                    function hasStats(s) {
-                      return (
-                        (s.rd_bytes         || 0) > 0 ||
-                        (s.wr_bytes         || 0) > 0 ||
-                        (s.unmap_bytes      || 0) > 0 ||
-                        (s.flush_operations || 0) > 0 ||
-                        (s.rd_operations    || 0) > 0 ||
-                        (s.wr_operations    || 0) > 0 ||
-                        (s.idle_time_ns     || 0) > 0
-                      );
-                    }
-                  
-                    // 4) Falls root.data ein Array ist, darüber iterieren
-                    if (Array.isArray(root.data)) {
-                      root.data.forEach(function(vm) {
-                        var vmid   = vm.vmid;
-                        var cfg    = vm.config     || {};       // aus Deinem kombinierten JSON
-                        var stats  = vm.blockstat   || {};       // aus Deinem kombinierten JSON
-                  
-                        Object.keys(stats).forEach(function(blk) {
-                          var s = stats[blk] || {};
-                          if (!hasStats(s)) return;
-                  
-                          // Größe entweder aus config[blk] parsen oder vm.maxdisk verwenden
-                          var sizeLine = cfg[blk] || '';
-                          var m = /size=([^, ]+)/.exec(sizeLine);
-                          var maxdisk = m ? parseSize(m[1]) : (vm.maxdisk || 0);
-                  
-                          out.push({
-                            vmid:             vmid,
-                            block:            blk,
-                            maxdisk:          maxdisk,
-                            rd_bytes:         s.rd_bytes         || 0,
-                            wr_bytes:         s.wr_bytes         || 0,
-                            unmap_bytes:      s.unmap_bytes      || 0,
-                            flush_operations: s.flush_operations || 0,
-                            rd_operations:    s.rd_operations    || 0,
-                            wr_operations:    s.wr_operations    || 0,
-                            idle_time_ns:     s.idle_time_ns     || 0
-                          });
-                        });
-                      });
-                    }
-                  
-                    // 5) Immer gültiges JSON zurückgeben
-                    return JSON.stringify({ data: out }, null, 2);
-                  })();
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/qemu?full=1'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
         - uuid: ee746cfba83e43e0af3053d86bcb2c9c
           name: 'PVE load average (15 min)'
           type: DEPENDENT
@@ -630,7 +598,7 @@ zabbix_export:
               parameters:
                 - |
                   try {
-                      var obj = JSON.parse(value);
+                      var obj = (typeof value === 'string') ? JSON.parse(value) : value;
                       if (!obj || !obj.body || !Array.isArray(obj.body.data)) {
                           return JSON.stringify({ error: "Invalid structure" });
                       }
@@ -638,44 +606,60 @@ zabbix_export:
                       var records = obj.body.data;
                       var grouped = {};
                   
+                      // Hilfsfunktion: Zeitwert → ms
+                      function normTime(v) {
+                          if (v === null || v === undefined) return -Infinity;
+                          if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v;
+                          if (typeof v === "string") {
+                              var n = parseFloat(v);
+                              if (!isNaN(n)) return n < 1000000000000 ? n * 1000 : n;
+                              var p = Date.parse(v.replace(/\s+/, "T"));
+                              return isNaN(p) ? -Infinity : p;
+                          }
+                          return -Infinity;
+                      }
+                  
+                      // Tasks verarbeiten
                       for (var i = 0; i < records.length; i++) {
                           var e = records[i];
                           if (!e || !e.id || !e.type) continue;
                   
-                          var id = e.id;
-                          var type = e.type;
-                          var key = id + '|' + type;
+                          var key = e.id + "|" + e.type;
                   
-                          var start = e.starttime || e.pstart || 0;
+                          // Zeit normalisieren
+                          var copy = {};
+                          for (var k in e) if (e.hasOwnProperty(k)) copy[k] = e[k];
+                          copy._start = normTime(e.starttime || e.pstart || e.start);
                   
-                          // Wenn kein Eintrag vorhanden oder dieser neuer ist: ersetzen
-                          if (!grouped[key] || start > (grouped[key].starttime || grouped[key].pstart || 0)) {
-                              var copy = {};
-                              for (var k in e) {
-                                  copy[k] = e[k];
-                              }
-                              copy.grpid = id;
+                          var existing = grouped[key];
+                          if (!existing || copy._start > existing._rep) {
+                              copy._rep = copy._start;
                               grouped[key] = copy;
                           }
                       }
                   
+                      // Ergebnisliste bauen
                       var resultList = [];
                       for (var k in grouped) {
-                          resultList.push(grouped[k]);
+                          var g = grouped[k];
+                          delete g._start;
+                          delete g._rep;
+                          g.grpid = g.id;
+                          resultList.push(g);
                       }
                   
-                      // Nach numerischer ID sortieren (falls möglich)
+                      // Nach numerischer ID sortieren
                       resultList.sort(function(a, b) {
-                          var aid = parseInt(a.id, 10);
-                          var bid = parseInt(b.id, 10);
+                          var aid = parseInt(a.id, 10), bid = parseInt(b.id, 10);
                           if (!isNaN(aid) && !isNaN(bid)) return aid - bid;
-                          return (a.id || '').localeCompare(b.id || '');
+                          return (a.id || "").localeCompare(b.id || "");
                       });
                   
                       obj.body.data = resultList;
                       obj.body.total = resultList.length;
                   
                       return JSON.stringify(obj);
+                  
                   } catch (err) {
                       return JSON.stringify({ error: "Parsing failed", detail: err.message });
                   }
