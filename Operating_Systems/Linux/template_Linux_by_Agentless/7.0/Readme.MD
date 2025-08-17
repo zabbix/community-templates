@@ -99,7 +99,7 @@ The template includes a **Dashboard** named `Agentless Dashboard` with:
   
 - **Commands Executed via SSH**  
   Default command (`{$SSHCOMMAND}`):
-  **Commands required:** 
+- **Commands required:** 
 `mpstat, free, df, lsb_release, uptime `
 
 
