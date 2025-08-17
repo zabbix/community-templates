@@ -85,7 +85,7 @@ Automatically discovers mounted filesystems and captures:
 ## 📈 Dashboard
 
 The template includes a **Dashboard** named `Agentless Dashboard` with:
-- Host list with CPU, memory, uptime, OS, Kernel data
+- Host list with CPU, memory, uptime, OS, and Kernel data
 - CPU and Memory trend graphs
 - Per host details like load average, total CPU/memory
 - Problems Widget
@@ -98,13 +98,15 @@ The template includes a **Dashboard** named `Agentless Dashboard` with:
   Uses `ssh-get[{HOST.HOST},{$SSHUSER},{$SSHPORT},{$SSHJUMP},"{$SSHCOMMAND}"]`
   
 - **Commands Executed via SSH**  
-  Default command (`{$SSHCOMMAND}`):  
+  Default command (`{$SSHCOMMAND}`):
+  (Commands required: mpstat, free, df, lsb_release, uptime )
 
 
 ## 📋 How to Import the Template
 ---
-Pre-Requesite: 
+Pre-Requisite: 
 Client Machine Required packages: 
+
 ```bash
 sudo apt install sysstat
 ```
