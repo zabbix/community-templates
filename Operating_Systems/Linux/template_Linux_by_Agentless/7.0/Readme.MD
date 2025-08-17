@@ -131,7 +131,7 @@ sudo chmod +x /usr/lib/zabbix/externalscripts/ssh-get
 1. Login to **Zabbix 7.0 UI**.
 2. Go to **Configuration → Templates → Import**.
 3. Import the template from:
-   - File: `zabbix/templates/linux/Template Linux by Agentless.yaml`
+   - File: `Template_Linux_by_Agentless.yaml`
    - Direct link:  
      [Template Linux by Agentless.yaml](https://github.com/karthick-dkk/community-templates/blob/main/Operating_Systems/Linux/template_Linux_by_Agentless/7.0/template_Linux_by_Agentless.yaml)
 
