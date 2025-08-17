@@ -112,29 +112,26 @@ Client Machine Required packages:
 sudo apt install sysstat
 ```
 
-### **Step 1: Clone the Repository**
-```bash
-git clone https://github.com/karthick-dkk/zabbix.git
-```
-
 ---
 
-### **Step 2: Copy the Script to Zabbix External Scripts Directory**
+### **Step 1: Copy the Script to Zabbix External Scripts Directory**
+
+Download the the `ssh-get` file and save into zabbix external scripts folder.
 ```bash
-cd zabbix/templates/linux
+wget https://github.com/karthick-dkk/community-templates/blob/main/Operating_Systems/Linux/template_Linux_by_Agentless/7.0/ssh-get
 sudo cp ssh-get /usr/lib/zabbix/externalscripts/
 sudo chmod +x /usr/lib/zabbix/externalscripts/ssh-get
 ```
 
 ---
 
-### **Step 3: Import Template from Zabbix UI**
+### **Step 2: Import Template from Zabbix UI**
 1. Login to **Zabbix 7.0 UI**.
 2. Go to **Configuration → Templates → Import**.
 3. Import the template from:
    - File: `zabbix/templates/linux/Template Linux by Agentless.yaml`
    - Direct link:  
-     [Template Linux by Agentless.yaml](https://raw.githubusercontent.com/karthick-dkk/zabbix/refs/heads/main/templates/linux/Template%20Linux%20by%20Agentless.yaml)
+     [Template Linux by Agentless.yaml](https://github.com/karthick-dkk/community-templates/blob/main/Operating_Systems/Linux/template_Linux_by_Agentless/7.0/template_Linux_by_Agentless.yaml)
 
 ---
 
