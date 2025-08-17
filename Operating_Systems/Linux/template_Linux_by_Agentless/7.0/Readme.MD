@@ -1,4 +1,4 @@
-# Template Linux by SSH-Agentless 2 (Zabbix 7.0)
+# Template Linux by SSH-Agentless (Zabbix 7.0)
 
 ## 📌 Overview
 This Zabbix template provides **Agentless monitoring** for Linux servers using SSH, without installing a Zabbix agent.
