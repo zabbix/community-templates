@@ -118,8 +118,10 @@ sudo apt install sysstat
 
 Download the the `ssh-get` file and save into zabbix external scripts folder.
 ```bash
-wget https://github.com/karthick-dkk/community-templates/blob/main/Operating_Systems/Linux/template_Linux_by_Agentless/7.0/ssh-get
+wget https://raw.githubusercontent.com/karthick-dkk/community-templates/refs/heads/main/Operating_Systems/Linux/template_Linux_by_Agentless/7.0/ssh-get
+
 sudo cp ssh-get /usr/lib/zabbix/externalscripts/
+
 sudo chmod +x /usr/lib/zabbix/externalscripts/ssh-get
 ```
 
