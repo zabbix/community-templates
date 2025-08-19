@@ -138,7 +138,7 @@ sudo chmod +x /usr/lib/zabbix/externalscripts/ssh-get
 ---
 
 ## 📌 Notes
-- Full detailed steps: https://karthidkk123.medium.com/zabbix-agentless-monitoring-for-linux-enhanced-the-complete-step-by-step-guide-18f6adfb32be
+
 - Make sure `/usr/lib/zabbix/externalscripts/` exists and is readable by the Zabbix server process.
 - Ensure the script has execution permission (`chmod +x`).
 - SSH keys or credentials should be configured to allow the Zabbix server to connect to the target hosts.
