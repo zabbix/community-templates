@@ -50,18 +50,36 @@ zabbix_export:
                           if (d !== null && d !== undefined) return d;
                           return null;
                       }
+                  
+                      // ===== Änderung 1: robuste Zeitkonvertierung =====
                       function toEpochMs(v) {
                           if (v === null || v === undefined) return -Infinity;
                           if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v; // sec->ms
+                  
                           if (typeof v === "string") {
-                              var n = parseFloat(v);
-                              if (!isNaN(n)) return n < 1000000000000 ? n * 1000 : n;
-                              var t = v.replace(/\s+/, "T");
-                              var p = Date.parse(t);
+                              var s = v.trim();
+                  
+                              // Nur rein numerische Strings als Zahl behandeln
+                              if (/^\d+(\.\d+)?$/.test(s)) {
+                                  var n = parseFloat(s);
+                                  return n < 1000000000000 ? n * 1000 : n;
+                              }
+                  
+                              // "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
+                              var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*(AM|PM))?$/i);
+                              if (m) {
+                                  var H = parseInt(m[4], 10), ampm = (m[7] || "").toUpperCase();
+                                  if (ampm) { if (ampm === "PM" && H < 12) H += 12; if (ampm === "AM" && H === 12) H = 0; }
+                                  return Date.UTC(+m[1], +m[2] - 1, +m[3], H, +m[5], +m[6]);
+                              }
+                  
+                              // Fallback: ISO-kompatibel parsen
+                              var p = Date.parse(s.replace(/\s+/, "T"));
                               return isNaN(p) ? -Infinity : p;
                           }
                           return -Infinity;
                       }
+                      // ===== Ende Änderung 1 =====
                   
                       // Breiter Backup-Matcher
                       var reVzdump = /vzdump/i;
@@ -109,13 +127,15 @@ zabbix_export:
                           }
                       }
                   
-                      // 4) Gruppieren pro id, neueste Metadaten übernehmen
+                      // ===== Änderung 2: Gruppieren -> nur jüngster Lauf je id =====
+                      // 4) Gruppieren pro id, aber NICHT min/max über alle Läufe.
+                      //    Stattdessen den Datensatz mit größtem _startMs (jüngster Lauf) behalten.
                       var groups = {};
                       for (i = 0; i < dumps.length; i++) {
                           var e2 = dumps[i];
                           var key = String(e2.id);
                   
-                          if (!groups[key]) {
+                          if (!groups[key] || e2._startMs > groups[key]._startMs) {
                               groups[key] = {
                                   id:        key,
                                   node:      e2.node,
@@ -125,27 +145,11 @@ zabbix_export:
                                   starttime: e2.starttime,
                                   endtime:   e2.endtime,
                                   _startMs:  e2._startMs,
-                                  _endMs:    e2._endMs,
-                                  _repMs:    e2._startMs
+                                  _endMs:    e2._endMs
                               };
-                          } else {
-                              var g = groups[key];
-                              if (e2._startMs < g._startMs) {
-                                  g._startMs  = e2._startMs;
-                                  g.starttime = e2.starttime;
-                              }
-                              if (e2._endMs > g._endMs) {
-                                  g._endMs  = e2._endMs;
-                                  g.endtime = e2.endtime;
-                              }
-                              if (e2._startMs > g._repMs) {
-                                  g.pid     = e2.pid;
-                                  g.status  = e2.status;
-                                  g.upid    = e2.upid;
-                                  g._repMs  = e2._startMs;
-                              }
                           }
                       }
+                      // ===== Ende Änderung 2 =====
                   
                       // 5) IDs sortieren (numerisch zuerst), "pve" zuletzt
                       var ids = [];
@@ -168,7 +172,8 @@ zabbix_export:
                       var resultData = [];
                       for (i = 0; i < ids.length; i++) {
                           var g2 = groups[ids[i]];
-                          delete g2._startMs; delete g2._endMs; delete g2._repMs;
+                          // interne Felder entfernen
+                          delete g2._startMs; delete g2._endMs;
                           g2.bckpid = g2.id;
                           resultData.push(g2);
                       }
@@ -607,17 +612,34 @@ zabbix_export:
                       var grouped = {};
                   
                       // Hilfsfunktion: Zeitwert → ms
+                      // ===== Änderung 1: robustes Zeit-Parsing, keine parseFloat-Falle =====
                       function normTime(v) {
                           if (v === null || v === undefined) return -Infinity;
                           if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v;
                           if (typeof v === "string") {
-                              var n = parseFloat(v);
-                              if (!isNaN(n)) return n < 1000000000000 ? n * 1000 : n;
-                              var p = Date.parse(v.replace(/\s+/, "T"));
+                              var s = v.trim();
+                  
+                              // Nur rein numerische Strings als Zahl behandeln
+                              if (/^\d+(\.\d+)?$/.test(s)) {
+                                  var n = parseFloat(s);
+                                  return n < 1000000000000 ? n * 1000 : n;
+                              }
+                  
+                              // "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
+                              var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*(AM|PM))?$/i);
+                              if (m) {
+                                  var H = parseInt(m[4], 10), ampm = (m[7] || "").toUpperCase();
+                                  if (ampm) { if (ampm === "PM" && H < 12) H += 12; if (ampm === "AM" && H === 12) H = 0; }
+                                  return Date.UTC(+m[1], +m[2]-1, +m[3], H, +m[5], +m[6]);
+                              }
+                  
+                              // Fallback: ISO-kompatibel parsen (Leerraum → 'T')
+                              var p = Date.parse(s.replace(/\s+/, "T"));
                               return isNaN(p) ? -Infinity : p;
                           }
                           return -Infinity;
                       }
+                      // ===== Ende Änderung 1 =====
                   
                       // Tasks verarbeiten
                       for (var i = 0; i < records.length; i++) {
@@ -649,11 +671,16 @@ zabbix_export:
                       }
                   
                       // Nach numerischer ID sortieren
+                      // ===== Änderung 2: numerisch nur bei rein numerischer id, sonst lexikalisch =====
                       resultList.sort(function(a, b) {
-                          var aid = parseInt(a.id, 10), bid = parseInt(b.id, 10);
-                          if (!isNaN(aid) && !isNaN(bid)) return aid - bid;
-                          return (a.id || "").localeCompare(b.id || "");
+                          var aNum = /^\d+$/.test(String(a.id));
+                          var bNum = /^\d+$/.test(String(b.id));
+                          if (aNum && bNum) return Number(a.id) - Number(b.id);
+                          if (aNum && !bNum) return -1;
+                          if (!aNum && bNum) return 1;
+                          return (String(a.id) || "").localeCompare(String(b.id) || "");
                       });
+                      // ===== Ende Änderung 2 =====
                   
                       obj.body.data = resultList;
                       obj.body.total = resultList.length;
