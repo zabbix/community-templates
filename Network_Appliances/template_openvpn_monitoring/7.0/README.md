@@ -188,6 +188,10 @@ The discovery rule runs every 10 minutes and creates monitoring items for each c
   - Zabbix 7.0 compatible YAML format
   - Comprehensive per-user monitoring via LLD
 
+## Author
+
+**claymore666** - [GitHub](https://github.com/claymore666)
+
 ## License
 
 This template is provided under MIT License for community use.
