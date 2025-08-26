@@ -1,0 +1,145 @@
+# OpenVPN monitoring
+
+## Description
+
+This template monitors OpenVPN servers with comprehensive user discovery and traffic monitoring.
+
+## Overview
+
+For Zabbix version: 7.0
+
+Supports monitoring of:
+- OpenVPN service status and version changes
+- Connected users count with automatic discovery
+- Per-user bandwidth monitoring (upload/download with change-per-second calculations)
+- Individual user connection status tracking
+- Service down alerts and user disconnection notifications
+
+Use in conjunction with a default Template OS Linux-template for CPU/Memory/Storage monitoring of the OpenVPN server.
+
+This template was created for:
+- Zabbix Server 7.0.0 or higher
+- OpenVPN servers with status file logging enabled
+- Zabbix Agent 2 (Agent 1 compatible)
+
+## Author
+
+Enhanced for Zabbix 7.0 compatibility from community contributions.
+
+## Setup
+
+### Prerequisites
+- OpenVPN server with status file logging enabled
+- Zabbix Agent 2 on OpenVPN server (Agent 1 compatible)
+- Read permissions for Zabbix user on OpenVPN log directory
+
+### OpenVPN Configuration
+Add to your OpenVPN server configuration:
+```conf
+status /var/log/openvpn/status.log 10
+status-version 2
+```
+
+### Install Client Components
+
+1. **Deploy Discovery Script**:
+```bash
+sudo cp openvpn-discovery.sh /opt/zabbix/
+sudo chmod 755 /opt/zabbix/openvpn-discovery.sh
+sudo chown root:zabbix /opt/zabbix/openvpn-discovery.sh
+```
+
+2. **Configure UserParameters**:
+```bash
+sudo cp userparameter_openvpn.conf /etc/zabbix/zabbix_agent2.d/
+sudo systemctl restart zabbix-agent2
+```
+
+3. **Set Log Permissions**:
+```bash
+sudo usermod -a -G adm zabbix  # Add zabbix to log group
+sudo chmod 750 /var/log/openvpn
+sudo chmod 640 /var/log/openvpn/status*.log
+```
+
+## Zabbix configuration
+
+Import the template and link to your OpenVPN host.
+
+### Testing
+Validate installation:
+```bash
+# Test discovery
+sudo -u zabbix /opt/zabbix/openvpn-discovery.sh
+
+# Test UserParameters  
+zabbix_agent2 -t openvpn.version
+zabbix_agent2 -t openvpn.user.number.new
+```
+
+## Items collected
+
+### Regular Items
+- **OpenVPN: Connected users count** - Total active VPN connections
+- **OpenVPN: Version** - Server version with change detection trigger  
+- **OpenVPN: Service status** - Process count monitoring
+
+### Discovery Items (per connected user)
+- **Bytes received per second** - Download bandwidth per user (with preprocessing)
+- **Bytes sent per second** - Upload bandwidth per user (with preprocessing)
+- **Connection status** - Individual user connection state (1=connected, 0=disconnected)
+
+## Triggers
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| OpenVPN: Service is down | High | No OpenVPN processes running |
+| OpenVPN: Version has changed | Information | Server version changed (manual close) |
+| OpenVPN User [{#VPN.USER}]: User disconnected | Information | Per-user disconnection (manual close) |
+
+## Graphs
+
+- **OpenVPN: Connected users overview** - Timeline of total connections
+- **Per-user traffic graphs** - Individual bandwidth usage charts
+- **Per-user connection status** - Connection state visualization
+
+## Macros used
+
+There are no macros used in this template.
+
+## Template links
+
+There are no template links in this template.
+
+## Discovery rules
+
+| Name | Description | Type | Key |
+|------|-------------|------|-----|
+| OpenVPN: Users discovery | Discovers connected OpenVPN users | Zabbix agent | openvpn.discovery |
+
+The discovery rule runs every 10 minutes and creates monitoring items for each connected user automatically.
+
+## Requirements
+
+- Zabbix Server 7.0.0 or higher
+- Zabbix Agent 2 on OpenVPN server (Agent 1 compatible)  
+- OpenVPN server with status file logging enabled
+- Read permissions for Zabbix user on OpenVPN log directory (`/var/log/openvpn`)
+
+## Installation files
+
+- `template_openvpn_monitoring.yaml` - Zabbix 7.0 template
+- `openvpn-discovery.sh` - User discovery script for `/opt/zabbix/`
+- `userparameter_openvpn.conf` - UserParameters for `/etc/zabbix/zabbix_agent2.d/`
+
+## Version History
+
+- **1.0.0** (2024-08-26): Initial release for Zabbix 7.0
+  - Modern tag structure (no deprecated Applications)
+  - Enhanced discovery script with error handling  
+  - Zabbix 7.0 compatible YAML format
+  - Comprehensive per-user monitoring via LLD
+
+## License
+
+This template is provided under MIT License for community use.
