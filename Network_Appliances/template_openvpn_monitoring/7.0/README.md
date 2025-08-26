@@ -26,10 +26,6 @@ This template was created for:
 - OpenVPN servers with status file logging enabled
 - Zabbix Agent 2 (Agent 1 compatible)
 
-## Author
-
-Enhanced for Zabbix 7.0 compatibility from community contributions.
-
 ## Setup
 
 ### Prerequisites
