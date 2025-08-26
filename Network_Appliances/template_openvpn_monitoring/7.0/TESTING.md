@@ -63,6 +63,13 @@ sudo ls -la /var/log/openvpn/
 
 # Test zabbix user access
 sudo -u zabbix cat /var/log/openvpn/status-ecc.log
+
+# IMPORTANT: Fix server log permissions for security monitoring
+sudo chgrp zabbix /var/log/openvpn/server-*.log
+sudo chmod 640 /var/log/openvpn/server-*.log
+
+# Verify security monitoring can access logs
+sudo -u zabbix grep -c "SIGTERM\|Connection reset" /var/log/openvpn/server-*.log
 ```
 
 ## Phase 2: Test UserParameters (No Active Clients)

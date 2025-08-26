@@ -48,9 +48,9 @@ status-version 2
 
 1. **Deploy Discovery Script**:
 ```bash
-sudo cp openvpn-discovery.sh /opt/zabbix/
-sudo chmod 755 /opt/zabbix/openvpn-discovery.sh
-sudo chown root:zabbix /opt/zabbix/openvpn-discovery.sh
+sudo cp openvpn-discovery-simple.sh /opt/zabbix/
+sudo chmod 755 /opt/zabbix/openvpn-discovery-simple.sh
+sudo chown root:zabbix /opt/zabbix/openvpn-discovery-simple.sh
 ```
 
 2. **Configure UserParameters**:
@@ -64,6 +64,10 @@ sudo systemctl restart zabbix-agent2
 sudo usermod -a -G adm zabbix  # Add zabbix to log group
 sudo chmod 750 /var/log/openvpn
 sudo chmod 640 /var/log/openvpn/status*.log
+
+# For security monitoring (auth failures, reconnections)
+sudo chgrp zabbix /var/log/openvpn/server-*.log
+sudo chmod 640 /var/log/openvpn/server-*.log
 ```
 
 ## Zabbix configuration
@@ -117,6 +121,21 @@ zabbix_agent2 -t openvpn.user.number.new
 - **Per-user connection status** - Connection state visualization
 - **Per-user connection duration** - Individual connection time tracking
 
+## Testing
+
+For comprehensive testing procedures, see [TESTING.md](TESTING.md). The testing guide covers:
+
+- UserParameter validation without active clients  
+- Live testing with VPN connections
+- Security monitoring validation
+- Permission configuration
+- Template import verification
+
+All components have been tested on:
+- Zabbix Server 7.0.17
+- OpenVPN Server 2.6.14  
+- Debian/Ubuntu systems
+
 ## Macros used
 
 There are no macros used in this template.
@@ -148,14 +167,16 @@ The discovery rule runs every 10 minutes and creates monitoring items for each c
 
 ## Version History
 
-- **1.1.0** (2024-08-26): Enhanced version with security and connection tracking
+- **1.1.0** (2024-08-26): Enhanced version with security and connection tracking  
   - **NEW**: Connection duration tracking per user
   - **NEW**: Real and virtual IP address monitoring
   - **NEW**: Authentication failure monitoring (24h window)
   - **NEW**: Connection stability tracking (reconnection monitoring)
   - **NEW**: Security-focused triggers for suspicious activity
-  - Enhanced UserParameters with additional metrics
-  - Additional graph prototypes for connection duration
+  - Fixed UserParameter parsing with simplified grep+cut approach
+  - Improved discovery script with reliable JSON output
+  - Comprehensive testing guide with live connection validation
+  - Enhanced log permission configuration for security monitoring
 
 - **1.0.0** (2024-08-26): Initial release for Zabbix 7.0
   - Modern tag structure (no deprecated Applications)
