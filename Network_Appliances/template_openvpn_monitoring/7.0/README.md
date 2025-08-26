@@ -13,7 +13,11 @@ Supports monitoring of:
 - Connected users count with automatic discovery
 - Per-user bandwidth monitoring (upload/download with change-per-second calculations)
 - Individual user connection status tracking
-- Service down alerts and user disconnection notifications
+- **Connection duration tracking** per user
+- **Real and virtual IP address tracking** per user
+- **Authentication failure monitoring** (24-hour window)
+- **Connection stability tracking** (reconnection monitoring)
+- Service down alerts and comprehensive security monitoring
 
 Use in conjunction with a default Template OS Linux-template for CPU/Memory/Storage monitoring of the OpenVPN server.
 
@@ -88,6 +92,13 @@ zabbix_agent2 -t openvpn.user.number.new
 - **Bytes received per second** - Download bandwidth per user (with preprocessing)
 - **Bytes sent per second** - Upload bandwidth per user (with preprocessing)
 - **Connection status** - Individual user connection state (1=connected, 0=disconnected)
+- **Connection duration** - Time in seconds since user connected
+- **Real IP address** - Client's actual external IP address
+- **Virtual IP address** - Client's VPN internal IP address
+
+### Security & Monitoring Items
+- **Authentication failures (24h)** - Count of failed authentication attempts
+- **Reconnections (24h)** - Count of connection restart events
 
 ## Triggers
 
@@ -96,12 +107,15 @@ zabbix_agent2 -t openvpn.user.number.new
 | OpenVPN: Service is down | High | No OpenVPN processes running |
 | OpenVPN: Version has changed | Information | Server version changed (manual close) |
 | OpenVPN User [{#VPN.USER}]: User disconnected | Information | Per-user disconnection (manual close) |
+| OpenVPN: High authentication failure rate | Warning | More than 10 authentication failures in 24 hours |
+| OpenVPN: High reconnection rate | Warning | More than 20 reconnections in 24 hours |
 
 ## Graphs
 
 - **OpenVPN: Connected users overview** - Timeline of total connections
 - **Per-user traffic graphs** - Individual bandwidth usage charts
 - **Per-user connection status** - Connection state visualization
+- **Per-user connection duration** - Individual connection time tracking
 
 ## Macros used
 
@@ -133,6 +147,15 @@ The discovery rule runs every 10 minutes and creates monitoring items for each c
 - `userparameter_openvpn.conf` - UserParameters for `/etc/zabbix/zabbix_agent2.d/`
 
 ## Version History
+
+- **1.1.0** (2024-08-26): Enhanced version with security and connection tracking
+  - **NEW**: Connection duration tracking per user
+  - **NEW**: Real and virtual IP address monitoring
+  - **NEW**: Authentication failure monitoring (24h window)
+  - **NEW**: Connection stability tracking (reconnection monitoring)
+  - **NEW**: Security-focused triggers for suspicious activity
+  - Enhanced UserParameters with additional metrics
+  - Additional graph prototypes for connection duration
 
 - **1.0.0** (2024-08-26): Initial release for Zabbix 7.0
   - Modern tag structure (no deprecated Applications)
