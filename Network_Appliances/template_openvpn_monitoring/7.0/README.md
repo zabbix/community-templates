@@ -48,6 +48,7 @@ status-version 2
 
 1. **Deploy Discovery Script**:
 ```bash
+sudo mkdir -p /opt/zabbix
 sudo cp files/openvpn-discovery.sh /opt/zabbix/
 sudo chmod 755 /opt/zabbix/openvpn-discovery.sh
 sudo chown root:zabbix /opt/zabbix/openvpn-discovery.sh
