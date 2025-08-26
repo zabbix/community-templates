@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simple OpenVPN Discovery Script
+# OpenVPN Discovery Script
 
 # Extract unique usernames from all status files
 USERS=$(grep "^CLIENT_LIST" /var/log/openvpn/status*.log 2>/dev/null | cut -d, -f2 | sed 's/[^a-zA-Z0-9._-]//g' | sort -u)

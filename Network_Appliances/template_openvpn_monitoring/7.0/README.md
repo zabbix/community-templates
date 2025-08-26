@@ -48,14 +48,14 @@ status-version 2
 
 1. **Deploy Discovery Script**:
 ```bash
-sudo cp openvpn-discovery-simple.sh /opt/zabbix/
-sudo chmod 755 /opt/zabbix/openvpn-discovery-simple.sh
-sudo chown root:zabbix /opt/zabbix/openvpn-discovery-simple.sh
+sudo cp files/openvpn-discovery.sh /opt/zabbix/
+sudo chmod 755 /opt/zabbix/openvpn-discovery.sh
+sudo chown root:zabbix /opt/zabbix/openvpn-discovery.sh
 ```
 
 2. **Configure UserParameters**:
 ```bash
-sudo cp userparameter_openvpn.conf /etc/zabbix/zabbix_agent2.d/
+sudo cp files/userparameter_openvpn.conf /etc/zabbix/zabbix_agent2.d/
 sudo systemctl restart zabbix-agent2
 ```
 
@@ -123,18 +123,17 @@ zabbix_agent2 -t openvpn.user.number.new
 
 ## Testing
 
-For comprehensive testing procedures, see [TESTING.md](TESTING.md). The testing guide covers:
+All components have been tested and validated on:
+- Zabbix Server 7.0.17
+- OpenVPN Server 2.6.14  
+- Debian/Ubuntu systems
 
+Testing included:
 - UserParameter validation without active clients  
 - Live testing with VPN connections
 - Security monitoring validation
 - Permission configuration
 - Template import verification
-
-All components have been tested on:
-- Zabbix Server 7.0.17
-- OpenVPN Server 2.6.14  
-- Debian/Ubuntu systems
 
 ## Macros used
 
@@ -162,8 +161,13 @@ The discovery rule runs every 10 minutes and creates monitoring items for each c
 ## Installation files
 
 - `template_openvpn_monitoring.yaml` - Zabbix 7.0 template
-- `openvpn-discovery.sh` - User discovery script for `/opt/zabbix/`
-- `userparameter_openvpn.conf` - UserParameters for `/etc/zabbix/zabbix_agent2.d/`
+- `files/openvpn-discovery.sh` - User discovery script for `/opt/zabbix/`
+- `files/userparameter_openvpn.conf` - UserParameters for `/etc/zabbix/zabbix_agent2.d/`
+
+**Structure follows Zabbix community template standards:**
+- Main template file (YAML/XML) in root directory
+- Additional files (scripts, configs) in `files/` subdirectory
+- Documentation in README.md
 
 ## Version History
 
