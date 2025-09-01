@@ -227,8 +227,6 @@ curl --digest -u admin:password http://[DEVICE_IP]/rpc/Shelly.CheckForUpdate
 
 Please report any issues with the template at the official Zabbix community template repository.
 
-**Current Status**: Production-ready and actively maintained.
-
 ## Firmware Monitoring Features
 
 This template includes comprehensive firmware monitoring capabilities:
@@ -251,60 +249,4 @@ This template includes comprehensive firmware monitoring capabilities:
 - `/rpc/Shelly.GetDeviceInfo` - Retrieves current firmware version
 - `/rpc/Shelly.CheckForUpdate` - Checks all update channels (stable, beta, etc.)
 
-## Deployment Status
 
-**✅ Template Status: DEPLOYED and ACTIVE**
-- **Zabbix Server**: Production deployment confirmed
-- **Template ID**: 10643  
-- **Total Items**: 27 monitoring items
-- **Repository**: Available in `claymore666/community-templates` fork
-- **Branch**: `feature/shelly-plus-1pm-zabbix7-template`
-
-## How to Apply Template
-
-### Step 1: Link Template to Host
-1. Navigate to **Data collection → Hosts** in Zabbix frontend
-2. Click on your Shelly Plus 1PM device host
-3. Go to **Templates** tab
-4. Click **Select** and choose "Shelly Plus 1PM Gen2"
-5. Click **Add** then **Update**
-
-### Step 2: Configure Host Interface
-Ensure your host has an **HTTP interface** configured:
-- **Type**: HTTP (not Agent)
-- **Connect to**: Device IP address
-- **Port**: 80
-- **Default**: Checked
-
-### Step 3: Set Macros (if authentication enabled)
-Configure these macros on the host:
-- `{$SHELLYPWD}`: Device password
-- `{$SHELLYPWD_USER}`: Username (usually 'admin')  
-- `{$POLLING_INTERVAL}`: Status polling interval (default: 60s)
-
-### Step 4: Verify Monitoring
-After applying template, check:
-- **Latest data**: Should show power, temperature, network data
-- **Triggers**: System will alert on issues
-- **Firmware monitoring**: Updates checked every 12 hours
-
-## Version History
-
-### 1.0.0 (Current - Deployed)
-- Add comprehensive firmware monitoring with stable update detection
-- Add firmware version change tracking for security compliance  
-- Add configurable polling intervals via {$POLLING_INTERVAL} macro
-- Enhance documentation with firmware monitoring configuration
-- Fix Zabbix 7.0 template structure compatibility issues
-- **Production deployment confirmed on Zabbix 7.0.17**
-
-### 7.0
-- Initial version for Shelly Plus 1PM Gen2 devices
-- Uses modern RPC API (/rpc/Shelly.GetStatus) 
-- Comprehensive power monitoring with per-minute energy tracking
-- Enhanced system monitoring (RAM, filesystem usage)
-- WiFi signal strength monitoring with quality triggers
-- Temperature monitoring with multi-level alerts
-- Full Gen2 component architecture support
-- HTTP Digest authentication support
-- Compatible with Zabbix 7.0+
