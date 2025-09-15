@@ -23,24 +23,35 @@ Agentless monitoring of Home Assistant entities via the REST API:
 - Accessible URL `{$HA.URL}` (e.g., `http://192.168.10.121:8123`)  
 - Template applied to a Zabbix host with network access to HA  
 
-   | Macro                                | Example Value                        | Description                                    |
-   |--------------------------------------|--------------------------------------|------------------------------------------------|
-   | `{$API.TOKEN}`                       | _(SECRET)_                           | Home Assistant Long-Lived Access Token         |
-   | `{$HA.URL}`                          | `http://192.168.1.100:8123`          | Base URL of the Home Assistant API             |
-   | `{$BATTERY.MINIMUM}`                 | `30`                                 | Battery level threshold (%)                    |
-   | `{$ZIGBEE.SIGNAL.MINIMUM}`           | `20`                                 | Minimum Zigbee link quality (LQI)              |
-   | `{$DISK.PFREE.MIN.WARN.GIB}`         | `2`                                  | Minimum free disk space (GiB)                  |
-   | `{$MEMORY.UTIL.MAX.PERCENT}`         | `95`                                 | Maximum memory utilization (%)                 |
-   | `{$CPU.UTIL.MAX.PERCENT}`            | `90`                                 | Maximum CPU utilization (%)                    |
-   | `{$STORAGE_PERCENT}`                 | `5`                                  | Free storage percentage threshold (%)          |
-   | `{$SWAP.PFREE.MIN.WARN.PERCENT}`     | `50`                                 | Minimum free swap percentage (%)               |
-   | `{$TRIGGER.TEMPERATURE}`             | `44`                                 | Temperature threshold (°C)                     |
-   | `{$BACKUP.MAX.AGE.DAYS}`             | `7`                                  | Maximum age of backup (days)                   |
-   | `{$POWER.CONSUMPTION.MAX.WATT}`      | `1000`                               | Maximum power consumption (Watt)               |
-   | `{$LOAD.AVG.MAX.1M}`                 | `2`                                  | Load average (1m) threshold                    |
-   | `{$LOAD.AVG.MAX.5M}`                 | `1.5`                                | Load average (5m) threshold                    |
-   | `{$LOAD.AVG.MAX.15M}`                | `1`                                  | Load average (15m) threshold                   |
-   | `{$SWITCH.TRIGGER}`        | `1` or `0`                           | Enable/disable trigger for each feature        |
+   | Macro                                    | Example Value                        | Description                                    |
+   |------------------------------------------|--------------------------------------|------------------------------------------------|
+   | `{$API.TOKEN}`                           | _(SECRET)_                           | Home Assistant Long-Lived Access Token         |
+   | `{$HA.URL}`                              | `http://192.168.1.100:8123`          | Base URL of the Home Assistant API             |
+   | `{$BATTERY.MINIMUM}`                     | `30`                                 | Battery level threshold (%)                    |
+   | `{$ZIGBEE.SIGNAL.MINIMUM}`               | `20`                                 | Minimum Zigbee link quality (LQI)              |
+   | `{$DISK.PFREE.MIN.WARN.GIB}`             | `2`                                  | Minimum free disk space (GiB)                  |
+   | `{$MEMORY.UTIL.MAX.PERCENT}`             | `95`                                 | Maximum memory utilization (%)                 |
+   | `{$CPU.UTIL.MAX.PERCENT}`                | `90`                                 | Maximum CPU utilization (%)                    |
+   | `{$STORAGE_PERCENT}`                     | `5`                                  | Free storage percentage threshold (%)          |
+   | `{$SWAP.PFREE.MIN.WARN.PERCENT}`         | `50`                                 | Minimum free swap percentage (%)               |
+   | `{$TRIGGER.HUMIDITY.CRITICAL.LOW}`       | `0`                                  | Critically dry (danger)                        |
+   | `{$TRIGGER.HUMIDITY.WARNING.LOW}`        | `0`                                  | Low humidity (warn)                            |
+   | `{$TRIGGER.HUMIDITY.NORMAL.LOW}`         | `0`                                  | Min safe humidity                              |
+   | `{$TRIGGER.HUMIDITY.NORMAL.HIGH}`        | `0`                                  | Max safe humidity                              |
+   | `{$TRIGGER.HUMIDITY.WARNING.HIGH}`       | `0`                                  | High humidity (warn)                           |
+   | `{$TRIGGER.HUMIDITY.CRITICAL.HIGH}`      | `0`                                  | Critically humid (danger)                      |
+   | `{$TRIGGER.TEMPERATURE.CRITICAL.LOW}`    | `0`                                  | Critically cold (danger)                       |
+   | `{$TRIGGER.TEMPERATURE.WARNING.LOW}`     | `0`                                  | Low temp (warn)                                |
+   | `{$TRIGGER.TEMPERATURE.NORMAL.LOW}`      | `0`                                  | Min safe temp                                  |
+   | `{$TRIGGER.TEMPERATURE.NORMAL.HIGH}`     | `0`                                  | Max safe RH                                    |
+   | `{$TRIGGER.TEMPERATURE.WARNING.HIGH}`    | `0`                                  | High temp (warn)                               |
+   | `{$TRIGGER.TEMPERATURE.CRITICAL.HIGH}`   | `0`                                  | Critically hot (danger)                        |
+   | `{$BACKUP.MAX.AGE.DAYS}`                 | `7`                                  | Maximum age of backup (days)                   |
+   | `{$POWER.CONSUMPTION.MAX.WATT}`          | `1000`                               | Maximum power consumption (Watt)               |
+   | `{$LOAD.AVG.MAX.1M}`                     | `2`                                  | Load average (1m) threshold                    |
+   | `{$LOAD.AVG.MAX.5M}`                     | `1.5`                                | Load average (5m) threshold                    |
+   | `{$LOAD.AVG.MAX.15M}`                    | `1`                                  | Load average (15m) threshold                   |
+   | `{$SWITCH.TRIGGER}`                      | `1` or `0`                           | Enable/disable trigger for each feature        |
 
 ---
 
