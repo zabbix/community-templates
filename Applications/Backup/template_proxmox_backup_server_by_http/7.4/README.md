@@ -115,8 +115,10 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - Subscription check
 
 
-## Author
+## Authors
 
-Bernd Krumböck (krumboeck@universalnet.at)
-This template started as clone from Proxmox VE template and was also inspired by "Proxmox Backup Server via HTTPS API" template from nikosch86 and Voltkraft.
+- **krumboeck** – Initial work (krumboeck@universalnet.at)  
+- **nikosch86** – Inspiration: "Proxmox Backup Server via HTTPS API" template  
+- **Voltkraft** – Inspiration and contributions  
+
 
