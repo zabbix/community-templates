@@ -117,8 +117,8 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 
 ## Authors
 
-- **krumboeck** – Initial work (krumboeck@universalnet.at)  
 - **nikosch86** – Inspiration: "Proxmox Backup Server via HTTPS API" template  
+- **krumboeck** – Initial work (krumboeck@universalnet.at)  
 - **Voltkraft** – Inspiration and contributions  
 
 
