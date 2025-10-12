@@ -1,0 +1,2530 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: e60be107b1dc4589b1a29c46294753f3
+      template: 'Proxmox Backup Server by HTTP'
+      name: 'Proxmox Backup Server by HTTP'
+      description: |
+        This template is designed for the effortless deployment of Proxmox Backup Server monitoring by Zabbix via HTTP and doesn't require any external scripts.
+        
+        Proxmox Backup Server uses a REST like API. The concept is described in Resource Oriented Architecture (ROA).
+        
+        Check the API documentation for details:
+        https://pbs.proxmox.com/docs/api-viewer/index.html
+        
+        Setup:
+        
+        1. Create an API token for the monitoring user. Important note: for security reasons, it is recommended to create a separate user (Datacenter - Permissions).
+        
+        Please provide the necessary access levels for both the User and the Token:
+        
+        * Check: ["perm","/",["Audit"]]
+        * Check: ["perm","/datastore",["DatastoreAudit"]]
+        * Check: ["perm","/system",["Audit"]]
+        
+        2. Copy the resulting Token ID and Secret into the host macros '{$PBS.TOKEN.ID}' and '{$PBS.TOKEN.SECRET}'.
+        
+        3. Set the hostname or IP address of the Proxmox VE API host in the '{$PBS.URL.HOST}' macro. You can also change the API port in the '{$PBS.URL.PORT}' macro if necessary.
+      vendor:
+        name: community-templates
+        version: 7.4.1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: ee10a56f3c6c41f587e8488ffbb2c337
+          name: 'API service status'
+          type: SCRIPT
+          key: proxmox.api.available
+          delay: 5m
+          params: |
+            try {
+              var params = JSON.parse(value);
+              var req = new HttpRequest();
+              req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+              req.get(encodeURI('https://' + params.url + ':' + params.port + '/api2/json/version'));
+            } catch (error) {
+            	Zabbix.log(3, "Proxmox API failed: " + params.url + " Error: " + error);
+            	if (!Number.isInteger(error))
+            		return 520;
+            }
+            return req.getStatus();
+          description: 'Get API service status.'
+          valuemap:
+            name: 'HTTP response status code'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          timeout: '{$PBS.API.TIMEOUT}'
+          parameters:
+            - name: port
+              value: '{$PBS.URL.PORT}'
+            - name: secret
+              value: '{$PBS.TOKEN.SECRET}'
+            - name: token
+              value: '{$PBS.TOKEN.ID}'
+            - name: url
+              value: '{$PBS.URL.HOST}'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: f45044a7eb8c498db742165bf9f5628d
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+              name: 'Proxmox Backup Server: API service not available'
+              opdata: 'Current value: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The API service is not available. Check your network and authorization settings.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: acd1e4e75a9246559045f4453901b7f7
+          name: 'Get datastores'
+          type: HTTP_AGENT
+          key: proxmox.datastores
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          description: 'Resources index.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'Error getting data'
+          timeout: '{$PBS.API.TIMEOUT}'
+          url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/datastore'
+          headers:
+            - name: Authorization
+              value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 96e897a460254ce3bdf1a009015fb768
+          name: 'Get nodes'
+          type: SCRIPT
+          key: proxmox.nodes
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          params: 'return ''[{"node": "localhost"}]'';'
+          timeout: '{$PBS.API.TIMEOUT}'
+          tags:
+            - tag: component
+              value: raw
+      discovery_rules:
+        - uuid: 1e239eda8de84d12a060f817463cdaaa
+          name: 'Datastore discovery'
+          type: DEPENDENT
+          key: proxmox.datastore.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#DATASTORE.NAME}'
+                value: '{$PBS.DATASTORE.NAME.MATCHES}'
+              - macro: '{#DATASTORE.NAME}'
+                value: '{$PBS.DATASTORE.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 9487bd5d056c4925a7cd5cdc6b96056a
+              name: 'Datastore [{#DATASTORE.NAME}]: Estimated Full'
+              type: CALCULATED
+              key: 'pbs.datastore.estimated-full[{#DATASTORE.NAME}]'
+              delay: 15m
+              value_type: FLOAT
+              units: s
+              params: 'last(//proxmox.datastore.estimated-full-date[{#DATASTORE.NAME}]) - now()'
+              description: 'Time in seconds until datastore is full. If the value is negative, it suggests storage usage is stable or declining.'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: 5c14a8a59cb64939933dd8bed4903e4d
+                  expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.CRIT}'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: capacity
+                - uuid: ae20faf571d84bdab96b1bc83f80e3d6
+                  expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.WARN} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.WARN}'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.CRIT}'
+                      expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: 02688f8cb78b4d34a2713547e4e501cd
+              name: 'Datastore [{#DATASTORE.NAME}]: Avail'
+              type: DEPENDENT
+              key: 'proxmox.datastore.avail[{#DATASTORE.NAME}]'
+              units: B
+              description: 'The available bytes of the underlying storage. (-1 on error)'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.avail
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.datastore.status[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 2f89d42e88864babbbe2d780ebb5aaff
+              name: 'Datastore [{#DATASTORE.NAME}]: Estimated Full Date'
+              type: DEPENDENT
+              key: 'proxmox.datastore.estimated-full-date[{#DATASTORE.NAME}]'
+              units: unixtime
+              description: |
+                Estimation of the UNIX epoch when the storage will be full.
+                It's calculated via a simple Linear Regression (Least Squares) over the RRD data of the
+                last Month. Missing if not enough data points are available yet. An estimate in the past
+                means that usage is declining or not changing.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''estimated-full-date'']'
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'No estimated-full-date value'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.datastore.status[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 9d1cec67e6a14f1bbab2f8e27337f1e3
+              name: 'Datastore [{#DATASTORE.NAME}]: GC disk-chunks'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.disk-chunks[{#DATASTORE.NAME}]'
+              description: 'Chunks used on disk.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''disk-chunks'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 53cff2efcb46483c963d0e9196814e35
+              name: 'Datastore [{#DATASTORE.NAME}]: GC duration'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.duration[{#DATASTORE.NAME}]'
+              units: s
+              description: 'Duration of last gc run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''duration'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 927a912c251e47c196bcb85c77b051b7
+              name: 'Datastore [{#DATASTORE.NAME}]: GC index-data-bytes'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.index-data-bytes[{#DATASTORE.NAME}]'
+              units: B
+              description: 'Sum of bytes referred by index files.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''index-data-bytes'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 1e9c10eddc284edeb23caffcaccaa2be
+              name: 'Datastore [{#DATASTORE.NAME}]: GC index-file-count'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.index-file-count[{#DATASTORE.NAME}]'
+              description: 'Number of processed index files.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''index-file-count'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: cf96b01d74a04d0f9ef7d7fed5512928
+              name: 'Datastore [{#DATASTORE.NAME}]: GC last-run-endtime'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.last-run-endtime[{#DATASTORE.NAME}]'
+              units: unixtime
+              description: 'Endtime of the last gc run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''last-run-endtime'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 651d34f3ddc44868b8b78d5d60f76398
+              name: 'Datastore [{#DATASTORE.NAME}]: GC Last Run State'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}]'
+              value_type: TEXT
+              description: 'State of last verify job.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''last-run-state'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: 4fbbcbd97cdf4885ad2e4234e9dbf6a6
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Error'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 31e75d5f5621405fb2b5cee830ef966a
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Warning'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Error'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 9ba930a0279a4904bcbf14f67146a9bd
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"OK"'
+                  name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} is not OK'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Warning'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: c71b1950e0374a6481d1cb60f6c738d1
+              name: 'Datastore [{#DATASTORE.NAME}]: GC next-run'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.next-run[{#DATASTORE.NAME}]'
+              units: unixtime
+              description: 'Time of the next gc run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''next-run'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: a0a854d150ad4785aee7dcae4664e55b
+              name: 'Datastore [{#DATASTORE.NAME}]: GC pending-bytes'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.pending-bytes[{#DATASTORE.NAME}]'
+              units: B
+              description: 'Sum of pending bytes (pending removal - kept for safety).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''pending-bytes'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 68e64fd0758f424f85f053d056e6a787
+              name: 'Datastore [{#DATASTORE.NAME}]: GC pending-chunks'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.pending-chunks[{#DATASTORE.NAME}]'
+              description: 'Number of pending chunks (pending removal - kept for safety).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''pending-chunks'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: a61a686fa5534184b98da4fd06148140
+              name: 'Datastore [{#DATASTORE.NAME}]: GC removed-bad'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.removed-bad[{#DATASTORE.NAME}]'
+              description: 'Number of chunks marked as .bad by verify that have been removed by GC.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''removed-bad'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: ef4e2acda1a2467889321632f0b38642
+              name: 'Datastore [{#DATASTORE.NAME}]: GC removed-bytes'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.removed-bytes[{#DATASTORE.NAME}]'
+              units: B
+              description: 'Sum of removed bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''removed-bytes'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 4ad89d568f2a491eba45644d44a579bd
+              name: 'Datastore [{#DATASTORE.NAME}]: GC removed-chunks'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.removed-chunks[{#DATASTORE.NAME}]'
+              description: 'Number of removed chunks.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''removed-chunks'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: e59ce58c42e9404fb8a9fbf06fde0e68
+              name: 'Datastore [{#DATASTORE.NAME}]: GC schedule'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.schedule[{#DATASTORE.NAME}]'
+              value_type: TEXT
+              description: 'Schedule of the gc job.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''schedule'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: f4edbb45b39a4f918749b37e075590d7
+              name: 'Datastore [{#DATASTORE.NAME}]: GC still-bad'
+              type: DEPENDENT
+              key: 'proxmox.datastore.gc.still-bad[{#DATASTORE.NAME}]'
+              description: 'Number of chunks still marked as .bad after garbage collection.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''still-bad'']'
+              master_item:
+                key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: a4e9cfe6cf9d4529a4ae0aa4c1f4391d
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.still-bad[{#DATASTORE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] has bad chunks'
+                  opdata: 'Bad chunks: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: c58a78b6e8234cdf8ab30db3d4bdee18
+              name: 'Datastore [{#DATASTORE.NAME}]: Get GC info'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.gc[{#DATASTORE.NAME}]'
+              delay: 15m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/gc'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: d68c246d6d1c451ebb27ff315ed680b6
+              name: 'Datastore [{#DATASTORE.NAME}]: Prune last-run-state'
+              type: DEPENDENT
+              key: 'proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}]'
+              value_type: TEXT
+              description: 'State of the last gc run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''last-run-state'']'
+              master_item:
+                key: 'proxmox.datastore.prune[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: 7a4a74b8eec54c12898bc59f92a8bc47
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Error'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 3765a2fad9e44bf6ba566dae0d5e68cd
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Warning'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Error'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 9101af3e08684525a3cd7a05db1cf8f8
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"OK"'
+                  name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} is not OK'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Warning'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 9cad81718b084f569e1775708dc26e24
+              name: 'Datastore [{#DATASTORE.NAME}]: Get prune info'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.prune[{#DATASTORE.NAME}]'
+              delay: 15m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/prune'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: af9dedb5014e44f9a46568b8ac88ed17
+              name: 'Datastore [{#DATASTORE.NAME}]: Get status'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.status[{#DATASTORE.NAME}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/status/datastore-usage'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: 8c3286bc478c41a1b5d11bd7443f1b2b
+              name: 'Datastore [{#DATASTORE.NAME}]: Sync discovery helper'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.sync.discovery.key[{#DATASTORE.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var parsed = JSON.parse(value.data);
+                          if (Array.isArray(parsed) && parsed.length === 0) {
+                              return "not found";
+                          } else {
+                              return "found";
+                          }
+                      } catch (e) {
+                          return value;
+                      }
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: 6c958ab7f0944e2da705efdf65ba8f63
+              name: 'Datastore [{#DATASTORE.NAME}]: Size'
+              type: DEPENDENT
+              key: 'proxmox.datastore.total[{#DATASTORE.NAME}]'
+              units: B
+              description: 'Storage size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.total
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.datastore.status[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 6eee67c9b34a4748a557200185e21b00
+              name: 'Datastore [{#DATASTORE.NAME}]: Used'
+              type: DEPENDENT
+              key: 'proxmox.datastore.used[{#DATASTORE.NAME}]'
+              units: B
+              description: 'Storage used size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.used
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.datastore.status[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 8bdf959336194a039c9aed587a0e507c
+              name: 'Datastore [{#DATASTORE.NAME}]: Verfiy Last Run State'
+              type: DEPENDENT
+              key: 'proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}]'
+              value_type: TEXT
+              description: 'State of last verify job.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''last-run-state'']'
+              master_item:
+                key: 'proxmox.datastore.verify[{#DATASTORE.NAME}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+            - uuid: 013ce8440c9840babfe56d1f0a568844
+              name: 'Datastore [{#DATASTORE.NAME}]: Get verify info'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.verify[{#DATASTORE.NAME}]'
+              delay: 15m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/verify'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+          trigger_prototypes:
+            - uuid: 63b6a17614ca473aa15699a3b2b93c35
+              expression: 'min(/Proxmox Backup Server by HTTP/proxmox.datastore.used[{#DATASTORE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.datastore.total[{#DATASTORE.NAME}]) * 100 >{$PBS.DATASTORE.PUSE.CRIT:"{#NODE.NAME}/{#STORAGE.NAME}"}'
+              name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage'
+              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage (over {$PBS.DATASTORE.PUSE.CRIT}:"{#DATASTORE.NAME}"% used)'
+              opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'Datastore space usage.'
+              tags:
+                - tag: scope
+                  value: capacity
+            - uuid: 33dee461b9504b94bac052c875a1f692
+              expression: |
+                last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.schedule[{#DATASTORE.NAME}])=0
+                and last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.next-run[{#DATASTORE.NAME}])=0
+              name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] has no garbage collection configured'
+              opdata: 'Schedule: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: notice
+            - uuid: b51f9e5ec93a47f783350d8807d9b8bf
+              expression: 'min(/Proxmox Backup Server by HTTP/proxmox.datastore.used[{#DATASTORE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.datastore.total[{#DATASTORE.NAME}]) * 100 >{$PBS.DATASTORE.PUSE.WARN:"{#NODE.NAME}/{#STORAGE.NAME}"}'
+              name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] high filesystem space usage'
+              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] high filesystem space usage (over {$PVE.DATASTORE.PUSE.WARN}:"{#DATASTORE.NAME}"% used)'
+              opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Datastore space usage.'
+              dependencies:
+                - name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage'
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.datastore.used[{#DATASTORE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.datastore.total[{#DATASTORE.NAME}]) * 100 >{$PBS.DATASTORE.PUSE.CRIT:"{#NODE.NAME}/{#STORAGE.NAME}"}'
+              tags:
+                - tag: scope
+                  value: capacity
+          graph_prototypes:
+            - uuid: 1dbd5c676fd04a65abe697546a4b5238
+              name: 'Datastore [{#DATASTORE.NAME}]: Space utilization chart (relative to total)'
+              width: '600'
+              height: '340'
+              yaxismax: '0'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: PIE
+              show_3d: 'YES'
+              graph_items:
+                - color: '787878'
+                  calc_fnc: LAST
+                  type: GRAPH_SUM
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.datastore.total[{#DATASTORE.NAME}]'
+                - sortorder: '1'
+                  color: F63100
+                  calc_fnc: LAST
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.datastore.used[{#DATASTORE.NAME}]'
+                - sortorder: '2'
+                  color: 199C09
+                  calc_fnc: LAST
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.datastore.avail[{#DATASTORE.NAME}]'
+            - uuid: 4c954f9bf45241fbb83990f8d54a588c
+              name: 'Proxmox: Storage [{#DATASTORE.NAME}]: Usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.datastore.used[{#DATASTORE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.datastore.total[{#DATASTORE.NAME}]'
+          master_item:
+            key: proxmox.datastores
+          lld_macro_paths:
+            - lld_macro: '{#DATASTORE.NAME}'
+              path: $.store
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+        - uuid: 1ddf6fdf60d345ab8542a168c81ba4c0
+          name: 'Sync discovery'
+          type: DEPENDENT
+          key: 'proxmox.datastore.sync.discovery[{#DATASTORE.NAME}]'
+          item_prototypes:
+            - uuid: ec2dc8c067144a0586c7feb5f5c3b4f2
+              name: 'Datastore [{#DATASTORE.NAME},{#SINGLETON}]: Sync last-run-state'
+              type: DEPENDENT
+              key: 'proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}]'
+              value_type: TEXT
+              description: 'State of the last sync run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''last-run-state'']'
+              master_item:
+                key: 'proxmox.datastore.sync[{#DATASTORE.NAME},{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: cd7578d13b114f6a85337a762acbde60
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","error")=1'
+                  name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Error'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: caa7a0b507c14f05bd9dcd50f1bab73f
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","warning")=1'
+                  name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Warning'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Error'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","error")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: c79a9a09a86e45f986cc1ca9f3dea6e6
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"OK"'
+                  name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} is not OK'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Warning'
+                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","warning")=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: ba0eb033cc344a04bc49711c13a41f1b
+              name: 'Datastore [{#DATASTORE.NAME}]: Get sync info'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.sync[{#DATASTORE.NAME},{#SINGLETON}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+          parent_discovery_rule:
+            key: proxmox.datastore.discovery
+          master_item:
+            key: 'proxmox.datastore.sync.discovery.key[{#DATASTORE.NAME}]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.stringify(value === ''found'' ? [{''{#SINGLETON}'': ''''}] : []);'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+        - uuid: ff9ecfbbcb404e33a31fc879c701fb68
+          name: 'Disk discovery'
+          type: DEPENDENT
+          key: 'proxmox.disk.discovery[{#NODE.NAME}]'
+          item_prototypes:
+            - uuid: d0823a3fd51e4a38bab959ac77cc886a
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Model'
+              type: DEPENDENT
+              key: 'proxmox.disk.model[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.model
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 82ad4a7cbafc4257b1f6df822e746a35
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Serial'
+              type: DEPENDENT
+              key: 'proxmox.disk.serial[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.serial
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: b4eb9d9512724fdea417eeba38236517
+                  expression: |
+                    last(/Proxmox Backup Server by HTTP/proxmox.disk.serial[{#NODE.NAME},{#DISK.NAME}],#1)<>last(/Proxmox Backup Server by HTTP/proxmox.disk.serial[{#NODE.NAME},{#DISK.NAME}],#2)
+                    and
+                    last(/Proxmox Backup Server by HTTP/proxmox.disk.serial[{#NODE.NAME},{#DISK.NAME}])>0
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}] has been replaced'
+                  priority: INFO
+                  description: '[{#DISK_NAME}] serial number has changed. Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 5c99fba2e0374c6497ef9e413b355771
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Size'
+              type: DEPENDENT
+              key: 'proxmox.disk.size[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              units: B
+              description: 'Disk size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.size
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7b3b2d455f2a4a838881a129417bde27
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART Status'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.status
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 957904bd91b54adb8d2601fbe4899585
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart[{#NODE.NAME},{#DISK.NAME}])={$PBS.DISK.SMART.STATUS.FAIL:"failed"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: S.M.A.R.T. failed'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'Disk probably requires replacement.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: c7d34b2950a0493ea2c03ba24a0b4598
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart[{#NODE.NAME},{#DISK.NAME}])={$PBS.DISK.SMART.STATUS.UNKNOWN:"unknown"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: S.M.A.R.T. unknown'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Probably disk or system does not support S.M.A.R.T.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: S.M.A.R.T. failed'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart[{#NODE.NAME},{#DISK.NAME}])={$PBS.DISK.SMART.STATUS.FAIL:"failed"}'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 3dcc7c6c7b5e4332a9dddb07a58da95b
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Media Type'
+              type: DEPENDENT
+              key: 'proxmox.disk.type[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''disk-type'']'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: aad09a38d577481fb2746d02c41739e3
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Get disk'
+              type: HTTP_AGENT
+              key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+              delay: 10m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name == "{#DISK.NAME}")].first()'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+          graph_prototypes:
+            - uuid: b4850fd975144765ad59c3358df6cb1e
+              name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: Size'
+              yaxismax: '0'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.disk.size[{#NODE.NAME},{#DISK.NAME}]'
+          parent_discovery_rule:
+            key: proxmox.node.discovery
+          master_item:
+            key: 'proxmox.node.disks[{#NODE.NAME}]'
+          lld_macro_paths:
+            - lld_macro: '{#DISK.NAME}'
+              path: $.name
+        - uuid: c58951c3787243b1948a1f5832763cb9
+          name: 'SSD discovery'
+          type: DEPENDENT
+          key: 'proxmox.disk.ssd.discovery[{#NODE.NAME},{#DISK.NAME}]'
+          description: 'The discovery of additional metrics if ssd disk is used.'
+          item_prototypes:
+            - uuid: 5e82703ce4144826b84fb643ad8d161f
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Wearout'
+              type: DEPENDENT
+              key: 'proxmox.disk.ssd.wearout[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'Disk wearout.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.wearout
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.node.disk.ssd[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: bd8a3122d124406e8dfe1e9a1f4a3eff
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.ssd.wearout[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}])<{$PBS.DISK.WEAROUT.CRIT}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: Wearout critical'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 673f322625ef443d8ed7fb24fde3b3e8
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.ssd.wearout[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}])<{$PBS.DISK.WEAROUT.WARN}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: Wearout warning'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: Wearout critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.ssd.wearout[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}])<{$PBS.DISK.WEAROUT.CRIT}'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: c6f07f35dc4f4df8bf65f19c8c5775e9
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Get SSD'
+              type: HTTP_AGENT
+              key: 'proxmox.node.disk.ssd[{#NODE.NAME},{#DISK.NAME},{#SINGLETON}]'
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name == "{#DISK.NAME}")].first()'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+          parent_discovery_rule:
+            key: 'proxmox.disk.discovery[{#NODE.NAME}]'
+          master_item:
+            key: 'proxmox.node.disk[{#NODE.NAME},{#DISK.NAME}]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  return JSON.stringify(JSON.parse(value)['disk-type'] === 'ssd'
+                  	? [{'{#SINGLETON}': ''}] : []);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+        - uuid: 519d35b3fc2a4e608988e0abf822a33a
+          name: 'Node discovery'
+          type: DEPENDENT
+          key: proxmox.node.discovery
+          item_prototypes:
+            - uuid: 365c5ebb87f94f868f441ac27ebb45d4
+              name: 'Node [{#NODE.NAME}]: CPU, usage'
+              type: DEPENDENT
+              key: 'proxmox.node.cpu[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'CPU usage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cpu
+                - type: MULTIPLIER
+                  parameters:
+                    - '100'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: cpu
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: eaa6c27523fd46339a597afc5df78b8e
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.cpu[{#NODE.NAME}],5m) > {$PBS.CPU.PUSE.CRIT:"{#NODE.NAME}"}'
+                  name: 'Proxmox VE: Node [{#NODE.NAME}] high CPU usage'
+                  event_name: 'Proxmox VE: Node [{#NODE.NAME}] high CPU usage (over {$PVE.CPU.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+                  opdata: 'Current use: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'CPU usage.'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 2c0dd581f11b4c7c89b9db8779d3999a
+              name: 'Node [{#NODE.NAME}]: Get disks'
+              type: HTTP_AGENT
+              key: 'proxmox.node.disks[{#NODE.NAME}]'
+              delay: 15m
+              history: '0'
+              value_type: TEXT
+              description: 'Read node status.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 576c0a2243074e7c94cd8276a4311e88
+              name: 'Node [{#NODE.NAME}]: CPU, iowait'
+              type: DEPENDENT
+              key: 'proxmox.node.iowait[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'CPU iowait time.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.iowait
+                - type: MULTIPLIER
+                  parameters:
+                    - '100'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: cpu
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 900b461f6fe44fffb719496925a2cb30
+              name: 'Node [{#NODE.NAME}]: Kernel version'
+              type: DEPENDENT
+              key: 'proxmox.node.kernelversion[{#NODE.NAME}]'
+              value_type: CHAR
+              description: 'Kernel version info.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.kversion
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.node.status[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 79a60ffceee14eec8a7924ff811ccde1
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.kernelversion[{#NODE.NAME}],#1)<>last(/Proxmox Backup Server by HTTP/proxmox.node.kernelversion[{#NODE.NAME}],#2) and length(last(/Proxmox Backup Server by HTTP/proxmox.node.kernelversion[{#NODE.NAME}]))>0'
+                  name: 'Proxmox VE: Node [{#NODE.NAME}]: Kernel version has changed'
+                  opdata: 'Current value: {ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'Firmware version has changed. Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 9bbc42a0bea742729728483356831586
+              name: 'Node [{#NODE.NAME}]: CPU, loadavg'
+              type: DEPENDENT
+              key: 'proxmox.node.loadavg[{#NODE.NAME}]'
+              value_type: FLOAT
+              description: 'CPU average load.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.loadavg
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: cpu
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 54ba3a28a0584d4896e223bd90ff9176
+              name: 'Node [{#NODE.NAME}]: Localtime'
+              type: DEPENDENT
+              key: 'proxmox.node.localtime[{#NODE.NAME}]'
+              units: unixtime
+              description: 'Seconds since 1970-01-01 00:00:00 (local time).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.localtime
+              master_item:
+                key: 'proxmox.node.time[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 8ac16d7923ea4e0f83d77f8706a35029
+              name: 'Node [{#NODE.NAME}]: Memory, total'
+              type: DEPENDENT
+              key: 'proxmox.node.memtotal[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Memory total.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.memtotal
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: memory
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: d4a1d375680741168bd45bc0bf0dd0ec
+              name: 'Node [{#NODE.NAME}]: Memory, used'
+              type: DEPENDENT
+              key: 'proxmox.node.memused[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Memory usage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.memused
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: memory
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 408f9a1d6edb4bc0bfb0ed51d4bfdada
+              name: 'Node [{#NODE.NAME}]: Incoming data, rate'
+              type: DEPENDENT
+              key: 'proxmox.node.netin[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: bps
+              description: 'Network usage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.netin
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: network
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: a3aca65e31d74e4893116557d8caf6e4
+              name: 'Node [{#NODE.NAME}]: Outgoing data, rate'
+              type: DEPENDENT
+              key: 'proxmox.node.netout[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: bps
+              description: 'Network usage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.netout
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: network
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 69958c2cb3e74d2eb7715f935ed054db
+              name: 'Node [{#NODE.NAME}]: Root filesystem, total'
+              type: DEPENDENT
+              key: 'proxmox.node.roottotal[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Root filesystem total.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.total
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: c3d4b9afd1b0415f955c225a3ad650c4
+              name: 'Node [{#NODE.NAME}]: Root filesystem, used'
+              type: DEPENDENT
+              key: 'proxmox.node.rootused[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Root filesystem usage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.used
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 718cffbdceff45cfbb02e47cdb2ef2f3
+              name: 'Node [{#NODE.NAME}]: Get RRD statistics'
+              type: HTTP_AGENT
+              key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Read node RRD statistics.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var rrd_data = JSON.parse(value).data;
+                      return JSON.stringify(rrd_data[rrd_data.length - 2])
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/rrd'
+              query_fields:
+                - name: timeframe
+                  value: hour
+                - name: cf
+                  value: AVERAGE
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: cf5fb27a762e4340bf372680b3c4da2d
+              name: 'Node [{#NODE.NAME}]: Get services'
+              type: HTTP_AGENT
+              key: 'proxmox.node.services[{#NODE.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              description: 'Read node subscription.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7ce75ead48b24274a096af03e60255d2
+              name: 'Node [{#NODE.NAME}]: Get status'
+              type: HTTP_AGENT
+              key: 'proxmox.node.status[{#NODE.NAME}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              description: 'Read node status.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/status'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 3ec657a77976471b90fbbce51a37629d
+              name: 'Node [{#NODE.NAME}]: Subscription product name'
+              type: DEPENDENT
+              key: 'proxmox.node.subscription.product[{#NODE.NAME}]'
+              value_type: CHAR
+              description: 'Kernel version info.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.productname
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.node.subscription[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 36e8cc79d8bd4ede8ef4a1f080b7e814
+              name: 'Node [{#NODE.NAME}]: Subscription status'
+              type: DEPENDENT
+              key: 'proxmox.node.subscription.status[{#NODE.NAME}]'
+              value_type: CHAR
+              description: 'Kernel version info.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.status
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.node.subscription[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: ed8382d8e91f43579071fab40c6818bb
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.subscription.status[{#NODE.NAME}])<>{$PBS.SUBSCRIPTION.STATE.ACTIVE:"active"}'
+                  name: 'Proxmox VE: Node [{#NODE.NAME}] has no active subscription'
+                  event_name: 'Proxmox VE: Node [{#NODE.NAME}] has no active subscription (state <> active)'
+                  priority: WARNING
+                  description: 'No active subscription available.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 31accb58e0ea49d786fb74f69546aca5
+              name: 'Node [{#NODE.NAME}]: Get subscription'
+              type: HTTP_AGENT
+              key: 'proxmox.node.subscription[{#NODE.NAME}]'
+              delay: 60m
+              history: '0'
+              value_type: TEXT
+              description: 'Read node subscription.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/subscription'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 38531b7c1dfe4cb8b1ed7941d3b40de7
+              name: 'Node [{#NODE.NAME}]: Swap filesystem, total'
+              type: DEPENDENT
+              key: 'proxmox.node.swaptotal[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Swap total.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.swaptotal
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: eb996ec418ff4139aa612cd5dc397063
+              name: 'Node [{#NODE.NAME}]: Swap filesystem, used'
+              type: DEPENDENT
+              key: 'proxmox.node.swapused[{#NODE.NAME}]'
+              value_type: FLOAT
+              units: B
+              description: 'Swap used.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.swapused
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: fc2fe2d153584bce91be01f5e586f3c0
+              name: 'Node [{#NODE.NAME}]: Time zone'
+              type: DEPENDENT
+              key: 'proxmox.node.timezone[{#NODE.NAME}]'
+              value_type: CHAR
+              description: 'Time zone.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.timezone
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 12h
+              master_item:
+                key: 'proxmox.node.time[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 26fa5efbb14042f8b598d5c473bf54f4
+              name: 'Node [{#NODE.NAME}]: Get time'
+              type: HTTP_AGENT
+              key: 'proxmox.node.time[{#NODE.NAME}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Read server time and time zone settings.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/time'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7b13deb0ede24413be9e59b932fb3d82
+              name: 'Node [{#NODE.NAME}]: Uptime'
+              type: DEPENDENT
+              key: 'proxmox.node.uptime[{#NODE.NAME}]'
+              trends: '0'
+              units: uptime
+              description: 'The system uptime expressed in the following format: "N days, hh:mm:ss".'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.uptime
+              master_item:
+                key: 'proxmox.node.status[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: bb14cc4ff6be4a03a6acf100a91d7dbd
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.uptime[{#NODE.NAME}])<10m'
+                  name: 'Proxmox VE: Node [{#NODE.NAME}] has been restarted'
+                  event_name: 'Proxmox VE: Node [{#NODE.NAME}] has been restarted (uptime < 10m)'
+                  priority: INFO
+                  description: 'Uptime is less than 10 minutes.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: bd2765de94904ea69f4c86d9df4c11a2
+              name: 'Node [{#NODE.NAME}]: Time'
+              type: DEPENDENT
+              key: 'proxmox.node.utctime[{#NODE.NAME}]'
+              units: unixtime
+              description: 'Seconds since 1970-01-01 00:00:00 UTC.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.time
+              master_item:
+                key: 'proxmox.node.time[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: system
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 034ba02c438f4e16b501bcf321a455c0
+              name: 'Node [{#NODE.NAME}]: Get ZFS pools'
+              type: HTTP_AGENT
+              key: 'proxmox.node.zfs[{#NODE.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              description: 'Read node status.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+          trigger_prototypes:
+            - uuid: 4b1ec48b1e3e441e975935b3b40928c5
+              expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.memused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.memtotal[{#NODE.NAME}]) * 100 >{$PBS.MEMORY.PUSE.CRIT:"{#NODE.NAME}"}'
+              name: 'Proxmox VE: Node [{#NODE.NAME}] high memory usage'
+              event_name: 'Proxmox VE: Node [{#NODE.NAME}] high memory usage (over {$PVE.MEMORY.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'Memory usage.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 1bcff83f91ba40b2ad5fe54eb0ec0431
+              expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.rootused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.roottotal[{#NODE.NAME}]) * 100 >{$PBS.ROOT.PUSE.CRIT:"{#NODE.NAME}"}'
+              name: 'Proxmox VE: Node [{#NODE.NAME}] high root filesystem space usage'
+              event_name: 'Proxmox VE: Node [{#NODE.NAME}] high root filesystem space usage (over {$PVE.ROOT.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'Root filesystem space usage.'
+              tags:
+                - tag: scope
+                  value: capacity
+            - uuid: 3fa317184ec24e478714a0b7c9d5b9d3
+              expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.swapused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.swaptotal[{#NODE.NAME}]) * 100 > {$PBS.SWAP.PUSE.CRIT:"{#NODE.NAME}"} and last(/Proxmox Backup Server by HTTP/proxmox.node.swaptotal[{#NODE.NAME}]) > 0'
+              name: 'Proxmox VE: Node [{#NODE.NAME}] high swap space usage'
+              event_name: 'Proxmox VE: Node [{#NODE.NAME}] high swap space usage (over {$PVE.SWAP.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'If there is no swap configured, this trigger is ignored.'
+              tags:
+                - tag: scope
+                  value: capacity
+          graph_prototypes:
+            - uuid: bb4b9ed8220d4e299f9ae5248c3655e8
+              name: 'Proxmox: Node [{#NODE.NAME}]: CPU usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.cpu[{#NODE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.iowait[{#NODE.NAME}]'
+                - sortorder: '2'
+                  drawtype: GRADIENT_LINE
+                  color: 00611C
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.loadavg[{#NODE.NAME}]'
+            - uuid: 5322f564d3034c8a97cbf6c11287b843
+              name: 'Proxmox: Node [{#NODE.NAME}]: Memory usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.memused[{#NODE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.memtotal[{#NODE.NAME}]'
+            - uuid: 6c06218c745943f295876d2a5aac7a79
+              name: 'Proxmox: Node [{#NODE.NAME}]: Network usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.netin[{#NODE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.netout[{#NODE.NAME}]'
+            - uuid: 18e9efd171a4442db28dd906a573560c
+              name: 'Proxmox: Node [{#NODE.NAME}]: Root filesystem usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.rootused[{#NODE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.roottotal[{#NODE.NAME}]'
+            - uuid: a401cf5736434cb181eafe54785bac52
+              name: 'Proxmox: Node [{#NODE.NAME}]: Swap usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.swapused[{#NODE.NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.node.swaptotal[{#NODE.NAME}]'
+          master_item:
+            key: proxmox.nodes
+          lld_macro_paths:
+            - lld_macro: '{#NODE.NAME}'
+              path: $.node
+        - uuid: 1728ee93671e4733bc29f86b5036af50
+          name: 'Service discovery'
+          type: DEPENDENT
+          key: 'proxmox.service.discovery[{#NODE.NAME}]'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SERVICE.NAME}'
+                value: '{$PBS.SERVICE.NAME.MATCHES}'
+              - macro: '{#SERVICE.NAME}'
+                value: '{$PBS.SERVICE.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 39c6440e4b28423aba11eb70b9327bc6
+              name: 'Service [{#NODE.NAME},{#SERVICE.NAME}]: State'
+              type: DEPENDENT
+              key: 'proxmox.service.state[{#NODE.NAME},{#SERVICE.NAME}]'
+              value_type: TEXT
+              description: 'Service state.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.state
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'proxmox.service[{#NODE.NAME},{#SERVICE.NAME}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+            - uuid: 98566c9c7aa74512aa5454616437cf9a
+              name: 'Service [{#NODE.NAME},{#SERVICE.NAME}]: Unit state'
+              type: DEPENDENT
+              key: 'proxmox.service.unitstate[{#NODE.NAME},{#SERVICE.NAME}]'
+              value_type: TEXT
+              description: 'Service unit-state.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''unit-state'']'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'proxmox.service[{#NODE.NAME},{#SERVICE.NAME}]'
+              tags:
+                - tag: component
+                  value: service
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+            - uuid: e24110e4730c47bb83fc38c49ee89cab
+              name: 'Service [{#NODE.NAME},{#SERVICE.NAME}]: Get service'
+              type: HTTP_AGENT
+              key: 'proxmox.service[{#NODE.NAME},{#SERVICE.NAME}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name == "{#SERVICE.NAME}")].first()'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+          trigger_prototypes:
+            - uuid: ceb31b93bd584369acdc118c1537ec4b
+              expression: |
+                (last(/Proxmox Backup Server by HTTP/proxmox.service.unitstate[{#NODE.NAME},{#SERVICE.NAME}])={$PBS.SERVICE.UNITSTATE.ENABLED:"enabled"}
+                or last(/Proxmox Backup Server by HTTP/proxmox.service.unitstate[{#NODE.NAME},{#SERVICE.NAME}])={$PBS.SERVICE.UNITSTATE.RUNTIME:"enabled-runtime"})
+                and last(/Proxmox Backup Server by HTTP/proxmox.service.state[{#NODE.NAME},{#SERVICE.NAME}])<>{$PBS.SERVICE.STATE.RUNNING:"running"}
+              name: 'Proxmox Backup Server: Service {#SERVICE.NAME} ({#NODE.NAME}) is not running'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'The service has a state other than "running".'
+              tags:
+                - tag: scope
+                  value: availability
+          parent_discovery_rule:
+            key: proxmox.node.discovery
+          master_item:
+            key: 'proxmox.node.services[{#NODE.NAME}]'
+          lld_macro_paths:
+            - lld_macro: '{#SERVICE.NAME}'
+              path: $.name
+        - uuid: e69fb9d1b2354342a1b014d0e9bfb502
+          name: 'ZFS discovery'
+          type: DEPENDENT
+          key: 'proxmox.zfs.discovery[{#NODE.NAME}]'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#ZFS.NAME}'
+                value: '{$PBS.ZFS.NAME.MATCHES}'
+              - macro: '{#ZFS.NAME}'
+                value: '{$PBS.ZFS.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 34599f65fb224a698d9fc0e4c6f234a2
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Dedup ratio'
+              type: DEPENDENT
+              key: 'proxmox.zfs.dedup.ratio[{#NODE.NAME},{#ZFS.NAME}]'
+              value_type: FLOAT
+              description: 'Deduplication ratio.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.dedup
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+            - uuid: 3bb2f4749fde49ee8010286e7f3b20c8
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Fragmentation'
+              type: DEPENDENT
+              key: 'proxmox.zfs.fragmentation[{#NODE.NAME},{#ZFS.NAME}]'
+              units: '%'
+              description: 'ZFS fragmentation.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.frag
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+              trigger_prototypes:
+                - uuid: 5a710492ce80418dbfce40677e4d3dcd
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.fragmentation[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.FRAG.CRIT:70}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Fragmentation is critical'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: performance
+                - uuid: 8b54a05cc9e948ce9985858bff7d26d1
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.fragmentation[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.FRAG.WARN:50}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Fragmentation is high'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Fragmentation is critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.fragmentation[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.FRAG.CRIT:70}'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 30fbfeb4fce9486b87cee6ee87a65abf
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Free'
+              type: DEPENDENT
+              key: 'proxmox.zfs.free[{#NODE.NAME},{#ZFS.NAME}]'
+              units: B
+              description: 'Allocated size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.free
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+            - uuid: b3d74975945c4b84af8f23b0b67feea4
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Health'
+              type: DEPENDENT
+              key: 'proxmox.zfs.health[{#NODE.NAME},{#ZFS.NAME}]'
+              value_type: TEXT
+              description: 'Allocated size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.health
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+              trigger_prototypes:
+                - uuid: 9f6ad5a966834d7eb4aacac6b5379bd7
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.health[{#NODE.NAME},{#ZFS.NAME}])<>{$PBS.ZFS.HEALTH.ONLINE:"ONLINE"}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Not healthy'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 24da26fd8d704e7f85b7b6c1f2588010
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Size'
+              type: DEPENDENT
+              key: 'proxmox.zfs.total[{#NODE.NAME},{#ZFS.NAME}]'
+              units: B
+              description: 'Pool size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.size
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+            - uuid: 319cfa5678c74fe2b1eb8e739b13af17
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Used'
+              type: DEPENDENT
+              key: 'proxmox.zfs.used[{#NODE.NAME},{#ZFS.NAME}]'
+              units: B
+              description: 'Allocated size in bytes.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.alloc
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+            - uuid: 41e4565f98834382ab58d28cf9caa31f
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Get ZFS'
+              type: HTTP_AGENT
+              key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              delay: 10m
+              history: '0'
+              value_type: TEXT
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'Error getting data'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name == "{#ZFS.NAME}")].first()'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+          graph_prototypes:
+            - uuid: c2d46c3ef5d543fba6ef41b4a4a43c61
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization chart (relative to total)'
+              width: '600'
+              height: '340'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: PIE
+              show_3d: 'YES'
+              graph_items:
+                - color: '787878'
+                  calc_fnc: LAST
+                  type: GRAPH_SUM
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.zfs.total[{#NODE.NAME},{#ZFS.NAME}]'
+                - sortorder: '1'
+                  color: F63100
+                  calc_fnc: LAST
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.zfs.used[{#NODE.NAME},{#ZFS.NAME}]'
+                - sortorder: '2'
+                  color: 199C09
+                  calc_fnc: LAST
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.zfs.free[{#NODE.NAME},{#ZFS.NAME}]'
+          parent_discovery_rule:
+            key: proxmox.node.discovery
+          master_item:
+            key: 'proxmox.node.zfs[{#NODE.NAME}]'
+          lld_macro_paths:
+            - lld_macro: '{#ZFS.NAME}'
+              path: $.name
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: proxmox
+      macros:
+        - macro: '{$PBS.API.TIMEOUT}'
+          value: 10s
+          description: 'PBS API Timeout.'
+        - macro: '{$PBS.CPU.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of CPU utilization expressed in %.'
+        - macro: '{$PBS.DATASTORE.AVAILABLE.CRIT}'
+          value: 14d
+          description: 'Datastore Estimated Full critical'
+        - macro: '{$PBS.DATASTORE.AVAILABLE.WARN}'
+          value: 60d
+          description: 'Datastore Estimated Full warning'
+        - macro: '{$PBS.DATASTORE.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Used in Datastore discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.DATASTORE.NAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in Datastore discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.DATASTORE.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of datastore usage expressed in %.'
+        - macro: '{$PBS.DATASTORE.PUSE.WARN}'
+          value: '70'
+          description: 'Warning threshold of datastore usage expressed in %.'
+        - macro: '{$PBS.DISK.SMART.STATUS.FAIL}'
+          value: failed
+          description: 'The critical S.M.A.R.T status of the disk for the trigger expression.'
+        - macro: '{$PBS.DISK.SMART.STATUS.UNKNOWN}'
+          value: unknown
+          description: 'The unknown S.M.A.R.T status of the disk for the trigger expression.'
+        - macro: '{$PBS.DISK.WEAROUT.CRIT}'
+          value: '30'
+          description: 'Critical threshold of disk wearout expressed in %.'
+        - macro: '{$PBS.DISK.WEAROUT.WARN}'
+          value: '70'
+          description: 'Warning threshold of disk wearout expressed in %.'
+        - macro: '{$PBS.MEMORY.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of memory usage expressed in %.'
+        - macro: '{$PBS.ROOT.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of root filesystem usage expressed in %.'
+        - macro: '{$PBS.SERVICE.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Used in Service discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.SERVICE.NAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in Service discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.SERVICE.STATE.RUNNING}'
+          value: running
+          description: 'The running status of the service for the trigger expression.'
+        - macro: '{$PBS.SERVICE.UNITSTATE.ENABLED}'
+          value: enabled
+          description: 'The enabled unit-status of the service for the trigger expression.'
+        - macro: '{$PBS.SERVICE.UNITSTATE.RUNTIME}'
+          value: enabled-runtime
+          description: 'The enabled-runtime unit-status of the service for the trigger expression.'
+        - macro: '{$PBS.SUBSCRIPTION.STATE.ACTIVE}'
+          value: active
+          description: 'The active status of the subscription for the trigger expression.'
+        - macro: '{$PBS.SWAP.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of swap usage expressed in %.'
+        - macro: '{$PBS.TOKEN.ID}'
+          value: USER@REALM!TOKENID
+          description: 'API tokens allow stateless access to most parts of the REST API by another system, software or API client.'
+        - macro: '{$PBS.TOKEN.SECRET}'
+          value: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+          description: 'Secret key.'
+        - macro: '{$PBS.URL.HOST}'
+          value: '<SET PBS HOST>'
+          description: 'The hostname or IP address of the Proxmox Backup Server API host.'
+        - macro: '{$PBS.URL.PORT}'
+          value: '8007'
+          description: 'The API uses the HTTPS protocol and the server listens to port 8007 by default.'
+        - macro: '{$PBS.ZFS.FRAG.CRIT}'
+          value: '70'
+          description: 'Critical threshold of zfs pool fragmentation expressed in %.'
+        - macro: '{$PBS.ZFS.FRAG.WARN}'
+          value: '50'
+          description: 'Warning threshold of zfs pool fragmentation expressed in %.'
+        - macro: '{$PBS.ZFS.HEALTH.ONLINE}'
+          value: ONLINE
+          description: 'The online status of the zfs pool for the trigger expression.'
+        - macro: '{$PBS.ZFS.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Used in ZFS discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ZFS.NAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in ZFS discovery. Can be overridden on the host or linked template level.'
+      dashboards:
+        - uuid: 3b1bc00794c448be9a7890212a874f90
+          name: Datastores
+          pages:
+            - name: Overview
+              widgets:
+                - type: graphprototype
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Datastore [{#DATASTORE.NAME}]: Space utilization chart (relative to total)'
+                    - type: STRING
+                      name: reference
+                      value: ZBMMS
+        - uuid: 986fb403f6c64278b3435b4c7a228ff7
+          name: 'System performance'
+          pages:
+            - widgets:
+                - type: graphprototype
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Proxmox: Node [{#NODE.NAME}]: CPU usage'
+                    - type: STRING
+                      name: reference
+                      value: QPHZH
+                - type: graphprototype
+                  'y': '5'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Proxmox: Node [{#NODE.NAME}]: Memory usage'
+                    - type: STRING
+                      name: reference
+                      value: MXJRY
+                - type: graphprototype
+                  'y': '10'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Proxmox: Node [{#NODE.NAME}]: Swap usage'
+                    - type: STRING
+                      name: reference
+                      value: YWFMM
+                - type: graphprototype
+                  'y': '15'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Proxmox: Node [{#NODE.NAME}]: Root filesystem usage'
+                    - type: STRING
+                      name: reference
+                      value: MBLLW
+                - type: graphprototype
+                  'y': '20'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Proxmox Backup Server by HTTP'
+                        name: 'Proxmox: Node [{#NODE.NAME}]: Network usage'
+                    - type: STRING
+                      name: reference
+                      value: ZDXGY
+      valuemaps:
+        - uuid: ab46ea8ec86342e897f71ec8cc33e0e0
+          name: 'HTTP response status code'
+          mappings:
+            - value: '100'
+              newvalue: Continue
+            - value: '101'
+              newvalue: 'Switching Protocols'
+            - value: '102'
+              newvalue: Processing
+            - value: '200'
+              newvalue: OK
+            - value: '201'
+              newvalue: Created
+            - value: '202'
+              newvalue: Accepted
+            - value: '203'
+              newvalue: 'Non-Authoritative Information'
+            - value: '204'
+              newvalue: 'No Content'
+            - value: '205'
+              newvalue: 'Reset Content'
+            - value: '206'
+              newvalue: 'Partial Content'
+            - value: '207'
+              newvalue: Multi-Status
+            - value: '208'
+              newvalue: 'Already Reported'
+            - value: '226'
+              newvalue: 'IM Used'
+            - value: '300'
+              newvalue: 'Multiple Choices'
+            - value: '301'
+              newvalue: 'Moved Permanently'
+            - value: '302'
+              newvalue: Found
+            - value: '303'
+              newvalue: 'See Other'
+            - value: '304'
+              newvalue: 'Not Modified'
+            - value: '305'
+              newvalue: 'Use Proxy'
+            - value: '306'
+              newvalue: 'Switch Proxy'
+            - value: '307'
+              newvalue: 'Temporary Redirect'
+            - value: '308'
+              newvalue: 'Permanent Redirect/Resume Incomplete'
+            - value: '400'
+              newvalue: 'Bad Request'
+            - value: '401'
+              newvalue: Unauthorized
+            - value: '402'
+              newvalue: 'Payment Required'
+            - value: '403'
+              newvalue: Forbidden
+            - value: '404'
+              newvalue: 'Not Found'
+            - value: '405'
+              newvalue: 'Method Not Allowed'
+            - value: '406'
+              newvalue: 'Not Acceptable'
+            - value: '407'
+              newvalue: 'Proxy Authentication Required'
+            - value: '408'
+              newvalue: 'Request Timeout'
+            - value: '409'
+              newvalue: Conflict
+            - value: '410'
+              newvalue: Gone
+            - value: '411'
+              newvalue: 'Length Required'
+            - value: '412'
+              newvalue: 'Precondition Failed'
+            - value: '413'
+              newvalue: 'Payload Too Large'
+            - value: '414'
+              newvalue: 'Request-URI Too Long'
+            - value: '415'
+              newvalue: 'Unsupported Media Type'
+            - value: '416'
+              newvalue: 'Requested Range Not Satisfiable'
+            - value: '417'
+              newvalue: 'Expectation Failed'
+            - value: '418'
+              newvalue: 'I''m a Teapot'
+            - value: '419'
+              newvalue: 'Authentication Timeout'
+            - value: '420'
+              newvalue: 'Method Failure/Enhance Your Calm'
+            - value: '421'
+              newvalue: 'Misdirected Request'
+            - value: '422'
+              newvalue: 'Unprocessable Entity'
+            - value: '423'
+              newvalue: Locked
+            - value: '424'
+              newvalue: 'Failed Dependency'
+            - value: '426'
+              newvalue: 'Upgrade Required'
+            - value: '428'
+              newvalue: 'Precondition Required'
+            - value: '429'
+              newvalue: 'Too Many Requests'
+            - value: '431'
+              newvalue: 'Request Header Fields Too Large'
+            - value: '440'
+              newvalue: 'Login Timeout'
+            - value: '444'
+              newvalue: 'No Response'
+            - value: '449'
+              newvalue: 'Retry With'
+            - value: '450'
+              newvalue: 'Blocked by Windows Parental Controls'
+            - value: '451'
+              newvalue: 'Unavailable for Legal Reasons/Redirect'
+            - value: '494'
+              newvalue: 'Request Header Too Large'
+            - value: '495'
+              newvalue: 'Cert Error'
+            - value: '496'
+              newvalue: 'No Cert'
+            - value: '497'
+              newvalue: 'HTTP to HTTPS'
+            - value: '498'
+              newvalue: 'Token Expired/Invalid'
+            - value: '499'
+              newvalue: 'Client Closed Request/Token Required'
+            - value: '500'
+              newvalue: 'Internal Server Error'
+            - value: '501'
+              newvalue: 'Not Implemented'
+            - value: '502'
+              newvalue: 'Bad Gateway'
+            - value: '503'
+              newvalue: 'Service Unavailable'
+            - value: '504'
+              newvalue: 'Gateway Timeout'
+            - value: '505'
+              newvalue: 'HTTP Version Not Supported'
+            - value: '506'
+              newvalue: 'Variant Also Negotiates'
+            - value: '507'
+              newvalue: 'Insufficient Storage'
+            - value: '508'
+              newvalue: 'Loop Detected'
+            - value: '509'
+              newvalue: 'Bandwidth Limit Exceeded'
+            - value: '510'
+              newvalue: 'Not Extended'
+            - value: '511'
+              newvalue: 'Network Authentication Required'
+            - value: '520'
+              newvalue: 'Unknown Error'
+            - value: '598'
+              newvalue: 'Network Read Timeout Error'
+            - value: '599'
+              newvalue: 'Network Connect Timeout Error'
