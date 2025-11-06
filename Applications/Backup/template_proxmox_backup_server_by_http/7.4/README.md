@@ -113,6 +113,7 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - Service failure
 - Node performance issues
 - Subscription check
+- Update check
 
 
 ## Authors
