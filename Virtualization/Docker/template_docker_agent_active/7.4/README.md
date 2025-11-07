@@ -78,10 +78,10 @@ Plugins.Docker.Endpoint=unix:///var/run/docker.sock
 # Plugins.Docker.Timeout=<Global timeout>
 ```
 
-Alternatively, you can copy the provided configuration file from this template's files directory:
+Alternatively, you can copy the provided configuration file:
 
 ```bash
-sudo cp files/docker.conf /etc/zabbix/zabbix_agent2.d/plugins.d/docker.conf
+sudo cp docker.conf /etc/zabbix/zabbix_agent2.d/plugins.d/docker.conf
 sudo chown root:root /etc/zabbix/zabbix_agent2.d/plugins.d/docker.conf
 sudo chmod 644 /etc/zabbix/zabbix_agent2.d/plugins.d/docker.conf
 ```
@@ -589,8 +589,7 @@ Look for specific error messages about:
 
 ```
 .
-├── files/
-│   └── docker.conf                      # Docker plugin configuration
+├── docker.conf                          # Docker plugin configuration
 ├── template_docker_agent_2_active.yaml  # Zabbix template file
 └── README.md                            # This file
 ```
