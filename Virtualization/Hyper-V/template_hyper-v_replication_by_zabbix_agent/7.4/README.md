@@ -32,9 +32,10 @@ It was created because other Hyper-V templates in Zabbix all used Powershell cal
 1. Download `Hyper-V-Replication-by-Zabbix-Agent.yaml`.
 2. In Zabbix, go to `Data Collection` -> `Templates` and then `Import` the .yaml with the button in the upper-right.
 3. Create a new Host using a Zabbix Agent interface and attach the template.
-4. Optional: In Host `Macros` you can set `{$IGNORED}` for any VMs you don't want to monitor. This uses [WQL syntax](https://learn.microsoft.com/en-us/windows/win32/wmisdk/wql-sql-for-wmi), so Wildcard is `%`
+4. Optional: In Host `Macros` you can set `{$IGNORED}` for any VMs you don't want to monitor. This uses regex.
 
-(Example: All of my replicated VMs got renamed to "Replica-<VMNAME>" to keep things organized. I don't want to monitor these because they're replicat*ed*, not replicat*ing*. So, I have my `{$IGNORED}` macro set to `Replica-%` and these replicated VMs are not discovered.)
+(Example: All of my replicated VMs got renamed to "Replica-<VMNAME>" to keep things organized. I don't want to monitor these because they're replicat*ed*, not replicat*ing*. Use `^Replica-` for this example.
+You can also use something like `^(TestVM|DB-Test)$` to exclude multiple full VM names.
 
 ## Thanks
 This is my first Zabbix template and I'm not a Zabbix expert in the slightest. I'll try to help if you have issues, but this little project was mainly cobbled together using the knowledge of others.
