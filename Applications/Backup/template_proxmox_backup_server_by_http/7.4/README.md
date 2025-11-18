@@ -115,6 +115,7 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - Service failure
 - Node performance issues
 - Subscription check
+- Update check
 
 ## Related Projects
 
@@ -125,10 +126,12 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 
 This project is licensed under the MIT License.
 
-## Author
+## Authors
 
-Bernd Krumböck (krumboeck@universalnet.at)
-This template started as clone from Proxmox VE template and was also inspired by "Proxmox Backup Server via HTTPS API" template from nikosch86 and Voltkraft.
+- **nikosch86** – Inspiration: "Proxmox Backup Server via HTTPS API" template  
+- **krumboeck** – Initial work (krumboeck@universalnet.at)  
+- **Voltkraft** – Inspiration and contributions  
+
 
 ## Disclaimer
 
