@@ -1,5 +1,7 @@
 # Zabbix Template Proxmox Backup Server by HTTP
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, and subscription information, and automatically generates discovery rules for datastores disks, zfs pools and running services.
 
 ---
@@ -115,6 +117,14 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - Subscription check
 - Update check
 
+## Related Projects
+
+- [Official Zabbix Templates](https://www.zabbix.com/integrations)
+- [Proxmox Backup Server API](https://pbs.proxmox.com/docs/api-viewer/index.html)
+
+## License
+
+This project is licensed under the MIT License.
 
 ## Authors
 
@@ -122,4 +132,8 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - **krumboeck** – Initial work (krumboeck@universalnet.at)  
 - **Voltkraft** – Inspiration and contributions  
 
+
+## Disclaimer
+
+This template is provided as-is. Test thoroughly in your environment before production use. The author is not responsible for any issues that may arise from using this template.
 
