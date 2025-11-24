@@ -16,7 +16,7 @@ The template has been tested on Windows Server 2022 with Zabbix 7.4.
 ## Authors
 
 - Zilmar de Souza Junior (Original template)
-- Updated for Zabbix 7 by Bel
+- Updated for Zabbix 7 by [Bel](https://github.com/lotusflowr)
 
 ## Template groups
 
