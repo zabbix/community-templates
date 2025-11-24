@@ -1,5 +1,5 @@
 # Hyper-V-Replication-by-Zabbix-Agent
-by @Treeefort
+
 
 ## Summary
 This template simply monitors Hyper-V virtual machine running state and replication health. 
@@ -37,7 +37,17 @@ It was created because other Hyper-V templates in Zabbix all used Powershell cal
 (Example: All of my replicated VMs got renamed to "Replica-<VMNAME>" to keep things organized. I don't want to monitor these because they're replicat*ed*, not replicat*ing*. Use `^Replica-` for this example.
 You can also use something like `^(TestVM|DB-Test)$` to exclude multiple full VM names.
 
+
+
 ## Thanks
 This is my first Zabbix template and I'm not a Zabbix expert in the slightest. I'll try to help if you have issues, but this little project was mainly cobbled together using the knowledge of others.
+
+##Author
+
+by @Treeefort
+
+contribution:
+
+@VoltKraft
 
 Huge thanks to [this dude nryc on Reddit](https://www.reddit.com/r/zabbix/comments/k0pzyi/tutorial_for_lld_dependent_items_from_the_same/) for this very informative post laying out logically how to work with JSON data when doing LLD. That foundational knowledge is the lynchpin of this whole thing.
