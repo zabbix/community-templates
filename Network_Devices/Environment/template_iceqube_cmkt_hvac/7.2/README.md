@@ -38,7 +38,7 @@ A comprehensive Zabbix monitoring template for ICEqube CMKT precision cooling un
 
 ## Monitored Parameters
 
-![Items Overview](img/items.png)
+![Items Overview](files/items.png)
 
 ### Fault & Alarm Items
 | Item | Description | Update Interval |
@@ -84,7 +84,7 @@ A comprehensive Zabbix monitoring template for ICEqube CMKT precision cooling un
 
 ### System Inventory
 
-![Tagging Structure](img/tags.png)
+![Tagging Structure](files/tags.png)
 
 | Item | Description | Update Interval |
 |------|-------------|-----------------||
@@ -94,7 +94,7 @@ A comprehensive Zabbix monitoring template for ICEqube CMKT precision cooling un
 
 ## Template Triggers
 
-![Triggers Overview](img/triggers.png)
+![Triggers Overview](files/triggers.png)
 
 The template includes 13 triggers following Zabbix best practices with 100% manual closure capability.
 
@@ -226,7 +226,7 @@ The template includes five value mappings for human-readable status display:
 
 The template includes a pre-built dashboard: **ICEqube HVAC Overview**
 
-![Dashboard Overview](img/dashboard.png)
+![Dashboard Overview](files/dashboard.png)
 
 Dashboard widgets provide:
 - Current temperature readings
@@ -239,7 +239,7 @@ Dashboard widgets provide:
 
 ## Graphs
 
-![Graph Examples](img/graphs.png)
+![Graph Examples](files/graphs.png)
 
 Three built-in graphs for historical analysis:
 
@@ -615,3 +615,4 @@ This template is available under the MIT License.
 **Monitoring Method:** SNMP (Native)  
 **Zabbix Version:** 7.2+  
 **Last Updated:** November 25, 2025
+
