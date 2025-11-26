@@ -1,0 +1,286 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 02e4df4f20b848e79267641790f241da
+      name: Templates/Virtualization
+  templates:
+    - uuid: e4ae9614b3a0456b832d609115088cf6
+      template: 'Hyper-V Replication by Zabbix Agent'
+      name: 'Hyper-V Replication by Zabbix Agent'
+      description: |
+        Simply pulls Hyper-V replication status using WMI queries via Zabbix Agent.
+        
+        Plays nicely with Windows by Zabbix Agent template.
+        
+        Macros included:
+        
+        {$VM.NAME.MATCHES} / {$VM.NAME.NOT_MATCHES}:
+        Reference: Display names of VMs in Hyper-V.
+        By default, will match all VM names. Useful to filter out names of replicas if desired.
+        
+        {$VM.REPLICATION.MATCHES} / {$VM.REPLICATION.NOT_MATCHES}:
+        Reference: Numerical value for Replication Health on "Value mapping" tab.
+        By default, will skip VMs with replication status set to 0 (Disabled).
+        
+        {$VM.STATE.MATCHES} / {$VM.STATE.NOT_MATCHES}:
+        Reference: Numerical value for VM State on "Value mapping" tab.
+        By default, will match all VMs.
+        
+        {$MISSING_DATA}:
+        The interval in which you'd like an alert about not receiving any new data from the server. Default to 15 minutes.
+        
+        Author:
+        https://github.com/Treeefort/Hyper-V-Replication-by-Zabbix-Agent
+      groups:
+        - name: Templates/Virtualization
+      items:
+        - uuid: 2baabef00a914d10b7b57036aeff3fbb
+          name: 'WMI Data'
+          key: 'wmi.getall["root\virtualization\v2","{$WQL_QUERY}"]'
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          description: |
+            Raw WMI data in JSON format.
+            
+            To troubleshoot at this level, change "History" to "Store up to" and you'll be able to see the output in Latest Values next time it's run.
+            
+            {$WQL_QUERY} Template Macro holds the WMI Query if you want to adjust it.
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 154ca278882548a18fc968215978438c
+              expression: 'nodata(/Hyper-V Replication by Zabbix Agent/wmi.getall["root\virtualization\v2","{$WQL_QUERY}"],{$MISSING_DATA})=1'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'nodata(/Hyper-V Replication by Zabbix Agent/wmi.getall["root\virtualization\v2","{$WQL_QUERY}"],{$MISSING_DATA})=0'
+              name: 'No data recieved for {$MISSING_DATA}.'
+              priority: HIGH
+              description: 'Replication data has not been received from the Hyper-V host in the last 10 minutes.'
+              tags:
+                - tag: component
+                  value: health
+      discovery_rules:
+        - uuid: cf36452a6ba24a5fbb99f358421e3cf3
+          name: 'VM Discovery'
+          type: DEPENDENT
+          key: hv.vm.discovery.data
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#VM.NAME}'
+                value: '{$VM.NAME.MATCHES}'
+              - macro: '{#VM.NAME}'
+                value: '{$VM.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#VM.REPLICATION}'
+                value: '{$VM.REPLICATION.MATCHES}'
+              - macro: '{#VM.REPLICATION}'
+                value: '{$VM.REPLICATION.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#VM.STATE}'
+                value: '{$VM.STATE.MATCHES}'
+              - macro: '{#VM.STATE}'
+                value: '{$VM.STATE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 560535ff00cf4b7aa3119edd657ce37d
+              name: 'Replication: {#VM.NAME}'
+              type: DEPENDENT
+              key: 'hv.vm.replication.[{#VM.ID}]'
+              trends: '0'
+              description: |
+                0 = Not Enabled
+                1 = Pending Initial Replication (Ready)
+                2 = Pending Initial Replication (Waiting)
+                3 = Replicating
+                4 = Prepared for Failover
+                5 = Failover Waiting Completiion
+                6 = Failover Complete
+                7 = Replication Paused
+                8 = Replication Error
+                9 = Resynchronization Required
+                10 = Resynchronizing
+                11 = Resynchronize Suspended
+              valuemap:
+                name: 'Replication Health'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.Name=="{#VM.ID}")].ReplicationState'
+                - type: LTRIM
+                  parameters:
+                    - '['
+                - type: RTRIM
+                  parameters:
+                    - ']'
+              master_item:
+                key: 'wmi.getall["root\virtualization\v2","{$WQL_QUERY}"]'
+              tags:
+                - tag: component
+                  value: health
+                - tag: component
+                  value: replication
+              trigger_prototypes:
+                - uuid: 2fb636fe2bff44c0b932ba2616373250
+                  expression: 'count(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}],#2,"ne",0)=2 and count(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}],#2,"ne",3)=2 and count(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}],#2,"ne",7)=2'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=0 or last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=3 or last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=7'
+                  name: 'VM [{#VM.NAME}]: Replication status is Critical'
+                  priority: HIGH
+                  dependencies:
+                    - name: 'VM [{#VM.NAME}]: Replication status is Disabled'
+                      expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=0'
+                      recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=3'
+                    - name: 'VM [{#VM.NAME}]: Replication status is Paused'
+                      expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=7'
+                      recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=3 or last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=0'
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: component
+                      value: replication
+                - uuid: 6f799e0161b44e1cb98925c381e8ff87
+                  expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=3'
+                  name: 'VM [{#VM.NAME}]: Replication status is Disabled'
+                  priority: INFO
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: component
+                      value: replication
+                - uuid: 64b4b2d0d3634202b687f67a27783c25
+                  expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=7'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=3 or last(/Hyper-V Replication by Zabbix Agent/hv.vm.replication.[{#VM.ID}])=0'
+                  name: 'VM [{#VM.NAME}]: Replication status is Paused'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: component
+                      value: replication
+            - uuid: 96fac2cfb4a34b26912ff8763620a188
+              name: 'State: {#VM.NAME}'
+              type: DEPENDENT
+              key: 'hv.vm.state.[{#VM.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.Name=="{#VM.ID}")].EnabledState'
+                - type: LTRIM
+                  parameters:
+                    - '['
+                - type: RTRIM
+                  parameters:
+                    - ']'
+              master_item:
+                key: 'wmi.getall["root\virtualization\v2","{$WQL_QUERY}"]'
+              tags:
+                - tag: component
+                  value: system
+              trigger_prototypes:
+                - uuid: 464caac1b792492aaec2aad651ca6a9e
+                  expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.state.[{#VM.ID}])="\"Off\""'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Hyper-V Replication by Zabbix Agent/hv.vm.state.[{#VM.ID}])="Running"'
+                  name: 'VM [{#VM.NAME}]: State is Off'
+                  priority: INFO
+                  tags:
+                    - tag: component
+                      value: system
+          master_item:
+            key: 'wmi.getall["root\virtualization\v2","{$WQL_QUERY}"]'
+          lld_macro_paths:
+            - lld_macro: '{#VM.HEALTH}'
+              path: $.ReplicationHealth
+            - lld_macro: '{#VM.ID}'
+              path: $.Name
+            - lld_macro: '{#VM.NAME}'
+              path: $.ElementName
+            - lld_macro: '{#VM.REPLICATION}'
+              path: $.ReplicationState
+            - lld_macro: '{#VM.STATE}'
+              path: $.EnabledState
+      tags:
+        - tag: class
+          value: software
+        - tag: subclass
+          value: virtualization
+        - tag: target
+          value: hyperv
+        - tag: target
+          value: hyperv-hypervisor
+      macros:
+        - macro: '{$MISSING_DATA}'
+          value: 15m
+          description: 'The amount of time before a "missing data" alert is triggered.'
+        - macro: '{$VM.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Defaults to all. Use ^(?:item1|item2|item3) format'
+        - macro: '{$VM.NAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Use ^(?:item1|item2|item3) format for multiple values.'
+        - macro: '{$VM.REPLICATION.MATCHES}'
+          value: '^.*$'
+          description: 'Defaults to all. Reference: Numerical value for Replication Health on "Value mapping" tab. Use ^(?:item1|item2|item3) format for multiple values.'
+        - macro: '{$VM.REPLICATION.NOT_MATCHES}'
+          value: '^(?:0)'
+          description: 'Defaults to "0" (Disabled). Reference: Numerical value for Replication Health on "Value mapping" tab. Use ^(?:item1|item2|item3) format for multiple values.'
+        - macro: '{$VM.STATE.MATCHES}'
+          value: '^.*$'
+          description: 'Defaults to all. Reference: Numerical value for VM State on "Value mapping" tab. Use ^(?:item1|item2|item3) format for multiple values.'
+        - macro: '{$VM.STATE.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Reference: Numerical value for VM State on "Value mapping" tab. Use ^(?:item1|item2|item3) format for multiple values.'
+        - macro: '{$WQL_QUERY}'
+          value: 'Select ElementName,EnabledState,ReplicationState,ReplicationHealth from MsVm_ComputerSystem WHERE ReplicationState IS NOT NULL'
+          description: 'Don''t Change'
+      valuemaps:
+        - uuid: 4b2060851e05478e82f303d6931d667c
+          name: 'Replication Health'
+          mappings:
+            - value: '0'
+              newvalue: Disabled
+            - value: 1-2
+              newvalue: 'Pending Initial'
+            - value: '3'
+              newvalue: Replicating
+            - value: 4-5
+              newvalue: 'Failover Pending'
+            - value: '6'
+              newvalue: 'Failover Complete'
+            - value: '7'
+              newvalue: Paused
+            - value: '8'
+              newvalue: Error
+            - value: '9'
+              newvalue: 'Resync Required'
+            - value: '10'
+              newvalue: Resyncing
+            - value: '11'
+              newvalue: 'Resyncing Suspended'
+        - uuid: 86a9fdf3bd2e43b6bafe66ffa890914a
+          name: 'VM State'
+          mappings:
+            - value: '2'
+              newvalue: Running
+            - value: '3'
+              newvalue: 'Shut Down'
+            - value: '32768'
+              newvalue: Paused
+            - value: '32769'
+              newvalue: Suspended
+            - value: '32770'
+              newvalue: Starting
+            - value: '32773'
+              newvalue: Saving
+            - value: '32774'
+              newvalue: Stopping
+            - value: '32777'
+              newvalue: Resuming

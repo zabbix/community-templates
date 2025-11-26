@@ -1,0 +1,346 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 2ae2a709e7ca4aea92dfc22b948dbd6f
+      template: 'bind9 by HTTP-JSON'
+      name: 'bind9 by HTTP-JSON'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 18bb781bd8804f2dbb4b2bb5a5b4608b
+          name: 'bind9: Queries dropped per second'
+          type: DEPENDENT
+          key: bind9.nsstats.QryDropped
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.nsstats.QryDropped
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: bind9.stats
+          tags:
+            - tag: component
+              value: bind9
+            - tag: component
+              value: nsstats
+          triggers:
+            - uuid: 0ad2ae3c16e842a3b4c8a6bbd4e5157e
+              expression: 'avg(/bind9 by HTTP-JSON/bind9.nsstats.QryDropped,5m)>{$BIND9.QRYDROPPED.STATUS.WARN}'
+              name: 'BIND: High rate of dropped queries on {HOST.NAME}'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: HIGH
+        - uuid: a379fc2a68d54f3591b1c9302c13be6e
+          name: 'bind9: recused Queries per second'
+          type: DEPENDENT
+          key: bind9.nsstats.recused
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.nsstats.QryRecursion
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: bind9.stats
+          tags:
+            - tag: component
+              value: bind9
+            - tag: component
+              value: nsstats
+          triggers:
+            - uuid: 61ce2677380e472183c2d878c42c3566
+              expression: |
+                avg(/bind9 by HTTP-JSON/bind9.nsstats.recused,10m)>{$BIND9.RECUSED.STATUS.WARN}
+                or
+                avg(/bind9 by HTTP-JSON/bind9.nsstats.recused,10m)<{$BIND9.RECUSED.STATUS.OK}
+              name: 'BIND: Unusual recursion rate on {HOST.NAME}'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: WARNING
+        - uuid: c57bd056cfdd4c9784a16e7f8656c5f5
+          name: 'bind9: SERVFAIL Queries per second'
+          type: DEPENDENT
+          key: bind9.nsstats.SERVFAIL
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.nsstats.QrySERVFAIL
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: bind9.stats
+          tags:
+            - tag: component
+              value: bind9
+            - tag: component
+              value: nsstats
+          triggers:
+            - uuid: c3d45771cbbf412ea7ff86bb00089793
+              expression: 'avg(/bind9 by HTTP-JSON/bind9.nsstats.SERVFAIL,5m)>{$BIND9.SERVFAIL.STATUS.CRIT}'
+              name: 'BIND: High rate of SERVFAILs on {HOST.NAME}'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: HIGH
+        - uuid: 500e86136937426fa688ebc2e53f80f5
+          name: 'bind9: IPv4 queries per second'
+          type: DEPENDENT
+          key: bind9.nsstats.v4queries
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.nsstats.Requestv4
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: bind9.stats
+          tags:
+            - tag: component
+              value: bind9
+            - tag: component
+              value: nsstats
+          triggers:
+            - uuid: 6621ac3382ea4e08989155d6b87768f5
+              expression: |
+                (avg(/bind9 by HTTP-JSON/bind9.nsstats.v4queries,5m)/avg(/bind9 by HTTP-JSON/bind9.nsstats.v4queries,30m))<{$BIND9.V4QUERIES.STATUS.WARN}
+                and
+                avg(/bind9 by HTTP-JSON/bind9.nsstats.v4queries,5m)>0
+              name: 'IND: IPv4 query rate dropped significantly over 5m on {HOST.NAME}'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: HIGH
+        - uuid: 30b03a8452e94dd086e68bd1ff34aadf
+          name: 'bind9 stats'
+          type: HTTP_AGENT
+          key: bind9.stats
+          delay: 2m
+          history: 1h
+          value_type: TEXT
+          trends: '0'
+          url: 'http://{HOST.IP}:{$BIND9_STAT_PORT}/json'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 4bb578c87fd1464dbe0f3f9b5b2d4160
+              expression: 'nodata(/bind9 by HTTP-JSON/bind9.stats,10m)=1'
+              name: 'Failed to get bind9 data for 10m'
+              priority: WARNING
+              manual_close: 'YES'
+      discovery_rules:
+        - uuid: f2526f2cd2764532882c58723a03dfb2
+          name: 'nsstats discovery'
+          type: DEPENDENT
+          key: bind9.nsstats.discover
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#BIND9_CATEGORY}'
+                value: QryDropped
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+              - macro: '{#BIND9_CATEGORY}'
+                value: QryRecursion
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#BIND9_CATEGORY}'
+                value: QrySERVFAIL
+                operator: NOT_MATCHES_REGEX
+                formulaid: C
+              - macro: '{#BIND9_CATEGORY}'
+                value: Requestv4
+                operator: NOT_MATCHES_REGEX
+                formulaid: D
+          description: 'discovery improtant bind9 rcodes'
+          item_prototypes:
+            - uuid: 6506aad700644825a313ae6fa3658b0a
+              name: 'bind9 nsstats: {#BIND9_CATEGORY} per second'
+              type: DEPENDENT
+              key: 'bind9.nsstats[{#BIND9_CATEGORY}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.nsstats.{#BIND9_CATEGORY}'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 30m
+              master_item:
+                key: bind9.stats
+              tags:
+                - tag: components
+                  value: bind9
+                - tag: components
+                  value: nsstats
+          master_item:
+            key: bind9.stats
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.nsstats
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  //parsing bind9 statistics output: 
+                  output = Object.keys(JSON.parse(value)).map(function(cat){
+                       return {"{#BIND9_CATEGORY}": cat} }) 
+                  
+                  return JSON.stringify({"data": output})
+        - uuid: 6ae09bdd09f449e1b60272d8df8bad0e
+          name: 'qtypes discovery'
+          type: DEPENDENT
+          key: bind9.qtypes.discover
+          delay: '0'
+          description: 'discovery improtant bind9 rcodes'
+          item_prototypes:
+            - uuid: d137d89c86e846c09f24763dea36d9b7
+              name: 'bind9 qtypes: {#BIND9_CATEGORY} per second'
+              type: DEPENDENT
+              key: 'bind9.qtypes[{#BIND9_CATEGORY}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.qtypes.{#BIND9_CATEGORY}'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 30m
+              master_item:
+                key: bind9.stats
+              tags:
+                - tag: components
+                  value: bind9
+                - tag: components
+                  value: qtypes
+          master_item:
+            key: bind9.stats
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.qtypes
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  //parsing bind9 statistics output: 
+                  output = Object.keys(JSON.parse(value)).map(function(cat){
+                       return {"{#BIND9_CATEGORY}": cat} }) 
+                  
+                  return JSON.stringify({"data": output})
+        - uuid: 59f7702735e04ad5b176999b3e3e2231
+          name: 'rcode discovery'
+          type: DEPENDENT
+          key: bind9.rcode.discover
+          delay: '0'
+          description: 'discovery improtant bind9 rcodes'
+          item_prototypes:
+            - uuid: 7eab0041f433424ca8498af88353292b
+              name: 'bind9 rcode: {#BIND9_CATEGORY} per second'
+              type: DEPENDENT
+              key: 'bind9.rcode[{#BIND9_CATEGORY}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rcodes.{#BIND9_CATEGORY}'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 30m
+              master_item:
+                key: bind9.stats
+              tags:
+                - tag: components
+                  value: bind9
+                - tag: components
+                  value: rcode
+          master_item:
+            key: bind9.stats
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rcodes
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  //parsing bind9 statistics output: 
+                  output = Object.keys(JSON.parse(value)).map(function(cat){
+                       return {"{#BIND9_CATEGORY}": cat} }) 
+                  
+                  return JSON.stringify({"data": output})
+        - uuid: 0a006490742c4e6dad57f905eb907eb5
+          name: 'sockstats discovery'
+          type: DEPENDENT
+          key: bind9.sockstats.discover
+          delay: '0'
+          description: 'discovery improtant bind9 rcodes'
+          item_prototypes:
+            - uuid: 27712e24c5da4b3286daf38b7b2537c5
+              name: 'bind9 sockstats: {#BIND9_CATEGORY} per second'
+              type: DEPENDENT
+              key: 'bind9.sockstats[{#BIND9_CATEGORY}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sockstats.{#BIND9_CATEGORY}'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 30m
+              master_item:
+                key: bind9.stats
+              tags:
+                - tag: components
+                  value: bind9
+                - tag: components
+                  value: sockstats
+          master_item:
+            key: bind9.stats
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sockstats
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  //parsing bind9 statistics output: 
+                  output = Object.keys(JSON.parse(value)).map(function(cat){
+                       return {"{#BIND9_CATEGORY}": cat} }) 
+                  
+                  return JSON.stringify({"data": output})
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: bind9
+      macros:
+        - macro: '{$BIND9.QRYDROPPED.STATUS.WARN}'
+          value: '0'
+        - macro: '{$BIND9.RECUSED.STATUS.OK}'
+          value: '1'
+        - macro: '{$BIND9.RECUSED.STATUS.WARN}'
+          value: '50'
+        - macro: '{$BIND9.SERVFAIL.STATUS.CRIT}'
+          value: '5'
+        - macro: '{$BIND9.V4QUERIES.STATUS.WARN}'
+          value: '0.2'
+        - macro: '{$BIND9_STAT_PORT}'
+          value: '8653'
+

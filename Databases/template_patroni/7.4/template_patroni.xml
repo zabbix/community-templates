@@ -1,0 +1,549 @@
+<?xml version='1.0' encoding='utf-8'?>
+<zabbix_export>
+  <version>7.4</version>
+  <template_groups>
+    <template_group>
+      <uuid>bf535c74071647b8b9da268e5fbe7318</uuid>
+      <name>Patroni</name>
+    </template_group>
+  </template_groups>
+  <templates>
+    <template>
+      <uuid>2bd4859754e5471e855ed409836c6574</uuid>
+      <template>Template App Patroni Cluster monitoring by HTTP</template>
+      <name>Template App Patroni Cluster monitoring by HTTP</name>
+      <description># App Patroni
+
+## Overview
+
+The template to monitor Patroni by Zabbix works without any external scripts.
+It works with both standalone and cluster instances.
+The metrics are collected in one pass remotely using an HTTP agent. 
+They are getting values from REST API `/cluster`. (ref: [Patroni - Cluster status endpoints](https://patroni.readthedocs.io/en/latest/rest_api.html#cluster-status-endpoints))
+
+### Provided monitorings
+
+#### Cluster level
+
+- Cluster Health (=0: Critical, =1: Warning, &gt;=2: Healthy, see detail in item `Patroni cluster status health code` description)
+- Leader, Sync-standby, and Replica node number
+- Timeline consistency between nodes
+
+#### Node level
+
+- Node's host, port, role, timeline, lag
+- Node's role change
+
+### Usage
+
+- Please modify the macro `{$PATRONI.API.HOSTNAME}` to point to your Patroni cluster hostname.
+- Maybe you might modify the macro `{$PATRONI.API.PORT}` and `{$PATRONI.API.SCHEME}`, too.
+
+### Note
+
+- The status check item's interval is as short as possible to report problems immediately(default: `{$PATRONI.API.STATUS_CHECK_INTERVAL}`: 30s), but the history would be discarded with a long-term heartbeat(default: `{$PATRONI.API.STATUS_DISCARD_UNCHANGED_INTERVAL}`: 1h)
+- The config check item is disabled as default. Re-enable it if necessary.
+
+## Author
+
+LukaFaltis (Updated for Zabbix 7.4)</description>
+      <groups>
+        <group>
+          <name>Patroni</name>
+        </group>
+      </groups>
+      <items>
+        <item>
+          <uuid>876173b9e46e46df90d51dd7c1033bef</uuid>
+          <name>Get Patroni cluster config</name>
+          <type>HTTP_AGENT</type>
+          <key>patroni.endpoint.cluster.config</key>
+          <trends>0</trends>
+          <status>DISABLED</status>
+          <value_type>TEXT</value_type>
+          <preprocessing>
+            <step>
+              <type>DISCARD_UNCHANGED_HEARTBEAT</type>
+              <parameters>
+                <parameter>{$PATRONI.API.CONFIG_DISCARD_UNCHANGED_INTERVAL}</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <url>{$PATRONI.API.SCHEME}://{$PATRONI.API.HOSTNAME}:{$PATRONI.API.PORT}/config</url>
+        </item>
+        <item>
+          <uuid>17873fc6c455484fa8a3bf8794551266</uuid>
+          <name>Get Patroni cluster status</name>
+          <type>HTTP_AGENT</type>
+          <key>patroni.endpoint.cluster.status</key>
+          <delay>{$PATRONI.API.STATUS_CHECK_INTERVAL}</delay>
+          <history>0</history>
+          <trends>0</trends>
+          <value_type>TEXT</value_type>
+          <url>{$PATRONI.API.SCHEME}://{$PATRONI.API.HOSTNAME}:{$PATRONI.API.PORT}/cluster</url>
+        </item>
+        <item>
+          <uuid>0ee83edcd5564e13987e03ce472d4fbe</uuid>
+          <name>Patroni cluster status health code</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.health_code</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <description>The number is the Patroni cluster status health:
+
+"&gt;=2": HEALTHY, 1 leader node + 1+ sync_standby node
+"=1": WARNING, 1 leader node + 0 sync_standby node
+"=0": CRITICAL, 0 leader node</description>
+          <preprocessing>
+            <step>
+              <type>JAVASCRIPT</type>
+              <parameters>
+                <parameter>var params = JSON.parse(value);
+var members = params.members;
+var leader_num = 0;
+var syncstandby_num = 0;
+if (!members || members.length === 0) {
+  return 0; // CRITICAL if no members info
+}
+for(var i = 0; i &lt; members.length; i++){
+  var role = members[i].role;
+  switch(role) {
+    case 'leader':
+      leader_num++;
+      break;
+    case 'sync_standby':
+      syncstandby_num++;
+      break;
+  }
+}
+return leader_num * (syncstandby_num + 1);</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+          <triggers>
+            <trigger>
+              <uuid>198a0f506622428fb5d635cf2a1e4a0c</uuid>
+              <expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.health_code)=0</expression>
+              <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+              <recovery_expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.health_code)&gt;0</recovery_expression>
+              <name>Patroni Cluster Status: CRITICAL (without any leader node)</name>
+              <priority>HIGH</priority>
+              <description>0 leader nodes.</description>
+            </trigger>
+            <trigger>
+              <uuid>9661d5b1b1434840a3bdf14ef170a113</uuid>
+              <expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.health_code)=1</expression>
+              <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+              <recovery_expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.health_code)&gt;=2</recovery_expression>
+              <name>Patroni Cluster Status: WARNING (without any sync_standby node)</name>
+              <priority>WARNING</priority>
+              <description>1 leader and 0 sync_standby nodes.</description>
+            </trigger>
+          </triggers>
+        </item>
+        <item>
+          <uuid>f86916e04bab4693b0cf12d9f26040fd</uuid>
+          <name>Patroni cluster status json data</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.json_data</key>
+          <delay>0</delay>
+          <value_type>TEXT</value_type>
+          <preprocessing>
+            <step>
+              <type>DISCARD_UNCHANGED_HEARTBEAT</type>
+              <parameters>
+                <parameter>{$PATRONI.API.STATUS_DISCARD_UNCHANGED_INTERVAL}</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status</key>
+          </master_item>
+        </item>
+        <item>
+          <uuid>354ebb8275734bb58f601677aefb0996</uuid>
+          <name>Patroni cluster leader number</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.leader.num</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <preprocessing>
+            <step>
+              <type>JSONPATH</type>
+              <parameters>
+                <parameter>$.members[*].role</parameter>
+              </parameters>
+            </step>
+            <step>
+              <type>REGEX</type>
+              <parameters>
+                <parameter>leader
+1</parameter>
+              </parameters>
+              <error_handler>CUSTOM_VALUE</error_handler>
+              <error_handler_params>0</error_handler_params>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+        </item>
+        <item>
+          <uuid>9110b960bd154fe481ea97e0ddf3bcf6</uuid>
+          <name>Patroni cluster pause mode</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.pause_mode</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <description>Check if the Patroni cluster is paused.
+
+"0": RESUMED
+"1": PAUSED</description>
+          <preprocessing>
+            <step>
+              <type>JSONPATH</type>
+              <parameters>
+                <parameter>$.pause</parameter>
+              </parameters>
+              <error_handler>CUSTOM_VALUE</error_handler>
+              <error_handler_params>false</error_handler_params>
+            </step>
+            <step>
+              <type>REGEX</type>
+              <parameters>
+                <parameter>true
+1</parameter>
+              </parameters>
+              <error_handler>CUSTOM_VALUE</error_handler>
+              <error_handler_params>0</error_handler_params>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+          <triggers>
+            <trigger>
+              <uuid>3f97e094422144f0be89399c98bea51b</uuid>
+              <expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.pause_mode)=1</expression>
+              <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+              <recovery_expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.pause_mode)=0</recovery_expression>
+              <name>Patroni cluster is PAUSED</name>
+              <priority>WARNING</priority>
+            </trigger>
+          </triggers>
+        </item>
+        <item>
+          <uuid>9e19b8eefca7472c9395a2b29749578a</uuid>
+          <name>Patroni cluster replica number</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.replica.num</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <preprocessing>
+            <step>
+              <type>JSONPATH</type>
+              <parameters>
+                <parameter>$.members[*].role</parameter>
+              </parameters>
+            </step>
+            <step>
+              <type>REGEX</type>
+              <parameters>
+                <parameter>replica
+1</parameter>
+              </parameters>
+              <error_handler>CUSTOM_VALUE</error_handler>
+              <error_handler_params>0</error_handler_params>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+        </item>
+        <item>
+          <uuid>3afbab30f202480698fd0787ae4e4bea</uuid>
+          <name>Patroni cluster status responsiveness</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.responsiveness</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <description>Check the responsiveness of Patroni API.
+
+if has any response then record 1.</description>
+          <preprocessing>
+            <step>
+              <type>REGEX</type>
+              <parameters>
+                <parameter>.*
+1</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status</key>
+          </master_item>
+          <triggers>
+            <trigger>
+              <uuid>ceb3a3ea15584e448dc177e0fbb36229</uuid>
+              <expression>nodata(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.responsiveness,{$PATRONI.API.STATUS_NO_RESPONSE_THRESHOLD})=1</expression>
+              <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+              <recovery_expression>nodata(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.responsiveness,{$PATRONI.API.STATUS_NO_RESPONSE_THRESHOLD})=0</recovery_expression>
+              <name>Patroni cluster: NO RESPONSE in {$PATRONI.API.STATUS_NO_RESPONSE_THRESHOLD}</name>
+              <priority>HIGH</priority>
+            </trigger>
+          </triggers>
+        </item>
+        <item>
+          <uuid>33565a4c5ad04a9298eb0202b253565e</uuid>
+          <name>Patroni cluster sync_standby number</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.syncstandby.num</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <preprocessing>
+            <step>
+              <type>JSONPATH</type>
+              <parameters>
+                <parameter>$.members[*].role</parameter>
+              </parameters>
+            </step>
+            <step>
+              <type>REGEX</type>
+              <parameters>
+                <parameter>sync_standby
+1</parameter>
+              </parameters>
+              <error_handler>CUSTOM_VALUE</error_handler>
+              <error_handler_params>0</error_handler_params>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+        </item>
+        <item>
+          <uuid>ca1a0083dffb4eb48bd31331b7cc2720</uuid>
+          <name>Patroni cluster status timeline consistency</name>
+          <type>DEPENDENT</type>
+          <key>patroni.endpoint.cluster.status.timeline_consistency</key>
+          <delay>0</delay>
+          <value_type>UNSIGNED</value_type>
+          <description>The number is the Patroni cluster timeline consistency:
+
+"=1": inconsistency, some nodes have different timelines
+"=0": consistency, all nodes have the same timeline</description>
+          <preprocessing>
+            <step>
+              <type>JAVASCRIPT</type>
+              <parameters>
+                <parameter>var params = JSON.parse(value);
+var members = params.members;
+if (!members || members.length === 0) {
+  // If no members, consider it consistent or a different issue (no data for members)
+  // Returning 0 (consistent) to avoid false positives on this specific check.
+  // Other checks (like node count) should catch empty member list.
+  return 0; 
+}
+var compare_timeline = members[0].timeline;
+for(var i = 1; i &lt; members.length; i++){
+  if(compare_timeline != members[i].timeline){
+    return 1; // inconsistency
+  }
+}
+return 0; // consistency</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <master_item>
+            <key>patroni.endpoint.cluster.status.json_data</key>
+          </master_item>
+          <triggers>
+            <trigger>
+              <uuid>8181bb54b6ba4986b8949db8c8d06f30</uuid>
+              <expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.timeline_consistency)=1</expression>
+              <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+              <recovery_expression>last(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.status.timeline_consistency)=0</recovery_expression>
+              <name>Patroni cluster: Some nodes have different timelines</name>
+              <priority>WARNING</priority>
+            </trigger>
+          </triggers>
+        </item>
+      </items>
+      <discovery_rules>
+        <discovery_rule>
+          <uuid>753b92584b444918b8d9c5e13773a552</uuid>
+          <name>Patroni server discovery</name>
+          <type>HTTP_AGENT</type>
+          <key>patroni.server.discovery</key>
+          <delay>{$PATRONI.API.STATUS_CHECK_INTERVAL}</delay>
+          <item_prototypes>
+            <item_prototype>
+              <uuid>33ecea660e5e474da2d2d0f85ac4aeca</uuid>
+              <name>Patroni node: {#SERVER} host</name>
+              <type>DEPENDENT</type>
+              <key>patroni.endpoint.cluster.member.host[{#SERVER}]</key>
+              <delay>0</delay>
+              <trends>0</trends>
+              <value_type>TEXT</value_type>
+              <preprocessing>
+                <step>
+                  <type>JSONPATH</type>
+                  <parameters>
+                    <parameter>$.members[?(@.name=='{#SERVER}')].host.first()</parameter>
+                  </parameters>
+                </step>
+              </preprocessing>
+              <master_item>
+                <key>patroni.endpoint.cluster.status.json_data</key>
+              </master_item>
+            </item_prototype>
+            <item_prototype>
+              <uuid>0dff04025a814c6492c2cde54432fc48</uuid>
+              <name>Patroni node: {#SERVER} lag</name>
+              <type>DEPENDENT</type>
+              <key>patroni.endpoint.cluster.member.lag[{#SERVER}]</key>
+              <delay>0</delay>
+              <value_type>FLOAT</value_type>
+              <units>B</units>
+              <preprocessing>
+                <step>
+                  <type>JSONPATH</type>
+                  <parameters>
+                    <parameter>$.members[?(@.name=='{#SERVER}')].lag.first()</parameter>
+                  </parameters>
+                  <error_handler>CUSTOM_VALUE</error_handler>
+                  <error_handler_params>0</error_handler_params>
+                </step>
+              </preprocessing>
+              <master_item>
+                <key>patroni.endpoint.cluster.status.json_data</key>
+              </master_item>
+            </item_prototype>
+            <item_prototype>
+              <uuid>197a1afd382841c6918da112d35d4475</uuid>
+              <name>Patroni node: {#SERVER} port</name>
+              <type>DEPENDENT</type>
+              <key>patroni.endpoint.cluster.member.port[{#SERVER}]</key>
+              <delay>0</delay>
+              <value_type>UNSIGNED</value_type>
+              <preprocessing>
+                <step>
+                  <type>JSONPATH</type>
+                  <parameters>
+                    <parameter>$.members[?(@.name=='{#SERVER}')].port.first()</parameter>
+                  </parameters>
+                </step>
+              </preprocessing>
+              <master_item>
+                <key>patroni.endpoint.cluster.status.json_data</key>
+              </master_item>
+            </item_prototype>
+            <item_prototype>
+              <uuid>0f958dc9f6cb429baadf72e63c61af3a</uuid>
+              <name>Patroni node: {#SERVER} role</name>
+              <type>DEPENDENT</type>
+              <key>patroni.endpoint.cluster.member.role[{#SERVER}]</key>
+              <delay>0</delay>
+              <trends>0</trends>
+              <value_type>TEXT</value_type>
+              <preprocessing>
+                <step>
+                  <type>JSONPATH</type>
+                  <parameters>
+                    <parameter>$.members[?(@.name=='{#SERVER}')].role.first()</parameter>
+                  </parameters>
+                </step>
+              </preprocessing>
+              <master_item>
+                <key>patroni.endpoint.cluster.status.json_data</key>
+              </master_item>
+              <trigger_prototypes>
+                <trigger_prototype>
+                  <uuid>6cc346e12da14963ac4918273445f36a</uuid>
+                  <expression>change(/Template App Patroni Cluster monitoring by HTTP/patroni.endpoint.cluster.member.role[{#SERVER}])&lt;&gt;0</expression>
+                  <name>Patroni node: {#SERVER} role changed</name>
+                  <priority>WARNING</priority>
+                  <manual_close>YES</manual_close>
+                </trigger_prototype>
+              </trigger_prototypes>
+            </item_prototype>
+            <item_prototype>
+              <uuid>594fec6872b84931914b53d85a68d93a</uuid>
+              <name>Patroni node: {#SERVER} timeline</name>
+              <type>DEPENDENT</type>
+              <key>patroni.endpoint.cluster.member.timeline[{#SERVER}]</key>
+              <delay>0</delay>
+              <value_type>UNSIGNED</value_type>
+              <preprocessing>
+                <step>
+                  <type>JSONPATH</type>
+                  <parameters>
+                    <parameter>$.members[?(@.name=='{#SERVER}')].timeline.first()</parameter>
+                  </parameters>
+                </step>
+              </preprocessing>
+              <master_item>
+                <key>patroni.endpoint.cluster.status.json_data</key>
+              </master_item>
+            </item_prototype>
+          </item_prototypes>
+          <url>{$PATRONI.API.SCHEME}://{$PATRONI.API.HOSTNAME}:{$PATRONI.API.PORT}/cluster</url>
+          <lld_macro_paths>
+            <lld_macro_path>
+              <lld_macro>{#SERVER}</lld_macro>
+              <path>$.name</path>
+            </lld_macro_path>
+          </lld_macro_paths>
+          <preprocessing>
+            <step>
+              <type>JSONPATH</type>
+              <parameters>
+                <parameter>$.members[*]</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+        </discovery_rule>
+      </discovery_rules>
+      <macros>
+        <macro>
+          <macro>{$PATRONI.API.CONFIG_DISCARD_UNCHANGED_INTERVAL}</macro>
+          <value>1d</value>
+          <description>The interval would discard config record if no changed.</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.HOSTNAME}</macro>
+          <value>127.0.0.1</value>
+          <description>Patroni cluster API hostname.</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.PORT}</macro>
+          <value>8008</value>
+          <description>Patroni cluster API port.</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.SCHEME}</macro>
+          <value>http</value>
+          <description>Patroni API scheme (http or https).</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.STATUS_DISCARD_UNCHANGED_INTERVAL}</macro>
+          <value>1h</value>
+          <description>The interval would discard status record if no changed.</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.STATUS_CHECK_INTERVAL}</macro>
+          <value>30s</value>
+          <description>Patroni status check interval.</description>
+        </macro>
+        <macro>
+          <macro>{$PATRONI.API.STATUS_NO_RESPONSE_THRESHOLD}</macro>
+          <value>60s</value>
+          <description>Patroni status check no response threshold, must be &gt; {$PATRONI.API.STATUS_CHECK_INTERVAL}.</description>
+        </macro>
+      </macros>
+    </template>
+  </templates>
+</zabbix_export>
