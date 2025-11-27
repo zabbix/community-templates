@@ -17,7 +17,7 @@ Registers 97–150 are implemented as Modbus items via Zabbix agent 2 `modbus.ge
 
 ## Requirements
 
-Zabbix version: **7.4 and higher**. :contentReference[oaicite:1]{index=1}  
+Zabbix version: **7.4 and higher**.
 
 The following is required on the Zabbix side:
 
@@ -172,7 +172,7 @@ The template defines the following valuemap:
 
 |Name|Mapping|
 |----|-------|
-|UPS alarm state|`0 → OK`, `1 → Alarm`| :contentReference[oaicite:5]{index=5}  
+|UPS alarm state|`0 → OK`, `1 → Alarm`| 
 
 
 ## Template tags
@@ -181,7 +181,7 @@ The template is tagged as follows:
 
 - `class: ups`
 - `protocol: modbus`
-- `type: cs141` :contentReference[oaicite:6]{index=6}  
+- `type: cs141`
 
 
 ## Feedback
