@@ -7,7 +7,6 @@ The template focuses on two logical parts of the device:
 - **PDU-Controller** – CMC III controller health, system status and inventory.
 - **PDU-SWI** – switched PDU module: electrical measurements (I/U/P/E, cos φ) and socket states, including per-phase auto-discovery.
 
-Template version: 1.0  
 Zabbix version: 7.4+  
 Template group: `Templates/Power`  
 Template name: `Rittal PDU 7979 by SNMP`  
