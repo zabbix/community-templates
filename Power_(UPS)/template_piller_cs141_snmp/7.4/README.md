@@ -12,15 +12,16 @@ The template focuses on:
 - **Input frequency** per phase.
 - **Internal UPS temperature**.
 - **Identification** data (manufacturer, model, firmware, agent version, location, contact, etc.).
-- **Alarm monitoring** via:
+- **Status and alarms**, including:
   - `upsAlarmsPresent` (counter of active alarms),
+  - `upsOutputSource.0` (UPS output source) with value map and dedicated triggers per state,
   - a dedicated virtual flag for `UPS-MIB::upsAlarmBatteryTooOld` (“Battery too old” alarm).
 
 The template uses **symbolic OIDs from `UPS-MIB`** (for example `UPS-MIB::upsInputVoltage.1`).  
 To make this work reliably, the standard OS `UPS-MIB` **must be replaced** by the vendor MIB that ships with this template (see *MIB installation* below).
 
 > **Note:** Some objects defined in the MIB are **optional**.  
-> Depending on the CS141 firmware version and UPS model, certain items may stay `UNSUPPORTED` (for example `upsSerialNumber`, some alarm-related objects, AUX ports, SensorManager values, etc.). This is normal behaviour and does **not** mean the template is broken.
+> Depending on the CS141 firmware version and UPS model, certain items may stay `UNSUPPORTED` (for example `upsSerialNumber`, some alarm-related objects, AUX ports, SensorManager values, specific `upsOutputSource` states, etc.). This is normal behaviour and does **not** mean the template is broken.
 
 ---
 
@@ -136,8 +137,8 @@ To fix this you must:
 | `{$UPS_BATT_VOLT_MAX}` | Maximal allowed battery voltage (V). | `300` |
 | `{$UPS_ON_BAT_SEC_WARN}` | Time on battery before raising a **warning** (seconds). | `60` |
 | `{$UPS_ON_BAT_SEC_CRIT}` | Time on battery before raising a **high** severity alert (seconds). | `300` |
-| `{$UPS_ALARMS_WARN}` | Warning threshold for minimal allowed warnings. | `2` |
-| `{$UPS_ALARMS_CRIT}` | Warning threshold for minimal allowed warnings. | `3` |
+| `{$UPS_ALARMS_WARN}` | Warning threshold for minimal allowed active alarms. | `2` |
+| `{$UPS_ALARMS_CRIT}` | Critical threshold for minimal allowed active alarms. | `3` |
 
 ---
 
@@ -174,6 +175,7 @@ The template defines **47 items**. The most important groups are:
 - **UPS battery status** – `upsBatteryStatus.0` (valuemap: Unknown/Normal/Low/Depleted)
 - **Remaining runtime** – `upsEstimatedMinutesRemaining.0` (min)
 - **Seconds on battery** – `upsSecondsOnBattery.0` (s) – used with `{$UPS_ON_BAT_SEC_*}`.
+- **Alarm: Battery too old (SNMP flag)** – calculated item `ups.alarm.battery_too_old` returning `1` when `UPS-MIB::upsAlarmBatteryTooOld` is present in the active alarms set, `0` otherwise.
 
 ### Frequencies and temperature
 
@@ -182,10 +184,9 @@ The template defines **47 items**. The most important groups are:
 
 ### Status and alarms
 
-- **UPS status raw / output source** – `upsOutputSource.0` and related state items.
+- **UPS status raw / output source** – `upsOutputSource.0` with value map **“UPS output source (SNMP)”**, human-readable states: `other`, `none`, `normal`, `bypass`, `battery`, `booster`, `reducer`.
 - **UPS active alarms count** – `upsAlarmsPresent.0`
 - **UPS alarm descriptor [1]** – `UPS-MIB::upsAlarmDescr.1` (text identifier of the first active alarm entry).
-- **Alarm: Battery too old (SNMP flag)** – calculated item `ups.alarm.battery_too_old` returning `1` when `UPS-MIB::upsAlarmBatteryTooOld` is present in the active alarms set, `0` otherwise.
 
 ### AUX ports and SensorManager (optional)
 
@@ -199,7 +200,7 @@ The template defines **47 items**. The most important groups are:
 
 ## Triggers
 
-The template defines **26 triggers**.  
+The template defines a set of triggers covering identification, power quality, battery, status, alarms and communication.  
 Main triggers include:
 
 ### Identification / meta
@@ -232,10 +233,12 @@ Main triggers include:
 ### On-battery / mains state
 
 - **UPS is on battery (warning / high)** – UPS running on battery (`upsOutputSource = battery`) longer than `{$UPS_ON_BAT_SEC_WARN}` / `{$UPS_ON_BAT_SEC_CRIT}`.
+- **UPS output source: other/none/normal/bypass/battery/booster/reducer** – dedicated status triggers based on `ups.status.raw` (UPS-MIB::upsOutputSource.0) value map.  
+  Depending on your policy you can adjust severities or disable specific states (for example `other` or `booster/reducer`) on the template or host level.
 
 ### Alarms and communication
 
-- **UPS has active alarms (warning / high)** – `upsAlarmsPresent` exceeds internal thresholds (warning / high).
+- **UPS has active alarms (warning / high)** – `upsAlarmsPresent` exceeds `{$UPS_ALARMS_WARN}` / `{$UPS_ALARMS_CRIT}`.
 - **No SNMP data from UPS (10m)** – `nodata()` safeguard on one of the core items.
 
 ### AUX ports
@@ -252,6 +255,7 @@ The template defines the following value maps:
 |------|---------|
 | **UPS battery status** | `1 → Unknown`, `2 → Normal`, `3 → Low`, `4 → Depleted` |
 | **UPS AUX port state** | `0 → OK`, `1 → Active` |
+| **UPS output source (SNMP)** | `1 → other`, `2 → none`, `3 → normal`, `4 → bypass`, `5 → battery`, `6 → booster`, `7 → reducer` |
 
 ---
 
