@@ -12,16 +12,16 @@ The template focuses on:
 - **Input frequency** per phase.
 - **Internal UPS temperature**.
 - **Identification** data (manufacturer, model, firmware, agent version, location, contact, etc.).
-- **Alarm monitoring** via:
+- **Status and alarms**, including:
   - `upsAlarmsPresent` (counter of active alarms),
-  - discovery over `upsAlarmTable`.
-- Optional **AUX ports** and **SensorManager** support (if implemented by the CS141 firmware).
+  - `upsOutputSource.0` (UPS output source) with value map and dedicated triggers per state,
+  - a dedicated virtual flag for `UPS-MIB::upsAlarmBatteryTooOld` (“Battery too old” alarm).
 
 The template uses **symbolic OIDs from `UPS-MIB`** (for example `UPS-MIB::upsInputVoltage.1`).  
 To make this work reliably, the standard OS `UPS-MIB` **must be replaced** by the vendor MIB that ships with this template (see *MIB installation* below).
 
 > **Note:** Some objects defined in the MIB are **optional**.  
-> Depending on the CS141 firmware version and UPS model, certain items may stay `UNSUPPORTED` (for example `upsSerialNumber`, some alarm types, AUX ports, SensorManager values, etc.). This is normal behaviour and does **not** mean the template is broken.
+> Depending on the CS141 firmware version and UPS model, certain items may stay `UNSUPPORTED` (for example `upsSerialNumber`, some alarm-related objects, AUX ports, SensorManager values, specific `upsOutputSource` states, etc.). This is normal behaviour and does **not** mean the template is broken.
 
 ---
 
@@ -64,8 +64,7 @@ To fix this you must:
    Find and move the original file so that net-snmp does not load it anymore, for example:
 
    ```bash
-   sudo mv /usr/share/snmp/mibs/UPS-MIB.txt \
-           /usr/share/snmp/mibs/UPS-MIB.txt.disabled
+   sudo mv /usr/share/snmp/mibs/UPS-MIB.txt            /usr/share/snmp/mibs/UPS-MIB.txt.disabled
    ```
 
 3. **Configure net-snmp to load the vendor UPS-MIB**
@@ -131,7 +130,6 @@ To fix this you must:
 | `{$UPS_INPUT_FREQ_CRIT_DEV}` | Allowed input frequency deviation for **critical** level (Hz). | `3` |
 | `{$UPS_TEMP_MAX}` | Maximum allowed internal UPS temperature (°C). | `40` |
 | `{$UPS_BATT_CAP_WARN}` | Battery capacity threshold for low capacity warning (%). | `30` |
-| `{$UPS_BATT_CAP_CRIT}` | Battery capacity threshold for critical (depleted) condition (%). | `15` |
 | `{$UPS_RUNTIME_MIN_WARN}` | Remaining runtime in minutes at or below which a warning is raised. | `10` |
 | `{$UPS_LOAD_WARN}` | Per-phase apparent load at or above which a **high load** warning is raised (%). | `85` |
 | `{$UPS_LOAD_CRIT}` | Per-phase apparent load at or above which a **critical overload** is raised (%). | `95` |
@@ -139,6 +137,8 @@ To fix this you must:
 | `{$UPS_BATT_VOLT_MAX}` | Maximal allowed battery voltage (V). | `300` |
 | `{$UPS_ON_BAT_SEC_WARN}` | Time on battery before raising a **warning** (seconds). | `60` |
 | `{$UPS_ON_BAT_SEC_CRIT}` | Time on battery before raising a **high** severity alert (seconds). | `300` |
+| `{$UPS_ALARMS_WARN}` | Warning threshold for minimal allowed active alarms. | `2` |
+| `{$UPS_ALARMS_CRIT}` | Critical threshold for minimal allowed active alarms. | `3` |
 
 ---
 
@@ -175,6 +175,7 @@ The template defines **47 items**. The most important groups are:
 - **UPS battery status** – `upsBatteryStatus.0` (valuemap: Unknown/Normal/Low/Depleted)
 - **Remaining runtime** – `upsEstimatedMinutesRemaining.0` (min)
 - **Seconds on battery** – `upsSecondsOnBattery.0` (s) – used with `{$UPS_ON_BAT_SEC_*}`.
+- **Alarm: Battery too old (SNMP flag)** – calculated item `ups.alarm.battery_too_old` returning `1` when `UPS-MIB::upsAlarmBatteryTooOld` is present in the active alarms set, `0` otherwise.
 
 ### Frequencies and temperature
 
@@ -183,11 +184,9 @@ The template defines **47 items**. The most important groups are:
 
 ### Status and alarms
 
-- **UPS status raw / output source** – `upsOutputSource.0` and related state items.
+- **UPS status raw / output source** – `upsOutputSource.0` with value map **“UPS output source (SNMP)”**, human-readable states: `other`, `none`, `normal`, `bypass`, `battery`, `booster`, `reducer`.
 - **UPS active alarms count** – `upsAlarmsPresent.0`
-- **Discovery: UPS alarms** – based on `upsAlarmTable`:
-  - `upsAlarmId`
-  - `upsAlarmDescr` → item prototype `ups.alarm.descr[{#UPS_ALARM_ID}]`.
+- **UPS alarm descriptor [1]** – `UPS-MIB::upsAlarmDescr.1` (text identifier of the first active alarm entry).
 
 ### AUX ports and SensorManager (optional)
 
@@ -201,7 +200,7 @@ The template defines **47 items**. The most important groups are:
 
 ## Triggers
 
-The template defines **25 triggers**.  
+The template defines a set of triggers covering identification, power quality, battery, status, alarms and communication.  
 Main triggers include:
 
 ### Identification / meta
@@ -225,6 +224,7 @@ Main triggers include:
 - **UPS battery status: LOW / DEPLETED** – based on `upsBatteryStatus.0` valuemap (3 / 4).
 - **UPS runtime is low** – remaining runtime ≤ `{$UPS_RUNTIME_MIN_WARN}` minutes.
 - **UPS battery voltage out of range** – outside `{$UPS_BATT_VOLT_MIN}`–`{$UPS_BATT_VOLT_MAX}`.
+- **UPS alarm: Battery too old (SNMP)** – based on calculated item `ups.alarm.battery_too_old` (1 = alarm active).
 
 ### Temperature
 
@@ -233,10 +233,12 @@ Main triggers include:
 ### On-battery / mains state
 
 - **UPS is on battery (warning / high)** – UPS running on battery (`upsOutputSource = battery`) longer than `{$UPS_ON_BAT_SEC_WARN}` / `{$UPS_ON_BAT_SEC_CRIT}`.
+- **UPS output source: other/none/normal/bypass/battery/booster/reducer** – dedicated status triggers based on `ups.status.raw` (UPS-MIB::upsOutputSource.0) value map.  
+  Depending on your policy you can adjust severities or disable specific states (for example `other` or `booster/reducer`) on the template or host level.
 
 ### Alarms and communication
 
-- **UPS has active alarms (warning / high)** – `upsAlarmsPresent` exceeds internal thresholds (1 / 3 by default).
+- **UPS has active alarms (warning / high)** – `upsAlarmsPresent` exceeds `{$UPS_ALARMS_WARN}` / `{$UPS_ALARMS_CRIT}`.
 - **No SNMP data from UPS (10m)** – `nodata()` safeguard on one of the core items.
 
 ### AUX ports
@@ -253,6 +255,7 @@ The template defines the following value maps:
 |------|---------|
 | **UPS battery status** | `1 → Unknown`, `2 → Normal`, `3 → Low`, `4 → Depleted` |
 | **UPS AUX port state** | `0 → OK`, `1 → Active` |
+| **UPS output source (SNMP)** | `1 → other`, `2 → none`, `3 → normal`, `4 → bypass`, `5 → battery`, `6 → booster`, `7 → reducer` |
 
 ---
 
