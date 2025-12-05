@@ -14,7 +14,7 @@ The template focuses on:
 - **Identification** data (manufacturer, model, firmware, agent version, location, contact, etc.).
 - **Alarm monitoring** via:
   - `upsAlarmsPresent` (counter of active alarms),
-  - discovery over `upsAlarmTable` with one trigger per active alarm row.
+  - discovery over `upsAlarmTable`.
 - Optional **AUX ports** and **SensorManager** support (if implemented by the CS141 firmware).
 
 The template uses **symbolic OIDs from `UPS-MIB`** (for example `UPS-MIB::upsInputVoltage.1`).  
@@ -201,7 +201,7 @@ The template defines **47 items**. The most important groups are:
 
 ## Triggers
 
-The template defines **25 triggers** plus **1 trigger prototype** for `upsAlarmTable`.  
+The template defines **25 triggers**.  
 Main triggers include:
 
 ### Identification / meta
@@ -242,16 +242,6 @@ Main triggers include:
 ### AUX ports
 
 - **UPS AUX Port N active** – `auxPortN = 1` for ports 1–4.
-
-### LLD-based alarm triggers
-
-Discovery rule **“UPS alarms discovery”** creates one problem per active alarm row in `upsAlarmTable`:
-
-- Trigger prototype:  
-  **`UPS alarm active: {#UPS_ALARM_DESCR} ({#UPS_ALARM_ID})`** – WARNING
-
-As long as the row is present in `upsAlarmTable`, the trigger is in PROBLEM.  
-When the alarm disappears, discovery deletes the corresponding entity and the problem is automatically resolved.
 
 ---
 
