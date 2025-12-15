@@ -61,7 +61,6 @@ These macros allow customization of thresholds and discovery filters. You can ov
 | `{$TEMP.SENSOR.STATUS.CRIT:"overheatCritical"}` | <p>The critical value of the Temp Sensor state for trigger expression.</p> | `4` |
 | `{$TEMP.SENSOR.STATUS.OK}` | <p>The OK status of the Temp Sensor for trigger expression.</p> | `1` |
 
-## Template Items
 
 ### Static Items
 
@@ -92,16 +91,16 @@ These macros allow customization of thresholds and discovery filters. You can ov
 | DataDomain: System object ID | SNMPv2-MIB::sysObjectID<br>Vendor's authoritative identification | SNMP agent | system.objectid[sysObjectID.0] | Update: 15m<br>Discard unchanged (1h)<br>Tag: Application=General |
 | DataDomain: SNMP agent availability | Internal item checking SNMP availability | Internal | zabbix[host,snmp,available] | Tag: Application=Status |
 
-## Template Triggers (Static Items)
+## Triggers (Static Items)
 
-| Name | Description | Expression | Severity | Dependencies | Additional Info |
-|------|-------------|------------|----------|--------------|-----------------|
-| File System Status is not in optimal state | Check File System | last(/DELL PowerProtect DataDomain SNMP/dell.dd.fs.status[fileSystemStatus])<>3 | Warning | None | Manual close: YES<br>Tag: scope=availability |
-| DataDomain: Device has been replaced | Device serial number has changed. Ack to close | last(...serialnumber,#1)<>last(...serialnumber,#2) and length(last(...serialnumber))>0 | Information | None | Manual close: YES<br>Tag: scope=notice |
-| DataDomain: System Version has changed | System version has changed. Ack to close. | last(...systemVersion,#1)<>last(...systemVersion,#2) and length(last(...systemVersion))>0 | Information | None | Manual close: YES<br>Tag: scope=notice |
-| DataDomain: System name has changed | The name of the system has changed. Acknowledge to close the problem manually. | last(/.../system.name,#1)<>last(/.../system.name,#2) and length(last(...system.name))>0 | Information | None | Manual close: YES<br>Tags: scope=notice, security |
-| DataDomain: No SNMP data collection | SNMP is not available for polling. Please check device connectivity and SNMP settings. | max(/.../zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0 | Warning | None | Tag: scope=availability |
-| DataDomain: Host has been restarted | Uptime is less than 10 minutes. | (last(hw.uptime)>0 and last(hw.uptime)<10m) or (last(hw.uptime)=0 and last(net.uptime)<10m) | Warning | None | Manual close: YES<br>Tag: scope=notice |
+| Name | Description | Expression | Severity | Dependencies and additional info |
+|------|-------------|------------|----------|---------------------------------|
+| File System Status is not in optimal state | Check File System | last(/DELL PowerProtect DataDomain SNMP/dell.dd.fs.status[fileSystemStatus])<>3 | Warning | Manual close: YES<br>Opdata: Current state: {ITEM.LASTVALUE1}<br>Tag: scope=availability |
+| DataDomain: Device has been replaced | Device serial number has changed. Ack to close | last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.serialnumber[systemSerialNumber],#1)<>last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.serialnumber[systemSerialNumber],#2) and length(last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.serialnumber[systemSerialNumber]))>0 | Information | Event name: DataDomain: Device has been replaced (new serial number received)<br>Manual close: YES<br>Tag: scope=notice |
+| DataDomain: System Version has changed | System version has changed. Ack to close. | last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.version[systemVersion],#1)<>last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.version[systemVersion],#2) and length(last(/DELL PowerProtect DataDomain SNMP/dell.dd.sys.version[systemVersion]))>0 | Information | Opdata: Current value: {ITEM.LASTVALUE1}<br>Manual close: YES<br>Tag: scope=notice |
+| DataDomain: System name has changed | The name of the system has changed. Acknowledge to close the problem manually. | last(/DELL PowerProtect DataDomain SNMP/system.name,#1)<>last(/DELL PowerProtect DataDomain SNMP/system.name,#2) and length(last(/DELL PowerProtect DataDomain SNMP/system.name))>0 | Information | Event name: DataDomain: System name has changed (new name: {ITEM.VALUE})<br>Manual close: YES<br>Tags: scope=notice, scope=security |
+| DataDomain: No SNMP data collection | SNMP is not available for polling. Please check device connectivity and SNMP settings. | max(/DELL PowerProtect DataDomain SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0 | Warning | Opdata: Current state: {ITEM.LASTVALUE1}<br>Tag: scope=availability |
+| DataDomain: Host has been restarted | Uptime is less than 10 minutes. | (last(/DELL PowerProtect DataDomain SNMP/dell.dd.system.hw.uptime[hrSystemUptime.0])>0 and last(/DELL PowerProtect DataDomain SNMP/dell.dd.system.hw.uptime[hrSystemUptime.0])<10m) or (last(/DELL PowerProtect DataDomain SNMP/dell.dd.system.hw.uptime[hrSystemUptime.0])=0 and last(/DELL PowerProtect DataDomain SNMP/dell.dd.system.net.uptime[sysUpTime.0])<10m) | Warning | Event name: DataDomain: {HOST.NAME} has been restarted (uptime < 10m)<br>Manual close: YES<br>Tag: scope=notice |
 
 ## Discovery Rules
 
@@ -332,3 +331,4 @@ The template uses Low-Level Discovery (LLD) to automatically create items and tr
 |------|-------------|------------|----------|---------------------------------|
 | "{#TEMP_DESCR}" of Enclosure {#TEMP_ENCLOSUREID} is in critical status | Please check the device for faults. | last(/DELL PowerProtect DataDomain SNMP/dell.dd.temp.status[tempSensorStatus.{#SNMPINDEX}])={$TEMP.SENSOR.STATUS.CRIT:"overheatCritical"} or last(/DELL PowerProtect DataDomain SNMP/dell.dd.temp.status[tempSensorStatus.{#SNMPINDEX}])={$TEMP.SENSOR.STATUS.CRIT:"failed"} | Average | Manual close: YES<br>Tag: scope=availability |
 | "{#TEMP_DESCR}" of Enclosure {#TEMP_ENCLOSUREID} is not in optimal status | Please check the device for faults. | last(/DELL PowerProtect DataDomain SNMP/dell.dd.temp.status[tempSensorStatus.{#SNMPINDEX}])<>{$TEMP.SENSOR.STATUS.OK} | Warning | Manual close: YES<br>Dependency: critical status<br>Tag: scope=availability |
+
