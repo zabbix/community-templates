@@ -193,7 +193,7 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           trends: '0'
-          timeout: 3s
+          timeout: 30s
           url: '{$XOA.URL}/rest/v0/hosts/{$XOA.HOST.UUID}/missing_patches'
           headers:
             - name: Cookie
@@ -246,7 +246,7 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           trends: '0'
-          timeout: 3s
+          timeout: 30s
           url: '{$XOA.URL}/rest/v0/hosts/{$XOA.HOST.UUID}'
           headers:
             - name: Cookie
@@ -307,6 +307,21 @@ zabbix_export:
                 - 1h
           master_item:
             key: xoa.host.raw
+        - uuid: 5e1c4c147f4d468eb7002c335ce83357
+          name: 'XCP-NG HOSTS: Get Stats'
+          type: HTTP_AGENT
+          key: xoa.host.stats.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          timeout: 30s
+          url: '{$XOA.URL}/rest/v0/hosts/{$XOA.HOST.UUID}/stats'
+          headers:
+            - name: Cookie
+              value: 'authenticationToken={$XOA.AUTH.TOKEN}'
+            - name: Accept
+              value: application/json
         - uuid: dab4f3b69f5141048e914d87ed23dd69
           name: 'Number of Missing Patches'
           type: DEPENDENT
@@ -324,12 +339,85 @@ zabbix_export:
               expression: 'last(/XCP-NG Host via Xen Orchestra/xoa.hosts.missingpatches.count)>{$XOA.HOST.MISSING.PATCHES.MAX}'
               name: 'Number of {$XOA.HOST.MISSING.PATCHES.MAX} missing patches exceeded'
               priority: WARNING
+      discovery_rules:
+        - uuid: a677aa05843c4b9aa336d8163e3202d6
+          name: 'CPU usage per core discovery'
+          type: DEPENDENT
+          key: xoa.host.stats.cpu.discovery
+          delay: '0'
+          lifetime: 1d
+          item_prototypes:
+            - uuid: dbedb6c005e64c2297763b9494b4db70
+              name: 'CPU Core {#CORE} usage'
+              type: DEPENDENT
+              key: 'xoa.host.stats.cpu.usage[{#CORE}]'
+              delay: '0'
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.stats.cpus.{#CORE}.[118]'
+              master_item:
+                key: xoa.host.stats.raw
+              tags:
+                - tag: component
+                  value: stats
+                - tag: target
+                  value: cpu
+              trigger_prototypes:
+                - uuid: 8d5e3654f4ef471a92b6ed4f5cb63538
+                  expression: 'min(/XCP-NG Host via Xen Orchestra/xoa.host.stats.cpu.usage[{#CORE}],10m)>{$CPU.USAGE.CRIT}'
+                  name: 'CPU {#CORE} usage exceeds {$CPU.USAGE.CRIT}% for more than 10 minutes'
+                  priority: HIGH
+                  tags:
+                    - tag: target
+                      value: usage
+                - uuid: 6d4c3a9b6f1846358d543d119d72f066
+                  expression: 'min(/XCP-NG Host via Xen Orchestra/xoa.host.stats.cpu.usage[{#CORE}],10m)>{$CPU.USAGE.WARN}'
+                  name: 'CPU {#CORE} usage exceeds {$CPU.USAGE.WARN}% for more than 10 minutes'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'CPU {#CORE} usage exceeds {$CPU.USAGE.CRIT}% for more than 10 minutes'
+                      expression: 'min(/XCP-NG Host via Xen Orchestra/xoa.host.stats.cpu.usage[{#CORE}],10m)>{$CPU.USAGE.CRIT}'
+                  tags:
+                    - tag: target
+                      value: usage
+          master_item:
+            key: xoa.host.stats.raw
+          lld_macro_paths:
+            - lld_macro: '{#CORE}'
+              path: $.core
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.stats
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var stats = JSON.parse(value)
+                  var cpu_list = stats.cpus
+                  var count = 0
+                  var output = []
+                  for (var cpu in cpu_list){
+                    if (cpu_list.hasOwnProperty(cpu)){
+                      output.push({'core': count})
+                      count++
+                    }
+                  }
+
+                  return JSON.stringify(output)
       tags:
         - tag: component
           value: hypervisor
         - tag: target
           value: xcp-ng
       macros:
+        - macro: '{$CPU.USAGE.CRIT}'
+          value: '90'
+          description: 'High serverity trigger when CPU usage exceeds this value'
+        - macro: '{$CPU.USAGE.WARN}'
+          value: '80'
+          description: 'Warning when CPU usage exceeds this value'
         - macro: '{$XOA.AUTH.TOKEN}'
           value: CHANGE_IF_NEEDED
           description: 'Authentication Token generated on XOA UI'
@@ -450,6 +538,9 @@ zabbix_export:
                 - $.managementAgentDetected
           master_item:
             key: xoa.vms.raw
+          tags:
+            - tag: component
+              value: agent
           triggers:
             - uuid: 90dd8a29cfc3457aabb35ce8527683d4
               expression: 'last(/XCP-NG VM via Xen Orchestra/xoa.vm.management.agent)="false"'
@@ -469,6 +560,11 @@ zabbix_export:
                 - $.memory.size
           master_item:
             key: xoa.vms.raw
+          tags:
+            - tag: component
+              value: stats
+            - tag: target
+              value: memory
         - uuid: c319917b771c46afbf2fdacf217216d1
           name: 'Virtualization mode'
           type: DEPENDENT
@@ -594,6 +690,54 @@ zabbix_export:
                 - 1h
           master_item:
             key: xoa.vms.raw
+        - uuid: 23912f95c51c408d93df365b8ed34af6
+          name: 'CPU usage'
+          type: DEPENDENT
+          key: xoa.vm.stats.cpu
+          delay: '0'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.stats.cpuUsage.[118]'
+          master_item:
+            key: xoa.vms.stats.raw
+          tags:
+            - tag: component
+              value: stats
+            - tag: target
+              value: cpu
+          triggers:
+            - uuid: a35c8d5dd00f4cf4b70b30d01b9cfdd0
+              expression: 'min(/XCP-NG VM via Xen Orchestra/xoa.vm.stats.cpu,10m)>{$CPU.USAGE.CRIT}'
+              name: 'CPU usage exceeds {$CPU.USAGE.CRIT}% for 10 minutes'
+              priority: HIGH
+            - uuid: caac759e66cb42bbb33aa9ec55300420
+              expression: 'min(/XCP-NG VM via Xen Orchestra/xoa.vm.stats.cpu,10m)>{$CPU.USAGE.WARN}'
+              name: 'CPU usage exceeds {$CPU.USAGE.WARN}% for 10 minutes'
+              priority: WARNING
+              dependencies:
+                - name: 'CPU usage exceeds {$CPU.USAGE.CRIT}% for 10 minutes'
+                  expression: 'min(/XCP-NG VM via Xen Orchestra/xoa.vm.stats.cpu,10m)>{$CPU.USAGE.CRIT}'
+        - uuid: e68694d77df24850964b6c3b10c7f6ec
+          name: 'Memory Free'
+          type: DEPENDENT
+          key: xoa.vm.stats.memory.free
+          delay: '0'
+          history: 90d
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.stats.memoryFree.[0]'
+          master_item:
+            key: xoa.vms.stats.raw
+          tags:
+            - tag: component
+              value: stats
+            - tag: target
+              value: memory
         - uuid: cb8d4b3b8a0442c2aa48853c6ab45af3
           name: 'Xen Tool Version'
           type: DEPENDENT
@@ -619,8 +763,23 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           trends: '0'
-          timeout: 3s
+          timeout: 30s
           url: '{$XOA.URL}/rest/v0/vms/{$XOA.VM.UUID}'
+          headers:
+            - name: Cookie
+              value: 'authenticationToken={$XOA.AUTH.TOKEN}'
+            - name: Accept
+              value: application/json
+        - uuid: aef9ff097d644603acad1a4f4bfd24e6
+          name: 'XCP-NG VMS: Get Stats'
+          type: HTTP_AGENT
+          key: xoa.vms.stats.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          timeout: 30s
+          url: '{$XOA.URL}/rest/v0/vms/{$XOA.VM.UUID}/stats'
           headers:
             - name: Cookie
               value: 'authenticationToken={$XOA.AUTH.TOKEN}'
@@ -632,6 +791,12 @@ zabbix_export:
         - tag: target
           value: guests
       macros:
+        - macro: '{$CPU.USAGE.CRIT}'
+          value: '90'
+          description: 'High trigger when CPU usage exceeds this value'
+        - macro: '{$CPU.USAGE.WARN}'
+          value: '80'
+          description: 'Warning when CPU usage exceeds this value'
         - macro: '{$XOA.AUTH.TOKEN}'
           value: CHANGE_IF_NEEDED
           description: 'Authentication Token generated on XOA UI'
@@ -658,6 +823,25 @@ zabbix_export:
       name: 'Xen Orchestra by HTTP'
       groups:
         - name: Templates
+      items:
+        - uuid: 7142b4ff9e2a454989ac2457d9b75ff3
+          name: 'Check XenOrchestra API availability'
+          type: SIMPLE
+          key: 'net.tcp.service["http{{$XOA.URL}.iregsub(\"^http(.):\/\/\",\1)}","{{$XOA.URL}.iregsub(\":\/\/([^:]+)\",\1)}","{{$XOA.URL}.iregsub(\":\/\/[^:]+:([0-9]+)\",\1)}"]'
+          delay: 5m
+          valuemap:
+            name: 'XOA Port availability'
+          tags:
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 800be5a22d0f4d6c813338a839effade
+              expression: 'last(/Xen Orchestra by HTTP/net.tcp.service["http{{$XOA.URL}.iregsub(\"^http(.):\/\/\",\1)}","{{$XOA.URL}.iregsub(\":\/\/([^:]+)\",\1)}","{{$XOA.URL}.iregsub(\":\/\/[^:]+:([0-9]+)\",\1)}"])=0'
+              name: 'XenOrchestra API is unavailable'
+              priority: WARNING
+              tags:
+                - tag: target
+                  value: 'xoa api'
       discovery_rules:
         - uuid: 4f543445aeb1465ebb10fe09d895c661
           name: 'Discovery Backups VM'
@@ -673,9 +857,9 @@ zabbix_export:
                 }
                 req.addHeader('Cookie: authenticationToken=' + params.token);
                 var server_url = params.url.endsWith('/') ? params.url.slice(0, -1) : params.url;
-                var response = req.get(encodeURI(server_url + '/rest/v0/backup/jobs/vm'));
+                var response = req.get(encodeURI(server_url + '/rest/v0/backup-jobs'));
             } catch (error) {
-                Zabbix.log(3, "XenOrchestra API fails" + server_url + "/rest/v0/backup/jobs/vm Error: " + error);
+                Zabbix.log(3, "XenOrchestra API fails" + server_url + "/rest/v0/backup-jobs Error: " + error);
                 if (!Number.isInteger(error)) {
                     return 520;
                 }
@@ -771,9 +955,9 @@ zabbix_export:
                     var req = new HttpRequest();
                     req.addHeader("Cookie: authenticationToken=" + params.token);
                     var server_url = params.url.endsWith("/") ? params.url.slice(0, -1) : params.url;
-                    var response = req.get(encodeURI(server_url + "/rest/v0/backup/logs?filter=jobId:" + params.uuid));
+                    var response = req.get(encodeURI(server_url + "/rest/v0/backup-logs?filter=jobId:" + params.uuid));
                     if (!response) {
-                        Zabbix.log(3, "XenOrchestra API Error: Empty response for URL " + server_url + "/rest/v0/backup/logs?filter=jobId:" + params.uuid);
+                        Zabbix.log(3, "XenOrchestra API Error: Empty response for URL " + server_url + "/rest/v0/backup-logs?filter=jobId:" + params.uuid);
                         return 501;
                     }
                     var backupLogUrls = JSON.parse(response);
@@ -785,7 +969,7 @@ zabbix_export:
                     Zabbix.log(3, "XenOrchestra API Error: " + error);
                     return 503;
                 }
-                
+
                 try {
                     var logUrl = backupLogUrls[backupLogUrls.length - 1];
                     var resp = req.get(encodeURI(server_url + logUrl));
@@ -880,7 +1064,7 @@ zabbix_export:
                   tags:
                     - tag: scope
                       value: vm
-          timeout: 3s
+          timeout: 30s
           parameters:
             - name: proxy
               value: '{$XOA.PROXY.URL}'
@@ -953,7 +1137,7 @@ zabbix_export:
                   value: Hypervisors
                 - tag: target
                   value: XCP-NG
-          timeout: 3s
+          timeout: 30s
           parameters:
             - name: proxy
               value: '{$XOA.PROXY.URL}'
@@ -1111,7 +1295,7 @@ zabbix_export:
               history: '0'
               value_type: TEXT
               trends: '0'
-              timeout: 3s
+              timeout: 30s
               url: '{$XOA.URL}{#POOL.URL}'
               headers:
                 - name: Cookie
@@ -1121,7 +1305,7 @@ zabbix_export:
               tags:
                 - tag: component
                   value: raw
-          timeout: 3s
+          timeout: 30s
           parameters:
             - name: proxy
               value: '{$XOA.PROXY.URL}'
@@ -1229,7 +1413,7 @@ zabbix_export:
               history: '0'
               value_type: TEXT
               trends: '0'
-              timeout: 3s
+              timeout: 30s
               url: '{$XOA.URL}{#SR.URL}'
               headers:
                 - name: Cookie
@@ -1351,7 +1535,7 @@ zabbix_export:
                   value: storage
                 - tag: repository
                   value: '{#SR.NAME}'
-          timeout: 3s
+          timeout: 30s
           parameters:
             - name: proxy
               value: '{$XOA.PROXY.URL}'
@@ -1405,6 +1589,7 @@ zabbix_export:
             conditions:
               - macro: '{#VMS.NAME}'
                 value: '{$XOA.VM.IGNORE}'
+                operator: NOT_MATCHES_REGEX
                 formulaid: A
           lifetime: 1d
           enabled_lifetime_type: DISABLE_NEVER
@@ -1429,7 +1614,7 @@ zabbix_export:
                   value: hypervisor
                 - tag: target
                   value: guest
-          timeout: 3s
+          timeout: 30s
           parameters:
             - name: proxy
               value: '{$XOA.PROXY.URL}'
@@ -1457,7 +1642,6 @@ zabbix_export:
           steps:
             - name: 'Check Token Validity'
               url: '{$XOA.URL}/rest/v0'
-              follow_redirects: 'NO'
               status_codes: '200'
       tags:
         - tag: component
@@ -1468,9 +1652,6 @@ zabbix_export:
         - macro: '{$XEN.SR.IGNORE}'
           value: '^(DVD drives|XCP-ng Tools|Removable storage)$'
           description: 'Do not discover following SRs'
-        - macro: '{$XEN.VM.IGNORE}'
-          value: '.*\[Importing.*'
-          description: 'Do not discover VMs containing Strings included in this regexp'
         - macro: '{$XOA.AUTH.TOKEN}'
           value: ADD_TOKEN_HERE
           description: 'Authentication Token generated on XOA UI'
@@ -1480,6 +1661,9 @@ zabbix_export:
         - macro: '{$XOA.PROXY.URL}'
           value: CHANGE_IF_NEEDED
           description: 'URL for a Proxy if used to reach XOA'
+        - macro: '{$XOA.RESPONSE.TIME.SLOW}'
+          value: '3'
+          description: 'Response time in seconds to trigger slow message'
         - macro: '{$XOA.SR.THRESHOLD.CRIT}'
           value: '95'
           description: 'Critical threshold for SR usage'
@@ -1489,6 +1673,9 @@ zabbix_export:
         - macro: '{$XOA.URL}'
           value: CHANGE
           description: 'URL where XOA can be reached'
+        - macro: '{$XOA.VM.IGNORE}'
+          value: '.*\[Importing.*'
+          description: 'Do not discover VMs containing Strings included in this regexp'
       valuemaps:
         - uuid: 0ec95555cba645f796a21bdece34349c
           name: 'XOA Boolean'
@@ -1497,4 +1684,38 @@ zabbix_export:
               newvalue: 'true'
             - value: '0'
               newvalue: 'false'
-
+        - uuid: 0196b186bcdf44ff8c56197f03fd7a83
+          name: 'XOA Port availability'
+          mappings:
+            - value: '0'
+              newvalue: down
+            - value: '1'
+              newvalue: up
+  triggers:
+    - uuid: 728078ed899548faa3736110abb9d69e
+      expression: 'last(/Xen Orchestra by HTTP/web.test.rspcode[Check Token Validity,Check Token Validity])=401'
+      recovery_mode: RECOVERY_EXPRESSION
+      recovery_expression: 'last(/Xen Orchestra by HTTP/web.test.rspcode[Check Token Validity,Check Token Validity])=200'
+      name: 'Authentication Token for XenOrchestra is invalid'
+      priority: HIGH
+      tags:
+        - tag: target
+          value: authorization
+    - uuid: f8aac01765c34373af70b7a0bc8aeb74
+      expression: 'length(last(/Xen Orchestra by HTTP/web.test.error[Check Token Validity]))>0 and last(/Xen Orchestra by HTTP/web.test.fail[Check Token Validity])>0'
+      name: 'XenOrchestra API error occured: {ITEM.VALUE}'
+      priority: HIGH
+      dependencies:
+        - name: 'Authentication Token for XenOrchestra is invalid'
+          expression: 'last(/Xen Orchestra by HTTP/web.test.rspcode[Check Token Validity,Check Token Validity])=401'
+          recovery_expression: 'last(/Xen Orchestra by HTTP/web.test.rspcode[Check Token Validity,Check Token Validity])=200'
+      tags:
+        - tag: target
+          value: availability
+    - uuid: a712319ead444d38acef78639c6cebd4
+      expression: 'last(/Xen Orchestra by HTTP/web.test.time[Check Token Validity,Check Token Validity,resp])>={$XOA.RESPONSE.TIME.SLOW}'
+      name: 'XenOrchestra API is slow. Response time > {$XOA.RESPONSE.TIME.SLOW}s'
+      priority: WARNING
+      tags:
+        - tag: target
+          value: performance
