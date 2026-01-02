@@ -65,5 +65,5 @@ Use "Linux by SNMP template" to monitor the OS.
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
-|Trunk {#TRUNKNAME} not registered||high|
-|Process {#PROCESSNAME} crashed||high|
+|Trunk {#TRUNKNAME} not registered|||high|
+|Process {#PROCESSNAME} crashed|||high|
