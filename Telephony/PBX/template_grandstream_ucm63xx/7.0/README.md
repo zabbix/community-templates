@@ -31,7 +31,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Requirements
 
-The GS-SNMP-MIB or GS-UCM63XX-SNMP-MIB mib file needs to be installed. See https://www.grandstream.com/support/tools.
+The GS-UCM63XX-SNMP-MIB mib file needs to be installed. See https://www.grandstream.com/support/tools.
 
 ## Macros used
 
