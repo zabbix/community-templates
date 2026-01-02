@@ -31,7 +31,8 @@ Create new media types
    7. `{ALERT.MESSAGE}` - zabbix macros are used, do not modify (recommended)
    8. `{EVENT.TAGS}` - zabbix macros are used, do not modify (recommended)
    9. `{ITEM.ID}` - zabbix macros are used, do not modify (recommended)
-   10. set the default value "**1**" or any value that all messages that do not have the tag: `**MessageThreadId**`, will be sent in the topic with the indicated cheat ID. (Ex: `-100123456789_1`, set the value after the _ character)
+   10. set the default value "**1**" or any value that all messages that do not have the tag: `**MessageThreadId**` , will be sent in the topic with the indicated cheat ID. (Ex: `-100123456789_1`, set the value after the _ character)
+       - NOTE: *you can edit your desired tag in this line* `if key.startswith('MessageThreadId')`
 ![image](https://github.com/user-attachments/assets/3bd80a80-a5d2-4796-9a51-308f10432d2c)
 5. Alerts -> Media types -> Message templates (you can create your own template and/or customize it with parameters from zabbix) view detail: https://www.zabbix.com/documentation/current/en/manual/config/notifications/media
    1. Message type `Problem`: 
