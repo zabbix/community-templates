@@ -33,6 +33,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 The GS-UCM63XX-SNMP-MIB mib file needs to be installed. See https://www.grandstream.com/support/tools.
 
+Follow your operating system instructions to add additional mib files.
+
 ## Macros used
 
 There are no macros used in this template.
