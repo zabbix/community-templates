@@ -1,0 +1,186 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: b37ab3eddd0448d78277ae5756adc5cd
+      name: Templates/Printers
+  templates:
+    - uuid: aefd318077af43e68788bf7557e22504
+      template: 'Universal Printer Supply Levels by SNMP'
+      name: 'Universal Printer Supply Levels by SNMP'
+      description: |
+        # About
+        As long as your MFP follows the Printer MIB standard, this template will discover all installed "Supplies" in your MFP via SNMP. "Marker Supplies" is the term used in the Printer MIB for toner, ink, and other consumable substances that make a mark on whatever you're printing on.
+        
+        ## What's provided
+        Item prototypes use the "current" and "max" values provided by SNMP to calculate the remaining amount in a percentage.
+        
+        Alert prototypes provide an info-level alert when the "low" threshold is crossed, and a warning-level alert when the "critical" threshold is crossed. These are 5% and 0% by default, and are adjustable with provided macros.
+        
+        ## Additional tweaking
+        Depending on how your printer uses the Supplies table, you may end up with unused or duplicate items discovered. Every discovered item will have its SNMP index as part of the item key (e.g. supply.type.[5] for the supply at SNMP Index 5) - Any indices you wish to filter out of discovery, I've provided macros to do so.
+        
+        You can learn more about the Printer MIB by searching for it on your favorite search engine. It's old, hasn't changed, and is widely used and documented.
+        
+        ## Credits
+        Author: Mick Swanson
+      groups:
+        - name: Templates/Printers
+      items:
+        - uuid: a0d0f0d65c3143fa9b29cd51047c4bf8
+          name: 'ICMP Ping'
+          type: SIMPLE
+          key: icmpping
+          valuemap:
+            name: 'Service State'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: d33434ab97a84b5d90f9e23e376d27a3
+              expression: 'max(/Universal Printer Supply Levels by SNMP/icmpping,#3)=0'
+              name: 'Unavailable by ICMP ping'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 60b3d1a41fb848eeb763a84dc9979d4a
+          name: 'SNMP JSON'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[.1.3.6.1.2.1.43.11.1.1]'
+          key: snmp.walk
+          delay: 15m
+          history: '0'
+          value_type: TEXT
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - 'Supply Type'
+                - .1.3.6.1.2.1.43.11.1.1.6.1
+                - '0'
+                - 'Supply Level'
+                - .1.3.6.1.2.1.43.11.1.1.9.1
+                - '0'
+                - 'Supply Max'
+                - .1.3.6.1.2.1.43.11.1.1.8.1
+                - '0'
+                - 'Supply Index'
+                - .1.3.6.1.2.1.43.11.1.1.3.1
+                - '0'
+          tags:
+            - tag: type
+              value: raw
+      discovery_rules:
+        - uuid: befe941c7ada410ba027558a04b5f5d3
+          name: 'Supply Discovery'
+          type: DEPENDENT
+          key: supply.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SNMPINDEX}'
+                value: '{$SNMPINDEX.MATCHES}'
+              - macro: '{#SNMPINDEX}'
+                value: '{$SNMPINDEX.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#SUPPLY.LEVEL}'
+                value: '^[0-9]*$'
+          item_prototypes:
+            - uuid: f00546d36785405ca13ed814b3e3418a
+              name: 'Remaining Supply: {#SUPPLY.TYPE}'
+              type: DEPENDENT
+              key: 'supply.type.[{#SNMPINDEX}]'
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@[''Supply Type'']=="{#SUPPLY.TYPE}")][''Supply Level'']'
+                - type: RTRIM
+                  parameters:
+                    - '"]'
+                - type: LTRIM
+                  parameters:
+                    - '["'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var max = '{#SUPPLY.MAX}';
+                      return 100 * value / max
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: snmp.walk
+              tags:
+                - tag: component
+                  value: supply
+              trigger_prototypes:
+                - uuid: 147623c6e5ad4907916c06c79cec4498
+                  expression: 'last(/Universal Printer Supply Levels by SNMP/supply.type.[{#SNMPINDEX}])<={$ALERT.CRITICAL.THRESHOLD}'
+                  name: '{#SUPPLY.TYPE} level is Critical'
+                  opdata: 'Critical ({ITEM.LASTVALUE})'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 0fd85001a7eb4e5980940a986fbd398e
+                  expression: 'last(/Universal Printer Supply Levels by SNMP/supply.type.[{#SNMPINDEX}])<={$ALERT.LOW.THRESHOLD}'
+                  name: '{#SUPPLY.TYPE} level is Low'
+                  opdata: 'Remaining: {ITEM.LASTVALUE}'
+                  priority: INFO
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: '{#SUPPLY.TYPE} level is Critical'
+                      expression: 'last(/Universal Printer Supply Levels by SNMP/supply.type.[{#SNMPINDEX}])<={$ALERT.CRITICAL.THRESHOLD}'
+                  tags:
+                    - tag: scope
+                      value: notice
+          graph_prototypes:
+            - uuid: e06a1e25a11a43f4b85ec468fabb0bd7
+              name: 'Supply Levels'
+              yaxismax: '0'
+              graph_items:
+                - color: 199C0D
+                  calc_fnc: ALL
+                  item:
+                    host: 'Universal Printer Supply Levels by SNMP'
+                    key: 'supply.type.[{#SNMPINDEX}]'
+          master_item:
+            key: snmp.walk
+          lld_macro_paths:
+            - lld_macro: '{#SUPPLY.LEVEL}'
+              path: '$.[''Supply Level'']'
+            - lld_macro: '{#SUPPLY.MAX}'
+              path: '$.[''Supply Max'']'
+            - lld_macro: '{#SUPPLY.TYPE}'
+              path: '$.[''Supply Type'']'
+      tags:
+        - tag: class
+          value: hardware
+        - tag: target
+          value: copier
+        - tag: target
+          value: printer
+      macros:
+        - macro: '{$ALERT.CRITICAL.THRESHOLD}'
+          value: '0'
+          description: 'Provides a "Warning" level alert at this percentage remaining.'
+        - macro: '{$ALERT.LOW.THRESHOLD}'
+          value: '5'
+          description: 'Provides an "Info" level alert at this percentage remaining.'
+        - macro: '{$SNMPINDEX.MATCHES}'
+          value: '^.*$'
+          description: 'Used in Supply discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$SNMPINDEX.NOT_MATCHES}'
+          value: '^(?:CHANGE|ME)$'
+          description: 'Used in Supply discovery. Can be overridden on the host or linked template level. Find the SNMP Index by checking the key name of your item. Has to use this format: ^(?:1|2|3)$ where indices 1,2, and 3 will be ignored.'
+      valuemaps:
+        - uuid: a631c9e9fc9c4a60a989d4ff37cbd316
+          name: 'Service State'
+          mappings:
+            - value: '1'
+              newvalue: Up
+            - value: '0'
+              newvalue: Down
