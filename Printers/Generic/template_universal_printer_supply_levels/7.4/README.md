@@ -9,7 +9,7 @@ Item prototypes use the "current" and "max" values provided by SNMP to calculate
 Alert prototypes provide an info-level alert when the "low" threshold is crossed, and a warning-level alert when the "critical" threshold is crossed. These are 5% and 0% by default, and are adjustable with provided macros.
 
 ## Setup
-1. Download `Universal-Printer-Supply-Levels-by-SNMP.yaml`.
+1. Download `template_universal_printer_supply_levels.yaml`.
 2. In Zabbix, go to `Data Collection` -> `Templates` and then `Import` the .yaml with the button in the upper-right.
 3. Create a new Host using an SNMP interface and attach the template.
 4. Adjust Host `Macros` to filter Discovery.
