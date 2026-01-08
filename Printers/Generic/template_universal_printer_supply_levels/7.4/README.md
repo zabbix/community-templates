@@ -11,11 +11,11 @@ Alert prototypes provide an info-level alert when the "low" threshold is crossed
 ## Setup
 1. Download `template_universal_printer_supply_levels.yaml`.
 2. In Zabbix, go to `Data Collection` -> `Templates` and then `Import` the .yaml with the button in the upper-right.
-3. Create a new Host using an SNMP interface and attach the template.
+3. Create a new Host using an SNMP interface and attach the template "**Universal Printer Supply Levels by SNMP"**.
 4. Adjust Host `Macros` to filter Discovery.
 
 ## Additional tweaking
-Depending on how your printer uses the Supplies table, **you very well may end up with unused or duplicate items discovered**. Every discovered item will have its SNMP index as part of the item key (e.g. supply.type.[5] for the supply at SNMP Index 5) - Any indices you wish to filter out of discovery, I've provided macros to do so.
+Depending on how your printer uses the Supplies table, **you very well may end up with unused or duplicate items discovered**. To filter out unwanted entries, it's easiest to discover everything, and use the discovered items as reference. Every discovered item will have its SNMP index as part of the item key (e.g. supply.type.[5] for the supply at SNMP Index 5) - Any indices you wish to filter out of discovery, I've provided macros to do so.
 
 You can learn more about the Printer MIB by searching for it on your favorite search engine. It's old, hasn't changed, and is widely used and documented.
 
