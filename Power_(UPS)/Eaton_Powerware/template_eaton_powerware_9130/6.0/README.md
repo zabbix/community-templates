@@ -4,7 +4,7 @@
 
 This template is adopted version of "Eaton Powerware 9130" by Алексей Пустовалов.
 I add 2 triggers and make 2 fixes to make it work with 9150.
-You may need some old items to add this template to older versions of zabbix. You can download it from oficial zabbix site.
+You may need some old items to add this template to older versions of zabbix. You can download it from official zabbix site.
 
 ## Macros used
 
