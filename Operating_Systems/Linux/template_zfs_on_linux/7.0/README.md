@@ -91,6 +91,14 @@ To install the script:
 |{$ZFS_FSNAME_NOTMATCHES}|<p>Determine datasets to ignore</p>|`([a-z-0-9]{64}$\|[a-z-0-9]{64}-init$)`|Text macro|
 |{$ZPOOL_MAX_SCRUB_INTERVAL}|<p>Allowed time between scrubs (in days)</p>|`40`|Text macro|
 
+### Context-specific macros
+
+It is possible to define context-specific macros for triggers using the `{#FILESETNAME}` or `{#POOLNAME}` context. This allows you to set specific thresholds for individual datasets or pools.
+
+Example:
+- `{$ZFS_AVERAGE_ALERT}`: 80 (Global default)
+- `{$ZFS_AVERAGE_ALERT:"tank/docker"}`: 95 (Specific for `tank/docker` dataset)
+
 ## Template links
 
 There are no template links in this template.
@@ -184,12 +192,12 @@ There are no template links in this template.
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
-|More than {$ZFS_AVERAGE_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > (90/100)</p><p>**Recovery expression**: </p>|average|
-|More than {$ZFS_DISASTER_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > (99/100)</p><p>**Recovery expression**: </p>|disaster|
-|More than {$ZFS_HIGH_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > (95/100)</p><p>**Recovery expression**: </p>|high|
-|More than {$ZPOOL_AVERAGE_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (85/100)</p><p>**Recovery expression**: </p>|average|
-|More than {$ZPOOL_DISASTER_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (99/100)</p><p>**Recovery expression**: </p>|disaster|
-|More than {$ZPOOL_HIGH_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (90/100)</p><p>**Recovery expression**: </p>|high|
+|More than {$ZFS_AVERAGE_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > ({$ZFS_AVERAGE_ALERT:"{#FILESETNAME}"}/100)</p><p>**Recovery expression**: </p>|average|
+|More than {$ZFS_DISASTER_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > ({$ZFS_DISASTER_ALERT:"{#FILESETNAME}"}/100)</p><p>**Recovery expression**: </p>|disaster|
+|More than {$ZFS_HIGH_ALERT}% used on dataset {#FILESETNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#FILESETNAME},used]) ) ) > ({$ZFS_HIGH_ALERT:"{#FILESETNAME}"}/100)</p><p>**Recovery expression**: </p>|high|
+|More than {$ZPOOL_AVERAGE_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > ({$ZPOOL_AVERAGE_ALERT:"{#POOLNAME}"}/100)</p><p>**Recovery expression**: </p>|average|
+|More than {$ZPOOL_DISASTER_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > ({$ZPOOL_DISASTER_ALERT:"{#POOLNAME}"}/100)</p><p>**Recovery expression**: </p>|disaster|
+|More than {$ZPOOL_HIGH_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME}|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > ({$ZPOOL_HIGH_ALERT:"{#POOLNAME}"}/100)</p><p>**Recovery expression**: </p>|high|
 |Zpool {#POOLNAME} is scrubbing for more than 12h on {HOST.NAME}|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub[{#POOLNAME}],12h)=0</p><p>**Recovery expression**: </p>|average|
 |Zpool {#POOLNAME} is scrubbing for more than 24h on {HOST.NAME}|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub[{#POOLNAME}],24h)=0</p><p>**Recovery expression**: </p>|high|
 |Zpool {#POOLNAME} is {ITEM.VALUE} on {HOST.NAME}|<p>-</p>|<p>**Expression**: find(/ZFS on Linux/zfs.zpool.health[{#POOLNAME}],,"like","ONLINE")=0</p><p>**Recovery expression**: </p>|high|
@@ -202,7 +210,7 @@ There are no template links in this template.
 |More than {$ZPOOL_HIGH_ALERT}% used on zpool {#POOLNAME} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) / ( last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},available]) + last(/ZFS on Linux/zfs.get.fsinfo[{#POOLNAME},used]) ) ) > (90/100)</p><p>**Recovery expression**: </p>|high|
 |Zpool {#POOLNAME} is scrubbing for more than 12h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub.status[{#POOLNAME}],12h)=0</p><p>**Recovery expression**: </p>|average|
 |Zpool {#POOLNAME} is scrubbing for more than 24h on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: max(/ZFS on Linux/zfs.zpool.scrub.status[{#POOLNAME}],24h)=0</p><p>**Recovery expression**: </p>|high|
-|Zpool {#POOLNAME} no scrub for over {$ZPOOL_MAX_SCRUB_INTERVAL} days on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: now() - last(/ZFS on Linux/zfs.zpool.scrub.timestamp[{#POOLNAME}],#1) > {$ZPOOL_MAX_SCRUB_INTERVAL} * 1d</p><p>**Recovery expression**: </p>|warning|
+|Zpool {#POOLNAME} no scrub for over {$ZPOOL_MAX_SCRUB_INTERVAL} days on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: now() - last(/ZFS on Linux/zfs.zpool.scrub.timestamp[{#POOLNAME}],#1) > {$ZPOOL_MAX_SCRUB_INTERVAL:"{#POOLNAME}"} * 1d</p><p>**Recovery expression**: </p>|warning|
 |Zpool {#POOLNAME} is resilvering on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: last(/ZFS on Linux/zfs.zpool.resilver.status[{#POOLNAME}])=0</p><p>**Recovery expression**: </p>|warning|
 |Zpool {#POOLNAME} has recently resilvered on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: change(/ZFS on Linux/zfs.zpool.resilver.timestamp[{#POOLNAME}])<>0</p><p>**Recovery expression**: </p>|warning|
 |Zpool {#POOLNAME} is {ITEM.VALUE} on {HOST.NAME} (LLD)|<p>-</p>|<p>**Expression**: find(/ZFS on Linux/zfs.zpool.health[{#POOLNAME}],,"like","ONLINE")=0</p><p>**Recovery expression**: </p>|high|
