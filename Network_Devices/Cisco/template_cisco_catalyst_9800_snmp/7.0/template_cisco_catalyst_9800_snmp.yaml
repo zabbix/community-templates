@@ -4,133 +4,258 @@ zabbix_export:
     - uuid: 7df96b18c230490a9a0a9e2307226333
       name: Templates
   templates:
-    - uuid: 1903846af2b84ce987d390c869593a12
-      template: 'Cisco Catalyst 9800 SNMP'
-      name: 'Cisco Catalyst 9800 SNMP'
+    - uuid: 9ad700221fc44abfbf487472afa7ade9
+      template: 'Cisco Catalyst 9800 RESTCONF'
+      name: 'Cisco Catalyst 9800 RESTCONF'
       description: |
-        Zabbix template for Cisco Catalyst 9800 series wireless controller.
-        Needs IOS-XE 17.11 or later software image to get some of the SNMP MIBs on this template.
-        Tested on IOS-XE 17.12.4 and Zabbix 7.0.1 LTS.
+        Zabbix Template for Cisco Catalyst 9800 Series Wireless Controller
         
-        This template focuses on wireless-related statuses like AP association, AP channel, or wireless client per SSID.
-        Use the "Cisco IOS by SNMP" template to get general IOS-XE statuses like CPU utilization, memory usage, or interface status.
+        OVERVIEW
+        This template adopts a hybrid approach, leveraging RESTCONF for efficient, high-performance data collection while retaining SNMP Traps for real-time alerting.
+        This design addresses performance issues often observed with SNMPv3 encryption by offloading statistical data retrieval to the lightweight RESTCONF API.
         
-        This template uses OID and Standard MIB. No need to install vendor MIBs.
-        AIRESPACE-REF-MIB.my
-        AIRESPACE-WIRELESS-CAPABILITY.my
-        AIRESPACE-WIRELESS-MIB.my
-        CISCO-LWAPP-AP-MIB.my
-        CISCO-LWAPP-DOT11-MIB.my
-        CISCO-LWAPP-RF-MIB.my
-        CISCO-LWAPP-TC-MIB.my
-        CISCO-LWAPP-WLAN-MIB.my
-        CISCO-SMI.my
-        CISCO-TC.my
-        ENTITY-MIB.my
-        Please refer to the below MIBs for what information OID can take.
-        https://github.com/cisco/cisco-mibs
+        KEY FEATURES
+        - Performance & Security: Utilizes RESTCONF (HTTP Agent) for efficient data retrieval over HTTPS.
+        - High Availability (HA) Monitoring: Tracks SSO status, peer state (Standby Hot), and switchover reasons.
+        - Mobility Monitoring: Tracks mobility tunnel status and group members.
+        - Smart AP Radio Discovery: Dynamically detects and maps radio slots to their actual frequency bands (2.4GHz / 5GHz / 6GHz), supporting XOR radios and Wi-Fi 6E.
+        - WLAN/SSID Statistics: Monitors client counts per SSID.
+        - Rogue Monitoring: Tracks total counts of Rogue APs and clients.
+        - Hybrid Alerting: Uses SNMP Traps for real-time events (DFS Radar, AP Disassociation) while using RESTCONF for metrics.
         
-        ## Author
+        REQUIREMENTS
+        - Device: Cisco Catalyst 9800 Series (IOS XE 16.10 or later recommended)
+        - Configuration: "restconf" and "ip http secure-server" must be enabled
+        - Zabbix: Version 7.0 or later
+        
+        SETUP
+        1. Enable RESTCONF on the WLC.
+        2. Set the {$RESTCONF.USER} and {$RESTCONF.PASS} macros.
+        3. Ensure the host interface is configured correctly for connection.
+        
+        NOTE
+        While this template monitors WLC-specific resources, it is recommended to use the standard "Cisco IOS by SNMP" template for monitoring physical network interfaces.
+        
+        ## AUTHOR
         Hideaki Shimomura @hshimomura
       groups:
         - name: Templates
       items:
-        - uuid: dd2ff6f63c9d40d5b61ee3a6d42cd864
-          name: 'Rogue AP Count'
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#ROGUEAP},1.3.6.1.4.1.14179.2.1.7.1.1]'
-          key: bsnRogueAPEntry
-          delay: 15m
-          history: 90d
-          description: |
-            AIRESPACE-WIRELESS-MIB::bsnRogueAPDot11MacAddress
-            Count # of RogueAP
+        - uuid: 3f28c62f21984934811c6cff974c7465
+          name: 'Total Joined AP Count'
+          type: HTTP_AGENT
+          key: cisco.ap.total
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-rogue-oper:rogue-oper-data/rogue-stats/total-client-count'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var obj = JSON.parse(value);
-                  // Return the number of rows in the array
-                  return obj.length;
-          tags:
-            - tag: component
-              value: network
-        - uuid: 936063a57ef54d5597883906df8486bf
-          name: 'Rogue Client Count'
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#ROGUECLIENT},1.3.6.1.4.1.14179.2.1.14.1.1]'
-          key: bsnRogueClientEntry
-          delay: 15m
-          history: 90d
-          description: |
-            AIRESPACE-WIRELESS-MIB::bsnRogueClientDot11MacAddress
-            Count # of RogueClient
+                - '$.[''Cisco-IOS-XE-wireless-access-point-oper:ap-name-mac-map''].length()'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/ap-name-mac-map'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: 27c818b04850469a8290434c7ce1b17c
+          name: 'HA Local State'
+          type: DEPENDENT
+          key: cisco.ha.local.state
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var obj = JSON.parse(value);
-                  // Return the number of rows in the array
-                  return obj.length;
-          tags:
-            - tag: component
-              value: network
-        - uuid: af4c43cb6b9d4be19345fa58a6ffcb58
-          name: 'Inventory - Current Number of AP'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.513.1.3.35.0
-          key: cLApGlobalAPConnectCount
-          history: 90d
-          description: 'CISCO-LWAPP-AP-MIB::cLApGlobalAPConnectCount.0'
-          tags:
-            - tag: Application
-              value: Inventory
-        - uuid: c28ec71ee39045c7aa6214bd4c7a03b3
-          name: 'Inventory - Number of APs Supported'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.513.1.3.28.0
-          key: cLApGlobalMaxApsSupported
-          delay: 1h
-          history: 90d
-          description: 'CISCO-LWAPP-AP-MIB::cLApGlobalMaxApsSupported.0'
-          tags:
-            - tag: Application
-              value: Inventory
-        - uuid: c57d7bbeb4ad4eb390c7eaa4bc639f05
-          name: 'HA Peer Hotstandby Status'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.843.1.3.4.0
-          key: cLHaPeerHotStandbyEvent
-          history: 90d
-          description: 'CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent'
-          valuemap:
-            name: 'CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent'
-          tags:
-            - tag: component
-              value: network
+                - '$.[''Cisco-IOS-XE-ha-oper:ha-infra''][''ha-state'']'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - '86400'
+          master_item:
+            key: cisco.ha.stats.master
+        - uuid: 9ac4e07ae4e54d18b41c47f56e114f8b
+          name: 'HA Peer State'
+          type: DEPENDENT
+          key: cisco.ha.peer.state
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''Cisco-IOS-XE-ha-oper:ha-infra''][''peer-state'']'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - '86400'
+          master_item:
+            key: cisco.ha.stats.master
           triggers:
-            - uuid: ee2b5e036c8d45d298b504b0e09bbe59
-              expression: 'change(/Cisco Catalyst 9800 SNMP/cLHaPeerHotStandbyEvent)<>0'
-              name: 'HA Peer Hotstandby status changed'
-              priority: WARNING
-              description: 'Track CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent'
+            - uuid: e8428fb3f86748b4bacce1449d49209b
+              expression: 'last(/Cisco Catalyst 9800 RESTCONF/cisco.ha.peer.state) <> "db-rf-standby-hot"'
+              name: 'HA Peer is NOT Standby Hot (Risk of HA Failure)'
+              priority: HIGH
+              description: 'The peer is not in the ''Standby Hot'' state (e.g., Disabled, Unknown, Standby Cold). Proper failover may not be possible in the event of a failure'
               manual_close: 'YES'
-        - uuid: 719ce1427daf4b8d8731b4b3bfa6b3cc
+        - uuid: 6f9a21d2d228432bbe89ca85c3ef36b9
+          name: 'WLC HA Stats Master'
+          type: HTTP_AGENT
+          key: cisco.ha.stats.master
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-ha-oper:ha-oper-data/ha-infra'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-ha-oper:ha-oper-data/ha-infra'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: 25200264ec524ea0b6831a671fc98888
+          name: 'HA Last Switchover Reason'
+          type: DEPENDENT
+          key: cisco.ha.switchover.reason
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''Cisco-IOS-XE-ha-oper:ha-infra''][''last-switchover-reason'']'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - '86400'
+          master_item:
+            key: cisco.ha.stats.master
+        - uuid: 14ae264ac128429f936f4e6cb8140c3e
+          name: 'WLC RRM Stats Master'
+          type: HTTP_AGENT
+          key: cisco.iosxe.rrm.master
+          delay: 3m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-rrm-oper:rrm-oper-data/rrm-measurement'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-rrm-oper:rrm-oper-data/rrm-measurement'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: 3b0d822db8db4c8b9e99238232d73b9e
+          name: 'WLC Mobility Stats Master'
+          type: HTTP_AGENT
+          key: cisco.mobility.stats.master
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-mobility-oper:mobility-node-data'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-mobility-oper:mobility-oper-data/mobility-node-data'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: ae57fd378e9b4871880cf8426a4d9dee
+          name: 'WLC Radio Config Master'
+          type: HTTP_AGENT
+          key: cisco.radio.cfg.master
+          delay: 15m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/radio-oper-data'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/radio-oper-data'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: 3596528aa4d1489d80c6d2e09b2d780f
+          name: 'Rogue AP: Total Count'
+          type: HTTP_AGENT
+          key: cisco.rogue.ap.total
+          delay: 3m
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-rogue-oper:rogue-oper-data/rogue-stats/total-count'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''Cisco-IOS-XE-wireless-rogue-oper:total-count'']'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-rogue-oper:rogue-oper-data/rogue-stats/total-count'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: 687c8809fa374bfabe307abfb27d5e18
+          name: 'Rogue AP: Total Client Count'
+          type: HTTP_AGENT
+          key: cisco.rogue.client.total
+          delay: 3m
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-rogue-oper:rogue-oper-data/rogue-stats/total-client-count'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''Cisco-IOS-XE-wireless-rogue-oper:total-client-count'']'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-rogue-oper:rogue-oper-data/rogue-stats/total-client-count'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: d20fb16e3174428a85eb45fddbd1c121
+          name: 'WLC AP Master'
+          type: HTTP_AGENT
+          key: cisco.rrm.stats.master
+          delay: 15m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/ap-name-mac-map'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/ap-name-mac-map'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: c34798e5fae6438b816ef27908220a15
+          name: 'WLC WLAN Stats Master'
+          type: HTTP_AGENT
+          key: cisco.wlan.stats.master
+          delay: 3m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$RESTCONF.USER}'
+          password: '{$RESTCONF.PASS}'
+          description: 'Cisco-IOS-XE-wireless-wlan-global-oper:wlan-global-oper-data/wlan-info'
+          url: 'https://{HOST.CONN}/restconf/data/Cisco-IOS-XE-wireless-wlan-global-oper:wlan-global-oper-data/wlan-info'
+          headers:
+            - name: accept
+              value: application/yang-data+json
+        - uuid: c181e23106714997a8719d158c57ee11
           name: 'SNMP Trap - Channel Changed'
           type: SNMP_TRAP
-          key: 'snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"]'
-          history: 2w
+          key: 'snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16|bsnAPCurrentChannelChanged$"]'
+          delay: '0'
           value_type: LOG
+          trends: '0'
           description: 'AIRESPACE-WIRELESS-MIB::bsnAPCurrentChannelChanged'
-          tags:
-            - tag: component
-              value: network
           triggers:
-            - uuid: 868fb423dc94467a936e2e1e0c9c3eaf
-              expression: 'find(/Cisco Catalyst 9800 SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"],,"like","SNMPv2-SMI::enterprises.14179.2.6.3.16")=1'
+            - uuid: 0005659153154b9d92f08163279ee1be
+              expression: 'find(/Cisco Catalyst 9800 RESTCONF/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16|bsnAPCurrentChannelChanged$"],,"regexp","(14179\\.2\\.6\\.3\\.16|bsnAPCurrentChannelChanged)")=1'
               recovery_mode: NONE
-              name: 'Channel Updated Trap on {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Primaly Channel: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.6\.2\.23\..*\=\s(.*)",\1)}'
-              status: DISABLED
+              name: 'Channel Updated on AP: {{ITEM.VALUE}.regsub("(14179\.2\.2\.1\.1\.3|bsnAPName).*?\s+=\s+\"?([^\"\n\r]*)", \2)} to Primary Channel: {{ITEM.VALUE}.regsub("(14179\.2\.6\.2\.23|bsnAPChannelNumberTrapVariable).*?\s+=\s+(\d+)", \2)}'
               priority: INFO
               description: |
                 AIRESPACE-WIRELESS-MIB::bsnAPCurrentChannelChanged
@@ -138,26 +263,25 @@ zabbix_export:
                 APNAME
                 AIRESPACE-WIRELESS-MIB::bsnAPName
                 
-                find(/Cisco Catalyst 9800 SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"],86400)=1
+                find(/Cisco Catalyst 9800 by restconf/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"],86400)=1
+              type: MULTIPLE
               manual_close: 'YES'
               tags:
-                - tag: APNAME
-                  value: '{{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3.*\=\s(.*)",\1)}'
-        - uuid: 786fc58513eb4423879004f71faeb78d
+                - tag: AP
+                  value: '{{ITEM.VALUE}.regsub("(bsnAPName|cLApName|14179\.2\.2\.1\.1\.3|9\.9\.513\.1\.1\.1\.1\.5).*?=\s*\"?([^\"\n\r]*)", \2)}'
+        - uuid: 52c4ab29287143fa86e287615f4e1b06
           name: 'SNMP Trap - RadarChannelDetected'
           type: SNMP_TRAP
-          key: 'snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"]'
-          history: 90d
+          key: 'snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81|bsnRadarChannelDetected$"]'
+          delay: '0'
           value_type: LOG
+          trends: '0'
           description: 'AIRESPACE-WIRELESS-MIB::bsnRadarChannelDetected'
-          tags:
-            - tag: component
-              value: network
           triggers:
-            - uuid: c3f611b0ecde4b6da4ca254125f0f08d
-              expression: 'find(/Cisco Catalyst 9800 SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"],,"like","SNMPv2-SMI::enterprises.14179.2.6.3.81")=1'
+            - uuid: a59c7d33f9a64f03a6aa3280c86319c8
+              expression: 'find(/Cisco Catalyst 9800 RESTCONF/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81|bsnRadarChannelDetected$"],,"regexp","(14179\\.2\\.6\\.3\\.81|bsnRadarChannelDetected)")=1'
               recovery_mode: NONE
-              name: 'DFS Detected on {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Channel: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.2\.1\.4\..*\=\s(.*)",\1)}'
+              name: 'DFS Detected on AP: {{ITEM.VALUE}.regsub("(14179\.2\.2\.1\.1\.3|bsnAPName).*?\s+=\s+\"(.*?)\"", \2)} Channel: {{ITEM.VALUE}.regsub("(14179\.2\.2\.2\.1\.4|bsnAPIfPhyChannelNumber).*?\s+=\s+(\d+)", \2)}'
               priority: INFO
               description: |
                 Trigger SNMP OID
@@ -169,34 +293,30 @@ zabbix_export:
                 CHANNEL
                 AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber
                 
-                find(/Cisco Catalyst 9800 SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"],86400)=1
+                find(/Cisco Catalyst 9800 by restconf/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"],86400)=1
               type: MULTIPLE
               manual_close: 'YES'
               tags:
-                - tag: APNAME
-                  value: '{{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3.*\=\s(.*)",\1)}'
-                - tag: CHANNEL
-                  value: '{{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.2\.1\.4\..*\=\s(.*)",\1)}'
-        - uuid: 21ed5acca9f747fcb84084311c964f27
+                - tag: AP
+                  value: '{{ITEM.VALUE}.regsub("(bsnAPName|14179\.2\.2\.1\.1\.3).*?=\s*\"?([^\"\n\r]*)", \2)}'
+        - uuid: 9546fd2ac99f486b9ef685886d409523
           name: 'SNMP Trap - AP disassociation'
           type: SNMP_TRAP
-          key: 'snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$]'
-          history: 2w
+          key: 'snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$|bsnAPDisassociated$|ciscoLwappApAssociated$]'
+          delay: '0'
           value_type: LOG
+          trends: '0'
           description: |
             AIRESPACE-WIRELESS-MIB::bsnAPDisassociated
             CISCO-LWAPP-AP-MIB::ciscoLwappApAssociated
-          tags:
-            - tag: component
-              value: network
           triggers:
-            - uuid: 0eaba496846642cab39f3451fdce776a
-              expression: 'find(/Cisco Catalyst 9800 SNMP/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$],,"regexp","14179\\.2\\.6\\.3\\.8")=1'
+            - uuid: 0236ba6a0cbb47f88a96625a272698e7
+              expression: 'find(/Cisco Catalyst 9800 RESTCONF/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$|bsnAPDisassociated$|ciscoLwappApAssociated$],,"regexp","(14179\\.2\\.6\\.3\\.8|bsnAPDisassociated)")=1'
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'find(/Cisco Catalyst 9800 SNMP/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$],,"regexp","9\\.9\\.513\\.0\\.4")=1'
+              recovery_expression: 'find(/Cisco Catalyst 9800 RESTCONF/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$|SNMPv2-SMI::enterprises.9.9.513.0.4$|bsnAPDisassociated$|ciscoLwappApAssociated$],,"regexp","(9\\.9\\.513\\.0\\.4|ciscoLwappApAssociated)")=1'
               correlation_mode: TAG_VALUE
-              correlation_tag: APNAME
-              name: 'AP Name: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Disjoined'
+              correlation_tag: AP
+              name: 'AP Name: {{ITEM.VALUE}.regsub("(bsnAPName|14179\.2\.2\.1\.1\.3).*?=\s*\"?([^\"\n\r]*)", \2)} Disjoined'
               priority: WARNING
               description: |
                 Problem trigger TrapOID
@@ -211,361 +331,279 @@ zabbix_export:
               type: MULTIPLE
               manual_close: 'YES'
               tags:
-                - tag: APNAME
-                  value: '{{ITEM.VALUE}.regsub(".*\.1\.1.*\=\s\"(.*)\"$",\1)}'
+                - tag: AP
+                  value: '{{ITEM.VALUE}.regsub("(bsnAPName|cLApName|14179\.2\.2\.1\.1\.3|9\.9\.513\.1\.1\.1\.1\.5).*?=\s*\"?([^\"\n\r]*)", \2)}'
       discovery_rules:
-        - uuid: 25285293f80b4aa6bb473da008620040
-          name: bsnAPTable
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#APNAME},1.3.6.1.4.1.14179.2.2.1.1.3,{#APOPERATIONSTATUS},1.3.6.1.4.1.14179.2.2.1.1.6]'
-          key: bsnAPEntry
-          delay: 1h
-          lifetime: 30d
-          enabled_lifetime_type: DISABLE_NEVER
-          description: |
-            AP Name
-            AIRESPACE-WIRELESS-MIB::bsnAPName
-            
-            AP Operation Status
-            AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus
+        - uuid: 4958e29747804b7a843e5795b14071c4
+          name: 'Mobility Node Discovery'
+          type: DEPENDENT
+          key: cisco.mobility.discovery
+          delay: '0'
+          description: 'Cisco-IOS-XE-wireless-mobility-oper:mobility-node-data'
           item_prototypes:
-            - uuid: 419f589f041243d9ac2212cea89b9b4f
-              name: 'ChannelUtilization {#APNAME} 5GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.13.1.3.{#SNMPINDEX}.1'
-              key: 'bsnAPIfLoadChannelUtilization-5ghz-[{#APNAME}]'
-              delay: 15m
-              units: '%'
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPIfLoadChannelUtilization for 5GHz'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: c0a3a8bc2e53441594572d30b7aa1cef
-              name: 'ChannelUtilization {#APNAME} 2.4GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.13.1.3.{#SNMPINDEX}.0'
-              key: 'bsnAPIfLoadChannelUtilization-24ghz-[{#APNAME}]'
-              delay: 15m
-              units: '%'
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPIfLoadChannelUtilization for 2.4GHz'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: fc03582a7aec47d69c4f918fc7abaf65
-              name: 'PrimaryChannelNumber {#APNAME} 5GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.2.1.4.{#SNMPINDEX}.1'
-              key: 'bsnAPIfPhyChannelNumber-5ghz-[{#APNAME}]'
-              delay: 15m
-              value_type: CHAR
-              description: |
-                AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber for 5GHz
-                It shows only primary channel under channel bonding
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: f9628cb3fbf846489fbba95fe15e7c5d
-              name: 'ChannelNumber {#APNAME} 2.4GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.2.1.4.{#SNMPINDEX}.0'
-              key: 'bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}]'
-              delay: 15m
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber for 2.4GHz'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: a702c6d9cab6469b81c655e347f75418
-              name: 'ChannelNumber {#APNAME} 5GHz'
-              type: CALCULATED
-              key: 'bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}]'
-              delay: 15m
-              value_type: CHAR
-              params: 'concat(last(//bsnAPIfPhyChannelNumber-5ghz-[{#APNAME}]),last(//cLApExtensionChannels-5ghz-[{#APNAME}]))'
-              description: |
-                AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber + CISCO-LWAPP-AP-MIB::cLApExtensionChannels
-                Join primary channel number and extension channel number.
-            - uuid: 06ed98af57e04333bc165328278e0e53
-              name: 'TxPowerLevel {#APNAME} 5GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.2.1.6.{#SNMPINDEX}.1'
-              key: 'bsnAPIfPhyTxPowerLevel-5ghz-[{#APNAME}]'
-              delay: 15m
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPIfPhyTxPowerLevel for 5GHz'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: a6a7a066df144f22b246b4740aa90f86
-              name: 'TxPowerLevel {#APNAME} 2.4GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.2.1.6.{#SNMPINDEX}.0'
-              key: 'bsnAPIfPhyTxPowerLevel-24ghz-[{#APNAME}]'
-              delay: 15m
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPIfPhyTxPowerLevel for 2.4GHz'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: ede119d1493c46ddabd4e5728dda1fad
-              name: 'OperationStatus {#APNAME}'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.1.1.6.{#SNMPINDEX}'
-              key: 'bsnAPOperationStatus[{#APNAME}]'
-              delay: 15m
-              value_type: CHAR
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus'
-              valuemap:
-                name: 'AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus'
-              tags:
-                - tag: component
-                  value: 'access point'
-              trigger_prototypes:
-                - uuid: b626183cc6f14afb8e8603fa9401c78d
-                  expression: |
-                    last(/Cisco Catalyst 9800 SNMP/bsnAPOperationStatus[{#APNAME}])=2
-                    and
-                    last(/Cisco Catalyst 9800 SNMP/bsnAPOperationStatus[{#APNAME}],#1)<>last(/Cisco Catalyst 9800 SNMP/bsnAPOperationStatus[{#APNAME}],#2)
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'find(/Cisco Catalyst 9800 SNMP/bsnAPOperationStatus[{#APNAME}],3,,"1")=1'
-                  correlation_mode: TAG_VALUE
-                  correlation_tag: APNAME
-                  name: 'AP Operation Status changed {#APNAME}'
-                  priority: WARNING
-                  description: |
-                    This is tracking AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus.
-                    It will be useful when SNMP trap is not used.
-                    
-                    
-                    change(/Cisco Catalyst 9800 SNMP/bsnAPOperationStatus[{#APNAME}])<>0
-                  manual_close: 'YES'
-                  tags:
-                    - tag: APNAME
-                      value: '{#APNAME}'
-            - uuid: 14bfeb82c030437499207667eebe548e
-              name: 'APSerialNumber {#APNAME}'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.1.1.17.{#SNMPINDEX}'
-              key: 'bsnAPSerialNumber-[{#APNAME}]'
-              delay: 24h
-              value_type: CHAR
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPSerialNumber'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: 332aab416dff499491b04b6364c005e0
-              name: 'APSoftwareVersion {#APNAME}'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.2.1.1.8.{#SNMPINDEX}'
-              key: 'bsnAPSoftwareVersion[{#APNAME}]'
-              delay: 1h
-              value_type: CHAR
-              description: 'AIRESPACE-WIRELESS-MIB::bsnAPSoftwareVersion'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: 6754ef4caa16401580a4a34ff947ce96
-              name: 'ChannelBandwidth {#APNAME} 5GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.9.9.513.1.2.1.1.23.{#SNMPINDEX}.1'
-              key: 'cLAp11ChannelBandwidth-5ghz-[{#APNAME}]'
-              delay: 15m
-              description: 'CISCO-LWAPP-AP-MIB::cLAp11ChannelBandwidth for 5GHz'
-              valuemap:
-                name: 'CISCO-LWAPP-AP-MIB::cLAp11ChannelBandwidth'
-              tags:
-                - tag: component
-                  value: 'access point'
-            - uuid: ef5e15a5b609485780da69c108a9b6ff
-              name: 'ExtentionChannel {#APNAME} 5GHz'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.9.9.513.1.2.1.1.24.{#SNMPINDEX}.1'
-              key: 'cLApExtensionChannels-5ghz-[{#APNAME}]'
-              delay: 15m
-              value_type: CHAR
-              description: 'CISCO-LWAPP-AP-MIB::cLApExtensionChannels'
+            - uuid: 59d03f28650f443f82ef26f66c48c827
+              name: 'Mobility Node {#NODE.IP}: Link Status'
+              type: DEPENDENT
+              key: 'cisco.mobility.link.status[{#NODE.IP}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
               preprocessing:
-                - type: JAVASCRIPT
+                - type: JSONPATH
                   parameters:
-                    - |
-                      if (value === '') {
-                        return value;
-                      } else {
-                        value = "," + value;
-                        return value;
-                      }
-              tags:
-                - tag: component
-                  value: 'access point'
-          trigger_prototypes:
-            - uuid: 5e57bb3c238d4e9abbf3f8dd230136fb
-              expression: |
-                (nodata(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}],900)=0
-                or
-                nodata(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}],900)=0)
-                
-                
-                
-                and
-                
-                (change(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}])<>0
-                or
-                change(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}])<>0)
-              recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: |
-                changecount(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}],3600)=0
-                and
-                changecount(/Cisco Catalyst 9800 SNMP/bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}],3600)=0
-              name: 'Channel Updated on {#APNAME}'
-              priority: INFO
-              description: |
-                This is tracking AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber.
-                It will useful when SNMP trap is not used.
-                This trigger can catch channel update of both manual channel assignment and auto assignment.
-              manual_close: 'YES'
-              tags:
-                - tag: APNAME
-                  value: '{#APNAME}'
-        - uuid: 38ff4c1e53b04ce5a3d18a8f1a086b89
-          name: cLMobilityGroupMembersOperEntry
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#MOBILITYPEER},1.3.6.1.4.1.9.9.576.1.9.1.2]'
-          key: cLMobilityGroupMembersOperEntry
-          delay: 1h
-          lifetime: 30d
-          enabled_lifetime_type: DISABLE_NEVER
-          description: |
-            CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperEntry
-            CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperNodeAddress
-          item_prototypes:
-            - uuid: 8236d6435aba480e8bca7977836d5b3c
-              name: 'MobilityGroupMembersOperControlPathStatus [{#MOBILITYPEER}]'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.9.9.576.1.9.1.5.{#SNMPINDEX}'
-              key: 'cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}]'
-              description: 'CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus'
-              valuemap:
-                name: cLMobilityGroupMembersOperPathStatus
+                    - '$.[''Cisco-IOS-XE-wireless-mobility-oper:mobility-node-data''][?(@[''node-ip''] == ''{#NODE.IP}'')][''ulink-status''].first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '3600'
+              master_item:
+                key: cisco.mobility.stats.master
               trigger_prototypes:
-                - uuid: d97a723cdb1546609c462521d0415a7d
-                  expression: |
-                    last(/Cisco Catalyst 9800 SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}])=2
-                    and
-                    (last(/Cisco Catalyst 9800 SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],#1)<>last(/Cisco Catalyst 9800 SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],#2))
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'find(/Cisco Catalyst 9800 SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],600,,"1")=1'
-                  correlation_mode: TAG_VALUE
-                  correlation_tag: PEER
-                  name: 'Mobility Peer status down [{#MOBILITYPEER}]'
-                  priority: WARNING
-                  description: |
-                    Tracking 
-                    CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus
+                - uuid: 707a88e3c2944f9494045cf0040b39c6
+                  expression: 'last(/Cisco Catalyst 9800 RESTCONF/cisco.mobility.link.status[{#NODE.IP}]) <> "up"'
+                  name: 'Mobility Tunnel to {#NODE.IP} is Down'
                   manual_close: 'YES'
-                  tags:
-                    - tag: PEER
-                      value: '[{#MOBILITYPEER}]'
-            - uuid: 928e5a3c779f429e9b182567fa44e040
-              name: 'MobilityGroupMembersOperDataPathStatus [{#MOBILITYPEER}]'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.9.9.576.1.9.1.4.{#SNMPINDEX}'
-              key: 'cLMobilityGroupMembersOperDataPathStatus[{#MOBILITYPEER}]'
-              description: 'CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus'
-              valuemap:
-                name: cLMobilityGroupMembersOperPathStatus
+          master_item:
+            key: cisco.mobility.stats.master
+          lld_macro_paths:
+            - lld_macro: '{#GROUP.NAME}'
+              path: '$.[''group-name'']'
+            - lld_macro: '{#NODE.IP}'
+              path: '$.[''node-ip'']'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  // Parse the JSON string to convert it into a JavaScript object
-                  var obj = JSON.parse(value);
-                  
-                  // Function to convert hexadecimal to decimal and format it as an IPv4 address
-                  function hexToIpv4Address(hexString) {
-                    // Remove spaces and split the hexadecimal string into an array
-                    var hexArray = hexString.trim().split(' ');
-                  
-                    // Convert each hexadecimal value to decimal and format it as an IPv4 address
-                    var decimalArray = [];
-                    for (var i = 0; i < hexArray.length; i++) {
-                      decimalArray.push(parseInt(hexArray[i], 16));
-                    }
-                  
-                    // Convert the array of numbers to an IPv4 address string
-                    var ipAddress = decimalArray.join('.');
-                    return ipAddress;
-                  }
-                  
-                  // Function to convert hexadecimal to an IPv6 address format
-                  function hexToIpv6Address(hexString) {
-                    // Remove spaces and split the hexadecimal string into an array
-                    var hexArray = hexString.trim().split(' ');
-                  
-                    // Convert each hexadecimal value to a 2-digit hexadecimal string and pair them
-                    var pairs = [];
-                    for (var i = 0; i < hexArray.length; i += 2) {
-                      pairs.push(hexArray[i] + hexArray[i + 1]);
-                    }
-                  
-                    // Join the pairs with colons to format as an IPv6 address
-                    var ipv6Address = pairs.join(':');
-                    return ipv6Address;
-                  }
-                  
-                  // Function to determine if the input is IPv4 or IPv6
-                  function isIpv4(hexString) {
-                    // If the array length is 4, it's IPv4; if longer, it's IPv6
-                    var hexArray = hexString.trim().split(' ');
-                    return hexArray.length === 4;
-                  }
-                  
-                  // Convert {#MOBILITYPEER} of each element to the appropriate IP address format
-                  for (var i = 0; i < obj.length; i++) {
-                    if (isIpv4(obj[i]["{#MOBILITYPEER}"])) {
-                      obj[i]["{#MOBILITYPEER}"] = hexToIpv4Address(obj[i]["{#MOBILITYPEER}"]);
-                    } else {
-                      obj[i]["{#MOBILITYPEER}"] = hexToIpv6Address(obj[i]["{#MOBILITYPEER}"]);
-                    }
-                  }
-                  
-                  // Convert the object back to a JSON string and return it
-                  return JSON.stringify(obj);
-        - uuid: 5847c3ef43a849f0930943331339ecb2
-          name: cLWlanProfileName
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.4.1.9.9.512.1.1.1.1.3]'
-          key: cLWlanProfileName
+                - '$.[''Cisco-IOS-XE-wireless-mobility-oper:mobility-node-data'']'
+        - uuid: a2c85581f9ae41ff8dd5e1a4191d90cb
+          name: 'Radio Slot Discovery'
+          type: SCRIPT
+          key: cisco.rrm.discovery.named
           delay: 1h
-          lifetime: 30d
-          enabled_lifetime_type: DISABLE_NEVER
-          description: 'CISCO-LWAPP-WLAN-MIB::cLWlanProfileName'
+          params: |
+            var params = JSON.parse(value);
+            
+            var url = params.base_url;
+            var user = params.user;
+            var pass = params.pass;
+            
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/yang-data+json');
+            
+            // Generate Basic Authentication Header
+            var authString = btoa(user + ':' + pass);
+            req.addHeader('Authorization: Basic ' + authString);
+            
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            // 1. Get AP List (MAC Address -> AP Name)
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            var apListUrl = url + "/Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/ap-name-mac-map";
+            var apListRaw = req.get(apListUrl);
+            
+            if (req.getStatus() != 200) {
+                throw 'AP List Error: ' + req.getStatus();
+            }
+            
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            // 2. Get Radio Info (MAC + Slot -> Frequency Band)
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            var radioUrl = url + "/Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/radio-oper-data";
+            var radioRaw = req.get(radioUrl);
+            
+            if (req.getStatus() != 200) {
+                throw 'Radio Data Error: ' + req.getStatus();
+            }
+            
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            // 3. Get RRM Stats Data (Main Loop Target)
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            var rrmDataUrl = url + "/Cisco-IOS-XE-wireless-rrm-oper:rrm-oper-data/rrm-measurement";
+            var rrmDataRaw = req.get(rrmDataUrl);
+            
+            if (req.getStatus() != 200) {
+                throw 'RRM Data Error: ' + req.getStatus();
+            }
+            
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            // Data Merge and Formatting
+            // -------------------------------------------------------
+            // -------------------------------------------------------
+            var output = [];
+            try {
+                var apListJson = JSON.parse(apListRaw);
+                var radioJson  = JSON.parse(radioRaw);
+                var rrmDataJson = JSON.parse(rrmDataRaw);
+            
+                var apListData = apListJson["Cisco-IOS-XE-wireless-access-point-oper:ap-name-mac-map"] || [];
+                var radioData  = radioJson["Cisco-IOS-XE-wireless-access-point-oper:radio-oper-data"] || [];
+                var rrmData    = rrmDataJson["Cisco-IOS-XE-wireless-rrm-oper:rrm-measurement"] || [];
+            
+                // Map 1: MAC Address -> AP Name
+                var nameMap = {};
+                apListData.forEach(function(ap) {
+                    nameMap[ap["wtp-mac"]] = ap["wtp-name"];
+                });
+            
+                // Map 2: MAC_Slot -> Frequency Band Name
+                var bandMap = {};
+                radioData.forEach(function(rad) {
+                    var key = rad["wtp-mac"] + "_" + rad["radio-slot-id"];
+                    var bandRaw = rad["current-active-band"];
+                    
+                    var bandName = "Unknown";
+                    if (bandRaw === "dot11-2-dot-4-ghz-band") {
+                        bandName = "2.4GHz";
+                    } else if (bandRaw === "dot11-5-ghz-band") {
+                        bandName = "5GHz";
+                    } else if (bandRaw === "dot11-6-ghz-band") {
+                        bandName = "6GHz";
+                    } else {
+                        // Handle cases like radio-remote-lan
+                        bandName = "Other"; 
+                    }
+                    bandMap[key] = bandName;
+                });
+            
+                // Main Loop: Iterate RRM Data to Generate Items
+                rrmData.forEach(function(item) {
+                    var mac = item["wtp-mac"];
+                    var slot = item["radio-slot-id"];
+                    var apName = nameMap[mac] || mac;
+                    
+                    // Dynamically get frequency from Band Map (Unknown if missing)
+                    var freq = bandMap[mac + "_" + slot] || "Unknown";
+            
+                    // If you want to exclude "Other" or "Unknown" slots, insert if(freq === "Other") return; here
+            
+                    output.push({
+                        "{#AP.NAME}": apName,
+                        "{#WTP.MAC}": mac,
+                        "{#SLOT.ID}": slot.toString(),
+                        "{#FREQ.NAME}": freq
+                    });
+                });
+            
+            } catch (e) {
+                throw 'Parsing Error: ' + e;
+            }
+            
+            return JSON.stringify(output);
+          description: |
+            Functional Overview: Dynamically discovers and monitors radio slot statistics for Cisco Catalyst 9800 WLC Access Points (APs) using RESTCONF. This discovery rule automatically resolves AP names and actual operating frequency bands to generate human-readable item names.
+            
+            Key Features:
+            - AP Name Mapping:
+              Uses the configured "AP Name" for item generation instead of MAC addresses.
+            - Dynamic Band Mapping:
+              Detects the actual operating frequency band for each slot instead of assuming fixed assignments.
+            -  XOR Radio Support: Correctly identifies if Slot 0 is operating in 5GHz mode (e.g., Dual 5GHz).
+              Wi-Fi 6E Support: Automatically detects 6GHz bands on supported APs (e.g., Slot 2).
+            
+            Efficient Data Retrieval:
+            - Minimizes API calls by aggregating data from multiple endpoints within a single JavaScript execution.
+            
+            Generated LLD Macros:
+            - {#AP.NAME} : Access Point Name (e.g., AP-Tokyo-01)
+            - {#WTP.MAC} : AP MAC Address (Used as the unique key)
+            - {#SLOT.ID} : Radio Slot ID (0, 1, 2...)
+            - {#FREQ.NAME} : Operating Frequency Band (2.4GHz, 5GHz, 6GHz)
+            
+            RESTCONF Paths Used:
+            - Name Mapping: /Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/ap-name-mac-map
+            - Band Mapping: /Cisco-IOS-XE-wireless-access-point-oper:access-point-oper-data/radio-oper-data
+            - Statistics: /Cisco-IOS-XE-wireless-rrm-oper:rrm-oper-data/rrm-measurement
+            
+            Item Name Examples:
+            - AP AP-Tokyo-01 (5GHz): Channel Utilization
+            - AP AP-Osaka-02 (6GHz): Client Count
           item_prototypes:
-            - uuid: 0995145307004624a54590732c43296d
-              name: 'WLAN - {#SNMPVALUE} Administrative Status'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.1.1.1.6.{#SNMPINDEX}'
-              key: 'bsnDot11EssAdminStatus-[{#SNMPVALUE}]'
-              value_type: CHAR
-              description: 'AIRESPACE-WIRELESS-MIB::bsnDot11EssAdminStatus'
-              valuemap:
-                name: 'AIRESPACE-WIRELESS-MIB::bsnDot11EssAdminStatus'
-              tags:
-                - tag: component
-                  value: WLAN
-            - uuid: 4fc71ce361cc40cd84f5fc8a24745118
-              name: 'WLAN - {#SNMPVALUE} Number of Clients'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.14179.2.1.1.1.38.{#SNMPINDEX}'
-              key: 'bsnDot11EssNumberOfMobileStations-[{#SNMPVALUE}]'
-              description: 'AIRESPACE-WIRELESS-MIB::bsnDot11EssNumberOfMobileStations'
-              tags:
-                - tag: component
-                  value: WLAN
-          graph_prototypes:
-            - uuid: 2171914368f8429f94afb9927a81e195
-              name: 'WLAN - {#SNMPVALUE} Number of Clients'
-              graph_items:
-                - color: 0080FF
-                  item:
-                    host: 'Cisco Catalyst 9800 SNMP'
-                    key: 'bsnDot11EssNumberOfMobileStations-[{#SNMPVALUE}]'
+            - uuid: 6340e14ce1c84dcaab9034352cbaa910
+              name: 'AP {#AP.NAME} ({#FREQ.NAME}): Operating Channel'
+              type: DEPENDENT
+              key: 'cisco.ap.channel[{#WTP.MAC},{#SLOT.ID}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''Cisco-IOS-XE-wireless-access-point-oper:radio-oper-data''][?(@[''wtp-mac'']==''{#WTP.MAC}'' && @[''radio-slot-id'']=={#SLOT.ID})][''phy-ht-cfg''][''cfg-data''][''freq-string''].first()'
+              master_item:
+                key: cisco.radio.cfg.master
+            - uuid: a31755cca0c74a83a03380ab3056aa23
+              name: 'AP {#AP.NAME} ({#FREQ.NAME}): Channel Utilization'
+              type: DEPENDENT
+              key: 'rrm.cca.util[{#WTP.MAC},{#SLOT.ID}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''Cisco-IOS-XE-wireless-rrm-oper:rrm-measurement''][?(@[''wtp-mac'']==''{#WTP.MAC}'' && @[''radio-slot-id'']=={#SLOT.ID})].load[''cca-util-percentage''].first()'
+              master_item:
+                key: cisco.iosxe.rrm.master
+            - uuid: f6966d8a9c9c4f60b7751a583299b764
+              name: 'AP {#AP.NAME} ({#FREQ.NAME}): Client Count'
+              type: DEPENDENT
+              key: 'rrm.client.count[{#WTP.MAC},{#SLOT.ID}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''Cisco-IOS-XE-wireless-rrm-oper:rrm-measurement''][?(@[''wtp-mac'']==''{#WTP.MAC}'' && @[''radio-slot-id'']=={#SLOT.ID})].load[''stations''].first()'
+              master_item:
+                key: cisco.iosxe.rrm.master
+            - uuid: 2e5ee889e0454851ac747788e1f07489
+              name: 'AP {#AP.NAME} ({#FREQ.NAME}): Noise Level'
+              type: DEPENDENT
+              key: 'rrm.noise[{#WTP.MAC},{#SLOT.ID}]'
+              delay: '0'
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''Cisco-IOS-XE-wireless-rrm-oper:rrm-measurement''][?(@[''wtp-mac'']==''{#WTP.MAC}'' && @[''radio-slot-id'']=={#SLOT.ID})].noise.noise[''noise-data''][0].noise.first()'
+              master_item:
+                key: cisco.iosxe.rrm.master
+          timeout: 10s
+          parameters:
+            - name: base_url
+              value: 'https://{HOST.CONN}/restconf/data'
+            - name: pass
+              value: '{$RESTCONF.PASS}'
+            - name: user
+              value: '{$RESTCONF.USER}'
+        - uuid: 61444ff60aff4b149f553b303e208293
+          name: 'WLAN SSID Discovery'
+          type: DEPENDENT
+          key: cisco.wlan.discovery
+          delay: '0'
+          description: 'Cisco-IOS-XE-wireless-wlan-global-oper:wlan-global-oper-data/wlan-info'
+          item_prototypes:
+            - uuid: e4dc8b7ce0b5492db9c7de36e4640f27
+              name: 'SSID {#WLAN.NAME}: Client Count'
+              type: DEPENDENT
+              key: 'cisco.wlan.client.count[{#WLAN.NAME}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''Cisco-IOS-XE-wireless-wlan-global-oper:wlan-info''][?(@[''wlan-profile''] == ''{#WLAN.NAME}'')][''curr-clients-count''].first()'
+              master_item:
+                key: cisco.wlan.stats.master
+          master_item:
+            key: cisco.wlan.stats.master
+          lld_macro_paths:
+            - lld_macro: '{#WLAN.NAME}'
+              path: '$.[''wlan-profile'']'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''Cisco-IOS-XE-wireless-wlan-global-oper:wlan-info'']'
       tags:
         - tag: class
           value: network
@@ -573,64 +611,10 @@ zabbix_export:
           value: cisco
         - tag: target
           value: cisco-catalyst-9800
-      valuemaps:
-        - uuid: fe4c43a2da0c4068bc37c9d7e6a029fb
-          name: 'AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus'
-          mappings:
-            - value: '1'
-              newvalue: associated
-            - value: '2'
-              newvalue: disassociating
-            - value: '3'
-              newvalue: downloading
-        - uuid: 4af351ff6288425da85693782199c489
-          name: 'AIRESPACE-WIRELESS-MIB::bsnDot11EssAdminStatus'
-          mappings:
-            - value: '0'
-              newvalue: disable
-            - value: '1'
-              newvalue: enable
-        - uuid: 1bcf503cacf2469c87640f3644dcef46
-          name: 'CISCO-LWAPP-AP-MIB::cLAp11ChannelBandwidth'
-          mappings:
-            - value: '1'
-              newvalue: 5MHz
-            - value: '2'
-              newvalue: 10MHz
-            - value: '3'
-              newvalue: 20MHz
-            - value: '4'
-              newvalue: 40MHz
-            - value: '5'
-              newvalue: 80MHz
-            - value: '6'
-              newvalue: 160MHz
-            - value: '7'
-              newvalue: 80MHz+80MHz
-        - uuid: c7ced9cfc6274ebebf457e30d9561cde
-          name: 'CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent'
-          mappings:
-            - value: '0'
-              newvalue: none
-            - value: '1'
-              newvalue: 'HA Peer Hotstandby'
-        - uuid: c005b50e977241eca3718c37e3089232
-          name: cLMobilityGroupMembersOperPathStatus
-          mappings:
-            - value: '1'
-              newvalue: up
-            - value: '2'
-              newvalue: down
-  triggers:
-    - uuid: 73b1509a8f1d46788cceab95c91b9dff
-      expression: 'last(/Cisco Catalyst 9800 SNMP/cLApGlobalAPConnectCount)=last(/Cisco Catalyst 9800 SNMP/cLApGlobalMaxApsSupported)'
-      name: 'Maxmimum AP join limit has reached'
-      priority: AVERAGE
-      description: |
-        Trigger
-        CISCO-LWAPP-AP-MIB::cLApGlobalAPConnectCount.0
-        = CISCO-LWAPP-AP-MIB::cLApGlobalMaxApsSupported.0
-      manual_close: 'YES'
-      tags:
-        - tag: scope
-          value: capacity
+      macros:
+        - macro: '{$RESTCONF.PASS}'
+          value: adminpassword
+        - macro: '{$RESTCONF.URL}'
+          value: 'https://{HOST.CONN}/restconf/data'
+        - macro: '{$RESTCONF.USER}'
+          value: admin
