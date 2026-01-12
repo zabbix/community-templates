@@ -16,7 +16,6 @@ Zabbix version: 6.0 and higher.
 This template has been tested on:
 - XenOrchestra 5 CE (from sources)
 - Zabbix 6.0
-- Zabbix 6.4
 - Zabbix 7.0
 - Zabbix 7.2
 
@@ -41,6 +40,11 @@ Thorsten Liepert
 |{$XOA.PROXY.URL}|<p>Proxy URL if needed to reach {$XOA.URL}</p>||
 |{$XOA.SR.THRESHOLD.CRIT}|<p>Critical threshold for storage repository usage in percent</p>||
 |{$XOA.SR.THRESHOLD.WARN}|<p>Warning threshold for storage repository usage in percent</p>||
+|{$XOA.RESPONSE.TIME.SLOW}|<p>Warning threshold for slow API responses</p>||
+|{$XOA.VM.IGNORE}|<p>Regular expression to ignore VM in discovery</p>||
+|{$XOA.BACKUP.NOT_MATCHES}|<p>Regular expression to ignore backup in discovery</p>||
+|{$XEN.SR.IGNORE}|<p>Regular expression to ignore SR in discovery</p>||
+
 
 ## Feedback
 
