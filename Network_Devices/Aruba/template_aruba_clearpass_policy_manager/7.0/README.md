@@ -1,2 +1,0 @@
-Adds basic monitoring and a (hacky) way to get alerts based on dailySuccessAuthCount item prototypes in the Policy Server discovery.
-For the latter, the {$CPPM.SESSION_DURATION} macro is used to prevent false alerts within the session duration. 
