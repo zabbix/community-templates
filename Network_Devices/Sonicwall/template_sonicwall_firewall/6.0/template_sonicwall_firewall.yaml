@@ -15,7 +15,7 @@ zabbix_export:
       - **Multi-Protocol Support**: SNMPv2 (validated) / SNMPv3 (compatible)
       - **Hardware Monitoring**: CPU, memory, system health, and performance metrics
       - **Network Performance**: Multi-interface type discovery with traffic analysis and error detection
-      - **VPN Monitoring**: Policy-based and route-based tunnel monitoring with comprehensive statistics
+      - **VPN Monitoring**: Policy-based, route-based, L2TP, and PPTP tunnel monitoring with comprehensive statistics
       - **BGP Routing**: Dynamic neighbor discovery with session state and route tracking
       - **Security Services**: GAV, IPS/IDS, Anti-Spyware, and Mail Security monitoring
       - **High Availability**: Cluster status and member health monitoring
@@ -64,9 +64,11 @@ zabbix_export:
         * VTI Interfaces: Virtual Tunnel Interfaces (ifType=131)
         * Filter: Configurable interface exclusion patterns for HA-Link and unused ports
         * Update: Hourly discovery with 2-minute traffic and error monitoring
-      - **VPN Tunnels (Dual Monitoring Approaches)**:
+      - **VPN Tunnels (Four Monitoring Approaches)**:
         * Policy-Based VPNs: IPsec Security Association discovery with subnet pair mapping
         * Route-Based VPNs: VTI tunnel interface monitoring with persistent configuration
+        * L2TP Tunnels: Layer 2 Tunneling Protocol interface discovery and traffic monitoring
+        * PPTP Tunnels: Point-to-Point Tunneling Protocol interface discovery and performance tracking
         * Filter: Tunnel exclusion patterns for maintenance and inactive tunnels
         * Update: Hourly discovery with real-time traffic and status monitoring
       - **Firewall Statistics**: 
@@ -87,6 +89,8 @@ zabbix_export:
       - **VPN Tunnel Metrics**:
         * Policy-Based: SA creation time, tunnel status, traffic statistics
         * Route-Based: VTI traffic throughput, connection uptime, tunnel health
+        * L2TP-Based: Interface traffic monitoring, error tracking, operational status
+        * PPTP-Based: Tunnel performance metrics, error analysis, connection monitoring
         * Security: Encryption status, authentication tracking, SA lifecycle
         * Performance: Tunnel latency, throughput analysis, error detection
       - **BGP Routing Metrics**:
@@ -339,18 +343,11 @@ zabbix_export:
       value_type: TEXT
       trends: '0'
       description: 'SNMP walk of BGP update messages received per neighbor (BGP4-MIB::bgpPeerInUpdates).
-
-
         Monitors route updates and detects:
-
         - Route flapping
-
         - Routing table changes
-
         - BGP session activity
-
         - Convergence problems
-
         '
       tags:
       - tag: Component
@@ -2376,6 +2373,10 @@ zabbix_export:
         delay: 5m
         history: 7d
         description: Status for VPN tunnel ({#LOCALSUBNET} to {#REMOTESUBNET})
+        preprocessing:
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - '3600'
         valuemap:
           name: sonicwall.vpn.policy.status.valuemap
         tags:
@@ -2525,6 +2526,8 @@ zabbix_export:
         type: SNMP_AGENT
         snmp_oid: IF-MIB::ifInErrors.{#SNMPINDEX}
         key: vpn.route.ifInErrors[{#VPNNAME}]
+        delay: 1m
+        history: 7d
         units: bps
         description: Errors In counter not exposed during testing - Bug in the Sonicwall Firmware?
         preprocessing:
@@ -2543,12 +2546,13 @@ zabbix_export:
           value: '{#VPNNAME}'
         - tag: VPN Type
           value: Route
-        history: 30d
       - uuid: 4a06318935bd4a8d803dd9109db9ba7e
         name: 'VPN Route: {#VPNNAME} Bytes In'
         type: SNMP_AGENT
         snmp_oid: IF-MIB::ifInOctets.{#SNMPINDEX}
         key: vpn.route.ifInOctets[{#VPNNAME}]
+        delay: 1m
+        history: 30d
         units: bps
         preprocessing:
         - type: CHANGE_PER_SECOND
@@ -2566,12 +2570,13 @@ zabbix_export:
           value: '{#VPNNAME}'
         - tag: VPN Type
           value: Route
-        history: 30d
       - uuid: d203b3c848c04e94aaa799ba6af8dac0
         name: 'VPN Route: {#VPNNAME} Errors Out'
         type: SNMP_AGENT
         snmp_oid: IF-MIB::ifOutErrors.{#SNMPINDEX}
         key: vpn.route.ifOutErrors[{#VPNNAME}]
+        delay: 1m
+        history: 7d
         units: bps
         preprocessing:
         - type: CHANGE_PER_SECOND
@@ -2589,12 +2594,13 @@ zabbix_export:
           value: '{#VPNNAME}'
         - tag: VPN Type
           value: Route
-        history: 30d
       - uuid: 5c4f71c24d51433fa572275b0726f2f1
         name: 'VPN Route: {#VPNNAME} Bytes Out'
         type: SNMP_AGENT
         snmp_oid: IF-MIB::ifOutOctets.{#SNMPINDEX}
         key: vpn.route.ifOutOctets[{#VPNNAME}]
+        delay: 1m
+        history: 30d
         units: bps
         description: Bytes Out counter not exposed during testing - Bug in the Sonicwall Firmware?
         preprocessing:
@@ -2613,12 +2619,13 @@ zabbix_export:
           value: '{#VPNNAME}'
         - tag: VPN Type
           value: Route
-        history: 30d
       - uuid: 803ca2150a6940d38363649cfa3e019d
         name: 'VPN Route: {#VPNNAME} Status'
         type: SNMP_AGENT
         snmp_oid: IF-MIB::ifOperStatus.{#SNMPINDEX}
         key: vpn.route.status[{#VPNNAME}]
+        delay: 5m
+        history: 7d
         valuemap:
           name: sonicwall.vpn.route.status.valuemap
         preprocessing:
@@ -2872,6 +2879,376 @@ zabbix_export:
           item:
             host: Sonicwall Firewall
             key: vpn.route.ifOutErrors[{#VPNNAME}]
+    - uuid: 7f2a3b4c5d6e4890abcd1234567890ef
+      name: VPN Tunnels (L2TP Based)
+      type: SNMP_AGENT
+      snmp_oid: discovery[{#L2TPNAME},IF-MIB::ifDescr,{#IFTYPE},IF-MIB::ifType,{#IFOPERSTATUS},IF-MIB::ifOperStatus,{#IFADMINSTATUS},IF-MIB::ifAdminStatus]
+      key: vpn.l2tp.discovery
+      delay: 1h
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#IFTYPE}'
+          value: ^131$
+          formulaid: A
+        - macro: '{#L2TPNAME}'
+          value: ^.*[lL]2[tT][pP].*$
+          formulaid: B
+        - macro: '{#IFADMINSTATUS}'
+          value: ^1$
+          formulaid: C
+      description: |
+        Discovers L2TP VPN tunnel interfaces (ifType=131) by filtering interface descriptions containing "L2TP".
+        L2TP (Layer 2 Tunneling Protocol) creates point-to-point tunnels for VPN connections, commonly used for remote access scenarios.
+        This discovery rule identifies:
+        - Active tunnel interfaces (adminStatus=1)
+        - Interface type 131 (tunnel interfaces)
+        - Descriptions containing L2TP identifiers
+        Provides traffic statistics, operational status monitoring, and error tracking for L2TP tunnel performance analysis.
+      item_prototypes:
+      - uuid: 8f3a4b5c6d7e4901acde2345678901f0
+        name: 'VPN L2TP: {#L2TPNAME} Bytes In'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifInOctets.{#SNMPINDEX}
+        key: vpn.l2tp.ifInOctets[{#L2TPNAME}]
+        delay: 1m
+        units: B
+        history: 30d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: 9f4a5b6c7d8e4012adef3456789012f1
+        name: 'VPN L2TP: {#L2TPNAME} Bytes Out'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOutOctets.{#SNMPINDEX}
+        key: vpn.l2tp.ifOutOctets[{#L2TPNAME}]
+        delay: 1m
+        units: B
+        history: 30d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: af5a6b7c8d9e4123aef04567890123f2
+        name: 'VPN L2TP: {#L2TPNAME} Status'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOperStatus.{#SNMPINDEX}
+        key: vpn.l2tp.status[{#L2TPNAME}]
+        delay: 5m
+        history: 7d
+        preprocessing:
+        - type: DISCARD_UNCHANGED
+          parameters:
+          - ''
+        valuemaps:
+        - name: sonicwall.vpn.route.status.valuemap
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: bf6a7b8c9d0e4234af056789012345f3
+        name: 'VPN L2TP: {#L2TPNAME} Errors In'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifInErrors.{#SNMPINDEX}
+        key: vpn.l2tp.ifInErrors[{#L2TPNAME}]
+        delay: 1m
+        history: 7d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 6h
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: cf7a8b9c0d1e4345a0167890123456f4
+        name: 'VPN L2TP: {#L2TPNAME} Errors Out'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOutErrors.{#SNMPINDEX}
+        key: vpn.l2tp.ifOutErrors[{#L2TPNAME}]
+        delay: 1m
+        history: 7d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 6h
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      trigger_prototypes:
+      - uuid: df8a9b0c1d2e4456a1278901234567f5
+        expression: 'last(/Sonicwall Firewall/vpn.l2tp.status[{#L2TPNAME}],#1)<>last(/Sonicwall Firewall/vpn.l2tp.status[{#L2TPNAME}],#2)'
+        name: 'VPN L2TP: {#L2TPNAME} Status Changed'
+        priority: WARNING
+        description: 'L2TP tunnel "{#L2TPNAME}" operational status has changed from {ITEM.LASTVALUE2} to {ITEM.LASTVALUE1}.'
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: ef9a0b1c2d3e4567a2389012345678f6
+        expression: 'avg(/Sonicwall Firewall/vpn.l2tp.ifInErrors[{#L2TPNAME}],5m) > {$SONICWALL_VPN_WARNING_THRESHOLD} and last(/Sonicwall Firewall/vpn.l2tp.status[{#L2TPNAME}]) = 1'
+        name: 'VPN L2TP: {#L2TPNAME} Inbound Errors High'
+        status: DISABLED
+        priority: WARNING
+        description: |
+          L2TP tunnel "{#L2TPNAME}" is experiencing elevated inbound errors (>{$SONICWALL_VPN_WARNING_THRESHOLD} errors/sec averaged over 5 minutes).
+          
+          This may indicate network connectivity issues, MTU problems, or tunnel configuration mismatches.
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      - uuid: f0ab1c2d3e4f4678a3490123456789f7
+        expression: 'avg(/Sonicwall Firewall/vpn.l2tp.ifOutErrors[{#L2TPNAME}],5m) > {$SONICWALL_VPN_WARNING_THRESHOLD} and last(/Sonicwall Firewall/vpn.l2tp.status[{#L2TPNAME}]) = 1'
+        name: 'VPN L2TP: {#L2TPNAME} Outbound Errors High'
+        status: DISABLED
+        priority: WARNING
+        description: |
+          L2TP tunnel "{#L2TPNAME}" is experiencing elevated outbound errors (>{$SONICWALL_VPN_WARNING_THRESHOLD} errors/sec averaged over 5 minutes).
+          
+          This may indicate network connectivity issues, MTU problems, or tunnel configuration mismatches.
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: l2tp
+      graph_prototypes:
+      - uuid: 01bc2d3e4f5a4789a4501234567890f8
+        name: 'VPN L2TP: {#L2TPNAME} Traffic'
+        graph_items:
+        - color: 199C0D
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.l2tp.ifInOctets[{#L2TPNAME}]
+        - sortorder: '1'
+          color: 00BFFF
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.l2tp.ifOutOctets[{#L2TPNAME}]
+        - sortorder: '2'
+          drawtype: FILLED_REGION
+          color: FF0000
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.l2tp.ifInErrors[{#L2TPNAME}]
+        - sortorder: '3'
+          drawtype: FILLED_REGION
+          color: CC6600
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.l2tp.ifOutErrors[{#L2TPNAME}]
+    - uuid: 12cd3e4f5a6a4890a5612345678901f9
+      name: VPN Tunnels (PPTP Based)
+      type: SNMP_AGENT
+      snmp_oid: discovery[{#PPTPNAME},IF-MIB::ifDescr,{#IFTYPE},IF-MIB::ifType,{#IFOPERSTATUS},IF-MIB::ifOperStatus,{#IFADMINSTATUS},IF-MIB::ifAdminStatus]
+      key: vpn.pptp.discovery
+      delay: 1h
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#IFTYPE}'
+          value: ^131$
+          formulaid: A
+        - macro: '{#PPTPNAME}'
+          value: ^.*[pP][pP][tT][pP].*$
+          formulaid: B
+        - macro: '{#IFADMINSTATUS}'
+          value: ^1$
+          formulaid: C
+      description: |
+        Discovers PPTP VPN tunnel interfaces (ifType=131) by filtering interface descriptions containing "PPTP".
+        PPTP (Point-to-Point Tunneling Protocol) creates secure tunnel connections for VPN access, commonly used in legacy VPN deployments.      
+        This discovery rule identifies:
+        - Active tunnel interfaces (adminStatus=1)
+        - Interface type 131 (tunnel interfaces)
+        - Descriptions containing PPTP identifiers        
+        Provides traffic statistics, operational status monitoring, and error tracking for PPTP tunnel performance analysis.
+      item_prototypes:
+      - uuid: 23de4f5a6a7a4901a6723456789012fa
+        name: 'VPN PPTP: {#PPTPNAME} Bytes In'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifInOctets.{#SNMPINDEX}
+        key: vpn.pptp.ifInOctets[{#PPTPNAME}]
+        delay: 1m
+        units: B
+        history: 30d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 34ef5a6a7a8a4012a7834567890123fb
+        name: 'VPN PPTP: {#PPTPNAME} Bytes Out'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOutOctets.{#SNMPINDEX}
+        key: vpn.pptp.ifOutOctets[{#PPTPNAME}]
+        delay: 1m
+        units: B
+        history: 30d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 45fa6a7a8a9a4123a8945678901234fc
+        name: 'VPN PPTP: {#PPTPNAME} Status'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOperStatus.{#SNMPINDEX}
+        key: vpn.pptp.status[{#PPTPNAME}]
+        delay: 5m
+        history: 7d
+        preprocessing:
+        - type: DISCARD_UNCHANGED
+          parameters:
+          - ''
+        valuemaps:
+        - name: sonicwall.vpn.route.status.valuemap
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 56aa7a8a9a0a4234a9056789012345fd
+        name: 'VPN PPTP: {#PPTPNAME} Errors In'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifInErrors.{#SNMPINDEX}
+        key: vpn.pptp.ifInErrors[{#PPTPNAME}]
+        delay: 1m
+        history: 7d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 6h
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 67aa8a9a0a1a4345a0167890123456fe
+        name: 'VPN PPTP: {#PPTPNAME} Errors Out'
+        type: SNMP_AGENT
+        snmp_oid: IF-MIB::ifOutErrors.{#SNMPINDEX}
+        key: vpn.pptp.ifOutErrors[{#PPTPNAME}]
+        delay: 1m
+        history: 7d
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+          parameters:
+          - ''
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 6h
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      trigger_prototypes:
+      - uuid: 78aa9a0a1a2a4456a1278901234567ff
+        expression: 'last(/Sonicwall Firewall/vpn.pptp.status[{#PPTPNAME}],#1)<>last(/Sonicwall Firewall/vpn.pptp.status[{#PPTPNAME}],#2)'
+        name: 'VPN PPTP: {#PPTPNAME} Status Changed'
+        priority: WARNING
+        description: 'PPTP tunnel "{#PPTPNAME}" operational status has changed from {ITEM.LASTVALUE2} to {ITEM.LASTVALUE1}.'
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 89aa0a1a2a3a4567a2389012345678f0
+        expression: 'avg(/Sonicwall Firewall/vpn.pptp.ifInErrors[{#PPTPNAME}],5m) > {$SONICWALL_VPN_WARNING_THRESHOLD} and last(/Sonicwall Firewall/vpn.pptp.status[{#PPTPNAME}]) = 1'
+        name: 'VPN PPTP: {#PPTPNAME} Inbound Errors High'
+        status: DISABLED
+        priority: WARNING
+        description: |
+          PPTP tunnel "{#PPTPNAME}" is experiencing elevated inbound errors (>{$SONICWALL_VPN_WARNING_THRESHOLD} errors/sec averaged over 5 minutes).
+          
+          This may indicate network connectivity issues, authentication problems, or tunnel configuration mismatches.
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      - uuid: 9aaa1a2a3a4a4678a3490123456789f1
+        expression: 'avg(/Sonicwall Firewall/vpn.pptp.ifOutErrors[{#PPTPNAME}],5m) > {$SONICWALL_VPN_WARNING_THRESHOLD} and last(/Sonicwall Firewall/vpn.pptp.status[{#PPTPNAME}]) = 1'
+        name: 'VPN PPTP: {#PPTPNAME} Outbound Errors High'
+        status: DISABLED
+        priority: WARNING
+        description: |
+          PPTP tunnel "{#PPTPNAME}" is experiencing elevated outbound errors (>{$SONICWALL_VPN_WARNING_THRESHOLD} errors/sec averaged over 5 minutes).
+          
+          This may indicate network connectivity issues, authentication problems, or tunnel configuration mismatches.
+        tags:
+        - tag: component
+          value: vpn
+        - tag: vpntype
+          value: pptp
+      graph_prototypes:
+      - uuid: 0baa2a3a4a5a4789a4501234567890f2
+        name: 'VPN PPTP: {#PPTPNAME} Traffic'
+        graph_items:
+        - color: 199C0D
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.pptp.ifInOctets[{#PPTPNAME}]
+        - sortorder: '1'
+          color: 00BFFF
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.pptp.ifOutOctets[{#PPTPNAME}]
+        - sortorder: '2'
+          drawtype: FILLED_REGION
+          color: FF0000
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.pptp.ifInErrors[{#PPTPNAME}]
+        - sortorder: '3'
+          drawtype: FILLED_REGION
+          color: CC6600
+          calc_fnc: ALL
+          item:
+            host: Sonicwall Firewall
+            key: vpn.pptp.ifOutErrors[{#PPTPNAME}]
     - uuid: 934a1ea08f044e449d8d69bba309a9bf
       name: VPN Tunnel Pairs
       type: SNMP_AGENT
@@ -2903,14 +3280,9 @@ zabbix_export:
         trends: 90d
         params: last(//vpn.route.status[{#VPNNAME}])
         description: 'Individual tunnel status from discovered VPN tunnel pairs.
-
-
           This monitors the operational status of each tunnel that matches
-
           the redundancy pair naming patterns, providing visibility into
-
           tunnel availability for failover scenarios.
-
           '
         tags:
         - tag: Component
@@ -2925,10 +3297,7 @@ zabbix_export:
           name: 'VPN Tunnel Pair: {#VPNPAIR} - All Tunnels Down'
           priority: DISASTER
           description: 'Both tunnels in pair {#VPNPAIR} are down, indicating complete connectivity loss.
-
-
             This is a critical failover scenario requiring immediate attention.
-
             '
           manual_close: 'YES'
           tags:
@@ -2941,26 +3310,16 @@ zabbix_export:
         - uuid: c67d41d392374c779080acecc609ebef
           expression: '(last(/Sonicwall Firewall/vpn.tunnel.pair.status[{#VPNPAIR}]) = 1 or last(/Sonicwall Firewall/vpn.tunnel.pair.status[{#VPNPAIR}])
             = 10)
-
             and change(/Sonicwall Firewall/vpn.tunnel.pair.status[{#VPNPAIR}]) <> 0
-
             '
           name: 'VPN Tunnel Pair: {#VPNPAIR} - Failover Detected'
           priority: WARNING
           description: 'Tunnel failover detected in pair {#VPNPAIR}.
-
-
             Status meanings:
-
             - 1 = Primary only (secondary failed)
-
             - 10 = Secondary only (primary failed)
-
             - 11 = Both active (normal)
-
-
             Investigate the failed tunnel and BGP convergence.
-
             '
           manual_close: 'YES'
           tags:
