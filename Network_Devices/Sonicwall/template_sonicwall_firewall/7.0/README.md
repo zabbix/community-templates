@@ -11,29 +11,28 @@ Enhanced template for comprehensive monitoring of SonicWall Firewall appliances 
 
 ## Key Improvements
 
-### 🔄 Dynamic Discovery vs. Hard-coded Items
+### Dynamic Discovery vs. Hard-coded Items
 - **Problem Solved**: Replaces rigid model-specific monitoring with flexible discovery rules
 - **Universal Compatibility**: Works across multiple SonicWall models and firmware versions
 - **Scalable Monitoring**: Auto-discovers interfaces, VPN tunnels, and security policies
 
-### 🌐 Enhanced Interface Monitoring  
+### Enhanced Interface Monitoring  
 - **Auto-Discovery**: Dynamic detection of physical and virtual interfaces
 - **Traffic Analysis**: Comprehensive traffic monitoring with error tracking
 - **Operational Status**: Real-time interface state monitoring
 - **Flexible Filtering**: Configurable interface exclusion patterns
 
-### 🔐 Advanced VPN Monitoring
+### Advanced VPN Monitoring
 - **Policy-Based VPN**: Security association monitoring with tunnel tracking
 - **Site-to-Site VPN**: IPSec tunnel performance and connection health
-- **Mobile VPN**: SSL VPN session monitoring and user tracking
 - **Performance Metrics**: VPN throughput and connection statistics
 
-### 🛡️ Security Policy Monitoring
+### Security Policy Monitoring
 - **Access Rules**: Dynamic discovery and monitoring of firewall rules
 - **NAT Policies**: Network address translation rule tracking
 - **Security Services**: Application control, content filtering, and intrusion prevention
 
-### 🖥️ System Health Monitoring
+### System Health Monitoring
 - **CPU & Memory**: Resource utilization with threshold alerts
 - **Storage**: Log storage and configuration space monitoring
 - **Hardware**: Temperature, fan status, and power supply monitoring
@@ -43,7 +42,7 @@ Enhanced template for comprehensive monitoring of SonicWall Firewall appliances 
 
 **Discovery Rules:** 10+ active LLD rules
 - Interface Discovery (Ethernet, WiFi, Virtual)
-- VPN Tunnel Discovery (IPSec, SSL)
+- VPN Tunnel Discovery (IPSec)
 - Security Policy Discovery
 - Hardware Component Discovery
 - License Feature Discovery
