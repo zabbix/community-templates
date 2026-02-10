@@ -10,6 +10,7 @@ The template is intentionally designed to avoid unsupported OIDs and minimize `N
 
 SNMP traps are not required; the template is fully polling-based by design.
 
+Tested on Zabbix 7.0
 ---
 
 ### Key Features
