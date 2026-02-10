@@ -8,7 +8,7 @@ It combines Eaton's XUPS-MIB with the standard RFC1628 UPS-MIB where possible to
 
 The template is intentionally designed to avoid unsupported OIDs and minimize `No Such Instance` polling errors observed on real hardware.
 
-SNMP traps are not required.
+SNMP traps are not required; the template is fully polling-based by design.
 
 ---
 
@@ -128,6 +128,17 @@ Devices implementing both XUPS-MIB and RFC1628 should work with minimal or no mo
 
 ---
 
+### Alignment with Zabbix Key Principles
+
+This template follows the Zabbix Key Principles for community templates by:
+- Using reproducible SNMP polling only
+- Preferring standard MIBs (RFC1628) where available
+- Avoiding unsupported or unreliable OIDs
+- Providing actionable, low-noise triggers
+- Being validated on real hardware
+
+---
+
 ### Design Goals
 
 * Prefer standards over vendor-specific objects
@@ -151,6 +162,13 @@ The template instead relies on alarm counters and state monitoring for improved 
 * Inventory mode: **Automatic**
 * SNMP timeout: 5s
 * Retries: 2
+
+---
+
+### Requirements
+
+- Zabbix 7.0 or later
+- SNMP enabled on the UPS
 
 ---
 
