@@ -61,7 +61,13 @@ for rule in rules:
     ])
 
 print("\n# Rules check results:\n\n")
-print(tabulate(out_table, headers=headers_table, tablefmt="github"))
+out_message = tabulate(out_table, headers=headers_table, tablefmt="github")
+
+if len(out_message) >= 1024:
+    out_message = out_message[:500]
+    out_message = out_message[-500:]
+
+print(out_message)
 
 if is_failed:
     exit(1)
