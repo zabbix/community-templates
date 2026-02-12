@@ -492,7 +492,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Template Module Zypper updateinfo by Zabbix trapper](Operating_Systems/Linux/template_zypper_updateinfo)
     * [Mac_OS](Operating_Systems/Mac_OS)
         * [macOS Content Cache](Operating_Systems/Mac_OS/template_macos_content_caching)
-        * [macOS Macmon Monitoring](Operating_Systems/Mac_OS/template_macos_macmon)
     * [VMWare](Operating_Systems/VMWare)
         * [ESXi HP Smart Array](Operating_Systems/VMWare/template_esxi_hp_smart_array_monitoring)
         * [SNMP OS ESXi](Operating_Systems/VMWare/template_esxi_snmp_only_for_zabbix3.0)
