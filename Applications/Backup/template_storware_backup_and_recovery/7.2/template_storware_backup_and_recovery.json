@@ -1,0 +1,881 @@
+{
+  "zabbix_export": {
+    "version": "7.2",
+    "template_groups": [
+      {
+        "uuid": "1638d0347a304b8f885a35172d7db83a",
+        "name": "Templates/Backup"
+      }
+    ],
+    "templates": [
+      {
+        "uuid": "27afa7e9b5914d7fa0b617150d34329d",
+        "template": "Storware Backup and Recovery",
+        "name": "Storware Backup and Recovery",
+        "description": "Comprehensive monitoring template for Storware vProtect/Backup & Recovery via REST API.\n\nFeatures:\n- API health monitoring\n- Node status tracking\n- Task monitoring\n- Per-instance backup status with automatic discovery\n- Backup destination capacity monitoring\n\nRequirements:\n- Storware vProtect 7.x with API access (port 8181)\n- Configure host macros: {$STORWARE.API.URL}, {$STORWARE.USER}, {$STORWARE.PASSWORD}\n\nVersion: 4.0 - Added per-backup instance monitoring",
+        "groups": [
+          {
+            "name": "Templates/Backup"
+          }
+        ],
+        "macros": [
+          {
+            "macro": "{$STORWARE.API.URL}",
+            "value": "https://storware.local:8181/api",
+            "description": "Storware API base URL"
+          },
+          {
+            "macro": "{$STORWARE.USER}",
+            "value": "admin",
+            "description": "Storware API username"
+          },
+          {
+            "macro": "{$STORWARE.PASSWORD}",
+            "value": "",
+            "type": "SECRET_TEXT",
+            "description": "Storware API password"
+          },
+          {
+            "macro": "{$STORWARE.BACKUP.STALE.HOURS}",
+            "value": "24",
+            "description": "Hours threshold for stale backup"
+          },
+          {
+            "macro": "{$STORWARE.BACKUP.CHECK.HOURS}",
+            "value": "24",
+            "description": "Hours to look back for failed backups"
+          },
+          {
+            "macro": "{$STORWARE.BD.WARNING.PCT}",
+            "value": "80",
+            "description": "Storage warning threshold %"
+          },
+          {
+            "macro": "{$STORWARE.BD.CRITICAL.PCT}",
+            "value": "90",
+            "description": "Storage critical threshold %"
+          }
+        ],
+        "items": [
+          {
+            "uuid": "3a3f199f481c4b5689b1fcc2c758a001",
+            "name": "Storware: API Status",
+            "type": "SCRIPT",
+            "key": "storware.api.status",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "description": "API availability (1=UP, 0=DOWN)",
+            "valuemap": {
+              "name": "Storware Service state"
+            },
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\ntry {\n    req.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\n    if (req.getStatus() !== 200) return 0;\n    req.get('{$STORWARE.API.URL}/nodes');\n    return req.getStatus() === 200 ? 1 : 0;\n} catch(e) { return 0; }",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "api"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "d55777490ffa4a309995dd68744ce3f3",
+                "expression": "last(/Storware Backup and Recovery/storware.api.status)=0",
+                "name": "Storware: API is UNAVAILABLE",
+                "priority": "DISASTER",
+                "description": "Storware API is not responding",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "availability"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "5a8b42f7f2d846128481849af728cd41",
+            "name": "Storware: Nodes Total",
+            "type": "SCRIPT",
+            "key": "storware.nodes.total",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "description": "Total nodes configured",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/nodes');\nvar nodes = JSON.parse(response);\nreturn nodes.length;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "nodes"
+              }
+            ]
+          },
+          {
+            "uuid": "5c9be7efcba14e878d61e1ac2e947c6f",
+            "name": "Storware: Nodes Running",
+            "type": "SCRIPT",
+            "key": "storware.nodes.running",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "description": "Nodes in RUNNING state",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/nodes');\nvar nodes = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < nodes.length; i++) {\n    if (nodes[i].state && nodes[i].state.name === 'RUNNING') count++;\n}\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "nodes"
+              }
+            ]
+          },
+          {
+            "uuid": "0df60e53aa25459eb69fe121bb76b75f",
+            "name": "Storware: Nodes Offline",
+            "type": "SCRIPT",
+            "key": "storware.nodes.offline",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "description": "Nodes NOT in RUNNING state",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/nodes');\nvar nodes = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < nodes.length; i++) {\n    if (!nodes[i].state || nodes[i].state.name !== 'RUNNING') count++;\n}\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "nodes"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "8a35c8bb89bc45a5b268dd4b3850b109",
+                "expression": "last(/Storware Backup and Recovery/storware.nodes.offline)>0",
+                "name": "Storware: {ITEM.LASTVALUE} node(s) offline",
+                "priority": "HIGH",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "availability"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "41bf38b09bc14061bdb1960c7f959475",
+            "name": "Storware: Tasks Running",
+            "type": "SCRIPT",
+            "key": "storware.tasks.running",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/tasks');\nvar tasks = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < tasks.length; i++) { if (tasks[i].state && tasks[i].state.name === 'RUNNING') count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "tasks"
+              }
+            ]
+          },
+          {
+            "uuid": "116c2a1c3af9493596ecb034e9b8416e",
+            "name": "Storware: Tasks Queued",
+            "type": "SCRIPT",
+            "key": "storware.tasks.queued",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/tasks');\nvar tasks = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < tasks.length; i++) { if (tasks[i].state && tasks[i].state.name === 'QUEUED') count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "tasks"
+              }
+            ]
+          },
+          {
+            "uuid": "38b042253f8b432ea49a06d4a212eb4b",
+            "name": "Storware: Tasks Failed",
+            "type": "SCRIPT",
+            "key": "storware.tasks.failed",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/tasks');\nvar tasks = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < tasks.length; i++) { if (tasks[i].state && tasks[i].state.name === 'FAILED') count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "tasks"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "01b539764be54867b78fe4bae04841ee",
+                "expression": "last(/Storware Backup and Recovery/storware.tasks.failed)>0",
+                "name": "Storware: {ITEM.LASTVALUE} failed task(s)",
+                "priority": "WARNING",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "performance"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "e41fc949f5a642b798c66a5182bb1904",
+            "name": "Storware: Tasks Finished",
+            "type": "SCRIPT",
+            "key": "storware.tasks.finished",
+            "delay": "1m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/tasks');\nvar tasks = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < tasks.length; i++) { if (tasks[i].state && tasks[i].state.name === 'FINISHED') count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "tasks"
+              }
+            ]
+          },
+          {
+            "uuid": "d41176b2e5db47c68b346094f06c3ac7",
+            "name": "Storware: VMs Total",
+            "type": "SCRIPT",
+            "key": "storware.vms.total",
+            "delay": "5m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/virtual-machines');\nvar vms = JSON.parse(response);\nreturn vms.length;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "vms"
+              }
+            ]
+          },
+          {
+            "uuid": "43011936304d4b5980573e85d99b7292",
+            "name": "Storware: VMs Protected",
+            "type": "SCRIPT",
+            "key": "storware.vms.protected",
+            "delay": "5m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/virtual-machines');\nvar vms = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < vms.length; i++) { if (vms[i].vmBackupPolicy) count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "vms"
+              }
+            ]
+          },
+          {
+            "uuid": "f14a69898e6e413ea3a4f27355eaac72",
+            "name": "Storware: VMs Unprotected",
+            "type": "SCRIPT",
+            "key": "storware.vms.unprotected",
+            "delay": "5m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/virtual-machines');\nvar vms = JSON.parse(response);\nvar count = 0;\nfor (var i = 0; i < vms.length; i++) { if (!vms[i].vmBackupPolicy) count++; }\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "vms"
+              }
+            ]
+          },
+          {
+            "uuid": "e5f0f3c4dbe8462bb5ff8d22b710ee35",
+            "name": "Storware: Backups Failed Count (Last 24h)",
+            "type": "SCRIPT",
+            "key": "storware.backups.failed.count",
+            "delay": "4h",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "description": "Total count of failed backups in the last 24 hours",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backups');\nvar backups = JSON.parse(response);\nvar now = Date.now();\nvar threshold = {$STORWARE.BACKUP.CHECK.HOURS} * 60 * 60 * 1000;\nvar count = 0;\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.status && b.status.name === 'FAILED') {\n        var backupTime = b.snapshotTime || b.backupTime || 0;\n        if ((now - backupTime) <= threshold) count++;\n    }\n}\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "backups"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "a3fa1afa767546348e77e94869a1c8be",
+                "expression": "last(/Storware Backup and Recovery/storware.backups.failed.count)>0",
+                "name": "Storware: {ITEM.LASTVALUE} failed backup(s) in last 24h",
+                "priority": "HIGH",
+                "description": "One or more backups have failed in the last 24 hours. Check individual backup triggers for details.",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "performance"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "57b7b3ae3c364e5fb09044c60aff7245",
+            "name": "Storware: Backups Failed List (Last 24h)",
+            "type": "SCRIPT",
+            "key": "storware.backups.failed.list",
+            "delay": "4h",
+            "history": "31d",
+            "trends": "0",
+            "value_type": "TEXT",
+            "description": "List of failed backup instance names in the last 24 hours",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backups');\nvar backups = JSON.parse(response);\nvar now = Date.now();\nvar threshold = {$STORWARE.BACKUP.CHECK.HOURS} * 60 * 60 * 1000;\nvar failed = [];\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.status && b.status.name === 'FAILED') {\n        var backupTime = b.snapshotTime || b.backupTime || 0;\n        if ((now - backupTime) <= threshold) {\n            var name = b.protectedEntity ? b.protectedEntity.name : 'Unknown';\n            if (failed.indexOf(name) === -1) failed.push(name);\n        }\n    }\n}\nreturn failed.length > 0 ? failed.join(', ') : 'No failed backups';",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "backups"
+              }
+            ]
+          },
+          {
+            "uuid": "50ef9997b4e940b087481eb35655a9a4",
+            "name": "Storware: VMs Without Recent Backup",
+            "type": "SCRIPT",
+            "key": "storware.vms.stale.backup.count",
+            "delay": "4h",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "UNSIGNED",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/virtual-machines');\nvar vms = JSON.parse(response);\nvar now = Date.now();\nvar threshold = {$STORWARE.BACKUP.STALE.HOURS} * 60 * 60 * 1000;\nvar count = 0;\nfor (var i = 0; i < vms.length; i++) {\n    if (vms[i].vmBackupPolicy && (!vms[i].lastBackup || (now - vms[i].lastBackup) > threshold)) count++;\n}\nreturn count;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "backups"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "9f4732d79ef04c1fbced948ede83dfed",
+                "expression": "last(/Storware Backup and Recovery/storware.vms.stale.backup.count)>0",
+                "name": "Storware: {ITEM.LASTVALUE} VM(s) without recent backup",
+                "priority": "WARNING",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "performance"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "309c744799a0424ebf09959cb32f379f",
+            "name": "Storware: Backup Destination Used %",
+            "type": "SCRIPT",
+            "key": "storware.bd.used.pct",
+            "delay": "5m",
+            "history": "31d",
+            "trends": "365d",
+            "value_type": "FLOAT",
+            "units": "%",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backup-destinations');\nvar bds = JSON.parse(response);\nvar used = 0, total = 0;\nfor (var i = 0; i < bds.length; i++) {\n    used += bds[i].totalUsedSpace || 0;\n    total += bds[i].totalSpace || 0;\n}\nif (total === 0) return 0;\nreturn Math.round((used / total) * 10000) / 100;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "storage"
+              }
+            ],
+            "triggers": [
+              {
+                "uuid": "f02e9e5d0cd1406187fa7ab17f984924",
+                "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct)>{$STORWARE.BD.CRITICAL.PCT}",
+                "name": "Storware: Storage usage > {$STORWARE.BD.CRITICAL.PCT}%",
+                "priority": "HIGH",
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "capacity"
+                  }
+                ]
+              },
+              {
+                "uuid": "7c0472a08062472a9892d8bf1d021a05",
+                "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct)>{$STORWARE.BD.WARNING.PCT}",
+                "name": "Storware: Storage usage > {$STORWARE.BD.WARNING.PCT}%",
+                "priority": "WARNING",
+                "dependencies": [
+                  {
+                    "name": "Storware: Storage usage > {$STORWARE.BD.CRITICAL.PCT}%",
+                    "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct)>{$STORWARE.BD.CRITICAL.PCT}"
+                  }
+                ],
+                "tags": [
+                  {
+                    "tag": "scope",
+                    "value": "capacity"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "c46f0ed5598f4f2184727e1d2b5b10e9",
+            "name": "Storware: Get All Backups Raw Data",
+            "type": "SCRIPT",
+            "key": "storware.backups.raw",
+            "delay": "4h",
+            "history": "1d",
+            "trends": "0",
+            "value_type": "TEXT",
+            "description": "Raw backup data for dependent items - fetches all backups from API",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backups');\nreturn response;",
+            "tags": [
+              {
+                "tag": "component",
+                "value": "backups"
+              }
+            ]
+          }
+        ],
+        "discovery_rules": [
+          {
+            "uuid": "0b5139ad8b5446d7af90ab7ef87ab699",
+            "name": "Discover Backup Destinations",
+            "type": "SCRIPT",
+            "key": "storware.bd.discovery",
+            "delay": "1h",
+            "lifetime": "7d",
+            "description": "Discovers all backup destinations",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backup-destinations');\nvar bds = JSON.parse(response);\nvar result = [];\nfor (var i = 0; i < bds.length; i++) {\n    result.push({\n        '{#BD.GUID}': bds[i].guid,\n        '{#BD.NAME}': bds[i].name || bds[i].guid\n    });\n}\nreturn JSON.stringify(result);",
+            "item_prototypes": [
+              {
+                "uuid": "f1cbbdf6b7cb4ae4a518a2ef6f25c11a",
+                "name": "Backup Destination [{#BD.NAME}]: Used %",
+                "type": "SCRIPT",
+                "key": "storware.bd.used.pct[{#BD.GUID}]",
+                "delay": "5m",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "FLOAT",
+                "units": "%",
+                "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backup-destinations');\nvar bds = JSON.parse(response);\nfor (var i = 0; i < bds.length; i++) {\n    if (bds[i].guid === '{#BD.GUID}') {\n        var used = bds[i].totalUsedSpace || 0;\n        var total = bds[i].totalSpace || 0;\n        if (total === 0) return 0;\n        return Math.round((used / total) * 10000) / 100;\n    }\n}\nreturn 0;",
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "storage"
+                  },
+                  {
+                    "tag": "bd",
+                    "value": "{#BD.NAME}"
+                  }
+                ],
+                "trigger_prototypes": [
+                  {
+                    "uuid": "db5b505c285148b1a19fd3dba46491b8",
+                    "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct[{#BD.GUID}])>{$STORWARE.BD.CRITICAL.PCT}",
+                    "name": "BD [{#BD.NAME}] > {$STORWARE.BD.CRITICAL.PCT}%",
+                    "priority": "HIGH",
+                    "tags": [
+                      {
+                        "tag": "scope",
+                        "value": "capacity"
+                      }
+                    ]
+                  },
+                  {
+                    "uuid": "86be537ca8ed42a9a89dc15700890366",
+                    "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct[{#BD.GUID}])>{$STORWARE.BD.WARNING.PCT}",
+                    "name": "BD [{#BD.NAME}] > {$STORWARE.BD.WARNING.PCT}%",
+                    "priority": "WARNING",
+                    "dependencies": [
+                      {
+                        "name": "BD [{#BD.NAME}] > {$STORWARE.BD.CRITICAL.PCT}%",
+                        "expression": "last(/Storware Backup and Recovery/storware.bd.used.pct[{#BD.GUID}])>{$STORWARE.BD.CRITICAL.PCT}"
+                      }
+                    ],
+                    "tags": [
+                      {
+                        "tag": "scope",
+                        "value": "capacity"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "uuid": "38d13f5d12b047a3abf274621e4e3c91",
+                "name": "Backup Destination [{#BD.NAME}]: Used Bytes",
+                "type": "SCRIPT",
+                "key": "storware.bd.used.bytes[{#BD.GUID}]",
+                "delay": "5m",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "UNSIGNED",
+                "units": "B",
+                "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backup-destinations');\nvar bds = JSON.parse(response);\nfor (var i = 0; i < bds.length; i++) { if (bds[i].guid === '{#BD.GUID}') return bds[i].totalUsedSpace || 0; }\nreturn 0;",
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "storage"
+                  },
+                  {
+                    "tag": "bd",
+                    "value": "{#BD.NAME}"
+                  }
+                ]
+              },
+              {
+                "uuid": "9b88f370ba7745359afb90c93bb15848",
+                "name": "Backup Destination [{#BD.NAME}]: Total Bytes",
+                "type": "SCRIPT",
+                "key": "storware.bd.total.bytes[{#BD.GUID}]",
+                "delay": "5m",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "UNSIGNED",
+                "units": "B",
+                "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backup-destinations');\nvar bds = JSON.parse(response);\nfor (var i = 0; i < bds.length; i++) { if (bds[i].guid === '{#BD.GUID}') return bds[i].totalSpace || 0; }\nreturn 0;",
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "storage"
+                  },
+                  {
+                    "tag": "bd",
+                    "value": "{#BD.NAME}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "uuid": "a56d372e25e54b098a107b9ebca4b1c5",
+            "name": "Discover Backed Up Instances",
+            "type": "SCRIPT",
+            "key": "storware.backup.instances.discovery",
+            "delay": "4h",
+            "lifetime": "7d",
+            "description": "Discovers all unique instances (VMs, applications, storage, cloud) that have backups. Creates individual monitoring items for each.",
+            "params": "var req = new HttpRequest();\nreq.addHeader('Content-Type: application/json');\nreq.post('{$STORWARE.API.URL}/session/login', JSON.stringify({login: '{$STORWARE.USER}', password: '{$STORWARE.PASSWORD}'}));\nvar response = req.get('{$STORWARE.API.URL}/backups');\nvar backups = JSON.parse(response);\nvar instances = {};\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.protectedEntity && b.protectedEntity.guid) {\n        var guid = b.protectedEntity.guid;\n        if (!instances[guid]) {\n            var entityType = 'unknown';\n            if (b.protectedEntity.type) entityType = b.protectedEntity.type.name || b.protectedEntity.type;\n            instances[guid] = {\n                '{#INSTANCE.GUID}': guid,\n                '{#INSTANCE.NAME}': b.protectedEntity.name || guid,\n                '{#INSTANCE.TYPE}': entityType\n            };\n        }\n    }\n}\nvar result = [];\nfor (var key in instances) {\n    result.push(instances[key]);\n}\nreturn JSON.stringify(result);",
+            "item_prototypes": [
+              {
+                "uuid": "b2230edf5f1e4577b25b5435b9471420",
+                "name": "Backup Status [{#INSTANCE.NAME}]: Failed in Last 24h",
+                "type": "DEPENDENT",
+                "key": "storware.backup.failed[{#INSTANCE.GUID}]",
+                "delay": "0",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "UNSIGNED",
+                "description": "Returns 1 if this instance has any FAILED backup in the last 24 hours, 0 otherwise",
+                "valuemap": {
+                  "name": "Storware Backup Status"
+                },
+                "preprocessing": [
+                  {
+                    "type": "JAVASCRIPT",
+                    "parameters": [
+                      "var backups = JSON.parse(value);\nvar now = Date.now();\nvar threshold = 24 * 60 * 60 * 1000;\nvar instanceGuid = '{#INSTANCE.GUID}';\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.protectedEntity && b.protectedEntity.guid === instanceGuid) {\n        if (b.status && b.status.name === 'FAILED') {\n            var backupTime = b.snapshotTime || b.backupTime || 0;\n            if ((now - backupTime) <= threshold) {\n                return 1;\n            }\n        }\n    }\n}\nreturn 0;"
+                    ]
+                  }
+                ],
+                "master_item": {
+                  "key": "storware.backups.raw"
+                },
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "backup-instance"
+                  },
+                  {
+                    "tag": "instance",
+                    "value": "{#INSTANCE.NAME}"
+                  },
+                  {
+                    "tag": "type",
+                    "value": "{#INSTANCE.TYPE}"
+                  }
+                ],
+                "trigger_prototypes": [
+                  {
+                    "uuid": "56c08adc33374f5f87a89fe038aaebb2",
+                    "expression": "last(/Storware Backup and Recovery/storware.backup.failed[{#INSTANCE.GUID}])=1",
+                    "name": "Backup FAILED: [{#INSTANCE.NAME}] ({#INSTANCE.TYPE})",
+                    "priority": "HIGH",
+                    "description": "Backup for {#INSTANCE.NAME} ({#INSTANCE.TYPE}) has failed in the last 24 hours.",
+                    "tags": [
+                      {
+                        "tag": "scope",
+                        "value": "backup"
+                      },
+                      {
+                        "tag": "instance",
+                        "value": "{#INSTANCE.NAME}"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "uuid": "cdfbce25f72e45a89251f2a4fbebdfeb",
+                "name": "Backup Status [{#INSTANCE.NAME}]: Last Backup Time",
+                "type": "DEPENDENT",
+                "key": "storware.backup.lasttime[{#INSTANCE.GUID}]",
+                "delay": "0",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "UNSIGNED",
+                "units": "unixtime",
+                "description": "Unix timestamp of the most recent backup for this instance",
+                "preprocessing": [
+                  {
+                    "type": "JAVASCRIPT",
+                    "parameters": [
+                      "var backups = JSON.parse(value);\nvar instanceGuid = '{#INSTANCE.GUID}';\nvar latestTime = 0;\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.protectedEntity && b.protectedEntity.guid === instanceGuid) {\n        var backupTime = b.snapshotTime || b.backupTime || 0;\n        if (backupTime > latestTime) latestTime = backupTime;\n    }\n}\nreturn Math.floor(latestTime / 1000);"
+                    ]
+                  }
+                ],
+                "master_item": {
+                  "key": "storware.backups.raw"
+                },
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "backup-instance"
+                  },
+                  {
+                    "tag": "instance",
+                    "value": "{#INSTANCE.NAME}"
+                  }
+                ]
+              },
+              {
+                "uuid": "755d1b4360f34025a3990955d93f547c",
+                "name": "Backup Status [{#INSTANCE.NAME}]: Last Status",
+                "type": "DEPENDENT",
+                "key": "storware.backup.laststatus[{#INSTANCE.GUID}]",
+                "delay": "0",
+                "history": "31d",
+                "trends": "0",
+                "value_type": "TEXT",
+                "description": "Status of the most recent backup for this instance",
+                "preprocessing": [
+                  {
+                    "type": "JAVASCRIPT",
+                    "parameters": [
+                      "var backups = JSON.parse(value);\nvar instanceGuid = '{#INSTANCE.GUID}';\nvar latestTime = 0;\nvar latestStatus = 'NO_BACKUP';\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.protectedEntity && b.protectedEntity.guid === instanceGuid) {\n        var backupTime = b.snapshotTime || b.backupTime || 0;\n        if (backupTime > latestTime) {\n            latestTime = backupTime;\n            latestStatus = b.status ? b.status.name : 'UNKNOWN';\n        }\n    }\n}\nreturn latestStatus;"
+                    ]
+                  }
+                ],
+                "master_item": {
+                  "key": "storware.backups.raw"
+                },
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "backup-instance"
+                  },
+                  {
+                    "tag": "instance",
+                    "value": "{#INSTANCE.NAME}"
+                  }
+                ]
+              },
+              {
+                "uuid": "1be58b433e9740a5b67dd41cd869189d",
+                "name": "Backup Status [{#INSTANCE.NAME}]: Last Size",
+                "type": "DEPENDENT",
+                "key": "storware.backup.lastsize[{#INSTANCE.GUID}]",
+                "delay": "0",
+                "history": "31d",
+                "trends": "365d",
+                "value_type": "UNSIGNED",
+                "units": "B",
+                "description": "Size of the most recent backup for this instance",
+                "preprocessing": [
+                  {
+                    "type": "JAVASCRIPT",
+                    "parameters": [
+                      "var backups = JSON.parse(value);\nvar instanceGuid = '{#INSTANCE.GUID}';\nvar latestTime = 0;\nvar latestSize = 0;\nfor (var i = 0; i < backups.length; i++) {\n    var b = backups[i];\n    if (b.protectedEntity && b.protectedEntity.guid === instanceGuid) {\n        var backupTime = b.snapshotTime || b.backupTime || 0;\n        if (backupTime > latestTime) {\n            latestTime = backupTime;\n            latestSize = b.size || 0;\n        }\n    }\n}\nreturn latestSize;"
+                    ]
+                  }
+                ],
+                "master_item": {
+                  "key": "storware.backups.raw"
+                },
+                "tags": [
+                  {
+                    "tag": "component",
+                    "value": "backup-instance"
+                  },
+                  {
+                    "tag": "instance",
+                    "value": "{#INSTANCE.NAME}"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "tags": [
+          {
+            "tag": "class",
+            "value": "backup"
+          },
+          {
+            "tag": "target",
+            "value": "storware"
+          }
+        ],
+        "valuemaps": [
+          {
+            "uuid": "2ae85e7a5e114c8bb2654af5076757ca",
+            "name": "Storware Service state",
+            "mappings": [
+              {
+                "value": "0",
+                "newvalue": "Down"
+              },
+              {
+                "value": "1",
+                "newvalue": "Up"
+              }
+            ]
+          },
+          {
+            "uuid": "3f5a122049fd49ce9724094f5beb6ef7",
+            "name": "Storware Backup Status",
+            "mappings": [
+              {
+                "value": "0",
+                "newvalue": "OK"
+              },
+              {
+                "value": "1",
+                "newvalue": "FAILED"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "graphs": [
+      {
+        "uuid": "b79f93d6d8164891a1eb2f6ce4b65f66",
+        "name": "Storware: Nodes Status",
+        "graph_items": [
+          {
+            "color": "00AA00",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.nodes.running"
+            }
+          },
+          {
+            "sortorder": "1",
+            "color": "0000AA",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.nodes.total"
+            }
+          },
+          {
+            "sortorder": "2",
+            "color": "FF0000",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.nodes.offline"
+            }
+          }
+        ]
+      },
+      {
+        "uuid": "c8bf75ee4bac487baf6bc57d2cc1f42e",
+        "name": "Storware: Tasks Overview",
+        "graph_items": [
+          {
+            "color": "00AA00",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.tasks.finished"
+            }
+          },
+          {
+            "sortorder": "1",
+            "color": "FF0000",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.tasks.failed"
+            }
+          },
+          {
+            "sortorder": "2",
+            "color": "0000AA",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.tasks.running"
+            }
+          },
+          {
+            "sortorder": "3",
+            "color": "FFAA00",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.tasks.queued"
+            }
+          }
+        ]
+      },
+      {
+        "uuid": "78ec695b9b954e6b871d73554af72b6f",
+        "name": "Storware: VM Protection",
+        "graph_items": [
+          {
+            "color": "00AA00",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.vms.protected"
+            }
+          },
+          {
+            "sortorder": "1",
+            "color": "FF0000",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.vms.unprotected"
+            }
+          },
+          {
+            "sortorder": "2",
+            "color": "0000AA",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.vms.total"
+            }
+          }
+        ]
+      },
+      {
+        "uuid": "80a6329c673f4b40ab5dbfee84f96cbd",
+        "name": "Storware: Storage Usage",
+        "graph_items": [
+          {
+            "color": "00AA00",
+            "item": {
+              "host": "Storware Backup and Recovery",
+              "key": "storware.bd.used.pct"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
