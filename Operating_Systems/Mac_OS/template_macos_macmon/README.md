@@ -103,6 +103,11 @@ launchctl start com.zabbix.zabbix_agentd
 - Swap total
 - Swap usage
 
+### Frequency
+- P-cores (Hz)
+- E-cores (Hz)
+- GPU (Hz)
+
 ---
 
 ## Triggers
@@ -138,6 +143,7 @@ The template includes a built-in dashboard with the following graphs:
 - CPU / GPU usage
 - Memory usage
 - Swap usage
+- Frequency
 
 ---
 
@@ -148,3 +154,9 @@ The template includes a built-in dashboard with the following graphs:
 - Check the item **macmon: raw JSON output** for valid data.
 - Confirm the correct Homebrew path (`/opt/homebrew/bin/macmon`).
 
+---
+
+## License
+
+This template is provided as-is, without any warranty.  
+You are free to modify and use it in your Zabbix environment.
