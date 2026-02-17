@@ -160,3 +160,4 @@ The template includes a built-in dashboard with the following graphs:
 
 This template is provided as-is, without any warranty.  
 You are free to modify and use it in your Zabbix environment.
+
