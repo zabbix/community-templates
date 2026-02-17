@@ -2,9 +2,6 @@
 
 ## A place for community driven integrations with Zabbix
 
-![Template Repository](https://github.com/zabbix/community-templates/actions/workflows/update_readme.yml/badge.svg)
-![Template Repository](https://github.com/zabbix/community-templates/actions/workflows/check_templates.yaml/badge.svg)
-
 This repository is dedicated to templates that are created and maintained by Zabbix community.
 
 ## How to use templates from this repository?
@@ -19,11 +16,10 @@ This repository is dedicated to templates that are created and maintained by Zab
 - Answer questions and discuss in GitHub issues
 
 ## How to contribute a new template
-- Read [template guidelines](https://www.zabbix.com/documentation/guidelines/en/thosts)
+- Read [template guidelines](https://www.zabbix.com/documentation/guidelines/en/thosts/community_templates)
 - Review template structure
 - Open a pull request with a template for the correct version
 - Be ready to discuss your pull request
-
 
 ## Templates
 * [Applications](Applications)
