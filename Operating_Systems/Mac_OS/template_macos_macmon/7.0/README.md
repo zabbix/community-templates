@@ -12,7 +12,7 @@ This template is designed to work with **Zabbix Agent (active)** and parses JSON
 ## Screenshots
 
 ### Overview Dashboard
-![Overview Dashboard](screenshots/dashboard.png)
+![Overview Dashboard](files/dashboard.png)
 
 ---
 
