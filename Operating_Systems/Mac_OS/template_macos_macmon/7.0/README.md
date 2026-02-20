@@ -21,7 +21,7 @@ This template is designed to work with **Zabbix Agent (active)** and parses JSON
 - Zabbix Server / Proxy **7.0 or later**
 - Zabbix Agent (active)
 - macOS on Apple Silicon (M1/M2/M3)
-- `macmon` utility installed on the monitored host
+- `macmon` utility installed on the monitored host  [github.com/vladkens/macmon](https://github.com/vladkens/macmon)
 
 ---
 
@@ -72,7 +72,7 @@ launchctl start com.zabbix.zabbix_agentd
 
 ### 4. Import and Assign the Template
 
-1. Import the template `Template macOS macmon.yaml` into Zabbix.
+1. Import the template `template_macos_macmon.yaml` into Zabbix.
 2. Assign **Template macOS macmon** to the target host.
 3. Ensure the host is configured with **Zabbix Agent (active)**.
 
