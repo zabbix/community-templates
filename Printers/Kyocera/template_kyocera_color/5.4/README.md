@@ -2,18 +2,16 @@
 
 ## Overview
 
-### Tested colored printer ECOSYS M6030cdn
+### Tested colored printers:
 
+- ECOSYS M6030cdn
+- ECOSYS P5021cdw
 
-### -information about the remaining toner in the cartridges
+### Functions
 
-
-### -triggers on residual less than 5%
-
-
-### -chart template to track the toner levels of all cartridges
-
-
+- information about the remaining toner in the cartridges
+- triggers on residual less than 5%
+- chart template to track the toner levels of all cartridges
 
 ## Author
 
@@ -39,7 +37,7 @@ There are no template links in this template.
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
 |Device description|<p>-</p>|`SNMP agent`|hrDeviceDescr<p>Update: 1h</p>|
-|persent_{#SNMPVALUE}|<p>-</p>|`Calculated`|percent_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
+|percent_{#SNMPVALUE}|<p>-</p>|`Calculated`|percent_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |toner current {#SNMPVALUE}|<p>-</p>|`SNMP agent`|toner_current_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 |toner default {#SNMPVALUE}|<p>-</p>|`SNMP agent`|toner_default_[{#SNMPVALUE}]<p>Update: 1m</p><p>LLD</p>|
 
@@ -48,5 +46,5 @@ There are no template links in this template.
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
-|{#SNMPVALUE} тонер менее 5%|<p>-</p>|<p>**Expression**: last(/Kyocera color/percent_[{#SNMPVALUE}])<5</p><p>**Recovery expression**: </p>|high|
-|{#SNMPVALUE} тонер менее 5% (LLD)|<p>-</p>|<p>**Expression**: last(/Kyocera color/percent_[{#SNMPVALUE}])<5</p><p>**Recovery expression**: </p>|high|
+|{#SNMPVALUE} Toner less 5%|<p>-</p>|<p>**Expression**: last(/Kyocera color/percent_[{#SNMPVALUE}])<5</p><p>**Recovery expression**: </p>|high|
+|{#SNMPVALUE} Toner less 5% (LLD)|<p>-</p>|<p>**Expression**: last(/Kyocera color/percent_[{#SNMPVALUE}])<5</p><p>**Recovery expression**: </p>|high|
