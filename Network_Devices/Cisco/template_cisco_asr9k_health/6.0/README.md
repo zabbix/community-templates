@@ -27,13 +27,13 @@ Template Cisco ASR 9k Health
 -Power Consumption
 
 
- 
+
 
 
 By: Flavio Gomes Figueira Camacho Junior
 
 
- 
+
 
 
 Require:
@@ -63,13 +63,13 @@ ValueMap
 .ENTITY-SENSORS-MIB::EntitySensorStatus
 
 
- 
+
 
 
 Base:
 
 
-CISCO-MEMORY-POOL-MIB.mib 
+CISCO-MEMORY-POOL-MIB.mib
 
 
 http://www.circitor.fr/Mibs/Html/C/CISCO-MEMORY-POOL-MIB.php
@@ -102,7 +102,7 @@ http://www.circitor.fr/Mibs/Html/C/CISCO-ENTITY-SENSOR-MIB.php
 https://share.zabbix.com/network\_devices/cisco/template-cisco-asr-9k
 
 
- 
+
 
 
 External Scripts and Value Mapping on my Github:
@@ -194,7 +194,7 @@ There are no template links in this template.
 |FAN failed on Power Supply "{#SNMPVALUE}"|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=9</p><p>**Recovery expression**: </p>|warning|
 |FAN problem on Power Supply "{#SNMPVALUE}"|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=7</p><p>**Recovery expression**: </p>|average|
 |Power problem on Power Supply "{#SNMPVALUE}"|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=5</p><p>**Recovery expression**: </p>|average|
-|Power Supply "{#SNMPVALUE}" is failed|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=8 and last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=12</p><p>**Recovery expression**: </p>|high|
+|Power Supply "{#SNMPVALUE}" is failed|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=8 or last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=12</p><p>**Recovery expression**: </p>|high|
 |Power Supply "{#SNMPVALUE}" is powered off|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=1</p><p>**Recovery expression**: </p>|warning|
 |System power is insufficient on Power Supply "{#SNMPVALUE}"|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=4</p><p>**Recovery expression**: </p>|high|
 |Temperature problem on Power Supply "{#SNMPVALUE}"|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=6</p><p>**Recovery expression**: </p>|high|
@@ -217,7 +217,7 @@ There are no template links in this template.
 |FAN failed on Power Supply "{#SNMPVALUE}" (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=9</p><p>**Recovery expression**: </p>|warning|
 |FAN problem on Power Supply "{#SNMPVALUE}" (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=7</p><p>**Recovery expression**: </p>|average|
 |Power problem on Power Supply "{#SNMPVALUE}" (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=5</p><p>**Recovery expression**: </p>|average|
-|Power Supply "{#SNMPVALUE}" is failed (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=8 and last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=12</p><p>**Recovery expression**: </p>|high|
+|Power Supply "{#SNMPVALUE}" is failed (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=8 or last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=12</p><p>**Recovery expression**: </p>|high|
 |Power Supply "{#SNMPVALUE}" is powered off (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=1</p><p>**Recovery expression**: </p>|warning|
 |System power is insufficient on Power Supply "{#SNMPVALUE}" (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=4</p><p>**Recovery expression**: </p>|high|
 |Temperature problem on Power Supply "{#SNMPVALUE}" (LLD)|<p>-</p>|<p>**Expression**: last(/Cisco ASR 9K Health SNMP/cefcFRUPowerOperStatus["{#SNMPVALUE}","Power Supply"])=6</p><p>**Recovery expression**: </p>|high|

@@ -1,131 +1,145 @@
-# zabbix-cisco-9800
-Zabbix template for Cisco Catalyst 9800 Series Wireless Controllers
+# Zabbix Template for Cisco Catalyst 9800 Series Wireless Controller
 
-## What it is?
-This is a Zabbix template for [Cisco Catalyst 9800 Series Wireless Controllers](https://www.cisco.com/site/us/en/products/networking/wireless/wireless-lan-controllers/catalyst-9800-series/index.html) using SNMP.
-It covers wireless monitoring like Wireless Client Count, AP Count, Radio utilization, Mobility tunnel status, and High Availability status.
-Please use the "Cisco IOS by SNMP" template or others to get general IOS-XE status like CPU utilization, Memory usage, or interface status.
 
+To support 6GHz / Wi-Fi 6E/7 while optimizing performance, the template uses RESTCONF for the majority of data collection, while keep using SNMP Traps for immediate notifications.
+
+> [!NOTE]
+> This template specializes in Wireless LAN monitoring. It is designed to be used in conjunction with the standard "Cisco IOS by SNMP" template for generic system statistics, such as CPU/Memory utilization, interface traffic, and hardware inventory.
 
 ## Requirements
-- Cisco Catalyst 9800 Series Wireless Controller and supported Access Point
-  - [Embedded Wireless Controller for Catalyst Access Point](https://www.cisco.com/c/en/us/products/wireless/embedded-wireless-controller-on-catalyst-access-points/index.html) doesn't work [^1] 
-  - Other controllers, including [Cisco Catalyst 9800-CL Wireless Controller for Cloud](https://www.cisco.com/c/en/us/products/collateral/wireless/catalyst-9800-cl-wireless-controller-cloud/nb-06-cat9800-cl-cloud-wirel-data-sheet-ctp-en.html) may work
-- IOS-XE 17.11 or later software image to get many wireless SNMP OIDs like AIRESPACE-WIRELESS-MIB::bsnDot11EssNumberOfMobileStations
-- SNMP and SNMP trap configuration on Catalyst 9800 WLC
-- Zabbix 7.0 or later (tested on 7.0.1)
-[^1]: Embedded Wireless Controller (EWC) does not support SNMP and does not implement the SNMP MIBs of Cisco Catalyst 9800 Series Wireless Controllers, although EWC might respond to some of the object identifiers (OIDs). [Configuration guide](https://www.cisco.com/c/en/us/td/docs/wireless/controller/ewc/17-6/config-guide/ewc_cg_17_6/new_configuration_model.html)
 
-Here is a sample configuration for SNMP
+- Cisco Catalyst 9800 Series Wireless LAN Controller
+  - RESTCONF must be enabled (IOS XE 16.10 or later recommended)
+  - HTTPS Server must be enabled
+  - SNMP Traps (optional)
+- Zabbix 7.0 or later
+
+## Configuration (Cisco Catalyst 9800 WLC)
+
+Enable RESTCONF and the HTTPS server on the Cisco Catalyst 9800 WLC, and create a user with appropriate privileges.
+
+```cisco
+configure terminal
+ ip http secure-server
+ restconf
+ username [USER] privilege 15 secret [PASSWORD]
+end
 ```
-snmp-server community [SNMP COMMUNITY] RO
-snmp-server location ["YOUR PHYSICAL ADDRESS"]
+
+Example configuration for using SNMP Traps (SNMPv3 Recommended):
+```cisco
+! Enable Traps
 snmp-server enable traps wireless bsnAutoRF
 snmp-server enable traps rf
-snmp-server host [ZABBIX IP ADDRESS] version 2c [SNMP COMMUNITY]
+
+! Create SNMPv3 Group and User (AuthPriv mode)
+snmp-server group [SNMPv3 Group] v3 priv
+snmp-server user [SNMPv3 Username] [SNMPv3 Group] v3 auth sha [AUTH_PASS] priv aes 128 [PRIV_PASS]
+
+! Configure Trap Destination
+snmp-server host [ZABBIX IP ADDRESS] version 3 priv [SNMPv3 Username]
+
+! Check your EngineID
+#show snmp engineID
+Local SNMP engineID: 800000090300F4BD9E59254C
+Remote Engine ID          IP-addr    Port
+
 ```
 
+> [!NOTE]
+> Refer to the Zabbix Documentation to configure `snmptrapd` for SNMPv3 Traps so that Zabbix accepts them from your devices.
+> The configuration below is an example; ensure the EngineID and credentials match your actual device settings.
+```shell
+# snmptrapd.conf
+createUser -e [SNMP engineID] [SNMPv3 Username] SHA [AUTH_PASS] AES [PRIV_PASS]
+authuser log,execute [SNMPv3 Username]
 
-## SNMP MIBs used
-| Monitoring Item                      | SNMP MIBs                                                                                        |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| AP Name                              | AIRESPACE-WIRELESS-MIB::bsnAPName                                                                |
-| AP Channel Number (2.4GHz)           | AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber                                                  |
-| AP Channel Number (5GHz)             | AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber<br>CISCO-LWAPP-AP-MIB::cLApExtensionChannels     |
-| AP Channel Bandwidth (5GHz)          | CISCO-LWAPP-AP-MIB::cLAp11ChannelBandwidth                                                       |
-| AP Channel Utilization (2.4GHz/5GHz) | AIRESPACE-WIRELESS-MIB::bsnAPIfLoadChannelUtilization                                            |
-| AP Operation Status                  | AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus                                                     |
-| AP Serial Number                     | AIRESPACE-WIRELESS-MIB::bsnAPSerialNumber                                                        |
-| AP Software Version                  | AIRESPACE-WIRELESS-MIB::bsnAPSoftwareVersion                                                     |
-| AP Tx Power Level (2.4GHz/5GHz)      | AIRESPACE-WIRELESS-MIB::bsnAPIfPhyTxPowerLevel                                                   |
-| Current Number of AP                 | CISCO-LWAPP-AP-MIB::cLApGlobalAPConnectCount.0                                                   |
-| Number of APs Supported              | CISCO-LWAPP-AP-MIB::cLApGlobalMaxApsSupported.0                                                  |
-| HA SSO status                        | CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent                                                      |
-| Mobility Member Status (Control)     | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus                            |
-| Mobility Member Status (Data)        | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus                            |
-| Rouge AP Count                       | AIRESPACE-WIRELESS-MIB::bsnRogueAPDot11MacAddress                                                |
-| Rogue Client Count                   | AIRESPACE-WIRELESS-MIB::bsnRogueClientDot11MacAddress                                            |
-| SSID Administrative Status           | AIRESPACE-WIRELESS-MIB::bsnDot11EssAdminStatus                                                   |
-| SSID Number of Clients               | AIRESPACE-WIRELESS-MIB::bsnDot11EssNumberOfMobileStations                                        |
-| AP disassociation                    | AIRESPACE-WIRELESS-MIB::bsnAPDisassociated<br>CISCO-LWAPP-AP-MIB::ciscoLwappApAssociated         |
-| Channel Changed                      | AIRESPACE-WIRELESS-MIB::bsnAPCurrentChannelChanged                                               |
-| DFS Radar Detection                  | AIRESPACE-WIRELESS-MIB::bsnRadarChannelDetected                                                  |
+```
+https://www.zabbix.com/documentation/current/en/manual/config/items/itemtypes/snmptrap
 
-The template uses just OID and Standard MIB. No need to install vendor MIBs. Please refer to the below MIBs to understand each SNMP MIB.
-- AIRESPACE-REF-MIB.my
-- AIRESPACE-WIRELESS-CAPABILITY.my
-- AIRESPACE-WIRELESS-MIB.my
-- CISCO-LWAPP-AP-MIB.my
-- CISCO-LWAPP-DOT11-MIB.my
-- CISCO-LWAPP-RF-MIB.my
-- CISCO-LWAPP-TC-MIB.my
-- CISCO-LWAPP-WLAN-MIB.my
-- CISCO-SMI.my
-- CISCO-TC.my
-- ENTITY-MIB.my
 
-[https://github.com/cisco/cisco-mibs](https://github.com/cisco/cisco-mibs)
+## Usage
 
+1. Import the template into Zabbix.
+2. Set the macros on the host. Change the username and password according to your environment.
+
+| Macro | Description | Default Value |
+| --- | --- | --- |
+| `{$RESTCONF.URL}` | Base URL for RESTCONF. Usually does not need to be changed. | `https://{HOST.CONN}/restconf/data` |
+| `{$RESTCONF.USER}` | Username for RESTCONF connection | `admin` |
+| `{$RESTCONF.PASS}` | Password for RESTCONF connection | `adminpassword` |
+
+## Discovery Rules
+
+| Name | Description | Type | Update Interval |
+| --- | --- | --- | --- |
+| Mobility Node Discovery | Discovers mobility group members and monitors tunnel status. | Dependent | 0 (Follows Master item) |
+| Radio Slot Discovery | Discovers AP radio slots and dynamically maps AP name and frequency band (2.4/5/6GHz).<br>Creates items using AP Name instead of MAC address. | Script | 1h |
+| WLAN SSID Discovery | Discovers SSIDs (WLAN profiles) and monitors client counts. | Dependent | 0 (Follows Master item) |
+
+## Items
+
+### HTTP Agent / RESTCONF
+Main metrics retrieved via RESTCONF.
+
+| Name | Description | Type |
+| --- | --- | --- |
+| HA Local State | HA Local Status (Active/Standby etc.) | Dependent |
+| HA Peer State | HA Peer Status | Dependent |
+| HA Last Switchover Reason | Reason for the last switchover | Dependent |
+| Mobility Node {#NODE.IP}: Link Status | Mobility tunnel status (up/down) | Dependent |
+| Total Joined AP Count | Total count of joined APs | HTTP Agent |
+| Rogue AP: Total Count | Total count of detected Rogue APs | HTTP Agent |
+| Rogue AP: Total Client Count | Total count of clients connected to Rogue APs | HTTP Agent |
+| AP {#AP.NAME} ({#FREQ.NAME}): Operating Channel | Operating Channel per AP/Frequency | Dependent |
+| AP {#AP.NAME} ({#FREQ.NAME}): Channel Utilization | Channel utilization per AP/Frequency (CCA) | Dependent |
+| AP {#AP.NAME} ({#FREQ.NAME}): Client Count | Client count per AP/Frequency | Dependent |
+| AP {#AP.NAME} ({#FREQ.NAME}): Noise Level | Noise level per AP/Frequency | Dependent |
+| SSID {#WLAN.NAME}: Client Count | Client count per SSID | Dependent |
+
+### SNMP Trap
+Events requiring real-time notification are received via SNMP Trap.
+
+| Name | Description | Type |
+| --- | --- | --- |
+| SNMP Trap - Channel Changed | AP Channel Changed Trap (bsnAPCurrentChannelChanged) | SNMP Trap |
+| SNMP Trap - RadarChannelDetected | DFS Radar Detected Trap (bsnRadarChannelDetected) | SNMP Trap |
+| SNMP Trap - AP disassociation | AP Disassociation/Reassociation Trap (bsnAPDisassociated / ciscoLwappApAssociated) | SNMP Trap |
+
+### Useful Tips: Suppressing Syslog Messages
+
+Frequent RESTCONF polling may generate excessive `%DMI-5-AUTH_PASSED` syslog messages, filling up the logs.
+
+Example log:
+```
+Jan 10 15:22:03.380: %DMI-5-AUTH_PASSED: Chassis 1 R0/0: dmiauthd: User 'admin' authenticated successfully from 192.168.1.1:0  for rest over http. External groups: PRIV15
+```
+
+To suppress these specific messages, you can configure a syslog discriminator:
+
+```cisco
+logging discriminator RESTCONF msg-body drops rest
+logging buffered discriminator RESTCONF
+logging console discriminator RESTCONF
+logging monitor discriminator RESTCONF
+```
 
 ## Screenshots
-![Screenshot1](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/385067/4dd37fb6-fc9d-7e33-23aa-9928b1c4a85b.png)
-![Screenshot2](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/385067/fdc40126-9b34-8200-5ac5-6ea7dad9ecd6.png)
+Ensure that the host is added to Zabbix and the template is applied.
+Change macros in the template to match your environment.
+
+![Screenshot3](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/385067/6a9d5994-9d81-4a1d-85e2-231876ec0f9a.png)
+![Screenshot4](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/385067/5770181e-5df3-44ba-972b-9b5ff86acf93.png)
+
+## Test Environment
+- Cisco Catalyst 9800-L wireless controller
+- IOS XE 17.15.4d
+- Zabbix 7.0.22
+
+## Why RESTCONF?
+With the release of IOS XE 17.18.2, Cisco is progressively deprecating legacy protocols to enforce a "Secure by Design" philosophy. While migrating from SNMPv2 to SNMPv3 is encouraged, the encryption overhead of SNMPv3 often severely impacts data retrieval performance, even in smaller environments, frequently exceeding the default Zabbix SNMP timeout of 3 seconds.
+
+Leveraging RESTCONF's structured data allows identifing the frequency bands each Access Point is using. This enables selectively retrieving 6GHz data only from Access Points that support 6GHz. 
 
 
-## Tested Environment
-- Cisco IOS Software [Dublin], C9800 Software (C9800_IOSXE-K9), Version 17.12.4, RELEASE SOFTWARE (fc7)
-  - C9800-L-F-K9
-  - C9800-CL-K9
-- Zabbix 7.0.1
 
-> [!IMPORTANT]
-The test is only done in small lab environments. In a large environment, monitor the CPU utilization of the Wireless Controller in case SNMP consumes too many resources.
-
-
-## Dicovery rules
-| Name | Description | Type | Key and additional info |
-| ------- | -------| -------| -------|
-| bsnAPTable | Enumerate Access Point and create prototype for each | SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPName <br>Update: 1h|
-| cLMobilityGroupMembersOperEntry | Enumurate Mobility Group Member and createprotoype for each | SNMP Agent | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperNodeAddress <br>Update: 1h|
-| cLWlanProfileName | Enumerate SSID and create prototype for each | SNMP Agent | CISCO-LWAPP-WLAN-MIB::cLWlanProfileName<br>Update: 1h |
-
-
-## Items collected
-| Name | Description | Type | Key and additional info |
-| ------- | -------| -------| -------|
-| AP Name                              |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPName <br> Update: 1h  |
-| AP Channel Number (2.4GHz)           |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber <br> Update: 15min   |
-| AP Channel Number (5GHz)             |Chennel bonding is supported| SNMP Agent |  AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber <br> + CISCO-LWAPP-AP-MIB::cLApExtensionChannels <br> Update: 15min|
-| AP Channel Bandwidth (5GHz)          |-| SNMP Agent | CISCO-LWAPP-AP-MIB::cLAp11ChannelBandwidth    <br> Update: 15min    |
-| AP Channel Utilization (2.4GHz/5GHz) |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPIfLoadChannelUtilization  <br> Update: 15min |
-| AP Operation Status                  |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus  <br> Update: 15min|
-| AP Serial Number                     |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPSerialNumber <br> Update: 24h |
-| AP Software Version                  |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPSoftwareVersion  <br> Update 1h |
-| AP Tx Power Level (2.4GHz/5GHz)      |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnAPIfPhyTxPowerLevel <br> Update: 15min|
-| Current Number of AP                 |-| SNMP Agent | CISCO-LWAPP-AP-MIB::cLApGlobalAPConnectCount.0 <br> Update: 1min |
-| Number of APs Supported              |-| SNMP Agent | CISCO-LWAPP-AP-MIB::cLApGlobalMaxApsSupported.0  <br> Update: 15min |
-| HA SSO status                        |-| SNMP Agent | CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent <br> Update: 15min|
-| Mobility Member Status (Control)     |-| SNMP Agent | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus <br> Update: 1min|
-| Mobility Member Status (Data)        |-| SNMP Agent | CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus  <br> Update: 1min |
-| Rouge AP Count                       |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnRogueAPDot11MacAddress <br> Update: 15min |
-| Rogue Client Count                   |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnRogueClientDot11MacAddress  <br> Update: 15min|
-| SSID Administrative Status           |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnDot11EssAdminStatus <br> Update: 1min |
-| SSID Number of Clients               |-| SNMP Agent | AIRESPACE-WIRELESS-MIB::bsnDot11EssNumberOfMobileStations <br> Update: 1min|
-| AP diassociation                     |-| SNMP Trap | AIRESPACE-WIRELESS-MIB::bsnAPDisassociated <br> CISCO-LWAPP-AP-MIB::ciscoLwappApAssociated 
-| Channel Changed                      |-| SNMP Trap | AIRESPACE-WIRELESS-MIB::bsnAPCurrentChannelChanged |
-| DFS Radar Detection                  |-| SNMP Trap | AIRESPACE-WIRELESS-MIB::bsnRadarChannelDetected  |
-
-
-##  Triggers
-| Name | Description | Expression | Priority |
-| ------- | -------| -------| -------|
-|AP Name: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Disjoined|Problem trigger TrapOID<br>AIRESPACE-WIRELESS-MIB::bsnAPDisassociated<br><br>Recovery trigger TrapOID<br>CISCO-LWAPP-AP-MIB::ciscoLwappApAssociated<br><br>Tag "APNAME" from<br>AIRESPACE-WIRELESS-MIB::bsnAPName (problem)<br>CISCO-LWAPP-AP-MIB::cLApName (recovery)|<b>Problem expression</b><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$\|SNMPv2-SMI::enterprises.9.9.513.0.4$],,"regexp","14179.2.6.3.8")=1<br><br><b>Recovery expression</b><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap[SNMPv2-SMI::enterprises.14179.2.6.3.8$\|SNMPv2-SMI::enterprises.9.9.513.0.4$],,"regexp","9.9.513.0.4")=1| Warning|
-|Channel Updated Trap on {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Primaly Channel: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.6\.2\.23\..*\=\s(.*)",\1)} [^2]|AIRESPACE-WIRELESS-MIB::bsnAPCurrentChannelChanged<br><br>APNAME<br>AIRESPACE-WIRELESS-MIB::bsnAPName<br><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"],86400)=1|<b>Expression</b><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.16"],,"like","SNMPv2-SMI::enterprises.14179.2.6.3.16")=1 |Information|
-|DFS Detected on {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.1\.1\.3\..*\=\s(.*)",\1)} Channel: {{ITEM.VALUE}.regsub("SNMPv2\-SMI\:\:enterprises\.14179\.2\.2\.2\.1\.4\..*\=\s(.*)",\1)}|Trigger SNMP OID<br>AIRESPACE-WIRELESS-MIB::bsnRadarChannelDetected<br><br>APNAME<br>AIRESPACE-WIRELESS-MIB::bsnAPName<br><br>CHANNEL<br>AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber<br><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"],86400)=1| <b>Expression</b><br>find(/Cisco Catalyst 9800 by SNMP/snmptrap["SNMPv2-SMI::enterprises.14179.2.6.3.81"],,"like","SNMPv2-SMI::enterprises.14179.2.6.3.81")=1|Information|
-|HA Peer Hotstandby status changed |Track CISCO-LWAPP-HA-MIB::cLHaPeerHotStandbyEvent| <b>Expression</b><br>change(/Cisco Catalyst 9800 by SNMP/cLHaPeerHotStandbyEvent)<>0 |Warning|
-|Maxmimum AP join limit has reached|Trigger<br>CISCO-LWAPP-AP-MIB::cLApGlobalAPConnectCount.0<br>= CISCO-LWAPP-AP-MIB::cLApGlobalMaxApsSupported.0|<b>Expression</b><br>last(/Cisco Catalyst 9800 by SNMP/cLApGlobalAPConnectCount)=last(/Cisco Catalyst 9800 by SNMP/cLApGlobalMaxApsSupported)|Average|
-|AP Operation Status changed {#APNAME} |This is tracking AIRESPACE-WIRELESS-MIB::bsnAPOperationStatus.<br>It will be useful when SNMP trap is not used.|<b>Problem expression</b><br>last(/Cisco Catalyst 9800 by SNMP/bsnAPOperationStatus[{#APNAME}])=2 and last(/Cisco Catalyst 9800 by SNMP/bsnAPOperationStatus[{#APNAME}],#1)<>last(/Cisco Catalyst 9800 by SNMP/bsnAPOperationStatus[{#APNAME}],#2)<br><br><b>Recovery expression</b><br>find(/Cisco Catalyst 9800 by SNMP/bsnAPOperationStatus[{#APNAME}],3,,"1")=1|Warning|
-|Channel Updated on {#APNAME} |This is tracking AIRESPACE-WIRELESS-MIB::bsnAPIfPhyChannelNumber. <br>This trigger can catch channel update of both manual channel assignment and auto assignment. |<b>Problem expression</b><br>(nodata(/Cisco Catalyst 9800 by SNMP/bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}],900)=0 <br>or<br>nodata(/Cisco Catalyst 9800 by SNMP/bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}],900)=0)<br><br>and<br><br>(change(/Cisco Catalyst 9800 by SNMP/bsnAPIfPhyChannelNumber-24ghz-[{#APNAME}])<>0<br>or<br>change(/Cisco Catalyst 9800 by SNMP/bsnAPIfPhyChannelNumber-cLApExtensionChannels-5ghz-[{#APNAME}])<>0)|Information|
-|Mobility Peer status down [{#MOBILITYPEER}]|Tracking CISCO-LWAPP-MOBILITY-MIB::cLMobilityGroupMembersOperControlPathStatus|<b>Problem expression</b><br>last(/Cisco Catalyst 9800 by SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}])=2<br>and<br>(last(/Cisco Catalyst 9800 by SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],#1)<>last(/Cisco Catalyst 9800 by SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],#2))<br><br><b>Recovery expression</b><br>find(/Cisco Catalyst 9800 by SNMP/cLMobilityGroupMembersOperControlPathStatus[{#MOBILITYPEER}],600,,"1")=1|Warning|
-
-[^2]: trigger is disabled as default
