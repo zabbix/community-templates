@@ -113,8 +113,11 @@ Only alarms matching all of the following are included:
 
 
 Acknowledge = "None"
+
 Suppressed = false
+
 Severity != "Cleared"
+
 
 This ensures Zabbix reflects active, actionable alarms only.
 
