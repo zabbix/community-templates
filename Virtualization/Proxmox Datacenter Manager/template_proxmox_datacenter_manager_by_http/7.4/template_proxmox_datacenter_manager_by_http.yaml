@@ -1,0 +1,687 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 3e1570791e2a489da120e70b40b30055
+      name: Templates/Applications
+  templates:
+    - uuid: c5e0f82609334583a3bc79380e8c87b7
+      template: 'Proxmox Datacenter Manager by HTTP'
+      name: 'Proxmox Datacenter Manager by HTTP'
+      description: |
+        This template is designed for the effortless deployment of Proxmox Datacenter Manager (PDM) monitoring by Zabbix via HTTP and doesn't require any external scripts.
+        
+        Proxmox Datacenter Manager uses a REST-like API similar to other Proxmox products. The concept is described in Resource Oriented Architecture (ROA).
+        
+        Check the API documentation for details:
+        https://pdm.proxmox.com/docs/api-viewer/index.html
+        
+        Setup:
+        
+        1. Create an API token for the monitoring user. Important note: for security reasons, it is recommended to create a separate user with appropriate permissions.
+        
+        Please provide the necessary access levels for both the User and the Token:
+        
+        * Check: ["perm","/",["Sys.Audit"]]
+        * Check: ["perm","/remotes",["Remote.Audit"]]
+        
+        2. Copy the resulting Token ID and Secret into the host macros '{$PDM.TOKEN.ID}' and '{$PDM.TOKEN.SECRET}'.
+        
+        3. Set the hostname or IP address of the Proxmox Datacenter Manager API host in the '{$PDM.URL.HOST}' macro. You can also change the API port in the '{$PDM.URL.PORT}' macro if necessary (default is 8443).
+        
+        Template monitors:
+        - PDM service availability
+        - Connected remotes (Proxmox VE and Proxmox Backup Server)
+        - Remote status and connectivity
+        - Subscription status
+        - Aggregated resources from all remotes
+        - System version and updates
+      vendor:
+        name: Community
+        version: 7.4-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 79c6583c4a1f4088acb87c32d6c2807e
+          name: 'API service status'
+          type: SCRIPT
+          key: pdm.api.available
+          delay: 5m
+          params: |
+            try {
+              var params = JSON.parse(value);
+              var req = new HttpRequest();
+              req.addHeader('Authorization: PDMAPIToken ' + params.token + ':' + params.secret);
+              req.get(encodeURI('https://' + params.url + ':' + params.port + '/api2/json/version'));
+            } catch (error) {
+            	Zabbix.log(3, "PDM API failed: " + params.url + " Error: " + error);
+            	if (!Number.isInteger(error))
+            		return 520;
+            }
+            return req.getStatus();
+          description: 'Get PDM API service status.'
+          valuemap:
+            name: 'HTTP response status code'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          timeout: 10s
+          parameters:
+            - name: port
+              value: '{$PDM.URL.PORT}'
+            - name: secret
+              value: '{$PDM.TOKEN.SECRET}'
+            - name: token
+              value: '{$PDM.TOKEN.ID}'
+            - name: url
+              value: '{$PDM.URL.HOST}'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: a90014dc1c21466ab7df1a3edeab5eda
+              expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.api.available) <> 200'
+              name: 'PDM: API service not available'
+              opdata: 'Current value: {ITEM.LASTVALUE1}'
+              priority: DISASTER
+              description: 'The PDM API service is not available. Check your network and authorization settings.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 07b5788e60764b0a8fabadc0b7082d3a
+          name: 'Get remotes list'
+          type: HTTP_AGENT
+          key: pdm.remotes.list
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          description: 'Get list of all configured remotes (PVE and PBS).'
+          url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/remotes/remote'
+          headers:
+            - name: Authorization
+              value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: fd98adfdbe734e5aa4a4f16a70aa0817
+          name: 'Get subscription data'
+          type: HTTP_AGENT
+          key: pdm.subscription.raw
+          history: '0'
+          value_type: TEXT
+          url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/resources/subscription'
+          headers:
+            - name: Authorization
+              value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+        - uuid: 8a01fe6770de4adf80ca7bfbc0ba3470
+          name: 'Get version'
+          type: HTTP_AGENT
+          key: pdm.version
+          delay: 1h
+          history: 7d
+          value_type: TEXT
+          description: 'Get PDM version information.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/version'
+          headers:
+            - name: Authorization
+              value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 8472395e97404d6d902d32574c153b8b
+              expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.version,#1)<>last(/Proxmox Datacenter Manager by HTTP/pdm.version,#2) and length(last(/Proxmox Datacenter Manager by HTTP/pdm.version))>0'
+              name: 'PDM: Version has changed'
+              opdata: 'Current version: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'PDM version has changed. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+      discovery_rules:
+        - uuid: dd923d95566649c9b98887e0b4f449c0
+          name: 'Proxmox Backup Server remotes discovery'
+          type: DEPENDENT
+          key: pdm.remotes.pbs.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#REMOTE.TYPE}'
+                value: ^pbs$
+          item_prototypes:
+            - uuid: f03d8905920748bea2defa7a5d6f7786
+              name: 'Remote PBS [{#REMOTE.NAME}]: Connection status'
+              type: DEPENDENT
+              key: 'pdm.remote.pbs.connected[{#REMOTE.ID}]'
+              description: 'Indicates if the remote is connected.'
+              valuemap:
+                name: 'Connection status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value).data;
+                      return (d && d.cpu !== undefined) ? 1 : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'pdm.remote.pbs.status[{#REMOTE.ID}]'
+              tags:
+                - tag: component
+                  value: connectivity
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pbs
+              trigger_prototypes:
+                - uuid: fec002248ae84059a5c18f2c0d924fd8
+                  expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.remote.pbs.connected[{#REMOTE.ID}]) <> 1'
+                  name: 'PDM: Remote PBS [{#REMOTE.NAME}] not connected'
+                  opdata: 'Status: {ITEM.LASTVALUE}'
+                  priority: HIGH
+                  description: 'Proxmox Backup Server remote is not connected.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 209cbc8c87eb46c2abb66dd5d1b2bd61
+              name: 'Remote PBS [{#REMOTE.NAME}]: Datastore count'
+              type: HTTP_AGENT
+              key: 'pdm.remote.pbs.datastores[{#REMOTE.ID}]'
+              description: 'Number of datastores in the remote backup server.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return JSON.parse(value).data.length;'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/pbs/remotes/{#REMOTE.ID}/datastore'
+              headers:
+                - name: Authorization
+                  value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: resources
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pbs
+            - uuid: e4a86ae390644471b7906cc50c9f59c2
+              name: 'Remote PBS [{#REMOTE.NAME}]: Fingerprint'
+              type: HTTP_AGENT
+              key: 'pdm.remote.pbs.fingerprint[{#REMOTE.ID}]'
+              value_type: CHAR
+              description: 'SSL fingerprint of the remote.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var nodes = JSON.parse(value).data.nodes;
+                      if (!nodes || nodes.length === 0) return 'N/A';
+                      var match = nodes[0].match(/fingerprint=([a-fA-F0-9:]+)/);
+                      return match ? match[1] : 'N/A';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/remotes/remote/{#REMOTE.ID}/config'
+              headers:
+                - name: Authorization
+                  value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: security
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pbs
+            - uuid: 605dfcd3f8dd43a7a9c19e5998aaf1f3
+              name: 'Remote PBS [{#REMOTE.NAME}]: Get status'
+              type: HTTP_AGENT
+              key: 'pdm.remote.pbs.status[{#REMOTE.ID}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              description: 'Get Proxmox Backup Server remote status.'
+              url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/pbs/remotes/{#REMOTE.ID}/status'
+              headers:
+                - name: Authorization
+                  value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pbs
+          master_item:
+            key: pdm.remotes.list
+          lld_macro_paths:
+            - lld_macro: '{#REMOTE.ID}'
+              path: $.id
+            - lld_macro: '{#REMOTE.NAME}'
+              path: $.id
+            - lld_macro: '{#REMOTE.TYPE}'
+              path: $.type
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+        - uuid: 4e8cdf135b434363846de2ace9743164
+          name: 'Proxmox VE remotes discovery'
+          type: DEPENDENT
+          key: pdm.remotes.pve.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#REMOTE.TYPE}'
+                value: ^pve$
+          item_prototypes:
+            - uuid: 8a2fd06baee14c89b65327b1978be690
+              name: 'Remote PVE [{#REMOTE.NAME}]: Connection status'
+              type: DEPENDENT
+              key: 'pdm.remote.pve.connected[{#REMOTE.ID}]'
+              description: 'Indicates if the remote is connected.'
+              valuemap:
+                name: 'Connection status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data;
+                      for (var i = 0; i < data.length; i++) {
+                        if (data[i].type === 'node' && data[i].status === 'online') return 1;
+                      }
+                      return 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'pdm.remote.pve.status[{#REMOTE.ID}]'
+              tags:
+                - tag: component
+                  value: connectivity
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+              trigger_prototypes:
+                - uuid: 67bde82d48334bf3a8f67903f935bd22
+                  expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.remote.pve.connected[{#REMOTE.ID}]) <> 1'
+                  name: 'PDM: Remote PVE [{#REMOTE.NAME}] not connected'
+                  opdata: 'Status: {ITEM.LASTVALUE}'
+                  priority: HIGH
+                  description: 'Proxmox VE remote is not connected.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 41adfd615be04e8e819363072bb4108a
+              name: 'Remote PVE [{#REMOTE.NAME}]: Fingerprint'
+              type: HTTP_AGENT
+              key: 'pdm.remote.pve.fingerprint[{#REMOTE.ID}]'
+              value_type: CHAR
+              description: 'SSL fingerprint of the remote.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var nodes = JSON.parse(value).data.nodes;
+                      if (!nodes || nodes.length === 0) return 'N/A';
+                      var match = nodes[0].match(/fingerprint=([a-fA-F0-9:]+)/);
+                      return match ? match[1] : 'N/A';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/remotes/remote/{#REMOTE.ID}/config'
+              headers:
+                - name: Authorization
+                  value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: security
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+            - uuid: 68d9d64ed9fc4d60bfcc52d06ee7bd19
+              name: 'Remote PVE [{#REMOTE.NAME}]: LXC count'
+              type: DEPENDENT
+              key: 'pdm.remote.pve.lxc[{#REMOTE.ID}]'
+              description: 'Number of LXC containers in the remote cluster.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data;
+                      var count = 0;
+                      for (var i = 0; i < data.length; i++) {
+                        if (data[i].type === 'lxc') count++;
+                      }
+                      return count;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'pdm.remote.pve.status[{#REMOTE.ID}]'
+              tags:
+                - tag: component
+                  value: resources
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+            - uuid: 6d381c6524e64a188c1c412072123633
+              name: 'Remote PVE [{#REMOTE.NAME}]: Node count'
+              type: DEPENDENT
+              key: 'pdm.remote.pve.nodes[{#REMOTE.ID}]'
+              description: 'Number of nodes in the remote cluster.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data;
+                      var count = 0;
+                      for (var i = 0; i < data.length; i++) {
+                        if (data[i].type === 'node') count++;
+                      }
+                      return count;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'pdm.remote.pve.status[{#REMOTE.ID}]'
+              tags:
+                - tag: component
+                  value: resources
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+            - uuid: f3a7545b84844f8cbd33dfc7748072d6
+              name: 'Remote PVE [{#REMOTE.NAME}]: Get status'
+              type: HTTP_AGENT
+              key: 'pdm.remote.pve.status[{#REMOTE.ID}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              description: 'Get Proxmox VE remote status.'
+              url: 'https://{$PDM.URL.HOST}:{$PDM.URL.PORT}/api2/json/pve/remotes/{#REMOTE.ID}/resources'
+              headers:
+                - name: Authorization
+                  value: 'PDMAPIToken {$PDM.TOKEN.ID}:{$PDM.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+            - uuid: 52b53f977cf24934aa079d73770172e3
+              name: 'Remote PVE [{#REMOTE.NAME}]: VM count'
+              type: DEPENDENT
+              key: 'pdm.remote.pve.vms[{#REMOTE.ID}]'
+              description: 'Number of VMs in the remote cluster.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data;
+                      var count = 0;
+                      for (var i = 0; i < data.length; i++) {
+                        if (data[i].type === 'qemu' && !data[i].template) count++;
+                      }
+                      return count;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'pdm.remote.pve.status[{#REMOTE.ID}]'
+              tags:
+                - tag: component
+                  value: resources
+                - tag: remote
+                  value: '{#REMOTE.NAME}'
+                - tag: remote_type
+                  value: pve
+          master_item:
+            key: pdm.remotes.list
+          lld_macro_paths:
+            - lld_macro: '{#REMOTE.ID}'
+              path: $.id
+            - lld_macro: '{#REMOTE.NAME}'
+              path: $.id
+            - lld_macro: '{#REMOTE.TYPE}'
+              path: $.type
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+        - uuid: 89772bcd8ac44caa903fc03f4c357433
+          name: 'Remotes subscription discovery'
+          type: DEPENDENT
+          key: pdm.subscription.discovery
+          item_prototypes:
+            - uuid: 92507018ca274dcd9c7e4d44387c4491
+              name: 'Subscription [{#REMOTE}]'
+              type: DEPENDENT
+              key: 'pdm.subscription.state[{#REMOTE}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.remote==''{#REMOTE}'')].state.first()'
+              master_item:
+                key: pdm.subscription.raw
+              trigger_prototypes:
+                - uuid: d4ef8a4af8d4452e82deed3ed7336707
+                  expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.subscription.state[{#REMOTE}])<>"active"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Proxmox Datacenter Manager by HTTP/pdm.subscription.state[{#REMOTE}])<>"unknown"'
+                  name: 'PDM: Remote [{#REMOTE}] subscription not active'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  tags:
+                    - tag: status
+                      value: subscription
+          master_item:
+            key: pdm.subscription.raw
+          lld_macro_paths:
+            - lld_macro: '{#REMOTE}'
+              path: $.remote
+            - lld_macro: '{#SUB.STATE}'
+              path: $.state
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: proxmox-datacenter-manager
+      macros:
+        - macro: '{$PDM.TOKEN.ID}'
+          value: root@pam!zabbix-monitor
+          description: 'API tokens allow stateless access to most parts of the REST API by another system, software or API client.'
+        - macro: '{$PDM.TOKEN.SECRET}'
+          value: dcf8f66a-a0e4-4892-add2-f041f74f90d6
+          description: 'Secret key for PDM API authentication.'
+        - macro: '{$PDM.URL.HOST}'
+          value: 10.237.122.1
+          description: 'The hostname or IP address of the Proxmox Datacenter Manager API host.'
+        - macro: '{$PDM.URL.PORT}'
+          value: '8443'
+          description: 'The PDM API uses HTTPS and listens on port 8443 by default.'
+      valuemaps:
+        - uuid: 16ef651a2bf045129c6726fe41ea99c4
+          name: 'Connection status'
+          mappings:
+            - value: '1'
+              newvalue: Connected
+            - value: '0'
+              newvalue: Disconnected
+        - uuid: 3b181a22e38b408c8222669ea9948cab
+          name: 'HTTP response status code'
+          mappings:
+            - value: '100'
+              newvalue: Continue
+            - value: '101'
+              newvalue: 'Switching Protocols'
+            - value: '102'
+              newvalue: Processing
+            - value: '200'
+              newvalue: OK
+            - value: '201'
+              newvalue: Created
+            - value: '202'
+              newvalue: Accepted
+            - value: '203'
+              newvalue: 'Non-Authoritative Information'
+            - value: '204'
+              newvalue: 'No Content'
+            - value: '205'
+              newvalue: 'Reset Content'
+            - value: '206'
+              newvalue: 'Partial Content'
+            - value: '207'
+              newvalue: Multi-Status
+            - value: '208'
+              newvalue: 'Already Reported'
+            - value: '226'
+              newvalue: 'IM Used'
+            - value: '300'
+              newvalue: 'Multiple Choices'
+            - value: '301'
+              newvalue: 'Moved Permanently'
+            - value: '302'
+              newvalue: Found
+            - value: '303'
+              newvalue: 'See Other'
+            - value: '304'
+              newvalue: 'Not Modified'
+            - value: '305'
+              newvalue: 'Use Proxy'
+            - value: '306'
+              newvalue: 'Switch Proxy'
+            - value: '307'
+              newvalue: 'Temporary Redirect'
+            - value: '308'
+              newvalue: 'Permanent Redirect/Resume Incomplete'
+            - value: '400'
+              newvalue: 'Bad Request'
+            - value: '401'
+              newvalue: Unauthorized
+            - value: '402'
+              newvalue: 'Payment Required'
+            - value: '403'
+              newvalue: Forbidden
+            - value: '404'
+              newvalue: 'Not Found'
+            - value: '405'
+              newvalue: 'Method Not Allowed'
+            - value: '406'
+              newvalue: 'Not Acceptable'
+            - value: '407'
+              newvalue: 'Proxy Authentication Required'
+            - value: '408'
+              newvalue: 'Request Timeout'
+            - value: '409'
+              newvalue: Conflict
+            - value: '410'
+              newvalue: Gone
+            - value: '411'
+              newvalue: 'Length Required'
+            - value: '412'
+              newvalue: 'Precondition Failed'
+            - value: '413'
+              newvalue: 'Payload Too Large'
+            - value: '414'
+              newvalue: 'Request-URI Too Long'
+            - value: '415'
+              newvalue: 'Unsupported Media Type'
+            - value: '416'
+              newvalue: 'Requested Range Not Satisfiable'
+            - value: '417'
+              newvalue: 'Expectation Failed'
+            - value: '418'
+              newvalue: 'I''m a Teapot'
+            - value: '419'
+              newvalue: 'Authentication Timeout'
+            - value: '420'
+              newvalue: 'Method Failure/Enhance Your Calm'
+            - value: '421'
+              newvalue: 'Misdirected Request'
+            - value: '422'
+              newvalue: 'Unprocessable Entity'
+            - value: '423'
+              newvalue: Locked
+            - value: '424'
+              newvalue: 'Failed Dependency'
+            - value: '426'
+              newvalue: 'Upgrade Required'
+            - value: '428'
+              newvalue: 'Precondition Required'
+            - value: '429'
+              newvalue: 'Too Many Requests'
+            - value: '431'
+              newvalue: 'Request Header Fields Too Large'
+            - value: '440'
+              newvalue: 'Login Timeout'
+            - value: '444'
+              newvalue: 'No Response'
+            - value: '449'
+              newvalue: 'Retry With'
+            - value: '450'
+              newvalue: 'Blocked by Windows Parental Controls'
+            - value: '451'
+              newvalue: 'Unavailable for Legal Reasons/Redirect'
+            - value: '494'
+              newvalue: 'Request Header Too Large'
+            - value: '495'
+              newvalue: 'Cert Error'
+            - value: '496'
+              newvalue: 'No Cert'
+            - value: '497'
+              newvalue: 'HTTP to HTTPS'
+            - value: '498'
+              newvalue: 'Token Expired/Invalid'
+            - value: '499'
+              newvalue: 'Client Closed Request/Token Required'
+            - value: '500'
+              newvalue: 'Internal Server Error'
+            - value: '501'
+              newvalue: 'Not Implemented'
+            - value: '502'
+              newvalue: 'Bad Gateway'
+            - value: '503'
+              newvalue: 'Service Unavailable'
+            - value: '504'
+              newvalue: 'Gateway Timeout'
+            - value: '505'
+              newvalue: 'HTTP Version Not Supported'
+            - value: '506'
+              newvalue: 'Variant Also Negotiates'
+            - value: '507'
+              newvalue: 'Insufficient Storage'
+            - value: '508'
+              newvalue: 'Loop Detected'
+            - value: '509'
+              newvalue: 'Bandwidth Limit Exceeded'
+            - value: '510'
+              newvalue: 'Not Extended'
+            - value: '511'
+              newvalue: 'Network Authentication Required'
+            - value: '520'
+              newvalue: 'Unknown Error'
+            - value: '598'
+              newvalue: 'Network Read Timeout Error'
+            - value: '599'
+              newvalue: 'Network Connect Timeout Error'
