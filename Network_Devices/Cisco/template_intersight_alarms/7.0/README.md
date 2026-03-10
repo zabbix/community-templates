@@ -138,11 +138,17 @@ Link the Cisco Intersight template to the host
 4️⃣ Configure macros
 
 Macro	Description
+
 {$INTERSIGHT.API.BASE_URL}	Intersight API base URL (e.g. https://eu-central-1.intersight.com)
+
 {$INTERSIGHT.OAUTH.CLIENT_ID}	OAuth2 client ID
+
 {$INTERSIGHT.OAUTH.CLIENT_SECRET}	OAuth2 client secret
+
 {$INTERSIGHT.OAUTH.TOKEN_URL}	OAuth2 token endpoint
+
 {$INTERSIGHT.PROXY}	(Optional) Proxy URL or empty
+
 
 ✅ Leave {$INTERSIGHT.PROXY} empty if no proxy is required.
 
