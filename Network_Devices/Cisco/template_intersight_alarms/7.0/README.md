@@ -72,8 +72,10 @@ Official Cisco documentation
 
 Roles & privileges:
 https://intersight.com/help/saas/resources/RBAC#roles_and_privileges
+
 OAuth application creation:
 https://intersight.com/help/saas/settings#oauth_20_applications
+
 (You must be logged in with a READ‑ONLY account to generate a READ‑ONLY token)
 
 
