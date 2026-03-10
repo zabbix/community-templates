@@ -161,10 +161,14 @@ Macro	Description
 
 ✅ Severity mapping
 
-Intersight Severity	Zabbix Severity
-Critical	High
-Warning	Warning
-Info	Information
+Intersight Severity => 	Zabbix Severity
+
+Critical	              High
+
+Warning	                Warning
+
+Info	                  Information
+
 
 Severity filtering is handled via trigger prototypes, not preprocessing.
 
@@ -173,10 +177,15 @@ Severity filtering is handled via trigger prototypes, not preprocessing.
 ✅ Problem lifecycle
 
 Intersight state	Zabbix behavior
+
 Alarm appears	Problem created
+
 Alarm acknowledged	Not discovered → Alarm disappears from API → Problem closes
+
 Alarm suppressed	Not discovered → Alarm disappears from API → Problem closes
+
 Alarm cleared	Not discovered → Alarm disappears from API → Problem closes
+
 
 No manual cleanup required.
 
@@ -188,9 +197,13 @@ A dedicated Zabbix trigger is included to detect situations where no data is rec
 
 
 Intersight service outage
+
 Network connectivity issues
+
 Proxy failure
+
 DNS or TLS problems
+
 
 Behavior
 
