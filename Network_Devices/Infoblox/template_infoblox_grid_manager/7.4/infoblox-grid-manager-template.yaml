@@ -403,7 +403,7 @@ zabbix_export:
           username: '{$INFOBLOX.WAPI.USER}'
           password: '{$INFOBLOX.WAPI.PASSWORD}'
           description: 'Fetches IPv4 network objects via Infoblox WAPI (network). Used as master for dependent LLD and dependent per-network utilization items so only one WAPI call is made per polling interval.'
-          url: '{$INFOBLOX.WAPI.URL}/network?_return_fields=network,network_view,dhcp_utilization,dhcp_utilization_status,dynamic_hosts,static_hosts,total_hosts&_max_results=10000'
+          url: '{$INFOBLOX.WAPI.URL}/network?_return_fields=network,network_view,dhcp_utilization,dhcp_utilization_status,dynamic_hosts,static_hosts,total_hosts&_max_results={$INFOBLOX.WAPI.MAX_RESULTS}'
           headers:
             - name: Content-Type
               value: application/json
@@ -427,6 +427,45 @@ zabbix_export:
                   value: wapi
                 - tag: scope
                   value: availability
+        - uuid: 0bc8a94db6ac4ac68a2ce8cd2633d4cb
+          name: 'WAPI networks result count'
+          type: DEPENDENT
+          key: infoblox.wapi.network.result_count
+          history: 30d
+          value_type: FLOAT
+          units: objects
+          description: 'Number of objects returned by WAPI network master call. If this equals {$INFOBLOX.WAPI.MAX_RESULTS}, results may be truncated.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var obj;
+                  try { obj = JSON.parse(value); } catch (e) { return 0; }
+                  var rows = obj && obj.result ? obj.result : obj;
+                  if (!Array.isArray(rows)) return 0;
+                  return rows.length;
+          master_item:
+            key: infoblox.wapi.network.get
+          tags:
+            - tag: component
+              value: wapi
+            - tag: metric
+              value: result_count
+          triggers:
+            - uuid: 57eec9fa5fdc4a57a7f6de84570f4669
+              expression: 'last(/Infoblox Grid Manager/infoblox.wapi.network.result_count)>={$INFOBLOX.WAPI.MAX_RESULTS}'
+              name: 'WAPI network result count reached max_results'
+              event_name: 'WAPI network result count reached max_results (count: {ITEM.VALUE}, max: {$INFOBLOX.WAPI.MAX_RESULTS})'
+              priority: WARNING
+              description: 'The network master call returned at least max_results objects, so additional objects may be truncated. Increase {$INFOBLOX.WAPI.MAX_RESULTS} or reduce response scope.'
+              dependencies:
+                - name: 'WAPI network collection failed'
+                  expression: 'nodata(/Infoblox Grid Manager/infoblox.wapi.network.get,30m)=1'
+              tags:
+                - tag: component
+                  value: wapi
+                - tag: scope
+                  value: capacity
         - uuid: 3e1e80da7731427cb07f05d6f4a2f4e5
           name: 'WAPI member service status (raw JSON)'
           type: HTTP_AGENT
@@ -438,7 +477,7 @@ zabbix_export:
           username: '{$INFOBLOX.WAPI.USER}'
           password: '{$INFOBLOX.WAPI.PASSWORD}'
           description: 'Fetches per-member runtime service status via WAPI restartservicestatus. This provides a Grid Master view of whether DNS/DHCP/Reporting are OK, offline, disabled, pending restart, etc. Used as master for dependent LLD and dependent per-member status items.'
-          url: '{$INFOBLOX.WAPI.URL}/restartservicestatus?_max_results=10000'
+          url: '{$INFOBLOX.WAPI.URL}/restartservicestatus?_return_fields=member,dns_status,dhcp_status,reporting_status&_max_results={$INFOBLOX.WAPI.MAX_RESULTS}'
           headers:
             - name: Content-Type
               value: application/json
@@ -464,6 +503,45 @@ zabbix_export:
                   value: wapi
                 - tag: scope
                   value: availability
+        - uuid: 0a7ba4334e0d4e8197b9d7f8c21cc2fd
+          name: 'WAPI member service status result count'
+          type: DEPENDENT
+          key: infoblox.wapi.restartservicestatus.result_count
+          history: 30d
+          value_type: FLOAT
+          units: objects
+          description: 'Number of objects returned by WAPI restartservicestatus master call. If this equals {$INFOBLOX.WAPI.MAX_RESULTS}, results may be truncated.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var obj;
+                  try { obj = JSON.parse(value); } catch (e) { return 0; }
+                  var rows = obj && obj.result ? obj.result : obj;
+                  if (!Array.isArray(rows)) return 0;
+                  return rows.length;
+          master_item:
+            key: infoblox.wapi.restartservicestatus.get
+          tags:
+            - tag: component
+              value: wapi
+            - tag: metric
+              value: result_count
+          triggers:
+            - uuid: 7f24040768c24896a8ecefbcc774aa74
+              expression: 'last(/Infoblox Grid Manager/infoblox.wapi.restartservicestatus.result_count)>={$INFOBLOX.WAPI.MAX_RESULTS}'
+              name: 'WAPI member service status result count reached max_results'
+              event_name: 'WAPI member service status result count reached max_results (count: {ITEM.VALUE}, max: {$INFOBLOX.WAPI.MAX_RESULTS})'
+              priority: WARNING
+              description: 'The restartservicestatus master call returned at least max_results objects, so additional objects may be truncated. Increase {$INFOBLOX.WAPI.MAX_RESULTS} or reduce response scope.'
+              dependencies:
+                - name: 'WAPI member service status collection failed'
+                  expression: 'nodata(/Infoblox Grid Manager/infoblox.wapi.restartservicestatus.get,30m)=1'
+              tags:
+                - tag: component
+                  value: wapi
+                - tag: scope
+                  value: capacity
         - uuid: 12693143db724251b9516dabcf74df9d
           name: 'WAPI shared networks (raw JSON)'
           type: HTTP_AGENT
@@ -478,7 +556,7 @@ zabbix_export:
             Fetches DHCP shared network objects via Infoblox WAPI (sharednetwork). Used as master for dependent LLD and dependent per-shared-network items so only one WAPI call is made per polling interval.
             
             Note: In practice dhcp_utilization is commonly returned as 0-1000 where 965 = 96.5%. The dependent items scale it to percent.
-          url: '{$INFOBLOX.WAPI.URL}/sharednetwork?_return_fields=name,network_view,dhcp_utilization,dhcp_utilization_status,dynamic_hosts,static_hosts,total_hosts&_max_results=10000'
+          url: '{$INFOBLOX.WAPI.URL}/sharednetwork?_return_fields=name,network_view,dhcp_utilization,dhcp_utilization_status,dynamic_hosts,static_hosts,total_hosts&_max_results={$INFOBLOX.WAPI.MAX_RESULTS}'
           headers:
             - name: Content-Type
               value: application/json
@@ -502,6 +580,45 @@ zabbix_export:
                   value: wapi
                 - tag: scope
                   value: availability
+        - uuid: a53d39f4b94f4f96b8e9b163535e1f39
+          name: 'WAPI shared networks result count'
+          type: DEPENDENT
+          key: infoblox.wapi.sharednetwork.result_count
+          history: 30d
+          value_type: FLOAT
+          units: objects
+          description: 'Number of objects returned by WAPI sharednetwork master call. If this equals {$INFOBLOX.WAPI.MAX_RESULTS}, results may be truncated.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var obj;
+                  try { obj = JSON.parse(value); } catch (e) { return 0; }
+                  var rows = obj && obj.result ? obj.result : obj;
+                  if (!Array.isArray(rows)) return 0;
+                  return rows.length;
+          master_item:
+            key: infoblox.wapi.sharednetwork.get
+          tags:
+            - tag: component
+              value: wapi
+            - tag: metric
+              value: result_count
+          triggers:
+            - uuid: b07d24934eb84f4ebb0209fc01f4c8d8
+              expression: 'last(/Infoblox Grid Manager/infoblox.wapi.sharednetwork.result_count)>={$INFOBLOX.WAPI.MAX_RESULTS}'
+              name: 'WAPI shared network result count reached max_results'
+              event_name: 'WAPI shared network result count reached max_results (count: {ITEM.VALUE}, max: {$INFOBLOX.WAPI.MAX_RESULTS})'
+              priority: WARNING
+              description: 'The sharednetwork master call returned at least max_results objects, so additional objects may be truncated. Increase {$INFOBLOX.WAPI.MAX_RESULTS} or reduce response scope.'
+              dependencies:
+                - name: 'WAPI shared network collection failed'
+                  expression: 'nodata(/Infoblox Grid Manager/infoblox.wapi.sharednetwork.get,30m)=1'
+              tags:
+                - tag: component
+                  value: wapi
+                - tag: scope
+                  value: capacity
         - uuid: d393fc87f7984de3a07bfa7b2f068bfc
           name: 'System contact'
           type: SNMP_AGENT
@@ -1898,15 +2015,18 @@ zabbix_export:
         - macro: '{$INFOBLOX.SWAP_UTIL.WARN}'
           value: '50'
           description: 'Swap utilization warning threshold (%)'
+        - macro: '{$INFOBLOX.WAPI.MAX_RESULTS}'
+          value: '5000'
+          description: 'Maximum objects requested per WAPI call. Reduce for very large grids to limit payload size and API load.'
         - macro: '{$INFOBLOX.WAPI.PASSWORD}'
-          value: changeme
-          description: 'Infoblox WAPI password'
+          value: __SET_IN_HOST_MACRO__
+          description: 'Infoblox WAPI password (set per host/group; do not store real passwords in template exports)'
         - macro: '{$INFOBLOX.WAPI.URL}'
           value: 'https://{HOST.CONN}/wapi/v2.13'
-          description: 'Infoblox WAPI base URL including version (NIOS 9.0.5: use v2.13). Example: https://10.10.254.2/wapi/v2.13'
+          description: 'Infoblox WAPI base URL including version (NIOS 9.0.5: use v2.13). Example: https://198.51.100.10/wapi/v2.13'
         - macro: '{$INFOBLOX.WAPI.USER}'
-          value: wapiuser
-          description: 'Infoblox WAPI username'
+          value: __SET_IN_HOST_MACRO__
+          description: 'Infoblox WAPI username (set per host/group; avoid exporting real account names if not required)'
         - macro: '{$SNMP.TIMEOUT}'
           value: 5m
           description: 'Time period to consider SNMP as unavailable'
@@ -2451,25 +2571,6 @@ zabbix_export:
                       name: rows
                       value: '4'
       valuemaps:
-        - uuid: 7064541631004b8db8c7e4c4937dfbeb
-          name: 'Infoblox::ServiceName'
-          mappings:
-            - value: '1'
-              newvalue: dhcp
-            - value: '2'
-              newvalue: dns
-            - value: '3'
-              newvalue: ntp
-            - value: '4'
-              newvalue: tftp
-            - value: '5'
-              newvalue: http-file-dist
-            - value: '6'
-              newvalue: ftp
-            - value: '7'
-              newvalue: bloxtools-move
-            - value: '8'
-              newvalue: bloxtools
         - uuid: 18b4f01d7da74c3880a484b76f50a542
           name: 'Infoblox::ServiceState'
           mappings:

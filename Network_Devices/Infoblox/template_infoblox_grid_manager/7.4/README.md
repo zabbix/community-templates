@@ -6,7 +6,7 @@
 
 **Author:** `://echo@dla.network [oZark oRChes✝ra✝'d]` | [![GitHub](https://img.shields.io/badge/GitHub-DLA--neTWorK-blue?logo=github)](https://github.com/DLA-neTWorK)
 
-**Version:** 1.0.0 (2026-03-12)
+**Version:** 1.0.1 (2026-03-12)
 
 ## Overview
 
@@ -36,6 +36,9 @@ The design is optimized for operations teams that need both appliance-level heal
 - ✅ **Operational Dashboard** - 2 pages with 13 widgets for status + DHCP utilization drilldown
 - ✅ **Noise-Reduced Alerting** - Trigger dependencies and clear transport/data-collection separation
 - ✅ **Controlled LLD Alert Rollout** - Runtime service prototypes enabled, capacity prototypes disabled by default
+- ✅ **WAPI Scalability Controls** - Configurable WAPI max-results with bounded response-field selection for service status calls
+- ✅ **Truncation Risk Guardrails** - Count-based alerts when WAPI responses reach configured max-results cap
+- ✅ **Credential-Safe Defaults** - Template exports use placeholder WAPI credentials to avoid accidental secret leakage
 
 ## Monitoring Capabilities
 
@@ -93,6 +96,14 @@ WAPI master items fetch JSON once per interval, then dependent LLD/item prototyp
 	- Reporting status
 - Network-level DHCP utilization and host counts
 - Shared-network DHCP utilization and host counts
+
+Additional dependent telemetry monitors WAPI response object counts for:
+
+- `network`
+- `sharednetwork`
+- `restartservicestatus`
+
+and triggers warning events when any result count reaches `{$INFOBLOX.WAPI.MAX_RESULTS}` (possible truncation).
 
 ## Dashboard
 
@@ -185,6 +196,9 @@ All LLD trigger prototypes in this template use `manual_close=YES` to support ex
 | WAPI network collection failed | WARNING | Enabled |
 | WAPI shared network collection failed | WARNING | Enabled |
 | WAPI member service status collection failed | WARNING | Enabled |
+| WAPI network result count reached max_results | WARNING | Enabled |
+| WAPI shared network result count reached max_results | WARNING | Enabled |
+| WAPI member service status result count reached max_results | WARNING | Enabled |
 
 #### LLD Trigger Prototypes
 
@@ -204,7 +218,7 @@ All LLD trigger prototypes in this template use `manual_close=YES` to support ex
 |---|---|---|
 | HIGH | 1 | Unavailable by ICMP ping |
 | AVERAGE | 1 | Grid replication is not ONLINE |
-| WARNING | 15 | SNMP unavailable, CPU/memory/swap thresholds, WAPI collection failures, member DNS/DHCP/Reporting status problems |
+| WARNING | 18 | SNMP unavailable, CPU/memory/swap thresholds, WAPI collection failures, result-cap truncation warnings, member DNS/DHCP/Reporting status problems |
 | INFO | 1 | Host has been restarted |
 
 #### Disabled by Default
@@ -251,8 +265,9 @@ Set at host or template level:
 | Macro | Default | Description |
 |---|---|---|
 | `{$INFOBLOX.WAPI.URL}` | `https://{HOST.CONN}/wapi/v2.13` | WAPI base URL with version |
-| `{$INFOBLOX.WAPI.USER}` | `wapiuser` | WAPI username |
-| `{$INFOBLOX.WAPI.PASSWORD}` | `changeme` | WAPI password |
+| `{$INFOBLOX.WAPI.USER}` | `__SET_IN_HOST_MACRO__` | WAPI username (set at host/group level) |
+| `{$INFOBLOX.WAPI.PASSWORD}` | `__SET_IN_HOST_MACRO__` | WAPI password (set at host/group level) |
+| `{$INFOBLOX.WAPI.MAX_RESULTS}` | `5000` | Maximum objects requested per WAPI call |
 
 ### Step 4: Tune Alert Threshold Macros
 
@@ -318,9 +333,9 @@ Checks:
 2. Validate endpoint and credentials manually:
 
 ```bash
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/network?_max_results=2"
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/sharednetwork?_max_results=2"
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/restartservicestatus?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/network?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/sharednetwork?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/restartservicestatus?_return_fields=member,dns_status,dhcp_status,reporting_status&_max_results=2"
 ```
 
 3. If TLS inspection or private PKI is used, ensure your Zabbix HTTP agent trust chain/network path is valid.
@@ -368,9 +383,9 @@ snmpget -v2c -c COMMUNITY DEVICE_IP 1.3.6.1.4.1.7779.3.1.1.2.1.16.0
 ### WAPI Checks
 
 ```bash
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/network?_max_results=2"
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/sharednetwork?_max_results=2"
-curl -k -u wapiuser:password "https://DEVICE_IP/wapi/v2.13/restartservicestatus?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/network?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/sharednetwork?_max_results=2"
+curl -k -u "$WAPI_USER:$WAPI_PASS" "https://DEVICE_IP/wapi/v2.13/restartservicestatus?_return_fields=member,dns_status,dhcp_status,reporting_status&_max_results=2"
 ```
 
 ## Technical Architecture
@@ -429,15 +444,16 @@ Total discovery rules: 7
 Approximate counts from template definition:
 
 - Non-LLD items: 26
+- Non-LLD items: 29
 - Discovery rules: 7
 - Item prototypes: 33
-- Non-LLD triggers: 15
+- Non-LLD triggers: 18
 - Trigger prototypes: 5
 - Graph prototype groups: 2
 - Dashboards: 1
 - Dashboard pages: 2
 - Dashboard widgets: 13
-- Macros: 12
+- Macros: 13
 
 ## Security and Operations Notes
 
@@ -448,6 +464,8 @@ Approximate counts from template definition:
 - Enable disabled DHCP utilization trigger prototypes only after threshold tuning per environment.
 - If this template is linked to a non-Grid-Master host, expect reduced grid-wide visibility for member/service views.
 - Treat WAPI collection failures separately from SNMP failures during incident triage; they indicate different fault domains.
+- Monitor WAPI result-count items; if they hit `{$INFOBLOX.WAPI.MAX_RESULTS}`, the response may be truncated.
+- Tune `{$INFOBLOX.WAPI.MAX_RESULTS}` based on grid size and Zabbix server capacity.
 
 ## Use Cases
 
@@ -505,6 +523,14 @@ Approximate counts from template definition:
 - [Low-Level Discovery](https://www.zabbix.com/documentation/7.4/manual/discovery/low_level_discovery)
 
 ## Version History
+
+### v1.0.1 - Security and Scalability Hardening (2026-03-12)
+
+- Replaced hardcoded WAPI `_max_results=10000` with configurable macro `{$INFOBLOX.WAPI.MAX_RESULTS}`
+- Limited WAPI `restartservicestatus` request fields to required values (`member,dns_status,dhcp_status,reporting_status`)
+- Added dependent result-count items and warning triggers to detect potential WAPI result truncation at configured cap
+- Removed unused `Infoblox::ServiceName` valuemap
+- Updated default WAPI credential macros to placeholder values (`__SET_IN_HOST_MACRO__`) to avoid exporting risky defaults
 
 ### v1.0.0 - Initial Comprehensive Release (2026-03-12)
 
