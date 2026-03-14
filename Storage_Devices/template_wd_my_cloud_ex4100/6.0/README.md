@@ -8,6 +8,7 @@ Zabbix SNMP Template for (Western Digital) WD My Cloud EX4100
 Adapted from the community EX4 template. 
 
 OIDs updated to match the EX4100 MIB (submodelID 6 instead of 1):
+
           EX4    base: .1.3.6.1.4.1.5127.1.1.1.1.1
           EX4100 base: .1.3.6.1.4.1.5127.1.1.1.6.1
 
