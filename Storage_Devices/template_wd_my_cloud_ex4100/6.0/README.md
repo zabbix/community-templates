@@ -2,109 +2,94 @@
 
 ## Overview
 
-Zabbix SNMP Template for (Western Digital) WD My Cloud EX4100
+Zabbix SNMP template for the Western Digital WD My Cloud EX4100 NAS device.
 
+Adapted from the community [EX4 template](https://github.com/zabbix/community-templates/tree/main/Storage_Devices/template_wd_my_cloud_ex4).
+The key difference is the SNMP OID base path, which reflects a different `submodelID` in the EX4100 MIB:
 
-Adapted from the community EX4 template. 
+| Model  | OID base                        |
+|--------|---------------------------------|
+| EX4    | `.1.3.6.1.4.1.5127.1.1.1.1.1`  |
+| EX4100 | `.1.3.6.1.4.1.5127.1.1.1.6.1`  |
 
-OIDs updated to match the EX4100 MIB (submodelID 6 instead of 1):
+MIB reference: <https://downloads.wdc.com/nas/WDMYCLOUDEX4100-MIB.txt>
 
-          EX4    base: .1.3.6.1.4.1.5127.1.1.1.1.1
-          EX4100 base: .1.3.6.1.4.1.5127.1.1.1.6.1
+## Requirements
 
-MIB reference: https://downloads.wdc.com/nas/WDMYCLOUDEX4100-MIB.txt
+- Zabbix 3.4 or later (preprocessing/regex support required)
+- SNMP enabled on the WD My Cloud EX4100
 
+## Setup
 
-Prerequisites:
---------------
+1. On the EX4100 web UI, go to **Settings → Network → SNMP** and enable SNMP.
+   SNMP v2c with a community string is recommended.
+2. In Zabbix, import the template YAML file via **Configuration → Templates → Import**.
+3. Assign the template to your EX4100 host.
+4. Set the following macros on the host:
 
+| Macro              | Description                          | Example value |
+|--------------------|--------------------------------------|---------------|
+| `{$SNMP_PORT}`     | UDP port for SNMP                    | `161`         |
+| `{$SNMP_COMMUNITY}`| SNMP community string                | `public`      |
 
-* Enable SNMP on WD My Cloud EX4
-* Zabbix 3.4+ with preproccessing support for regex-magic on item
-
-
-Feautres:
----------
-
-
-Low Level Discovery:
-
-
-* physical disks
-* logical disks
-* UPS
-
-
-Notice:
--------
-
-
-In my env this NAS is "lazy" and have problems with BULK SNMP queries from Zabbix.
-
-
-Template uses vars set on host-level:
-
-
-* {$SNMP\_PORT}
-* {$SNMP\_COMMUNITY}
-
-
-## Macros used
-
-There are no macros links in this template.
-
-## Template links
-
-There are no template links in this template.
-
-## Discovery rules
-
-|Name|Description|Type|Key and additional info|
-|----|-----------|----|----|
-|UPSs|<p>-</p>|`SNMP agent`|upsDiscovery<p>Update: 1h</p>|
-|Logical Disks|<p>-</p>|`SNMP agent`|ldDiscovery<p>Update: 1m</p>|
-|Physical Disks|<p>-</p>|`SNMP agent`|pdDiscovery<p>Update: 1h</p>|
-
+> **Note:** This NAS can be slow to respond to SNMP bulk queries. If you experience missing data or timeouts, increase the SNMP timeout on the host or consider disabling bulk requests in the host interface settings.
 
 ## Items collected
 
-|Name|Description|Type|Key and additional info|
-|----|-----------|----|----|
-|Agent Version|<p>-</p>|`SNMP agent`|agentVer<p>Update: 1h</p>|
-|FTP status|<p>-</p>|`SNMP agent`|ftpServer<p>Update: 1h</p>|
-|Temperature|<p>-</p>|`SNMP agent`|temperature<p>Update: 1m</p>|
-|Fan status|<p>-</p>|`SNMP agent`|fanStatus<p>Update: 1m</p>|
-|Net type|<p>-</p>|`SNMP agent`|netType<p>Update: 1h</p>|
-|Software version|<p>-</p>|`SNMP agent`|softwareVersion<p>Update: 1h</p>|
-|Hostname|<p>-</p>|`SNMP agent`|hostName<p>Update: 1h</p>|
-|UPS No{#SNMPINDEX} Battery Charge|<p>-</p>|`SNMP agent`|upsBattery[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
-|UPS No{#SNMPINDEX} Manufacturer|<p>-</p>|`SNMP agent`|upsManufacturer[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|UPS No{#SNMPINDEX} Mode|<p>-</p>|`SNMP agent`|upsMode[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|UPS No{#SNMPINDEX} Product|<p>-</p>|`SNMP agent`|upsProduct[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|UPS No{#SNMPINDEX} Status|<p>-</p>|`SNMP agent`|upsStatus[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
-|Logical disk {#VOLUMENAME} free space|<p>-</p>|`SNMP agent`|ld.freespace[{#VOLUMENAME}]<p>Update: 1m</p><p>LLD</p>|
-|Logical disk {#VOLUMENAME} FS type|<p>-</p>|`SNMP agent`|ld.fstype[{#VOLUMENAME}]<p>Update: 1h</p><p>LLD</p>|
-|Logical disk {#VOLUMENAME} free percent|<p>-</p>|`Calculated`|ld.pfree[{#VOLUMENAME}]<p>Update: 1m</p><p>LLD</p>|
-|Logical disk {#VOLUMENAME} RAID level|<p>-</p>|`SNMP agent`|ld.raid[{#VOLUMENAME}]<p>Update: 1h</p><p>LLD</p>|
-|Logical disk {#VOLUMENAME} size|<p>-</p>|`SNMP agent`|pd.size[{#VOLUMENAME}]<p>Update: 1h</p><p>LLD</p>|
-|Disk capacity in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.capacity[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|Disk model in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.model[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|Disk SN in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.SN[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
-|Disk temperature in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.temperature[{#SNMPINDEX}]<p>Update: 1m</p><p>LLD</p>|
-|Disk vendor in slot {#SNMPINDEX}|<p>-</p>|`SNMP agent`|pd.Vendor[{#SNMPINDEX}]<p>Update: 1h</p><p>LLD</p>|
+### System
 
+| Name             | Key               | Update |
+|------------------|-------------------|--------|
+| Agent Version    | `agentVer`        | 1h     |
+| Software version | `softwareVersion` | 1h     |
+| Hostname         | `hostName`        | 1h     |
+| Temperature      | `temperature`     | 1m     |
+| Fan status       | `fanStatus`       | 1m     |
+| FTP status       | `ftpServer`       | 1h     |
+| Net type         | `netType`         | 1h     |
+
+### Physical Disks (LLD)
+
+| Name                          | Key                        | Update |
+|-------------------------------|----------------------------|--------|
+| Disk vendor in slot N         | `pd.Vendor[{#SNMPINDEX}]`  | 1h     |
+| Disk model in slot N          | `pd.model[{#SNMPINDEX}]`   | 1h     |
+| Disk SN in slot N             | `pd.SN[{#SNMPINDEX}]`      | 1h     |
+| Disk temperature in slot N    | `pd.temperature[{#SNMPINDEX}]` | 1m |
+| Disk capacity in slot N       | `pd.capacity[{#SNMPINDEX}]`| 1h     |
+
+### Logical Disks (LLD)
+
+| Name                              | Key                          | Update |
+|-----------------------------------|------------------------------|--------|
+| Logical disk {name} size          | `pd.size[{#VOLUMENAME}]`     | 1h     |
+| Logical disk {name} free space    | `ld.freespace[{#VOLUMENAME}]`| 1m     |
+| Logical disk {name} free percent  | `ld.pfree[{#VOLUMENAME}]`    | 1m     |
+| Logical disk {name} FS type       | `ld.fstype[{#VOLUMENAME}]`   | 1h     |
+| Logical disk {name} RAID level    | `ld.raid[{#VOLUMENAME}]`     | 1h     |
+
+### UPS (LLD)
+
+| Name                      | Key                            | Update |
+|---------------------------|--------------------------------|--------|
+| UPS No{N} Mode            | `upsMode[{#SNMPINDEX}]`        | 1h     |
+| UPS No{N} Manufacturer    | `upsManufacturer[{#SNMPINDEX}]`| 1h     |
+| UPS No{N} Product         | `upsProduct[{#SNMPINDEX}]`     | 1h     |
+| UPS No{N} Battery Charge  | `upsBattery[{#SNMPINDEX}]`     | 1m     |
+| UPS No{N} Status          | `upsStatus[{#SNMPINDEX}]`      | 1m     |
 
 ## Triggers
 
-|Name|Description|Expression|Priority|
-|----|-----------|----------|--------|
-|Logical Disk {#VOLUMENAME} free space less 25%|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/ld.pfree[{#VOLUMENAME}])<25</p><p>**Recovery expression**: </p>|warning|
-|Physical disk {#SNMPINDEX} temperature|<p>-</p>|<p>**Expression**: avg(/WD My Cloud EX4/pd.temperature[{#SNMPINDEX}],#5)>55</p><p>**Recovery expression**: </p>|warning|
-|Battery Charge Critical|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/upsBattery[{#SNMPINDEX}])<25</p><p>**Recovery expression**: </p>|high|
-|Battery Charge Low|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/upsBattery[{#SNMPINDEX}])<50</p><p>**Recovery expression**: </p>|average|
-|Battery Status|<p>-</p>|<p>**Expression**: find(/WD My Cloud EX4/upsStatus[{#SNMPINDEX}],#3,"regexp","On Line")=0</p><p>**Recovery expression**: </p>|warning|
-|Battery Charge Critical (LLD)|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/upsBattery[{#SNMPINDEX}])<25</p><p>**Recovery expression**: </p>|high|
-|Battery Charge Low (LLD)|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/upsBattery[{#SNMPINDEX}])<50</p><p>**Recovery expression**: </p>|average|
-|Battery Status (LLD)|<p>-</p>|<p>**Expression**: find(/WD My Cloud EX4/upsStatus[{#SNMPINDEX}],#3,"regexp","On Line")=0</p><p>**Recovery expression**: </p>|warning|
-|Logical Disk {#VOLUMENAME} free space less 25% (LLD)|<p>-</p>|<p>**Expression**: last(/WD My Cloud EX4/ld.pfree[{#VOLUMENAME}])<25</p><p>**Recovery expression**: </p>|warning|
-|Physical disk {#SNMPINDEX} temperature (LLD)|<p>-</p>|<p>**Expression**: avg(/WD My Cloud EX4/pd.temperature[{#SNMPINDEX}],#5)>55</p><p>**Recovery expression**: </p>|warning|
+| Name                                    | Severity | Condition                                      |
+|-----------------------------------------|----------|------------------------------------------------|
+| High temperature                        | Warning  | Average system temperature over last 5 samples > 60 °C |
+| Fan status                              | Warning  | Fan status does not contain "running"          |
+| Physical disk N temperature             | Warning  | Average disk temperature over last 5 samples > 55 °C |
+| Logical Disk {name} free space less 25% | Warning  | Free space < 25%                               |
+| Battery Charge Low                      | Average  | UPS battery charge < 50%                      |
+| Battery Charge Critical                 | High     | UPS battery charge < 25%                      |
+| Battery Status                          | Warning  | UPS status does not contain "On Line" in last 3 checks |
+
+## Author
+
+Adapted for EX4100 from the original EX4 community template.
