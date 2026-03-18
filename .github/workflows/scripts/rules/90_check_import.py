@@ -142,6 +142,14 @@ def run_check(skip: bool = False) -> dict:
                     "createMissing": true,
                     "updateExisting": true
                     },
+                    "host_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "template_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
                     "templates": {
                     "createMissing": true,
                     "updateExisting": true
@@ -205,6 +213,14 @@ def run_check(skip: bool = False) -> dict:
                     "createMissing": true,
                     "updateExisting": true
                     },
+                    "host_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "template_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
                     "templates": {
                     "createMissing": true,
                     "updateExisting": true
@@ -265,6 +281,10 @@ def run_check(skip: bool = False) -> dict:
                 {
                 "rules": {
                     "hosts": {
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "groups":{
                     "createMissing": true,
                     "updateExisting": true
                     },
