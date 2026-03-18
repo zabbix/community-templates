@@ -39,68 +39,68 @@ def run_check(skip: bool = False) -> dict:
 
     try:
         for file in changed_files:
-            with open(file, 'r', encoding='utf-8') as read_file_fs:
-                if file.endswith(('.yaml', '.YAML')):
-                    try:
-                        data_obj = yaml.load(read_file_fs)
-                        if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
-                            file_type = 'template'
-                            version = data_obj['zabbix_export']['version']
-                        elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
-                            file_type = 'mediatype'
-                            version = data_obj['zabbix_export']['version']
-                        else:
-                            file_type = 'unknown'
-                    except:
-                        return {
-                            'step': step_name,
-                            'status': 'fail',
-                            'message': f'File "{file}" is not a valid YAML file.'
-                        }
+            if not file.endswith(('.yaml', '.YAML', '.json', '.JSON', '.xml', '.XML', '/README.md', '/readme.md')):
+                file_type = 'unknown'
+            else:
+                with open(file, 'r', encoding='utf-8') as read_file_fs:
+                    if file.endswith(('.yaml', '.YAML')):
+                        try:
+                            data_obj = yaml.load(read_file_fs)
+                            if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
+                                file_type = 'template'
+                                version = data_obj['zabbix_export']['version']
+                            elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
+                                file_type = 'mediatype'
+                                version = data_obj['zabbix_export']['version']
+                            else:
+                                file_type = 'unknown'
+                        except:
+                            return {
+                                'step': step_name,
+                                'status': 'fail',
+                                'message': f'File "{file}" is not a valid YAML file.'
+                            }
 
-                elif file.endswith(('.json', '.JSON')):
-                    try:
-                        data_obj = json.load(read_file_fs)
-                        if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
-                            file_type = 'template'
-                            version = data_obj['zabbix_export']['version']
-                        elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
-                            file_type = 'mediatype'
-                            version = data_obj['zabbix_export']['version']
-                        else:
-                            file_type = 'unknown'
-                    except:
-                        return {
-                            'step': step_name,
-                            'status': 'fail',
-                            'message': f'File "{file}" is not a valid JSON file.'
-                        }
+                    elif file.endswith(('.json', '.JSON')):
+                        try:
+                            data_obj = json.load(read_file_fs)
+                            if 'zabbix_export' in data_obj and 'templates' in data_obj['zabbix_export']:
+                                file_type = 'template'
+                                version = data_obj['zabbix_export']['version']
+                            elif 'zabbix_export' in data_obj and 'readme' in data_obj['media_types']:
+                                file_type = 'mediatype'
+                                version = data_obj['zabbix_export']['version']
+                            else:
+                                file_type = 'unknown'
+                        except:
+                            return {
+                                'step': step_name,
+                                'status': 'fail',
+                                'message': f'File "{file}" is not a valid JSON file.'
+                            }
 
-                elif file.endswith(('.xml', '.XML')):
-                    try:
-                        data_obj = etree.parse(file)
-                        if data_obj.xpath('//zabbix_export/templates'):
-                            file_type = 'template'
-                            version = data_obj.xpath(
-                                '//zabbix_export/version')[0].text
-                        elif data_obj.xpath('//zabbix_export/media_types'):
-                            file_type = 'mediatype'
-                            version = data_obj.xpath(
-                                '//zabbix_export/version')[0].text
-                        else:
-                            file_type = 'unknown'
-                    except:
-                        return {
-                            'step': step_name,
-                            'status': 'fail',
-                            'message': f'File "{file}" is not a valid XML file.'
-                        }
+                    elif file.endswith(('.xml', '.XML')):
+                        try:
+                            data_obj = etree.parse(file)
+                            if data_obj.xpath('//zabbix_export/templates'):
+                                file_type = 'template'
+                                version = data_obj.xpath(
+                                    '//zabbix_export/version')[0].text
+                            elif data_obj.xpath('//zabbix_export/media_types'):
+                                file_type = 'mediatype'
+                                version = data_obj.xpath(
+                                    '//zabbix_export/version')[0].text
+                            else:
+                                file_type = 'unknown'
+                        except:
+                            return {
+                                'step': step_name,
+                                'status': 'fail',
+                                'message': f'File "{file}" is not a valid XML file.'
+                            }
 
-                elif file.endswith('/README.md'):
-                    file_type = 'readme'
-
-                else:
-                    file_type = 'unknown'
+                    elif file.endswith(('/README.md', '/readme.md')):
+                        file_type = 'readme'
 
             if file_type == 'template':
                 path_list = Path(file).parts
