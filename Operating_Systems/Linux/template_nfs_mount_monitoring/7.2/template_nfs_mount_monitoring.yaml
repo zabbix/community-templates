@@ -1,0 +1,206 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+    - uuid: b77b8890a96043cbacab15f8180a74a6
+      name: 'Templates/Operating systems'
+  templates:
+    - uuid: 51690fa54d47478fba52e1374d8b5dda
+      template: 'NFS Mount Monitoring'
+      name: 'NFS Mount Monitoring'
+      description: |
+        Generic template for monitoring NFS mount points on Linux hosts.
+
+        Uses {$NFS_MOUNT_PATH} macro to filter which mounts to monitor — override
+        this macro at the host level to target specific mount paths.
+
+        Requirements:
+        - Zabbix agent (passive) or Zabbix agent 2
+        - Linux OS with NFS mounts
+
+        Macros:
+        - {$NFS_MOUNT_PATH}  Regex filter for mount path (default: ^/mnt/.*$)
+        - {$NFS_FREE_WARN}   Warning threshold % free space (default: 20)
+        - {$NFS_FREE_CRIT}   Critical threshold % free space (default: 10)
+
+        Metrics:
+        - Free space (bytes and percentage)
+        - Used space (bytes)
+        - Total space (bytes)
+        - Free inodes (percentage)
+
+        Triggers:
+        - High:    free space < {$NFS_FREE_CRIT}%
+        - Warning: free space < {$NFS_FREE_WARN}%
+        - Warning: free inodes < 20%
+        - High:    mount not present / unreachable (no data 15m)
+
+        Examples:
+        - Fluentd NFS:       {$NFS_MOUNT_PATH} = ^/mnt/nfs/fluentd.*$
+        - OpenStack Glance:  {$NFS_MOUNT_PATH} = ^/mnt/glance.*$
+        - All /mnt mounts:   {$NFS_MOUNT_PATH} = ^/mnt/.*$  (default)
+      vendor:
+        name: 'Community'
+        version: '7.2'
+      groups:
+        - name: 'Templates/Operating systems'
+      macros:
+        - macro: '{$NFS_MOUNT_PATH}'
+          value: '^/mnt/.*$'
+          description: 'Regex filter for NFS mount path. Override per host to target specific mounts.'
+        - macro: '{$NFS_FREE_WARN}'
+          value: '20'
+          description: 'Warning threshold: trigger when free space % drops below this value.'
+        - macro: '{$NFS_FREE_CRIT}'
+          value: '10'
+          description: 'Critical threshold: trigger when free space % drops below this value.'
+      discovery_rules:
+        - uuid: 131aec44daa94248a375577beb307ba5
+          name: 'NFS mount discovery'
+          type: ZABBIX_AGENT
+          key: 'vfs.fs.discovery'
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#FSTYPE}'
+                value: '^nfs4?$'
+                formulaid: A
+              - macro: '{#FSNAME}'
+                value: '{$NFS_MOUNT_PATH}'
+                formulaid: B
+          description: 'Discovers NFS mount points matching {$NFS_MOUNT_PATH}'
+          item_prototypes:
+            - uuid: 9c6b0cadffa844abbec7b5d2f584f47b
+              name: 'NFS [{#FSNAME}]: Free space'
+              type: ZABBIX_AGENT
+              key: 'vfs.fs.size[{#FSNAME},free]'
+              delay: 5m
+              history: 7d
+              units: B
+              description: 'Free disk space in bytes on {#FSNAME}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+
+            - uuid: b88bedf7383e4d5a97d325b533da0da1
+              name: 'NFS [{#FSNAME}]: Free space, %'
+              type: ZABBIX_AGENT
+              key: 'vfs.fs.size[{#FSNAME},pfree]'
+              delay: 5m
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: 'Free disk space percentage on {#FSNAME}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+
+            - uuid: f47cfee607374396b77f68df50b6faab
+              name: 'NFS [{#FSNAME}]: Total space'
+              type: ZABBIX_AGENT
+              key: 'vfs.fs.size[{#FSNAME},total]'
+              delay: 1h
+              history: 7d
+              units: B
+              description: 'Total disk space in bytes on {#FSNAME}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+
+            - uuid: 965acb315cba4c0dbfca3400990c499f
+              name: 'NFS [{#FSNAME}]: Used space'
+              type: ZABBIX_AGENT
+              key: 'vfs.fs.size[{#FSNAME},used]'
+              delay: 5m
+              history: 7d
+              units: B
+              description: 'Used disk space in bytes on {#FSNAME}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+
+            - uuid: aedfcbd5d7dc4fa09be55f125d90f4f0
+              name: 'NFS [{#FSNAME}]: Free inodes, %'
+              type: ZABBIX_AGENT
+              key: 'vfs.fs.inode[{#FSNAME},pfree]'
+              delay: 5m
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: 'Free inodes percentage on {#FSNAME}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+
+          trigger_prototypes:
+            - uuid: 3d37d0423a0f4770b7e28669a6f3724a
+              expression: 'last(/NFS Mount Monitoring/vfs.fs.size[{#FSNAME},pfree])<{$NFS_FREE_CRIT}'
+              name: 'NFS [{#FSNAME}]: Disk space critically low (<{$NFS_FREE_CRIT}% free)'
+              event_name: 'NFS [{#FSNAME}]: Disk space critically low (<{ITEM.VALUE1}% free)'
+              priority: HIGH
+              description: 'NFS mount {#FSNAME} has less than {$NFS_FREE_CRIT}% free space remaining.'
+              tags:
+                - tag: scope
+                  value: capacity
+
+            - uuid: 7e010be2592841bdac7995000b671ff3
+              expression: 'last(/NFS Mount Monitoring/vfs.fs.size[{#FSNAME},pfree])<{$NFS_FREE_WARN}'
+              name: 'NFS [{#FSNAME}]: Disk space low (<{$NFS_FREE_WARN}% free)'
+              event_name: 'NFS [{#FSNAME}]: Disk space low (<{ITEM.VALUE1}% free)'
+              priority: WARNING
+              description: 'NFS mount {#FSNAME} has less than {$NFS_FREE_WARN}% free space remaining.'
+              dependencies:
+                - name: 'NFS [{#FSNAME}]: Disk space critically low (<{$NFS_FREE_CRIT}% free)'
+                  expression: 'last(/NFS Mount Monitoring/vfs.fs.size[{#FSNAME},pfree])<{$NFS_FREE_CRIT}'
+              tags:
+                - tag: scope
+                  value: capacity
+
+            - uuid: 4ddaffd27ae44fc9aeefb116e3cba651
+              expression: 'last(/NFS Mount Monitoring/vfs.fs.inode[{#FSNAME},pfree])<20'
+              name: 'NFS [{#FSNAME}]: Free inodes low (<20%)'
+              event_name: 'NFS [{#FSNAME}]: Free inodes low (<{ITEM.VALUE1}%)'
+              priority: WARNING
+              description: 'NFS mount {#FSNAME} has less than 20% free inodes. New files may fail to create even if disk space is available.'
+              tags:
+                - tag: scope
+                  value: capacity
+
+            - uuid: 089ea9e3299a4c6094f7f6ca3b4fb2ba
+              expression: 'nodata(/NFS Mount Monitoring/vfs.fs.size[{#FSNAME},pfree],15m)=1'
+              name: 'NFS [{#FSNAME}]: mount not present or unreachable'
+              priority: HIGH
+              manual_close: 'YES'
+              description: 'NFS mount {#FSNAME} has not reported data for 15 minutes. The mount may be unmounted or the NFS server unreachable.'
+              tags:
+                - tag: scope
+                  value: availability
+
+          graph_prototypes:
+            - uuid: 67cd90debe0f4c60b1c402cfc012fb15
+              name: 'NFS [{#FSNAME}]: Disk space usage'
+              width: '600'
+              height: '340'
+              type: PIE
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: LAST
+                  item:
+                    host: 'NFS Mount Monitoring'
+                    key: 'vfs.fs.size[{#FSNAME},free]'
+                - sortorder: '1'
+                  color: F63100
+                  calc_fnc: LAST
+                  item:
+                    host: 'NFS Mount Monitoring'
+                    key: 'vfs.fs.size[{#FSNAME},used]'
