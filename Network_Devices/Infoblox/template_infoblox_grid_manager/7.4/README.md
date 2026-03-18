@@ -248,7 +248,7 @@ All LLD trigger prototypes in this template use `manual_close=YES` to support ex
 
 ### Step 1: Import Template
 
-1. Import `infoblox-grid-manager-template.yaml` in Zabbix:
+1. Import `template_infoblox_grid_manager.yaml` in Zabbix:
 	 - Configuration -> Templates -> Import
 2. Confirm template name appears as `Infoblox Grid Manager`.
 
