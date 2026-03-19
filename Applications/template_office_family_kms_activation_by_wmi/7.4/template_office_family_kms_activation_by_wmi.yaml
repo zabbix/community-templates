@@ -1,0 +1,165 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 3eec3b3734374ae6adb1b33558479601
+      name: Templates/Applications
+  templates:
+    - uuid: fa1577df05e4445fb267dc6a1a92adbc
+      template: 'Microsoft Office Family KMS Activation by WMI'
+      name: 'Microsoft Office Family KMS Activation by WMI'
+      description: |
+        Monitors Microsoft Office family activation expiration via WMI.
+        
+        Usage:
+        - link the template to a Windows host with Office family products installed
+        - ensure Zabbix Agent 2 is installed
+        - set Timeout=10 on the monitored host and/or override timeout on the master item if WMI queries are slow
+        
+        Data collection model:
+        - one WMI master item returns raw JSON from SoftwareLicensingProduct
+        - a dependent discovery rule extracts Office family licensing objects
+        - dependent item prototypes extract days until expiration and license state
+        
+        The default query uses Name LIKE '%Office%'.
+        In tested environments this includes Office ProPlus, Visio Pro, and Project Pro.
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: caab8dd62a914724aa0fb8b39865a151
+          name: 'Office family activation raw JSON by WMI'
+          key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE ''%Office%''"]'
+          delay: 1h
+          history: 7d
+          value_type: TEXT
+          timeout: 10s
+          tags:
+            - tag: component
+              value: license
+            - tag: component
+              value: source
+      discovery_rules:
+        - uuid: 2733ab960c854c30812b5a33df6ecd3c
+          name: 'Office family activation discovery'
+          type: DEPENDENT
+          key: office.family.kms.activation.discovery
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 7d
+          item_prototypes:
+            - uuid: 66e3630df4414f1bbb345acafb8555d8
+              name: '{#LICENSENAME}: Days until activation expiry'
+              type: DEPENDENT
+              key: 'office.family.kms.license.days[{#LICENSEID}]'
+              history: 90d
+              value_type: FLOAT
+              units: d
+              description: 'Days until activation expiration.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].GracePeriodRemaining.first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.000694444444'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE ''%Office%''"]'
+              tags:
+                - tag: component
+                  value: license
+                - tag: service
+                  value: office-family-activation
+              trigger_prototypes:
+                - uuid: f1492a471a1b45da849e69944d82ece5
+                  expression: 'last(/Microsoft Office Family KMS Activation by WMI/office.family.kms.license.days[{#LICENSEID}])<{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.CRIT}'
+                  name: '{#LICENSENAME}: activation expires in <{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.CRIT} days'
+                  priority: HIGH
+                  tags:
+                    - tag: component
+                      value: license
+                - uuid: 5c59b9242f334ba08349ffdaa40947c5
+                  expression: 'last(/Microsoft Office Family KMS Activation by WMI/office.family.kms.license.days[{#LICENSEID}])<{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.WARN}'
+                  name: '{#LICENSENAME}: activation expires in <{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.WARN} days'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: license
+            - uuid: c301fff0358c493c918a52bb05c88bdf
+              name: '{#LICENSENAME}: Product name'
+              type: DEPENDENT
+              key: 'office.family.kms.license.name[{#LICENSEID}]'
+              history: 30d
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].Name.first()'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE ''%Office%''"]'
+              tags:
+                - tag: component
+                  value: license
+            - uuid: 5f2f172ec76c4f79b9c62db55756aebc
+              name: '{#LICENSENAME}: License state'
+              type: DEPENDENT
+              key: 'office.family.kms.license.state[{#LICENSEID}]'
+              history: 90d
+              value_type: FLOAT
+              description: 'Office family license state.'
+              valuemap:
+                name: 'Office family license state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].LicenseStatus.first()'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE ''%Office%''"]'
+              tags:
+                - tag: component
+                  value: license
+              trigger_prototypes:
+                - uuid: 403dbbb09f49489893961a984624c6de
+                  expression: 'last(/Microsoft Office Family KMS Activation by WMI/office.family.kms.license.state[{#LICENSEID}])<>1'
+                  name: '{#LICENSENAME}: license is not in Licensed state'
+                  priority: AVERAGE
+                  tags:
+                    - tag: component
+                      value: license
+          master_item:
+            key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE ''%Office%''"]'
+          lld_macro_paths:
+            - lld_macro: '{#LICENSEID}'
+              path: $.ID
+            - lld_macro: '{#LICENSENAME}'
+              path: $.Name
+      tags:
+        - tag: class
+          value: application
+        - tag: target
+          value: kms
+        - tag: target
+          value: microsoft-office
+      macros:
+        - macro: '{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.CRIT}'
+          value: '7'
+          description: 'Critical threshold, in days, for Office family activation expiration.'
+        - macro: '{$OFFICEFAMILY.KMS.EXPIRATION.DAYS.MIN.WARN}'
+          value: '30'
+          description: 'Warning threshold, in days, for Office family activation expiration.'
+      valuemaps:
+        - uuid: 2afe47ef77534724b6f20225b21700d5
+          name: 'Office family license state'
+          mappings:
+            - value: '0'
+              newvalue: Unlicensed
+            - value: '1'
+              newvalue: Licensed
+            - value: '2'
+              newvalue: OOBGrace
+            - value: '3'
+              newvalue: OOTGrace
+            - value: '4'
+              newvalue: NonGenuineGrace
+            - value: '5'
+              newvalue: Notification
+            - value: '6'
+              newvalue: ExtendedGrace
