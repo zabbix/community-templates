@@ -87,6 +87,8 @@ def run_check(skip: bool = False) -> dict:
         changed_files = json.load(file_list)
     try:
         for file in changed_files:
+            if not file.endswith(('.yaml', '.YAML', '.json', '.JSON', '.xml', '.XML')):
+                continue
             with open(file, 'r', encoding='utf-8') as read_file_i:
                 if file.endswith(('.yaml', '.YAML')):
                     try:
@@ -139,6 +141,14 @@ def run_check(skip: bool = False) -> dict:
                 {
                 "rules": {
                     "hosts": {
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "host_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "template_groups":{
                     "createMissing": true,
                     "updateExisting": true
                     },
@@ -205,6 +215,14 @@ def run_check(skip: bool = False) -> dict:
                     "createMissing": true,
                     "updateExisting": true
                     },
+                    "host_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "template_groups":{
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
                     "templates": {
                     "createMissing": true,
                     "updateExisting": true
@@ -265,6 +283,10 @@ def run_check(skip: bool = False) -> dict:
                 {
                 "rules": {
                     "hosts": {
+                    "createMissing": true,
+                    "updateExisting": true
+                    },
+                    "groups":{
                     "createMissing": true,
                     "updateExisting": true
                     },

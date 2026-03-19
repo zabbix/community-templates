@@ -31,9 +31,13 @@ def run_check(skip: bool = False) -> dict:
 
     with open('.github/outputs/all_changed_files.json', 'r', encoding='utf-8') as file_list:
         changed_files = json.load(file_list)
+        
+    target_exists = False
 
     try:
         for file in changed_files:
+            if not file.endswith(('.yaml', '.YAML', '.json', '.JSON', '.xml', '.XML', '/README.md', '/readme.md')):
+                continue
             with open(file, 'r', encoding='utf-8') as read_file_n:
                 if file.endswith(('.yaml', '.YAML')):
                     try:
@@ -77,13 +81,14 @@ def run_check(skip: bool = False) -> dict:
                             'message': f'File "{file}" is not a valid XML file.'
                         }
 
-                elif file.endswith('/README.md'):
+                elif file.endswith(('/README.md', '/readme.md')):
                     file_type = 'readme'
 
                 else:
                     file_type = 'unknown'
 
             if file_type == 'template':
+                target_exists = True
                 template_file_name = os.path.splitext(
                     os.path.basename(file))[0]
                 if not re.match(regx_template, template_file_name):
@@ -93,6 +98,7 @@ def run_check(skip: bool = False) -> dict:
                         'message': f'Template file name "{template_file_name}" is invalid. Regular expression: ' + regx_template
                     }
             elif file_type == 'mediatype':
+                target_exists = True
                 mediatype_file_name = os.path.splitext(
                     os.path.basename(file))[0]
                 if not re.match(regx_mediatype, mediatype_file_name):
@@ -102,11 +108,18 @@ def run_check(skip: bool = False) -> dict:
                         'message': f'Template file name "{mediatype_file_name}" is invalid. Regular expression: ' + regx_mediatype
                     }
 
-        return {
-            'step': step_name,
-            'status': 'success',
-            'message': ''
-        }
+        if target_exists:
+            return {
+                'step': step_name,
+                'status': 'success',
+                'message': ''
+            }
+        else:
+            return {
+                'step': step_name,
+                'status': 'fail',
+                'message': 'Template or mediatype file is missing. Please add a template or mediatype file to the PR.'
+            }
 
     except Exception as e:
         return {
