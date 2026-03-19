@@ -1,0 +1,190 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 11985395acc84047bd9ae0c48bd00233
+      name: 'Templates/Operating systems'
+  templates:
+    - uuid: 228f9e129bdc4c128c9d1bce5c1d7298
+      template: 'Windows KMS Activation by WMI'
+      name: 'Windows KMS Activation by WMI'
+      description: |
+        Monitors Windows activation expiration via WMI.
+        
+        Usage:
+        - link the template to a Windows host
+        - ensure Zabbix Agent 2 is installed
+        - set Timeout=10 on the monitored host if WMI queries are slow
+        
+        Data collection model:
+        - one WMI master item returns raw JSON from SoftwareLicensingProduct
+        - a dependent discovery rule extracts Windows licensing objects
+        - dependent item prototypes extract days until expiration and license state
+        
+        This template is intended for Windows activation only.
+      groups:
+        - name: 'Templates/Operating systems'
+      items:
+        - uuid: 9e24181d25724e89beeac13d9c47635c
+          name: 'Windows activation raw JSON by WMI'
+          key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''"]'
+          delay: 1h
+          history: 7d
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: license
+            - tag: component
+              value: source
+        - uuid: c1a22e7a346841b2847834d742a3f57f
+          name: 'Windows OS build'
+          key: 'wmi.get[root\cimv2,"SELECT BuildNumber FROM Win32_OperatingSystem"]'
+          delay: 6h
+          history: 30d
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: os
+        - uuid: 15c772aff70643c1b2bc9ffd7761a42c
+          name: 'Windows OS caption'
+          key: 'wmi.get[root\cimv2,"SELECT Caption FROM Win32_OperatingSystem"]'
+          delay: 6h
+          history: 30d
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: os
+        - uuid: c17bed128cb7441f93b24211b55b503c
+          name: 'Windows OS version'
+          key: 'wmi.get[root\cimv2,"SELECT Version FROM Win32_OperatingSystem"]'
+          delay: 6h
+          history: 30d
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: os
+      discovery_rules:
+        - uuid: 1f9c62f723c54e36838ab34fc7928da9
+          name: 'Windows activation discovery'
+          type: DEPENDENT
+          key: windows.kms.activation.discovery
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 7d
+          item_prototypes:
+            - uuid: 9d6d7befb96a4e1898d2ef23a0fe7278
+              name: '{#LICENSENAME}: Days until activation expiry'
+              type: DEPENDENT
+              key: 'windows.kms.license.days[{#LICENSEID}]'
+              history: 90d
+              value_type: FLOAT
+              units: d
+              description: 'Days until activation expiration.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].GracePeriodRemaining.first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.000694444444'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''"]'
+              tags:
+                - tag: component
+                  value: license
+                - tag: service
+                  value: windows-activation
+              trigger_prototypes:
+                - uuid: fcb254b45be141c1876cc78339910d57
+                  expression: 'last(/Windows KMS Activation by WMI/windows.kms.license.days[{#LICENSEID}])<{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.CRIT}'
+                  name: '{#LICENSENAME}: activation expires in <{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.CRIT} days'
+                  priority: HIGH
+                  tags:
+                    - tag: component
+                      value: license
+                - uuid: dbfbef5d31bb401a92e8c37f7f3efaa5
+                  expression: 'last(/Windows KMS Activation by WMI/windows.kms.license.days[{#LICENSEID}])<{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.WARN}'
+                  name: '{#LICENSENAME}: activation expires in <{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.WARN} days'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: license
+            - uuid: 0dcbaf32abb34a97b444ed52ffed5f7a
+              name: '{#LICENSENAME}: Product name'
+              type: DEPENDENT
+              key: 'windows.kms.license.name[{#LICENSEID}]'
+              history: 30d
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].Name.first()'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''"]'
+              tags:
+                - tag: component
+                  value: license
+            - uuid: b7553113ca094f74a2cee11306aeb994
+              name: '{#LICENSENAME}: License state'
+              type: DEPENDENT
+              key: 'windows.kms.license.state[{#LICENSEID}]'
+              history: 90d
+              value_type: FLOAT
+              description: 'Windows license state.'
+              valuemap:
+                name: 'Windows license state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.ID == ''{#LICENSEID}'')].LicenseStatus.first()'
+              master_item:
+                key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''"]'
+              tags:
+                - tag: component
+                  value: license
+              trigger_prototypes:
+                - uuid: 0ac8fead1ab041fb9f4617b694653739
+                  expression: 'last(/Windows KMS Activation by WMI/windows.kms.license.state[{#LICENSEID}])<>1'
+                  name: '{#LICENSENAME}: license is not in Licensed state'
+                  priority: AVERAGE
+                  tags:
+                    - tag: component
+                      value: license
+          master_item:
+            key: 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''"]'
+          lld_macro_paths:
+            - lld_macro: '{#LICENSEID}'
+              path: $.ID
+            - lld_macro: '{#LICENSENAME}'
+              path: $.Name
+      tags:
+        - tag: class
+          value: os
+        - tag: target
+          value: kms
+        - tag: target
+          value: windows
+      macros:
+        - macro: '{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.CRIT}'
+          value: '7'
+          description: 'Critical threshold, in days, for Windows activation expiration.'
+        - macro: '{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.WARN}'
+          value: '30'
+          description: 'Warning threshold, in days, for Windows activation expiration.'
+      valuemaps:
+        - uuid: 726ff5f5b59846e5a089426648d6c584
+          name: 'Windows license state'
+          mappings:
+            - value: '0'
+              newvalue: Unlicensed
+            - value: '1'
+              newvalue: Licensed
+            - value: '2'
+              newvalue: OOBGrace
+            - value: '3'
+              newvalue: OOTGrace
+            - value: '4'
+              newvalue: NonGenuineGrace
+            - value: '5'
+              newvalue: Notification
+            - value: '6'
+              newvalue: ExtendedGrace
