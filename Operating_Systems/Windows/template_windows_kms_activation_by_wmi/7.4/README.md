@@ -1,40 +1,33 @@
-# Zabbix Windows KMS Activation Monitoring (WMI LLD)
+# Windows KMS Activation by WMI
 
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.4-red)
-![WMI](https://img.shields.io/badge/Data%20source-WMI-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![Data source](https://img.shields.io/badge/Data%20source-WMI-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Maintenance](https://img.shields.io/badge/Maintained-yes-brightgreen)
 
-Zabbix template for monitoring **Windows activation expiration** using **WMI** and **Low-Level Discovery (LLD)**.
+Zabbix template for monitoring **Windows activation expiration** via **WMI** and **Low-Level Discovery (LLD)**.
 
-This template automatically discovers Windows licensing objects via `wmi.getall[]`, creates dependent items, and tracks:
+The template is intended for Windows activation objects only and automatically discovers licensing entries from `SoftwareLicensingProduct`.
 
-- days until activation expiry
-- license status code
-- product name
-- Windows OS version/build information
-
-The template is designed for **Windows-only** monitoring and does **not** require external PowerShell collector scripts.
+It uses a **single WMI master item**, a **dependent discovery rule**, and **dependent item prototypes** for the final metrics.
 
 ---
 
 # Features
 
-- automatic discovery of Windows licensing objects via **WMI LLD**
+- automatic discovery of Windows activation objects via **WMI LLD**
 - monitoring of:
   - days until activation expiry
-  - grace period in minutes
-  - license status code
+  - license state
   - product name
-- additional OS information:
-  - Windows caption
-  - Windows version
-  - Windows build number
-- based on a **single raw WMI JSON master item**
-- dependent discovery and dependent item prototypes
-- no external scripts required
-- suitable for centralized Windows activation monitoring
+- additional Windows OS information:
+  - OS caption
+  - OS version
+  - OS build number
+- no external PowerShell scripts required
+- one WMI master item + dependent discovery
+- human-readable license state via value mapping
 
 ---
 
@@ -49,46 +42,60 @@ Dependent discovery rule
    ↓
 Dependent item prototypes
    ↓
-Trigger prototypes / graphs
+Trigger prototypes
 ```
 
-The template uses a single WMI query to retrieve raw licensing data as JSON and then builds all discovered metrics from that master item.
+The template performs one WMI query to collect licensing data, stores the result as raw JSON, and uses that JSON as the source for all discovered metrics.
 
-This reduces the number of WMI calls and makes the setup cleaner than creating multiple direct WMI items.
+This reduces the number of WMI calls and keeps the structure simple and maintainable.
 
 ---
 
 # Data Sources
 
-## Windows licensing
+## Windows activation
 
-The template collects licensing data from:
+The template uses:
 
 ```text
 SoftwareLicensingProduct
 ```
 
-Using the following fields:
+with the following fields:
 
 - `ID`
 - `Name`
 - `LicenseStatus`
 - `GracePeriodRemaining`
 
-## Windows OS version
+The main WMI query is:
 
-The template also collects system version information from:
+```text
+wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f'"]
+```
+
+## Windows OS information
+
+The template also collects:
 
 ```text
 Win32_OperatingSystem
 ```
 
-Using:
+for:
 
 - `Caption`
 - `Version`
 - `BuildNumber`
 
+---
+
+# Repository Structure
+
+```text
+.
+└─ template_windows_kms_activation_by_wmi.yaml
+```
 
 ---
 
@@ -96,18 +103,20 @@ Using:
 
 ## 1. Raw WMI master item
 
-The template creates a master item that runs a WMI query and returns JSON:
+The template creates a master item:
 
 ```text
-wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f'"]
+Windows activation raw JSON by WMI
 ```
+
+This item stores the raw JSON returned by the WMI query.
 
 Example output:
 
 ```json
 [
   {
-    "GracePeriodRemaining": 254896,
+    "GracePeriodRemaining": 254373,
     "ID": "2de67392-b7a7-462a-b1ca-108dd189f588",
     "LicenseStatus": 1,
     "Name": "Windows(R), Professional edition"
@@ -115,23 +124,91 @@ Example output:
 ]
 ```
 
-## 2. Dependent item prototypes
+## 2. Dependent discovery rule
 
-The template automatically creates items such as:
+A dependent discovery rule uses the raw JSON item as its master source.
 
-- `Windows(R), Professional edition: Days until activation expiry`
-- `Windows(R), Professional edition: License status code`
-- `Windows(R), Professional edition: Product name`
+The following LLD macros are extracted using JSONPath:
 
-A technical item for grace minutes is also created and can be used internally for calculations.
+- `{#LICENSEID}` → `$.ID`
+- `{#LICENSENAME}` → `$.Name`
+
+## 3. Dependent item prototypes
+
+The template automatically creates:
+
+- `{#LICENSENAME}: Days until activation expiry`
+- `{#LICENSENAME}: License state`
+- `{#LICENSENAME}: Product name`
+
+The template also creates static OS information items:
+
+- `Windows OS caption`
+- `Windows OS version`
+- `Windows OS build`
+
+---
+
+# Created Items
+
+## Static items
+
+- `Windows activation raw JSON by WMI`
+- `Windows OS caption`
+- `Windows OS version`
+- `Windows OS build`
+
+## Discovered items
+
+For each discovered Windows licensing object:
+
+- `Days until activation expiry`
+- `License state`
+- `Product name`
+
+---
+
+# License State Mapping
+
+The following `LicenseStatus` values are mapped into readable text:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Unlicensed |
+| 1 | Licensed |
+| 2 | OOBGrace |
+| 3 | OOTGrace |
+| 4 | NonGenuineGrace |
+| 5 | Notification |
+| 6 | ExtendedGrace |
+
+Users see **human-readable state values**, not raw numeric codes.
+
+---
+
+# Triggers
+
+The template includes trigger prototypes for:
+
+- activation expires in less than warning threshold
+- activation expires in less than critical threshold
+- license is not in `Licensed` state
+
+Default macros:
+
+```text
+{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.WARN}=30
+{$WINDOWS.KMS.EXPIRATION.DAYS.MIN.CRIT}=7
+```
 
 ---
 
 # Requirements
 
 - **Zabbix 7.4**
-- **Zabbix Agent 2** on Windows
-- Windows host with working local WMI access
+- **Zabbix Agent 2**
+- Windows host
+- working WMI access
 - access to:
   - `root\cimv2`
   - `SoftwareLicensingProduct`
@@ -151,7 +228,7 @@ Hostname=<exactly as configured in Zabbix>
 Timeout=10
 ```
 
-`Timeout=10` is recommended for WMI-based items.
+`Timeout=10` is recommended if WMI queries are slow.
 
 Restart the agent:
 
@@ -161,43 +238,22 @@ Restart-Service "Zabbix Agent 2"
 
 ---
 
-## 2. Test the WMI query locally
-
-```powershell
-& "C:\Program Files\Zabbix Agent 2\zabbix_agent2.exe" -t "wmi.getall[root\cimv2,\"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f'\"]"
-```
-
-Expected result:
-
-```json
-[
-  {
-    "GracePeriodRemaining": 254896,
-    "ID": "2de67392-b7a7-462a-b1ca-108dd189f588",
-    "LicenseStatus": 1,
-    "Name": "Windows(R), Professional edition"
-  }
-]
-```
-
----
-
-## 3. Test from Zabbix server
+## 2. Test the WMI query from the Zabbix server
 
 ```bash
 zabbix_get -s <HOST_IP> -p 10050 -k 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID='\''55c92734-d682-4d71-983e-d6ec3f16059f'\''"]'
 ```
 
-If JSON is returned correctly, the template will work.
+Expected result: JSON array with Windows activation objects.
 
 ---
 
-## 4. Import the template
+## 3. Import the template
 
 Import:
 
 ```text
-template_windows_kms_wmi_lld.yaml
+template_windows_kms_activation_by_wmi.yaml
 ```
 
 via:
@@ -208,83 +264,157 @@ Data collection → Templates → Import
 
 ---
 
-## 5. Link the template to Windows hosts
+## 4. Link the template to hosts
 
-After linking the template, run discovery manually once:
-
-```text
-Discovery rules → Windows activation discovery → Execute now
-```
+Link the template to Windows hosts that should be monitored.
 
 ---
 
-# Created Items
+## 5. Run discovery
 
-The template creates the following discovered items:
-
-- `{Windows edition}: Days until activation expiry`
-- `{Windows edition}: License status code`
-- `{Windows edition}: Product name`
-- `_INTERNAL_: {Windows edition}: Grace minutes`
-
-It also creates static items:
-
-- `Windows activation raw JSON (WMI)`
-- `Windows OS caption`
-- `Windows OS version`
-- `Windows OS build`
+After linking, run the dependent discovery rule or wait for the next update cycle of the master item.
 
 ---
 
-# License Status Codes
-
-The following `LicenseStatus` values are used:
-
-| Code | Meaning |
-|------|---------|
-| 0 | Unlicensed |
-| 1 | Licensed |
-| 2 | OOBGrace |
-| 3 | OOTGrace |
-| 4 | NonGenuineGrace |
-| 5 | Notification |
-| 6 | ExtendedGrace |
-
----
-
-# Example Use Case
-
-Example discovered item values:
+# Example Values
 
 ```text
 Windows(R), Professional edition: Days until activation expiry = 177.0 d
-Windows(R), Professional edition: License status code = 1
+Windows(R), Professional edition: License state = Licensed
 Windows(R), Professional edition: Product name = Windows(R), Professional edition
 Windows OS version = 10.0.19045
 Windows OS build = 19045
 ```
-<img width="791" height="279" alt="изображение" src="https://github.com/user-attachments/assets/046f46ce-8a9b-46e8-89d2-50823ea9ac90" />
+<img width="1219" height="216" alt="изображение" src="https://github.com/user-attachments/assets/c8ba0392-b906-4932-bbaf-d35216e44587" />
 
 ---
 
 # Why This Approach
 
-Compared to creating multiple standalone WMI items, this design has several advantages:
+Compared to multiple standalone WMI items, this template:
 
-- only one raw WMI query is executed
-- all discovered items are derived from a single JSON payload
-- reduced WMI load
-- easier maintenance
-- cleaner LLD-based structure
+- executes only one WMI query for activation data
+- derives all discovered metrics from one JSON payload
+- reduces WMI load
+- avoids external scripts
+- provides a clean community-template-friendly structure
+
+---
+
+# Troubleshooting
+
+## 1. `Windows activation raw JSON by WMI` is empty or becomes `Not supported`
+
+### Fixes
+
+- verify WMI access on the monitored host
+- verify that Windows activation objects are present
+- set agent timeout:
+
+```ini
+Timeout=10
+```
+
+- if needed, increase polling timeout
+
+---
+
+## 2. Discovery does not create any items
+
+### Checks
+
+Make sure the discovery rule is:
+
+- **Type**: `Dependent item`
+- **Master item**: `Windows activation raw JSON by WMI`
+
+LLD macro paths should be:
+
+```text
+{#LICENSEID}   -> $.ID
+{#LICENSENAME} -> $.Name
+```
+
+---
+
+## 3. OS version items stay empty
+
+The OS information items may use longer update intervals than the master activation item.
+
+Check:
+
+- `Windows OS caption`
+- `Windows OS version`
+- `Windows OS build`
+
+If needed, temporarily reduce their update interval for testing.
+
+---
+
+## 4. Local `zabbix_agent2.exe -t` test fails in PowerShell
+
+Complex WMI keys with embedded quoting can be difficult to test locally in PowerShell.
+
+### Recommendation
+
+Use `zabbix_get` from the Zabbix server instead:
+
+```bash
+zabbix_get -s <HOST_IP> -p 10050 -k 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND ApplicationID='\''55c92734-d682-4d71-983e-d6ec3f16059f'\''"]'
+```
+
+---
+
+## 5. Windows 10 and Windows 11 are hard to distinguish by version only
+
+This is expected in some environments because both may report version `10.0.x`.
+
+Use together:
+
+- `Windows OS caption`
+- `Windows OS version`
+- `Windows OS build`
+
+`BuildNumber` is especially useful for distinguishing modern Windows releases.
 
 ---
 
 # Limitations
 
 - Windows-only
-- monitors Windows licensing objects only
-- does not include Office / Visio / Project
+- intended for Windows activation objects only
 - depends on working WMI access
-- WMI can be slower than native agent keys
+- WMI can be slower than standard agent keys
 
 ---
+
+# Future Improvements
+
+Possible future extensions:
+
+- graph prototypes for activation countdown
+- exact expiration timestamp item
+- dashboard widgets
+- stricter Windows edition categorization
+
+---
+
+# License
+
+MIT License
+
+```text
+MIT License
+
+Copyright (c) 2024
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files to deal in the Software
+without restriction.
+```
+
+---
+
+# Author
+
+This template was created for centralized monitoring of Windows activation expiration in Zabbix using WMI and low-level discovery.
