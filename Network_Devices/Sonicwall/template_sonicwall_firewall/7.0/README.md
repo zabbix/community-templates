@@ -4,9 +4,9 @@
 
 Comprehensive enterprise-grade template for monitoring SonicWall Firewall appliances with dynamic discovery rules, advanced VPN monitoring, security services tracking, and flexible interface analysis. This template addresses the limitations of model-specific templates by providing a universal, dynamic, and enterprise-ready monitoring solution.
 
-**Template Version:** 6.0  
+**Template Version:** 7.0  
 **Compatible Models:** Universal SonicWall firewall series (TZ, NSA, NSa, SuperMassive, NSv)  
-**Compatible Zabbix:** 6.0+  
+**Compatible Zabbix:** 7.0+  
 **SNMP Support:** SNMPv2c / SNMPv3  
 **Author:** Simon Jackson / @sjackson0109
 
