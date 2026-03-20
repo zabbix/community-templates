@@ -46,7 +46,7 @@ Dependent discovery rule
 Dependent item prototypes
    ↓
 Trigger prototypes / graphs
-```
+````
 
 The template executes one WMI query, stores the raw result as JSON, and derives all discovered items from it.
 
@@ -64,9 +64,9 @@ SoftwareLicensingProduct
 
 In tested environments, the following products were discovered:
 
-- `Office 16, Office16ProPlusVL_KMS_Client edition`
-- `Office 16, Office16VisioProVL_KMS_Client edition`
-- `Office 16, Office16ProjectProVL_KMS_Client edition`
+* `Office 16, Office16ProPlusVL_KMS_Client edition`
+* `Office 16, Office16VisioProVL_KMS_Client edition`
+* `Office 16, Office16ProjectProVL_KMS_Client edition`
 
 ---
 
@@ -80,10 +80,10 @@ SoftwareLicensingProduct
 
 and extracts these fields:
 
-- `ID`
-- `Name`
-- `LicenseStatus`
-- `GracePeriodRemaining`
+* `ID`
+* `Name`
+* `LicenseStatus`
+* `GracePeriodRemaining`
 
 The master WMI query is:
 
@@ -151,16 +151,16 @@ A dependent discovery rule uses the raw JSON item as its master source.
 
 LLD macros are extracted using JSONPath:
 
-- `{#LICENSEID}` → `$.ID`
-- `{#LICENSENAME}` → `$.Name`
+* `{#LICENSEID}` → `$.ID`
+* `{#LICENSENAME}` → `$.Name`
 
 ## 3. Dependent item prototypes
 
 The template automatically creates the following discovered items:
 
-- `{#LICENSENAME}: Days until activation expiry`
-- `{#LICENSENAME}: License state`
-- `{#LICENSENAME}: Product name`
+* `{#LICENSENAME}: Days until activation expiry`
+* `{#LICENSENAME}: License state`
+* `{#LICENSENAME}: Product name`
 
 No extra internal items are required.
 
@@ -170,15 +170,15 @@ No extra internal items are required.
 
 ## Static item
 
-- `Office family activation raw JSON by WMI`
+* `Office family activation raw JSON by WMI`
 
 ## Discovered items
 
 For each discovered Office family licensing object:
 
-- `Days until activation expiry`
-- `License state`
-- `Product name`
+* `Days until activation expiry`
+* `License state`
+* `Product name`
 
 ---
 
@@ -186,15 +186,15 @@ For each discovered Office family licensing object:
 
 The following `LicenseStatus` values are mapped into readable text:
 
-| Code | Meaning |
-|------|---------|
-| 0 | Unlicensed |
-| 1 | Licensed |
-| 2 | OOBGrace |
-| 3 | OOTGrace |
-| 4 | NonGenuineGrace |
-| 5 | Notification |
-| 6 | ExtendedGrace |
+| Code | Meaning         |
+| ---- | --------------- |
+| 0    | Unlicensed      |
+| 1    | Licensed        |
+| 2    | OOBGrace        |
+| 3    | OOTGrace        |
+| 4    | NonGenuineGrace |
+| 5    | Notification    |
+| 6    | ExtendedGrace   |
 
 Users see **human-readable state values**, not raw numeric codes.
 
@@ -204,9 +204,9 @@ Users see **human-readable state values**, not raw numeric codes.
 
 The template includes trigger prototypes for:
 
-- activation expires in less than warning threshold
-- activation expires in less than critical threshold
-- license is not in `Licensed` state
+* activation expires in less than warning threshold
+* activation expires in less than critical threshold
+* license is not in `Licensed` state
 
 Default macros:
 
@@ -219,13 +219,14 @@ Default macros:
 
 # Requirements
 
-- **Zabbix 7.4**
-- **Zabbix Agent 2**
-- Windows host with Office family products installed
-- working WMI access
-- access to:
-  - `root\cimv2`
-  - `SoftwareLicensingProduct`
+* **Zabbix 7.4**
+* **Zabbix Agent 2**
+* Windows host with Office family products installed
+* working WMI access
+* access to:
+
+  * `root\cimv2`
+  * `SoftwareLicensingProduct`
 
 ---
 
@@ -297,7 +298,6 @@ Office 16, Office16ProPlusVL_KMS_Client edition: License state = Licensed
 Office 16, Office16VisioProVL_KMS_Client edition: Days until activation expiry = 177.0 d
 Office 16, Office16ProjectProVL_KMS_Client edition: Days until activation expiry = 177.0 d
 ```
-<img width="1237" height="343" alt="изображение" src="https://github.com/user-attachments/assets/35c7b9a6-7e6e-48e4-b3aa-c1049160825b" />
 
 ---
 
@@ -305,11 +305,11 @@ Office 16, Office16ProjectProVL_KMS_Client edition: Days until activation expiry
 
 Compared to multiple standalone WMI items, this template:
 
-- executes only one WMI query
-- derives all discovered metrics from one JSON payload
-- reduces WMI load
-- avoids external collector scripts
-- provides a clean community-template-friendly structure
+* executes only one WMI query
+* derives all discovered metrics from one JSON payload
+* reduces WMI load
+* avoids external collector scripts
+* provides a clean community-template-friendly structure
 
 ---
 
@@ -319,15 +319,15 @@ Compared to multiple standalone WMI items, this template:
 
 ### Fixes
 
-- verify WMI access on the monitored host
-- verify that the host really has Office family products installed
-- set agent timeout:
+* verify WMI access on the monitored host
+* verify that the host really has Office family products installed
+* set agent timeout:
 
 ```ini
 Timeout=10
 ```
 
-- if needed, increase item timeout in the master item
+* if needed, increase item timeout in the master item
 
 ---
 
@@ -337,8 +337,8 @@ Timeout=10
 
 Make sure the discovery rule is:
 
-- **Type**: `Dependent item`
-- **Master item**: `Office family activation raw JSON by WMI`
+* **Type**: `Dependent item`
+* **Master item**: `Office family activation raw JSON by WMI`
 
 LLD macro paths should be:
 
@@ -371,10 +371,10 @@ This is expected in environments where those products are exposed through `Softw
 
 # Limitations
 
-- Windows-only
-- intended for Microsoft Office family licensing objects
-- depends on working WMI access
-- current filter is based on:
+* Windows-only
+* intended for Microsoft Office family licensing objects
+* depends on working WMI access
+* current filter is based on:
 
 ```text
 Name LIKE '%Office%'
@@ -388,10 +388,10 @@ In tested environments this also included Visio and Project.
 
 Possible future extensions:
 
-- separate Office / Visio / Project templates if stricter separation is needed
-- graph prototypes for activation countdown
-- exact expiration timestamp item
-- dashboard widgets
+* separate Office / Visio / Project templates if stricter separation is needed
+* graph prototypes for activation countdown
+* exact expiration timestamp item
+* dashboard widgets
 
 ---
 
