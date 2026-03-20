@@ -24,7 +24,8 @@ Enhanced template for comprehensive monitoring of SonicWall Firewall appliances 
 
 ### Advanced VPN Monitoring
 - **Policy-Based VPN**: Security association monitoring with tunnel tracking
-- **Site-to-Site VPN**: IPSec tunnel performance and connection health
+- **Route-Based VPN**: IPSec tunnel performance and connection health
+- **Client-Side VPN**: Client side VPN monitoring, PPTP, L2TP and SSL VPNs. IPSec is monitored above 
 - **Performance Metrics**: VPN throughput and connection statistics
 
 ### Security Policy Monitoring
