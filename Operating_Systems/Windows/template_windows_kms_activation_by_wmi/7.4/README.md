@@ -3,7 +3,7 @@
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.4%2B-red)
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
 ![Data source](https://img.shields.io/badge/Data%20source-WMI-green)
-![License](https://img.shields.io/badge/License-GPLv2-black)
+![License](https://img.shields.io/badge/License-MIT-black)
 ![Maintenance](https://img.shields.io/badge/Maintenance-Community-orange)
 
 This template monitors Windows activation information on Microsoft Windows hosts using WMI.
