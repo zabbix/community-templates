@@ -1,322 +1,137 @@
-# Zabbix Office Family KMS Activation Monitoring (WMI LLD)
+# Office Family KMS Activation by WMI
 
-![Zabbix](https://img.shields.io/badge/Zabbix-7.4-red)
-![WMI](https://img.shields.io/badge/Data%20source-WMI-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Maintenance](https://img.shields.io/badge/Maintained-yes-brightgreen)
+![Zabbix](https://img.shields.io/badge/Zabbix-7.4%2B-red)
+![Platform](https://img.shields.io/badge/Platform-Windows%20with%20Microsoft%20Office-blue)
+![Data source](https://img.shields.io/badge/Data%20source-WMI-green)
+![License](https://img.shields.io/badge/License-MIT-black)
+![Maintenance](https://img.shields.io/badge/Maintenance-Community-orange)
 
-Zabbix template for monitoring **Microsoft Office family activation expiration** using **WMI** and **Low-Level Discovery (LLD)**.
+This template monitors Microsoft Office activation information on Windows hosts using WMI.
 
-The template is designed to discover and monitor Office licensing objects such as:
+It uses one passive WMI master item, one dependent discovery rule, and dependent item prototypes to collect Office activation-related data while minimizing the number of direct WMI requests.
 
-- Office ProPlus
-- Visio Pro
-- Project Pro
+## Overview
 
-It uses a single raw WMI JSON item as the master source and builds all discovered metrics as dependent items.
+The template discovers Microsoft Office licensing objects from `SoftwareLicensingProduct` and provides monitoring for:
 
----
+- activation expiration
+- license state
+- product name
+- partial product key
+- description
 
-# Features
+The template is intended for Office family products exposed through Windows licensing data and processed through WMI discovery.
 
-- automatic discovery of Office family licensing objects via **WMI LLD**
-- monitoring of:
-  - days until activation expiry
-  - grace period in minutes
-  - license status code
-  - product name
-- based on a **single raw WMI JSON master item**
-- dependent discovery and dependent item prototypes
-- no external PowerShell collector scripts required
-- suitable for centralized Office family activation monitoring
+## Requirements
 
----
+- Zabbix 7.4 or newer
+- Microsoft Windows host with Microsoft Office installed
+- working WMI access from Zabbix server or proxy
+- access to the following WMI namespace and classes:
+  - `root\cimv2`
+  - `SoftwareLicensingProduct`
 
-# Architecture
+## Tested versions
 
-```text
-WMI query
-   ↓
-Raw JSON master item
-   ↓
-Dependent discovery rule
-   ↓
-Dependent item prototypes
-   ↓
-Trigger prototypes / graphs
-```
+The template has been tested on hosts with:
 
-The template executes a single WMI query, stores the raw result as JSON, and builds all discovered metrics from that master item.
+- Microsoft Office LTSC
+- Microsoft Office 2016
+- Microsoft Office 2019
+- Microsoft Office 2021
+- Microsoft Office 2024
 
-This reduces the number of WMI calls and makes the template cleaner and easier to maintain.
+## Configuration
 
----
+No host-side scripts are required.
 
-# Monitored Products
+To use this template:
 
-The template is intended for Office family products that appear in `SoftwareLicensingProduct`, including:
+1. Configure WMI access for the target Windows host.
+2. Link the template to the host.
+3. Verify that the master WMI item returns Office licensing data.
+4. Wait for discovery and dependent item population.
 
-- Microsoft Office ProPlus
-- Microsoft Visio Pro
-- Microsoft Project Pro
+## Data collection
 
-In the tested environment, the following objects were discovered:
+The template uses the `SoftwareLicensingProduct` WMI class to discover Microsoft Office activation objects and collect activation-related properties.
 
-- `Office 16, Office16ProPlusVL_KMS_Client edition`
-- `Office 16, Office16VisioProVL_KMS_Client edition`
-- `Office 16, Office16ProjectProVL_KMS_Client edition`
-
----
-
-# Data Source
-
-The template uses the WMI class:
-
-```text
-SoftwareLicensingProduct
-```
-
-and extracts the following fields:
+Collected fields:
 
 - `ID`
 - `Name`
+- `Description`
 - `LicenseStatus`
 - `GracePeriodRemaining`
+- `PartialProductKey`
 
-The master WMI query is:
-
-```text
-wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE '%Office%'"]
-```
-
----
-
-# Repository Structure
+The main WMI query used by the template is:
 
 ```text
-.
-└─ template_office_kms_wmi_lld.yaml
-```
+wmi.getall[root\cimv2,"SELECT ID,Name,Description,LicenseStatus,GracePeriodRemaining,PartialProductKey FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE '%Office%'"]
+````
 
----
+## Discovery logic
 
-# How It Works
+The template uses:
 
-## 1. Raw WMI master item
+* one passive WMI master item to collect raw Office licensing data
+* one dependent low-level discovery rule to identify Office activation objects
+* dependent item prototypes to expose activation properties for discovered objects
 
-The template creates a master item:
+This design reduces WMI polling overhead and keeps the template lightweight.
 
-```text
-Office family activation raw JSON (WMI)
-```
+## Items
 
-Example output:
+### Static items
 
-```json
-[
-  {
-    "GracePeriodRemaining": 254861,
-    "ID": "4f414197-0fc2-4c01-b68a-86cbb9ac254c",
-    "LicenseStatus": 1,
-    "Name": "Office 16, Office16ProjectProVL_KMS_Client edition"
-  },
-  {
-    "GracePeriodRemaining": 254861,
-    "ID": "6bf301c1-b94a-43e9-ba31-d494598c47fb",
-    "LicenseStatus": 1,
-    "Name": "Office 16, Office16VisioProVL_KMS_Client edition"
-  },
-  {
-    "GracePeriodRemaining": 254861,
-    "ID": "d450596f-894d-49e0-966a-fd39ed4c4c64",
-    "LicenseStatus": 1,
-    "Name": "Office 16, Office16ProPlusVL_KMS_Client edition"
-  }
-]
-```
+* Office activation raw JSON by WMI
 
-## 2. Dependent discovery rule
+### Discovered items
 
-A dependent discovery rule uses the raw JSON item as its master source.
+* Days until activation expiry
+* License state
+* Product name
+* Product description
+* Partial product key
 
-LLD macros are extracted using JSONPath:
+## Value mapping
 
-- `{#ID}` → `$.ID`
-- `{#NAME}` → `$.Name`
-- `{#STATUS}` → `$.LicenseStatus`
-- `{#GRACE}` → `$.GracePeriodRemaining`
+`LicenseStatus` values are mapped to the following states:
 
-## 3. Dependent item prototypes
+| Code | Meaning         |
+| ---- | --------------- |
+| 0    | Unlicensed      |
+| 1    | Licensed        |
+| 2    | OOBGrace        |
+| 3    | OOTGrace        |
+| 4    | NonGenuineGrace |
+| 5    | Notification    |
+| 6    | ExtendedGrace   |
 
-The template automatically creates items such as:
+## Triggers
 
-- `{#NAME}: Days until activation expiry`
-- `{#NAME}: License status code`
-- `{#NAME}: Product name`
-- `_INTERNAL_: {#NAME}: Grace minutes`
+The template includes trigger prototypes for:
 
----
+* activation expires in less than warning threshold
+* activation expires in less than critical threshold
+* license state is not `Licensed`
 
-# Requirements
-
-- **Zabbix 7.4**
-- **Zabbix Agent 2**
-- Windows host with Office family products installed
-- working local WMI access
-- access to `root\cimv2`
-- access to `SoftwareLicensingProduct`
-
----
-
-# Installation
-
-## 1. Configure Zabbix Agent 2
-
-Example:
-
-```ini
-Server=<Zabbix server IP or DNS>
-Hostname=<exactly as configured in Zabbix>
-Timeout=10
-```
-
-`Timeout=10` is strongly recommended because the Office WMI query may take longer than the Windows-only query.
-
-Restart the agent:
-
-```powershell
-Restart-Service "Zabbix Agent 2"
-```
-
----
-
-## 2. Test the WMI query from Zabbix server
-
-```bash
-zabbix_get -s <HOST_IP> -p 10050 -k 'wmi.getall[root\cimv2,"SELECT ID,Name,LicenseStatus,GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND Name LIKE '\''%Office%'\''"]'
-```
-
-If the host has Office family products, the command should return a JSON array.
-
----
-
-## 3. Import the template
-
-Import:
+Default user macros:
 
 ```text
-template_office_family_kms_wmi_lld.yaml
+{$OFFICE.KMS.EXPIRATION.DAYS.MIN.WARN}=30
+{$OFFICE.KMS.EXPIRATION.DAYS.MIN.CRIT}=7
 ```
 
-via:
+## Notes
 
-```text
-Data collection → Templates → Import
-```
+* The template is intended for Microsoft Office activation monitoring only.
+* WMI results may vary depending on Office edition, license channel, and installed product set.
+* A host may expose multiple Office licensing objects, and discovery is used to process them consistently.
+* The template does not require external scripts or custom host-side commands.
+* Filtering by `Name LIKE '%Office%'` may be adjusted in the template if a specific Office product naming pattern is required.
 
----
+## Author
 
-## 4. Link the template to Windows hosts
-
-After linking the template, run discovery manually once:
-
-```text
-Discovery rules → Office family activation discovery → Execute now
-```
-
----
-
-# Created Items
-
-The template creates discovered items such as:
-
-- `Office 16, Office16ProPlusVL_KMS_Client edition: Days until activation expiry`
-- `Office 16, Office16VisioProVL_KMS_Client edition: Days until activation expiry`
-- `Office 16, Office16ProjectProVL_KMS_Client edition: Days until activation expiry`
-
-Additional discovered items:
-
-- `{#NAME}: License status code`
-- `{#NAME}: Product name`
-- `_INTERNAL_: {#NAME}: Grace minutes`
-
-Static item:
-
-- `Office family activation raw JSON (WMI)`
-
----
-
-# License Status Codes
-
-The following `LicenseStatus` values are used:
-
-| Code | Meaning |
-|------|---------|
-| 0 | Unlicensed |
-| 1 | Licensed |
-| 2 | OOBGrace |
-| 3 | OOTGrace |
-| 4 | NonGenuineGrace |
-| 5 | Notification |
-| 6 | ExtendedGrace |
-
----
-
-# Example Values
-
-```text
-Office 16, Office16ProPlusVL_KMS_Client edition: Days until activation expiry = 177.0 d
-Office 16, Office16ProPlusVL_KMS_Client edition: License status code = 1
-Office 16, Office16VisioProVL_KMS_Client edition: Days until activation expiry = 177.0 d
-Office 16, Office16ProjectProVL_KMS_Client edition: Days until activation expiry = 177.0 d
-```
-<img width="967" height="343" alt="изображение" src="https://github.com/user-attachments/assets/652ba8e5-55f9-47dc-9c56-45f6512264f2" />
-
----
-
-# Why This Approach
-
-Compared to creating multiple standalone WMI items, this template has several advantages:
-
-- only one raw WMI query is executed
-- all discovered items are derived from a single JSON payload
-- reduced WMI load
-- easier maintenance
-- clean LLD-based design
-
----
-
-# Limitations
-
-- Windows-only
-- intended for Office family licensing objects only
-- depends on working WMI access
-- WMI queries may require increased agent timeout
-- product matching is currently based on:
-
-```text
-Name LIKE '%Office%'
-```
-
-In the tested environment this also matched Visio and Project objects.
-
----
-
-# Recommended Future Improvements
-
-Possible future extensions:
-
-- trigger prototypes:
-  - `< 30 days`
-  - `< 7 days`
-  - `LicenseStatus <> 1`
-- graph prototypes for activation countdown
-- separate Office / Visio / Project templates if needed
-- calculated item for exact expiration timestamp
-
----
-
-# Author
-
-This project was created for centralized monitoring of Office family activation expiration in Zabbix using WMI and low-level discovery.
+Community template for Zabbix.
