@@ -641,6 +641,7 @@
           key: firewall.blocked.connections.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: /s
           description: |
             Firewall policy-blocked connections per second.
@@ -673,6 +674,7 @@
           key: firewall.connection.cache.util
           delay: 2m
           history: 30d
+          status: DISABLED
           units: '%'
           description: |
             Firewall connection cache utilization percentage.
@@ -702,6 +704,7 @@
           key: firewall.forwarding.cpu.util
           delay: 2m
           history: 30d
+          status: DISABLED
           units: '%'
           description: |
             Forwarding engine CPU utilization percentage.
@@ -731,6 +734,7 @@
           key: firewall.management.cpu.util
           delay: 2m
           history: 30d
+          status: DISABLED
           units: '%'
           description: |
             Management plane CPU utilization percentage.
@@ -760,6 +764,7 @@
           key: firewall.nat.translations.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: /s
           description: |
             Network Address Translation operations per second.
@@ -792,6 +797,7 @@
           key: firewall.policy.evaluations.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: /s
           description: |
             Firewall policy rule evaluations per second.
@@ -815,6 +821,7 @@
           key: firewall.qos.classes.active
           delay: 5m
           history: 30d
+          status: DISABLED
           description: |
             Number of active Quality of Service classes.
             Bandwidth management monitoring for traffic prioritization and control.
@@ -850,6 +857,96 @@
               expression: 'length(last(/Watchguard Firewall/gav.version))=0'
               name: 'Antivirus (GAV) Disabled, Not Installed or No Updating'
               priority: WARNING
+        - uuid: 923e85e3335046db9f3078f89cf5f1d2
+          name: 'GwVPN: SA Table'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.3097.6.5.1.2.1.3,1.3.6.1.4.1.3097.6.5.1.2.1.20,1.3.6.1.4.1.3097.6.5.1.2.1.21,1.3.6.1.4.1.3097.6.5.1.2.1.24,1.3.6.1.4.1.3097.6.5.1.2.1.25,1.3.6.1.4.1.3097.6.5.1.2.1.28,1.3.6.1.4.1.3097.6.5.1.2.1.29]'
+          key: gwvpn.sa.table.raw
+          delay: 5m
+          history: '3600'
+          value_type: TEXT
+          trends: '0'
+          description: |
+            SNMP walk of the active Gateway VPN (policy-based) Security Associations table.
+            OID field map (WATCHGUARD-IPSEC-TUNNEL-MIB - 1.3.6.1.4.1.3097.6.5.1.2.1):
+              .3.{idx}  = wgIpsecTunnelPeerAddr          (remote peer gateway IP = Phase 1 tunnel identifier)
+              .20.{idx} = wgIpsecTunnelSelectorRemoteIPOne (remote subnet address)
+              .21.{idx} = wgIpsecTunnelSelectorRemoteIPTwo (remote subnet mask / range end)
+              .24.{idx} = wgIpsecTunnelSelectorLocalIPOne  (local subnet address)
+              .25.{idx} = wgIpsecTunnelSelectorLocalIPTwo  (local subnet mask / range end)
+              .28.{idx} = wgIpsecTunnelInKbytes  (Counter64, kilobytes received)
+              .29.{idx} = wgIpsecTunnelOutKbytes (Counter64, kilobytes transmitted)
+            Rows with remoteIPOne = 0.0.0.0 are empty table slots and are discarded.
+            Multiple SA rows with identical selector tuples are aggregated (summed) into one entry.
+            Subnet masks are converted to CIDR prefix length (e.g. 255.255.255.0 -> /24; 0.0.0.0 -> /32 for host).
+            Output dict keyed by "localCIDR-remoteCIDR":
+              { "10.210.23.16/32-192.168.196.192/26": { peerAddr, localCIDR, remoteCIDR, kbytesIn, kbytesOut, saCount }, ... }
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var r = {};
+                  try {
+                    var p = JSON.parse(value);
+                    Object.keys(p).forEach(function(k) {
+                      var oid = k.replace(/^\./, '');
+                      var val = String(p[k]).replace(/^\w+:\s*/, '').replace(/^"|"$/g, '').trim();
+                      r[oid] = val;
+                    });
+                  } catch(e) {
+                    value.split('\n').forEach(function(l) {
+                      l = l.trim(); if (!l) return;
+                      var m = l.match(/^\.?([\d.]+)\s*=\s*(?:[A-Za-z0-9]+:\s*)?(.+)$/);
+                      if (!m) return;
+                      r[m[1]] = m[2].trim().replace(/^"|"$/g, '');
+                    });
+                  }
+                  var t = {};
+                  Object.keys(r).forEach(function(oid) {
+                    var m = oid.match(/^1\.3\.6\.1\.4\.1\.3097\.6\.5\.1\.2\.1\.(\d+)\.(\d+)$/);
+                    if (!m) return;
+                    var f = parseInt(m[1]), i = m[2];
+                    if (!t[i]) t[i] = {};
+                    var v = String(r[oid]).replace(/^[A-Za-z0-9]+:\s*/, '').trim();
+                    if      (f === 3)  t[i].peerAddr  = v;
+                    else if (f === 20) t[i].remoteOne = v;
+                    else if (f === 21) t[i].remoteTwo = v;
+                    else if (f === 24) t[i].localOne  = v;
+                    else if (f === 25) t[i].localTwo  = v;
+                    else if (f === 28) t[i].kbytesIn  = parseInt(v) || 0;
+                    else if (f === 29) t[i].kbytesOut = parseInt(v) || 0;
+                  });
+                  function maskToCidr(mask) {
+                    if (!mask || mask === '0.0.0.0') return 32;
+                    return mask.split('.').reduce(function(c, o) {
+                      var n = parseInt(o), bits = 0;
+                      while (n) { n &= n-1; bits++; }
+                      return c+bits;
+                    }, 0);
+                  }
+                  var out = {};
+                  Object.keys(t).forEach(function(i) {
+                    var x = t[i];
+                    if (!x.remoteOne || x.remoteOne === '0.0.0.0') return;
+                    var lo = x.localOne  || '0.0.0.0';
+                    var lt = x.localTwo  || '0.0.0.0';
+                    var ro = x.remoteOne;
+                    var rt = x.remoteTwo || '0.0.0.0';
+                    var lCidr = lo + '/' + maskToCidr(lt);
+                    var rCidr = ro + '/' + maskToCidr(rt);
+                    var key = lCidr + '-' + rCidr;
+                    if (out[key]) {
+                      out[key].kbytesIn  += x.kbytesIn  || 0;
+                      out[key].kbytesOut += x.kbytesOut || 0;
+                      out[key].saCount   += 1;
+                    } else {
+                      out[key] = { peerAddr: x.peerAddr || '', localCIDR: lCidr, remoteCIDR: rCidr, kbytesIn: x.kbytesIn || 0, kbytesOut: x.kbytesOut || 0, saCount: 1 };
+                    }
+                  });
+                  return JSON.stringify(out);
+          tags:
+            - tag: Component
+              value: GwVPN
         - uuid: 336d8ccee25346fdb861b47cfa7e61e4
           name: 'CPU Temperature (Internal)'
           type: SNMP_AGENT
@@ -857,6 +954,7 @@
           key: hardware.cpu.temperature
           delay: 5m
           history: 30d
+          status: DISABLED
           units: °C
           description: |
             Internal CPU temperature sensor reading.
@@ -897,6 +995,7 @@
           key: hardware.disk.iops
           delay: 2m
           history: 30d
+          status: DISABLED
           units: IOPS
           description: |
             Total disk I/O operations per second.
@@ -930,6 +1029,7 @@
           delay: 5m
           history: 30d
           value_type: FLOAT
+          status: DISABLED
           description: |
             Overall hardware health status indicator.
             Aggregate health status covering temperature, fan, power supply, and disk subsystems when available.
@@ -969,6 +1069,7 @@
           key: hardware.memory.cache.util
           delay: 2m
           history: 30d
+          status: DISABLED
           units: '%'
           description: |
             Memory cache utilization percentage.
@@ -998,6 +1099,7 @@
           key: hardware.power.draw
           delay: 5m
           history: 30d
+          status: DISABLED
           units: W
           description: |
             System power consumption in watts.
@@ -1050,6 +1152,7 @@
           key: license.apt.blocker.days.remaining
           delay: 6h
           history: 30d
+          status: DISABLED
           units: days
           description: |
             APT Blocker license expiry countdown in days.
@@ -1079,6 +1182,7 @@
           key: license.dnswatch.days.remaining
           delay: 6h
           history: 30d
+          status: DISABLED
           units: days
           description: |
             DNSWatch license expiry countdown in days.
@@ -1108,6 +1212,7 @@
           key: license.feature.utilization
           delay: 1h
           history: 30d
+          status: DISABLED
           units: '%'
           description: |
             Overall feature license utilization percentage.
@@ -1137,6 +1242,7 @@
           key: license.spamblocker.days.remaining
           delay: 6h
           history: 30d
+          status: DISABLED
           units: days
           description: |
             spamBlocker license expiry countdown in days.
@@ -1166,6 +1272,7 @@
           key: license.webblocker.days.remaining
           delay: 6h
           history: 30d
+          status: DISABLED
           units: days
           description: |
             WebBlocker license expiry countdown in days.
@@ -1217,6 +1324,7 @@
           key: mobile.vpn.ipsec.users.count
           delay: 2m
           history: 30d
+          status: DISABLED
           description: |
             Number of currently active Mobile VPN IPSec user sessions.
             Monitors Mobile Connect IPSec client connections for user access tracking and license management.
@@ -1247,6 +1355,7 @@
           key: mobile.vpn.ssl.users.count
           delay: 2m
           history: 30d
+          status: DISABLED
           description: |
             Number of currently active Mobile VPN SSL user sessions.
             Monitors real-time SSL VPN user connectivity for capacity planning and user access tracking.
@@ -1305,6 +1414,7 @@
           key: security.app.control.blocks.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: blocks/s
           description: |
             Application Control blocks per second.
@@ -1328,6 +1438,7 @@
           key: security.apt.blocker.threats.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: threats/s
           description: |
             APT Blocker (Advanced Persistent Threat) detections per second.
@@ -1362,6 +1473,7 @@
           key: security.content.filter.blocks.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: blocks/s
           description: |
             Content Filtering blocks per second.
@@ -1396,6 +1508,7 @@
           key: security.gav.scan.latency
           delay: 2m
           history: 30d
+          status: DISABLED
           units: ms
           description: |
             Average Gateway AntiVirus scan latency in milliseconds.
@@ -1427,6 +1540,7 @@
           key: security.gav.scans.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: scans/s
           description: |
             Gateway AntiVirus scan requests per second.
@@ -1461,6 +1575,7 @@
           key: security.gav.threats.blocked
           delay: 2m
           history: 30d
+          status: DISABLED
           units: threats/s
           description: |
             Gateway AntiVirus threats blocked per second.
@@ -1495,6 +1610,7 @@
           key: security.ips.alerts.rate
           delay: 2m
           history: 30d
+          status: DISABLED
           units: alerts/s
           description: |
             Intrusion Prevention System alerts per second.
@@ -1585,94 +1701,6 @@
           tags:
             - tag: Component
               value: General
-        - uuid: 923e85e3335046db9f3078f89cf5f1d2
-          name: 'VPN Policy: SA Table'
-          type: SNMP_AGENT
-          snmp_oid: 'walk[1.3.6.1.4.1.3097.6.5.1.2.1.20,1.3.6.1.4.1.3097.6.5.1.2.1.21,1.3.6.1.4.1.3097.6.5.1.2.1.24,1.3.6.1.4.1.3097.6.5.1.2.1.25,1.3.6.1.4.1.3097.6.5.1.2.1.28,1.3.6.1.4.1.3097.6.5.1.2.1.29]'
-          key: vpn.policy.sa.table.raw
-          delay: 5m
-          history: '3600'
-          value_type: TEXT
-          trends: '0'
-          description: |
-            SNMP walk of the active Gateway VPN (policy-based) Security Associations table.
-            OID field map (WATCHGUARD-IPSEC-TUNNEL-MIB - 1.3.6.1.4.1.3097.6.5.1.2.1):
-              .20.{idx} = wgIpsecTunnelSelectorRemoteIPOne (remote subnet address)
-              .21.{idx} = wgIpsecTunnelSelectorRemoteIPTwo (remote subnet mask / range end)
-              .24.{idx} = wgIpsecTunnelSelectorLocalIPOne  (local subnet address)
-              .25.{idx} = wgIpsecTunnelSelectorLocalIPTwo  (local subnet mask / range end)
-              .28.{idx} = wgIpsecTunnelInKbytes  (Counter64, kilobytes received)
-              .29.{idx} = wgIpsecTunnelOutKbytes (Counter64, kilobytes transmitted)
-            Rows with remoteIPOne = 0.0.0.0 are empty table slots and are discarded.
-            Multiple SA rows with identical selector tuples are aggregated (summed) into one entry.
-            Subnet masks are converted to CIDR prefix length (e.g. 255.255.255.0 -> /24; 0.0.0.0 -> /32 for host).
-            Output dict keyed by "localCIDR-remoteCIDR":
-              { "10.210.23.16/32-192.168.196.192/26": { localCIDR, remoteCIDR, kbytesIn, kbytesOut, saCount }, ... }
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var r = {};
-                  try {
-                    var p = JSON.parse(value);
-                    Object.keys(p).forEach(function(k) {
-                      var oid = k.replace(/^\./, '');
-                      var val = String(p[k]).replace(/^\w+:\s*/, '').replace(/^"|"$/g, '').trim();
-                      r[oid] = val;
-                    });
-                  } catch(e) {
-                    value.split('\n').forEach(function(l) {
-                      l = l.trim(); if (!l) return;
-                      var m = l.match(/^\.?([\d.]+)\s*=\s*(?:[A-Za-z0-9]+:\s*)?(.+)$/);
-                      if (!m) return;
-                      r[m[1]] = m[2].trim().replace(/^"|"$/g, '');
-                    });
-                  }
-                  var t = {};
-                  Object.keys(r).forEach(function(oid) {
-                    var m = oid.match(/^1\.3\.6\.1\.4\.1\.3097\.6\.5\.1\.2\.1\.(\d+)\.(\d+)$/);
-                    if (!m) return;
-                    var f = parseInt(m[1]), i = m[2];
-                    if (!t[i]) t[i] = {};
-                    var v = String(r[oid]).replace(/^[A-Za-z0-9]+:\s*/, '').trim();
-                    if      (f === 20) t[i].remoteOne = v;
-                    else if (f === 21) t[i].remoteTwo = v;
-                    else if (f === 24) t[i].localOne  = v;
-                    else if (f === 25) t[i].localTwo  = v;
-                    else if (f === 28) t[i].kbytesIn  = parseInt(v) || 0;
-                    else if (f === 29) t[i].kbytesOut = parseInt(v) || 0;
-                  });
-                  function maskToCidr(mask) {
-                    if (!mask || mask === '0.0.0.0') return 32;
-                    return mask.split('.').reduce(function(c, o) {
-                      var n = parseInt(o), bits = 0;
-                      while (n) { n &= n-1; bits++; }
-                      return c+bits;
-                    }, 0);
-                  }
-                  var out = {};
-                  Object.keys(t).forEach(function(i) {
-                    var x = t[i];
-                    if (!x.remoteOne || x.remoteOne === '0.0.0.0') return;
-                    var lo = x.localOne  || '0.0.0.0';
-                    var lt = x.localTwo  || '0.0.0.0';
-                    var ro = x.remoteOne;
-                    var rt = x.remoteTwo || '0.0.0.0';
-                    var lCidr = lo + '/' + maskToCidr(lt);
-                    var rCidr = ro + '/' + maskToCidr(rt);
-                    var key = lCidr + '-' + rCidr;
-                    if (out[key]) {
-                      out[key].kbytesIn  += x.kbytesIn  || 0;
-                      out[key].kbytesOut += x.kbytesOut || 0;
-                      out[key].saCount   += 1;
-                    } else {
-                      out[key] = { localCIDR: lCidr, remoteCIDR: rCidr, kbytesIn: x.kbytesIn || 0, kbytesOut: x.kbytesOut || 0, saCount: 1 };
-                    }
-                  });
-                  return JSON.stringify(out);
-          tags:
-            - tag: Component
-              value: VPN
         - uuid: 1a4fb9c8e2d54a36bd8c7f2e6d9a5b73
           name: 'VPN User Sessions Total Bandwidth (bps)'
           type: SNMP_AGENT
@@ -1680,6 +1708,7 @@
           key: vpn.users.total.bandwidth
           delay: 2m
           history: 30d
+          status: DISABLED
           units: bps
           description: |
             Total bandwidth consumption by all VPN user sessions combined.
@@ -1714,6 +1743,7 @@
           key: vpn.users.total.duration
           delay: 30m
           history: 30d
+          status: DISABLED
           units: h
           description: |
             Cumulative session time for all active VPN users (SSL and IPSec combined).
@@ -1874,78 +1904,38 @@
         - uuid: 1b553dfbef0b4849b4f51e0bc81594f9
           name: 'BGP Neighbors'
           type: SNMP_AGENT
-          snmp_oid: 'discovery[{#BGP_NEIGHBOR},1.3.6.1.2.1.15.3.1.7,{#BGP_STATE},1.3.6.1.2.1.15.3.1.2]'
+          snmp_oid: 'discovery[{#BGP_NEIGHBOR},1.3.6.1.4.1.3097.3.1.1.1.1.3,{#BGP_LOCALIP},1.3.6.1.4.1.3097.3.1.1.1.1.5,{#BGP_SESSION},1.3.6.1.4.1.3097.3.1.1.1.1.2]'
           key: bgp.neighbors.discovery
           delay: 10m
           filter:
             conditions:
-              - macro: '{#BGP_STATE}'
-                value: '^[1-6]$'
+              - macro: '{#BGP_NEIGHBOR}'
+                value: ^\d+\.\d+\.\d+\.\d+$
                 formulaid: A
           description: |
-            Discover BGP neighbors and their current states.
-            Provides per-neighbor monitoring for: - Session state changes - Route count monitoring - Flap detection - Convergence tracking
-            Uses standard BGP-4 MIB (RFC 4273) OIDs that should be supported on WatchGuard Fireboxes with BGP routing enabled. States: 1=idle, 2=connect, 3=active, 4=opensent, 5=openconfirm, 6=established
+            Discover BGP sessions using the WatchGuard proprietary BGP MIB (1.3.6.1.4.1.3097.3.1.1).
+            The standard BGP-4 MIB (RFC 4273, 1.3.6.1.2.1.15) is not exposed by WatchGuard firmware.
+            The WatchGuard BGP table is indexed by peerIP.sessionID, so each VTI tunnel BGP session
+            is a separate discovered entry. Multiple parallel sessions can exist between the same peer
+            pair (different session IDs), so {#BGP_SESSION} is included in all names to ensure uniqueness.
+            Macros: {#BGP_NEIGHBOR} (peer IP), {#BGP_LOCALIP} (local WAN IP), {#BGP_SESSION} (session ID).
           item_prototypes:
-            - uuid: 2c553dfbef0b4849b4f51e0bc815950a
-              name: 'BGP Neighbor: {#BGP_NEIGHBOR} Routes Received'
+            - uuid: 82653dfbef0b4849b4f51e0bc8159560
+              name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Status'
               type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.15.3.1.10.{#BGP_NEIGHBOR}'
-              key: 'bgp.neighbor.routes[{#BGP_NEIGHBOR}]'
-              delay: 5m
-              history: 30d
-              trends: 90d
-              description: 'Number of routes received from BGP neighbor'
-              preprocessing:
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - '3600'
-              tags:
-                - tag: 'BGP Neighbor'
-                  value: '{#BGP_NEIGHBOR}'
-                - tag: Component
-                  value: BGP
-                - tag: InterfaceType
-                  value: BGP
-              trigger_prototypes:
-                - uuid: 3d553dfbef0b4849b4f51e0bc815951b
-                  expression: 'last(/Watchguard Firewall/bgp.neighbor.routes[{#BGP_NEIGHBOR}]) < {$WATCHGUARD_BGP_ROUTE_THRESHOLD_CRITICAL:10}'
-                  name: 'BGP Neighbor: {#BGP_NEIGHBOR} Route Count Critical'
-                  priority: HIGH
-                  description: |
-                    BGP neighbor {#BGP_NEIGHBOR} has fewer than {$WATCHGUARD_BGP_ROUTE_THRESHOLD_CRITICAL:10} routes.
-                    This may indicate: - Routing table corruption - Upstream BGP issues - Route-map misconfigurations - Network partitioning
-                  manual_close: 'YES'
-                  tags:
-                    - tag: Component
-                      value: BGP
-                    - tag: Condition
-                      value: 'Route Loss'
-                - uuid: 4e553dfbef0b4849b4f51e0bc815952c
-                  expression: 'last(/Watchguard Firewall/bgp.neighbor.routes[{#BGP_NEIGHBOR}]) < {$WATCHGUARD_BGP_ROUTE_THRESHOLD_WARNING:50} and last(/Watchguard Firewall/bgp.neighbor.routes[{#BGP_NEIGHBOR}]) >= {$WATCHGUARD_BGP_ROUTE_THRESHOLD_CRITICAL:10}'
-                  name: 'BGP Neighbor: {#BGP_NEIGHBOR} Route Count Low'
-                  priority: WARNING
-                  description: |
-                    BGP neighbor {#BGP_NEIGHBOR} has fewer than {$WATCHGUARD_BGP_ROUTE_THRESHOLD_WARNING:50} routes.
-                    Monitor for potential routing issues or upstream changes.
-                  manual_close: 'YES'
-                  tags:
-                    - tag: Component
-                      value: BGP
-                    - tag: Condition
-                      value: 'Route Warning'
-            - uuid: 5f553dfbef0b4849b4f51e0bc815953d
-              name: 'BGP Neighbor: {#BGP_NEIGHBOR} State'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.15.3.1.2.{#BGP_NEIGHBOR}'
-              key: 'bgp.neighbor.state[{#BGP_NEIGHBOR}]'
+              snmp_oid: '1.3.6.1.4.1.3097.3.1.1.1.1.15.{#SNMPINDEX}'
+              key: 'bgp.session.status[{#SNMPINDEX}]'
               delay: 2m
               history: 30d
+              value_type: FLOAT
               trends: 90d
-              description: 'BGP neighbor state: 1=idle, 2=connect, 3=active, 4=opensent, 5=openconfirm, 6=established'
+              description: 'BGP session status derived from uptime OID. 1=Active (uptime > 0), 0=Inactive (uptime = 0 or session reset).'
               valuemap:
-                name: bgp.neighbor.state.valuemap
+                name: vpn.status
               preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return parseInt(value) > 0 ? 1 : 0;'
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - '3600'
@@ -1954,73 +1944,59 @@
                   value: '{#BGP_NEIGHBOR}'
                 - tag: Component
                   value: BGP
-                - tag: InterfaceType
-                  value: BGP
               trigger_prototypes:
-                - uuid: 60653dfbef0b4849b4f51e0bc815954e
-                  expression: '(change(/Watchguard Firewall/bgp.neighbor.state[{#BGP_NEIGHBOR}]) > 0 and count(/Watchguard Firewall/bgp.neighbor.state[{#BGP_NEIGHBOR}],{$WATCHGUARD_FLAPPING_TIMEFRAME:"30m"}) > {$WATCHGUARD_FLAPPING_CHANGE_THRESHOLD:5})'
-                  name: 'BGP Neighbor: {#BGP_NEIGHBOR} Flapping Detected'
-                  priority: WARNING
-                  description: |
-                    BGP neighbor {#BGP_NEIGHBOR} has changed state more than {$WATCHGUARD_FLAPPING_CHANGE_THRESHOLD:5} times in {$WATCHGUARD_FLAPPING_TIMEFRAME:"30m"}.
-                    This indicates BGP session instability that can cause: - Route flapping - Convergence delays - Tunnel failover issues - Traffic black-holing
-                  manual_close: 'YES'
-                  tags:
-                    - tag: Component
-                      value: BGP
-                    - tag: Condition
-                      value: Flapping
                 - uuid: 71653dfbef0b4849b4f51e0bc815955f
-                  expression: 'last(/Watchguard Firewall/bgp.neighbor.state[{#BGP_NEIGHBOR}]) <> 6 and nodata(/Watchguard Firewall/bgp.neighbor.state[{#BGP_NEIGHBOR}],{$WATCHGUARD_BGP_NEIGHBOR_TIMEOUT:"10m"}) = 0'
-                  name: 'BGP Neighbor: {#BGP_NEIGHBOR} Session Down'
+                  expression: 'max(/Watchguard Firewall/bgp.session.status[{#SNMPINDEX}],5m) = 0'
+                  name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Down'
                   priority: HIGH
                   description: |
-                    BGP neighbor {#BGP_NEIGHBOR} is not in Established state (6).
-                    Current states: 1=idle, 2=connect, 3=active, 4=opensent, 5=openconfirm, 6=established
-                    This indicates BGP routing issues that may affect tunnel failover and convergence.
+                    BGP session to {#BGP_NEIGHBOR} (local: {#BGP_LOCALIP}) has been inactive for 5 minutes.
+                    This will affect route availability for this VTI tunnel and failover convergence.
                   manual_close: 'YES'
                   tags:
                     - tag: Component
                       value: BGP
                     - tag: Condition
                       value: 'Session Down'
-            - uuid: 82653dfbef0b4849b4f51e0bc8159560
-              name: 'BGP Neighbor: {#BGP_NEIGHBOR} Uptime'
+            - uuid: 5f553dfbef0b4849b4f51e0bc815953d
+              name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Uptime'
               type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.15.3.1.16.{#BGP_NEIGHBOR}'
-              key: 'bgp.neighbor.uptime[{#BGP_NEIGHBOR}]'
-              delay: 5m
+              snmp_oid: '1.3.6.1.4.1.3097.3.1.1.1.1.15.{#SNMPINDEX}'
+              key: 'bgp.session.uptime[{#SNMPINDEX}]'
+              delay: 2m
               history: 30d
               trends: 90d
               units: uptime
-              description: 'BGP neighbor session uptime in seconds'
-              preprocessing:
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - '3600'
+              description: 'BGP session uptime in seconds. Increments while established. Resets to 0 on session drop.'
               tags:
                 - tag: 'BGP Neighbor'
                   value: '{#BGP_NEIGHBOR}'
                 - tag: Component
                   value: BGP
-                - tag: InterfaceType
-                  value: BGP
+              trigger_prototypes:
+                - uuid: 60653dfbef0b4849b4f51e0bc815954e
+                  expression: 'change(/Watchguard Firewall/bgp.session.uptime[{#SNMPINDEX}]) < 0'
+                  name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Reset Detected'
+                  priority: WARNING
+                  description: |
+                    BGP session to {#BGP_NEIGHBOR} (local: {#BGP_LOCALIP}) has reset — uptime dropped.
+                    This indicates a BGP session flap that may cause route reconvergence delays,
+                    tunnel failover events, or temporary traffic disruption.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: Component
+                      value: BGP
+                    - tag: Condition
+                      value: Flapping
           graph_prototypes:
-            - uuid: 93653dfbef0b4849b4f51e0bc8159571
-              name: 'BGP Neighbor: {#BGP_NEIGHBOR} Routes Received'
-              graph_items:
-                - color: 1A7C11
-                  item:
-                    host: 'Watchguard Firewall'
-                    key: 'bgp.neighbor.routes[{#BGP_NEIGHBOR}]'
             - uuid: a4653dfbef0b4849b4f51e0bc8159582
-              name: 'BGP Neighbor: {#BGP_NEIGHBOR} State History'
+              name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Uptime [{#BGP_SESSION}]'
               graph_items:
                 - color: 199C0D
                   calc_fnc: ALL
                   item:
                     host: 'Watchguard Firewall'
-                    key: 'bgp.neighbor.state[{#BGP_NEIGHBOR}]'
+                    key: 'bgp.session.uptime[{#SNMPINDEX}]'
         - uuid: fa8bb6e2d1f644cb8c83bb07368d9d0d
           name: 'VPN Tunnels (Route Based) - BoVPNs'
           type: SNMP_AGENT
@@ -2595,18 +2571,19 @@
         - uuid: 99d69c506b1f41f1816fea394fb29fde
           name: 'Fan Sensors'
           type: SNMP_AGENT
-          snmp_oid: 'discovery[{#SNMPINDEX},1.3.6.1.4.1.3097.6.3.2.1.1]'
+          snmp_oid: 'discovery[{#FAN_NAME},1.3.6.1.4.1.3097.6.3.2.1.2]'
           key: fan.discovery
           delay: 1h
           status: DISABLED
-          filter:
-            conditions:
-              - macro: '{#FAN_TYPE}'
-                value: fan
-                formulaid: A
           description: |
-            Firebox v12.10 does not expose FAN Index, FAN Speed, or FAN Health metrics over SNMPv2/3. Their published
-            MIB pack suggests this should be available. Likely a bug in the firmware.
+            Discovers fan sensors from the WatchGuard hardware MIB (wgSystemFanTable: 1.3.6.1.4.1.3097.6.3.2).
+            Table column map:
+              .1.1.{idx} = wgSystemFanIndex (INTEGER)
+              .1.2.{idx} = wgSystemFanName  (STRING)  -> {#FAN_NAME}
+              .1.3.{idx} = wgSystemFanSpeed (Gauge32, RPM)
+              .1.4.{idx} = wgSystemFanStatus (INTEGER: 0=normal, 1=warning, 2=error)
+            NOTE: As of Firebox firmware v12.10-v12.11 this OID subtree is not exposed over SNMP.
+            Rule kept DISABLED and logically correct pending firmware support.
           item_prototypes:
             - uuid: d7c819753c1949359cfadc15a78e13d1
               name: 'Fan {#FAN_NAME} Speed'
@@ -2913,17 +2890,17 @@
             identified by their unique selector tuple (local subnet + remote subnet).
             Each discovered entry maps to a single VPN policy and survives SA rekeys because the
             selector addresses are stable — only the SA row index changes on rekey.
-            Macros provided: {#SUBNETPAIR}, {#LOCALCIDR}, {#REMOTECIDR}
+            Macros provided: {#SUBNETPAIR}, {#PEERADDR}, {#LOCALCIDR}, {#REMOTECIDR}
           item_prototypes:
             - uuid: 80cbecccd49c492183c93cf674032333
-              name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} Bytes In'
+              name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) Bytes In'
               type: DEPENDENT
               key: 'vpn.gw.kbytesIn[{#SUBNETPAIR}]'
               delay: '0'
               history: 7d
               trends: 90d
               units: bps
-              description: 'Inbound traffic for GwVPN {#LOCALCIDR}-{#REMOTECIDR}. Source: wgIpsecTunnelInKbytes (.28), aggregated across all SAs with matching selector.'
+              description: 'Inbound traffic for GwVPN {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}). Source: wgIpsecTunnelInKbytes (.28), aggregated across all SAs with matching selector.'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
@@ -2943,23 +2920,23 @@
                   parameters:
                     - '3600'
               master_item:
-                key: vpn.policy.sa.table.raw
+                key: gwvpn.sa.table.raw
               tags:
                 - tag: Component
                   value: GwVPN
+                - tag: 'GwVPN Peer'
+                  value: '{#PEERADDR}'
                 - tag: 'VPN Subnets'
                   value: '{#LOCALCIDR}-{#REMOTECIDR}'
-                - tag: 'VPN Type'
-                  value: 'VPN Policy'
             - uuid: 5b0daab671554cfe8c0a7a796ac84542
-              name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} Bytes Out'
+              name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) Bytes Out'
               type: DEPENDENT
               key: 'vpn.gw.kbytesOut[{#SUBNETPAIR}]'
               delay: '0'
               history: 7d
               trends: 90d
               units: bps
-              description: 'Outbound traffic for GwVPN {#LOCALCIDR}-{#REMOTECIDR}. Source: wgIpsecTunnelOutKbytes (.29), aggregated across all SAs with matching selector.'
+              description: 'Outbound traffic for GwVPN {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}). Source: wgIpsecTunnelOutKbytes (.29), aggregated across all SAs with matching selector.'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
@@ -2979,22 +2956,22 @@
                   parameters:
                     - '3600'
               master_item:
-                key: vpn.policy.sa.table.raw
+                key: gwvpn.sa.table.raw
               tags:
                 - tag: Component
                   value: GwVPN
+                - tag: 'GwVPN Peer'
+                  value: '{#PEERADDR}'
                 - tag: 'VPN Subnets'
                   value: '{#LOCALCIDR}-{#REMOTECIDR}'
-                - tag: 'VPN Type'
-                  value: 'VPN Policy'
             - uuid: e6c8bb5a293c4f1ba7b0f6c52ff147c6
-              name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} Status'
+              name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) Status'
               type: DEPENDENT
               key: 'vpn.gw.status[{#SUBNETPAIR}]'
               delay: '0'
               history: 7d
               trends: 90d
-              description: 'Tunnel presence status for GwVPN {#LOCALCIDR}-{#REMOTECIDR}. 1=SA present in table, 0=SA absent. Source: vpn.policy.sa.table.raw master item.'
+              description: 'Tunnel presence status for GwVPN {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}). 1=SA present in table, 0=SA absent. Source: vpn.policy.sa.table.raw master item.'
               valuemap:
                 name: vpn.status
               preprocessing:
@@ -3005,33 +2982,35 @@
                   parameters:
                     - '3600'
               master_item:
-                key: vpn.policy.sa.table.raw
+                key: gwvpn.sa.table.raw
               tags:
                 - tag: Component
                   value: GwVPN
+                - tag: 'GwVPN Peer'
+                  value: '{#PEERADDR}'
                 - tag: 'VPN Subnets'
                   value: '{#LOCALCIDR}-{#REMOTECIDR}'
-                - tag: 'VPN Type'
-                  value: 'VPN Policy'
               trigger_prototypes:
                 - uuid: ea501e1e0f9a4c62abb872512d507c19
                   expression: 'max(/Watchguard Firewall/vpn.gw.status[{#SUBNETPAIR}],24h)=0'
-                  name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} SA absent for 24 hours'
+                  name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) SA absent for 24 hours'
                   priority: WARNING
-                  description: 'GwVPN {#LOCALCIDR}-{#REMOTECIDR} has had no active Security Association in the SA table for 24 hours. The tunnel may be down or unused.'
+                  description: 'GwVPN {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) has had no active Security Association in the SA table for 24 hours. The tunnel may be down or unused.'
                   manual_close: 'YES'
                   tags:
                     - tag: Component
                       value: GwVPN
                     - tag: Condition
                       value: Idle
+                    - tag: 'VPN Peer'
+                      value: '{#PEERADDR}'
                     - tag: 'VPN Subnets'
                       value: '{#LOCALCIDR}-{#REMOTECIDR}'
                     - tag: 'VPN Type'
-                      value: 'VPN Policy'
+                      value: 'Gateway VPN'
           graph_prototypes:
             - uuid: 94c42e99a42f4e9d9392c8aa4e517bfb
-              name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} Traffic'
+              name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) Traffic'
               width: '600'
               height: '340'
               ymin_type_1: FIXED
@@ -3048,7 +3027,7 @@
                     host: 'Watchguard Firewall'
                     key: 'vpn.gw.kbytesOut[{#SUBNETPAIR}]'
           master_item:
-            key: vpn.policy.sa.table.raw
+            key: gwvpn.sa.table.raw
           preprocessing:
             - type: JAVASCRIPT
               parameters:
@@ -3059,6 +3038,7 @@
                     var t = mapping[key];
                     discovered.push({
                       '{#SUBNETPAIR}':  key,
+                      '{#PEERADDR}':    t.peerAddr,
                       '{#LOCALCIDR}':   t.localCIDR,
                       '{#REMOTECIDR}':  t.remoteCIDR
                     });
@@ -3268,21 +3248,24 @@
         - uuid: 36f6c341b9af4ccb9641fc003968f837
           name: 'Temperature Sensors'
           type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.3097.6.3.1
+          snmp_oid: 'discovery[{#SENSOR_NAME},1.3.6.1.4.1.3097.6.3.1.1.2]'
           key: temp.discovery
           delay: 1h
           status: DISABLED
-          filter:
-            conditions:
-              - macro: '{#SENSOR_TYPE}'
-                value: temperature
-                formulaid: A
-          description: 'Currently, as of firebox v12.10 firmware, the SNMP OID published in their MIB pack, is NOT exposed over SNMPv2/v3 - suggesting this is a bug in the FW firmware.'
+          description: |
+            Discovers temperature sensors from the WatchGuard hardware MIB (wgSystemTempTable: 1.3.6.1.4.1.3097.6.3.1).
+            Table column map:
+              .1.1.{idx} = wgSystemTempIndex   (INTEGER)
+              .1.2.{idx} = wgSystemTempName    (STRING)  -> {#SENSOR_NAME}
+              .1.3.{idx} = wgSystemTempReading (INTEGER, tenths of degrees C)
+              .1.4.{idx} = wgSystemTempStatus  (INTEGER: 0=normal, 1=warning, 2=error)
+            NOTE: As of Firebox firmware v12.10-v12.11 this OID subtree is not exposed over SNMP.
+            Rule kept DISABLED and logically correct pending firmware support.
           item_prototypes:
             - uuid: 6bbe24e86cca4734b9435ded3b63a957
               name: 'Temperature Sensor {#SENSOR_NAME}'
               type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.4.1.3097.6.3.1.{#SNMPINDEX}'
+              snmp_oid: '1.3.6.1.4.1.3097.6.3.1.1.3.{#SNMPINDEX}'
               key: 'temperature.sensor[{#SENSOR_NAME}]'
               delay: 5m
               history: 30d
@@ -3304,7 +3287,7 @@
                   expression: 'last(/Watchguard Firewall/temperature.sensor[{#SENSOR_NAME}]) > {$WATCHGUARD_TEMP_CRITICAL}'
                   name: 'Critical Temperature on {#SENSOR_NAME}'
                   priority: HIGH
-                  description: 'Temperature sensor {#SENSOR_NAME} is above critical threshold ({ITEM.LASTVALUE} > {$WATCHGUARD_TEMP_CRITICAL}Ãƒâ€š Ã‚Â°C)'
+                  description: 'Temperature sensor {#SENSOR_NAME} is above critical threshold ({ITEM.LASTVALUE} > {$WATCHGUARD_TEMP_CRITICAL}°C)'
                   tags:
                     - tag: Component
                       value: Temperature
@@ -3312,7 +3295,7 @@
                   expression: 'last(/Watchguard Firewall/temperature.sensor[{#SENSOR_NAME}]) > {$WATCHGUARD_TEMP_WARNING}'
                   name: 'High Temperature Warning on {#SENSOR_NAME}'
                   priority: WARNING
-                  description: 'Temperature sensor {#SENSOR_NAME} is above warning threshold ({ITEM.LASTVALUE} > {$WATCHGUARD_TEMP_WARNING}Ãƒâ€š Ã‚Â°C)'
+                  description: 'Temperature sensor {#SENSOR_NAME} is above warning threshold ({ITEM.LASTVALUE} > {$WATCHGUARD_TEMP_WARNING}°C)'
                   tags:
                     - tag: Component
                       value: Temperature
@@ -4079,11 +4062,11 @@
                 - type: honeycomb
                   name: 'BGP Neighbor States'
                   width: '14'
-                  height: '6'
+                  height: '14'
                   fields:
                     - type: STRING
                       name: items.0
-                      value: 'BGP Neighbor: * State'
+                      value: 'BGP Session: * Status'
                     - type: INTEGER
                       name: item_tags.0.operator
                       value: '0'
@@ -4095,7 +4078,7 @@
                       value: BGP
                     - type: STRING
                       name: primary_label
-                      value: '{{ITEM.NAME}.regsub("^BGP Neighbor: (.+) State$", "\1")}'
+                      value: '{{ITEM.NAME}.regsub("^BGP Session: (.+) via .+ Status$", "\1")}'
                     - type: STRING
                       name: reference
                       value: RQVRY
@@ -4104,23 +4087,69 @@
                       value: FF465C
                     - type: STRING
                       name: thresholds.0.threshold
-                      value: '1'
+                      value: '0'
                     - type: STRING
                       name: thresholds.1.color
-                      value: FFD54F
+                      value: 80FF00
                     - type: STRING
                       name: thresholds.1.threshold
-                      value: '4'
-                    - type: STRING
-                      name: thresholds.2.color
-                      value: 0EC9AC
-                    - type: STRING
-                      name: thresholds.2.threshold
-                      value: '6'
+                      value: '1'
                 - type: problems
-                  'y': '6'
-                  width: '49'
-                  height: '6'
+                  name: 'BGP Flapping Detection'
+                  'y': '14'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: IMEVV
+                    - type: INTEGER
+                      name: show_tags
+                      value: '2'
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: Component
+                    - type: STRING
+                      name: tags.0.value
+                      value: BGP
+                    - type: INTEGER
+                      name: tags.1.operator
+                      value: '0'
+                    - type: STRING
+                      name: tags.1.tag
+                      value: Condition
+                    - type: STRING
+                      name: tags.1.value
+                      value: Flapping
+                - type: graphprototype
+                  name: 'BGP Session Uptime'
+                  x: '14'
+                  width: '35'
+                  height: '14'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '2'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Watchguard Firewall'
+                        name: 'BGP Session: {#BGP_NEIGHBOR} via {#BGP_LOCALIP} Uptime [{#BGP_SESSION}]'
+                    - type: STRING
+                      name: reference
+                      value: BGPGT
+                    - type: INTEGER
+                      name: rows
+                      value: '3'
+                - type: problems
+                  name: 'BGP Events'
+                  x: '24'
+                  'y': '14'
+                  width: '25'
+                  height: '5'
                   fields:
                     - type: STRING
                       name: reference
@@ -4137,133 +4166,6 @@
                     - type: STRING
                       name: tags.0.value
                       value: BGP
-                - type: gauge
-                  name: 'Session Uptime %'
-                  x: '14'
-                  width: '11'
-                  height: '6'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: STRING
-                      name: max
-                      value: '604800'
-                    - type: STRING
-                      name: min
-                      value: '0'
-                - type: item
-                  name: 'BGP Neighbors'
-                  x: '25'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: INTEGER
-                      name: show.0
-                      value: '2'
-                    - type: INTEGER
-                      name: show.1
-                      value: '4'
-                    - type: STRING
-                      name: units
-                      value: states
-                - type: item
-                  name: 'BGP Neighbors'
-                  x: '25'
-                  'y': '2'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: INTEGER
-                      name: show.0
-                      value: '2'
-                    - type: INTEGER
-                      name: show.1
-                      value: '4'
-                    - type: STRING
-                      name: units
-                      value: states
-                - type: item
-                  name: 'BGP Session Uptime'
-                  x: '25'
-                  'y': '4'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: INTEGER
-                      name: show.0
-                      value: '2'
-                    - type: INTEGER
-                      name: show.1
-                      value: '4'
-                    - type: STRING
-                      name: units
-                      value: states
-                - type: problems
-                  name: 'BGP Flapping Detection'
-                  x: '37'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: problem
-                      value: Flapping
-                    - type: STRING
-                      name: reference
-                      value: IMEVV
-                    - type: INTEGER
-                      name: show_tags
-                      value: '2'
-                    - type: INTEGER
-                      name: tags.0.operator
-                      value: '0'
-                    - type: STRING
-                      name: tags.0.tag
-                      value: Component
-                    - type: STRING
-                      name: tags.0.value
-                      value: BGP
-                - type: item
-                  name: 'BGP Update Messages'
-                  x: '37'
-                  'y': '2'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: INTEGER
-                      name: show.0
-                      value: '2'
-                    - type: INTEGER
-                      name: show.1
-                      value: '4'
-                    - type: STRING
-                      name: units
-                      value: states
-                - type: item
-                  name: 'Total Messages'
-                  x: '37'
-                  'y': '4'
-                  width: '12'
-                  fields:
-                    - type: STRING
-                      name: itemid._reference
-                      value: RQVRY._itemid
-                    - type: INTEGER
-                      name: show.0
-                      value: '2'
-                    - type: INTEGER
-                      name: show.1
-                      value: '4'
-                    - type: STRING
-                      name: units
-                      value: states
             - name: 'Branch Office VPNs'
               widgets:
                 - type: honeycomb
@@ -4386,7 +4288,7 @@
                       value: '1'
                     - type: STRING
                       name: primary_label
-                      value: '{{ITEM.NAME}.regsub("^GwVPN: (.+) Status$", "\1")}'
+                      value: '{{ITEM.NAME}.regsub("^GwVPN: (.+) \(.+\) Status$", "\1")}'
                     - type: INTEGER
                       name: primary_label_bold
                       value: '1'
@@ -4399,9 +4301,18 @@
                     - type: STRING
                       name: reference
                       value: GBEEE
+                    - type: STRING
+                      name: secondary_label
+                      value: '{{ITEM.NAME}.regsub("^GwVPN: .+ \((.+)\) Status$", "\1")}'
                     - type: INTEGER
-                      name: show.0
-                      value: '1'
+                      name: secondary_label_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: secondary_label_size
+                      value: '35'
+                    - type: INTEGER
+                      name: secondary_label_type
+                      value: '0'
                     - type: STRING
                       name: thresholds.0.color
                       value: 80FF00
@@ -4428,7 +4339,7 @@
                       name: graphid.0
                       value:
                         host: 'Watchguard Firewall'
-                        name: 'GwVPN: {#LOCALCIDR}-{#REMOTECIDR} Traffic'
+                        name: 'GwVPN: {#PEERADDR} ({#LOCALCIDR}-{#REMOTECIDR}) Traffic'
                     - type: STRING
                       name: reference
                       value: QOBZX
