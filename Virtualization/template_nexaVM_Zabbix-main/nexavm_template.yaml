@@ -1,0 +1,142 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 139e8387405e4695a44899539a263690
+      name: Templates/nexaVM
+  templates:
+    - uuid: 9f858972440f438898238fb75620fc90
+      template: 'NexaVM nSSV Enterprise Pro'
+      name: 'NexaVM nSSV Enterprise Pro'
+      groups:
+        - name: Templates/nexaVM
+      items:
+        - uuid: 9692508834334b9caf653bcbb37f1681
+          name: 'nexaVM: Get Bulk Data'
+          type: SCRIPT
+          key: nexavm.get_data
+          delay: 1m
+          value_type: TEXT
+          params: |
+            var request = new HttpRequest();
+            var base = '{$NEXAVM.URL}'.trim().replace(/\/+$/, "");
+            request.addHeader('Content-Type: application/json');
+            var auth = {"logInByAccount": {"accountName": "{$NEXAVM.USER}", "password": "{$NEXAVM.PWD}"}};
+            try {
+                var respLogin = request.put(base + '/zstack/v1/accounts/login', JSON.stringify(auth));
+                var token = JSON.parse(respLogin).inventory.uuid;
+                var hdr = 'Authorization: OAuth ' + token;
+                function fetch(ep) {
+                    var r = new HttpRequest();
+                    r.addHeader(hdr);
+                    var res = r.get(base + ep);
+                    return (r.getStatus() == 200) ? JSON.parse(res).inventories : [];
+                }
+                return JSON.stringify({
+                    "vms": fetch('/zstack/v1/vm-instances').map(function(i){return {uuid:i.uuid,name:i.name,state:i.state};}),
+                    "ps": fetch('/zstack/v1/primary-storage').map(function(i){return {uuid:i.uuid,name:i.name,total:i.totalCapacity,avail:i.availableCapacity};}),
+                    "bs": fetch('/zstack/v1/backup-storage').map(function(i){return {uuid:i.uuid,name:i.name,total:i.totalCapacity,avail:i.availableCapacity,status:i.status};}),
+                    "vr": fetch('/zstack/v1/vrouters').map(function(i){return {uuid:i.uuid,name:i.name,state:i.state,ip:i.publicIp};})
+                });
+            } catch (e) { return JSON.stringify({"error": e.toString()}); }
+          timeout: 30s
+
+      discovery_rules:
+        # --- VM DISCOVERY ---
+        - uuid: c95acc475ddc4402aafbafa9ce0e498d
+          name: 'VM Discovery'
+          type: DEPENDENT
+          key: zstack.vm.discovery
+          master_item: { key: nexavm.get_data }
+          preprocessing:
+            - type: JSONPATH
+              parameters: ['$.vms']
+          lld_macro_paths:
+            - { lld_macro: '{#VM.NAME}', path: $.name }
+            - { lld_macro: '{#VM.UUID}', path: $.uuid }
+          item_prototypes:
+            - uuid: f50146d52b4347229ce25e579bf3e2f3
+              name: 'VM {#VM.NAME}: Status'
+              type: DEPENDENT
+              key: 'zstack.vm.state[{#VM.UUID}]'
+              master_item: { key: nexavm.get_data }
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters: ['$.vms[?(@.uuid == "{#VM.UUID}")].state.first()']
+          trigger_prototypes:
+            - uuid: d6875f7598144839ab3ec063de4a91dc
+              expression: 'last(/NexaVM  Enterprise Pro/nexavm.vm.state[{#VM.UUID}])<>"Running"'
+              name: 'VM {#VM.NAME} is not Running'
+              priority: WARNING
+
+        # --- PRIMARY STORAGE DISCOVERY ---
+        - uuid: 9f2d4802c9444ea29c4eec5ca7a4f65d
+          name: 'Primary Storage Discovery'
+          type: DEPENDENT
+          key: zstack.ps.discovery
+          master_item: { key: nexavm.get_data }
+          item_prototypes:
+            - uuid: 8808fbd97fae488190edfba64548973d
+              name: 'PS {#PS.NAME}: Available Capacity'
+              type: DEPENDENT
+              key: 'zstack.ps.avail[{#PS.UUID}]'
+              master_item: { key: nexavm.get_data }
+              value_type: FLOAT
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters: ['$.ps[?(@.uuid == "{#PS.UUID}")].avail.first()']
+            - uuid: 56a0515b610442a5915f593fc296a193
+              name: 'PS {#PS.NAME}: Total Capacity'
+              type: DEPENDENT
+              key: 'zstack.ps.total[{#PS.UUID}]'
+              master_item: { key: nexavm.get_data }
+              value_type: FLOAT
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters: ['$.ps[?(@.uuid == "{#PS.UUID}")].total.first()']
+          trigger_prototypes:
+            - uuid: 3e8baaceeab3497ba63476ac76f2053c
+              expression: 'last(/NexaVM nSSV Enterprise Pro/nexavm.ps.avail[{#PS.UUID}]) < (last(/NexaVM nSSV Enterprise Pro/nSSV.ps.total[{#PS.UUID}]) * 0.1)'
+              name: 'Primary Storage {#PS.NAME} is low (less than 10% free)'
+              priority: HIGH
+          graph_prototypes:
+            - uuid: 20c9825a86b541d086bfd7575f0c7c22
+              name: 'Capacity: Primary Storage {#PS.NAME}'
+              graph_items:
+                - color: 1A7C11
+                  item: { key: 'zstack.ps.total[{#PS.UUID}]' }
+                - color: F63131
+                  item: { key: 'zstack.ps.avail[{#PS.UUID}]' }
+
+        # --- VROUTER DISCOVERY ---
+        - uuid: d824458d68a343c7b731eac76b33dee1
+          name: 'vRouter Discovery'
+          type: DEPENDENT
+          key: zstack.vr.discovery
+          master_item: { key: nexavm.get_data }
+          item_prototypes:
+            - uuid: 5dbc02ea09c741b3827d59ec7f885be7
+              name: 'vRouter {#VR.NAME}: Status'
+              type: DEPENDENT
+              key: 'zstack.vr.state[{#VR.UUID}]'
+              master_item: { key: nexavm.get_data }
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters: ['$.vr[?(@.uuid == "{#VR.UUID}")].state.first()']
+          trigger_prototypes:
+            - uuid: 0204656db58f432e8bea20424a8cf295
+              expression: 'last(/NexaVM nSSV Enterprise Pro/nSSV.vr.state[{#VR.UUID}])<>"Running"'
+              name: 'vRouter {#VR.NAME} is Down'
+              priority: AVERAGE
+
+      macros:
+        - macro: '{$NEXAVM.URL}'
+          value: 'http://1.1.1.1:8080'
+        - macro: '{$NEXAVM.USER}'
+          value: admin
+        - macro: '{$NEXAVM.PWD}'
+          type: SECRET_TEXT
+          value: 'password'
