@@ -1,34 +1,16 @@
 # UBQT UNIFI SNMP V3 HN
 
 ## Description
-
-This template retrieve SNMP data from Unifi AP devices. MIBS requirements: FROGFOOT-RESOURCES-MIB IANAifType-MIB IF-MIB SNMP-FRAMEWORK-MIB SNMPv2-CONF SNMPv2-MIB SNMPv2-SMI SNMPv2-TC UBNT-MIB UBNT-UniFi-MIB Author: Helmut Leonhardt based on Alex Moura
+Retrieve SNMP v3  data from Ubitquit Unifi devices. 
 
 ## Overview
-
-
-unifi zabbix snmpv3
-based on Alex Mouras work https://share.zabbix.com/network\_devices/ubiquiti/unifi-snmp-2019-v1-1
-  
-
+How to setup up SNMPv3 in Ubiquiti Unifi Controller
 Ubiquity Controller > Settings > Services > SNMP v3 > enable, set username and password
+
+How to setup SNMPv3 in Zabbix
 Zabbix > Macro >
-{$SNMP\_USERNAME} <= username set in controller
-{$SNMP\_AUTHPASS} & {$SNMP\_PRIVPASS} <= password set in controller
- 
-2020 April
-fixed zabbix version
-fixed virtual interface items
-
-2024 September - Fixes by Crowtrobot
-Add network traffic numbers in bits/sec to simplify comparing to other network devices.
-Replaced some description strings that appeared to be in Portuguese with English strings, or removed them completely where they didn't seem useful.
-Fixed 5GHz channel oid, which was wrong on my UAP-AC-InWall and U6-Enterprise.
-Added 6GHz radio channel oid.  
-
-2026 March
-Add Network Interface discovery for Ubiquity Unifi 
-
+{$SNMP_USERNAME} <= username set in controller
+{$SNMP_AUTHPASS} & {$SNMP_PRIVPASS} <= password set in controller
 
 ## Author
 
@@ -98,3 +80,18 @@ There are no template links in this template.
 
 There are no triggers in this template.
 
+## History
+2019 Alex Mouras
+
+2020 April Helmut Leonhardt
+fixed zabbix version
+fixed virtual interface items
+
+2024 September - Fixes by Crowtrobot
+Add network traffic numbers in bits/sec to simplify comparing to other network devices.
+Replaced some description strings that appeared to be in Portuguese with English strings, or removed them completely where they didn't seem useful.
+Fixed 5GHz channel oid, which was wrong on my UAP-AC-InWall and U6-Enterprise.
+Added 6GHz radio channel oid.  
+
+2026 March Helmut Leonhardt
+Add Network Interface discovery for Ubiquity Unifi 
