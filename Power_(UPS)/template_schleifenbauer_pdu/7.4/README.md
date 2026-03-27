@@ -109,7 +109,7 @@ Actual current, peak current, actual voltage, minimum voltage, active power (W),
 
 Sensor type, sensor value (×0.01 scaling for temperature/humidity)
 
-> **Note:** All centi-unit values (centiAmpere, centiVolt, centiCelsius) are divided by 100 using a MULTIPLIER(0.01) preprocessing step. Energy values are stored in raw kWh with auto-scaling disabled (`!kWh`) to show the full unscaled value.
+> **Note:** All centi-unit values (centiAmpere, centiVolt, centiCelsius) are divided by 100 using a MULTIPLIER(0.01) preprocessing step and stored as `FLOAT` to preserve decimal precision. All units have auto-scaling disabled (e.g. `!A`, `!V`, `!W`, `!°C`) to prevent Zabbix from converting to milli- or kilo- prefixed units. Energy totals and subtotals use `!kWh` for the same reason.
 
 ---
 
