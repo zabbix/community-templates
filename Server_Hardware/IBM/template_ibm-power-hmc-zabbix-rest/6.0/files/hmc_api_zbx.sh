@@ -1,4 +1,3 @@
-[root@zabbix-rh ~]# cat /usr/lib/zabbix/externalscripts/hmc_api_zbx.sh 
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -15,16 +14,19 @@ WEB="${BASE}/rest/api/web"
 UOM="${BASE}/rest/api/uom"
 PCM="${BASE}/rest/api/pcm"
 
-# ---- temp file management (no leaks) ----
-TMPFILES=()
-mktempf() { local f; f="$(mktemp "$1")"; TMPFILES+=("$f"); printf "%s" "$f"; }
-cleanup() { rm -f "${TMPFILES[@]}" 2>/dev/null || true; }
-trap cleanup EXIT
+# ---- Zabbix-safe temp workspace (single directory, atomic cleanup) ----
+# Even if Zabbix kills the script, worst case is ONE directory per killed run,
+# not dozens of mktemp files. (SIGKILL can't be trapped.)
+umask 077
+TMPDIR="$(mktemp -d /tmp/hmc_zbx.XXXXXX)"
+trap 'rm -rf "$TMPDIR"' EXIT INT TERM
 
-COOKIE="$(mktempf /tmp/hmc_cookie.XXXXXX)"
-LOGIN_XML="$(mktempf /tmp/hmc_login.XXXXXX)"
-HDR="$(mktempf /tmp/hmc_hdr.XXXXXX)"
-BODY="$(mktempf /tmp/hmc_body.XXXXXX)"
+COOKIE="$TMPDIR/cookie.txt"
+LOGIN_XML="$TMPDIR/login.xml"
+HDR="$TMPDIR/headers.txt"
+BODY="$TMPDIR/body.xml"
+PCM_FEED="$TMPDIR/pcm_energy_feed.xml"
+PCM_JSON="$TMPDIR/pcm_energy.json"
 
 # Bounded runtime for Zabbix external checks
 CURL=(-sS -k --connect-timeout 5 --max-time 20)
@@ -88,7 +90,7 @@ fetch_uom() {
 
 # ---- Normalize state strings for stable triggers ----
 # operating -> Operating, running -> Running, unknown unchanged
-norm_state_py='
+NORM_STATE_PY='
 def norm(s):
     s=(s or "").strip()
     if not s: return ""
@@ -101,7 +103,7 @@ parse_uom() {
   local kind="$1" needle="$2"
   python3 - "$kind" "$needle" "$BODY" <<PY
 import sys, json, xml.etree.ElementTree as ET
-$norm_state_py
+$NORM_STATE_PY
 
 kind = sys.argv[1]
 needle = sys.argv[2]
@@ -240,29 +242,27 @@ PY
 # ---- PCM: fetch newest EnergyMonitor JSON ----
 pcm_latest_energy_json() {
   local ms_uuid="$1"
-  local feed jsonfile
-  feed="$(mktempf /tmp/pcm_energy_feed.XXXXXX)"
-  jsonfile="$(mktempf /tmp/pcm_energy_json.XXXXXX)"
+  : >"$PCM_FEED"
+  : >"$PCM_JSON"
 
-  # Atom-first (your HMC returns Atom feed)
+  # Atom-first (matches your HMC feed format)
   curl "${CURL[@]}" -b "$COOKIE" \
     -H "Accept: application/atom+xml; charset=UTF-8" \
     -H "X-Audit-Memento: zabbix" \
-    "${PCM}/ManagedSystem/${ms_uuid}/RawMetrics/EnergyMonitor" >"$feed" || true
+    "${PCM}/ManagedSystem/${ms_uuid}/RawMetrics/EnergyMonitor" >"$PCM_FEED" || true
 
   # Fallback if empty
-  if [[ ! -s "$feed" ]]; then
+  if [[ ! -s "$PCM_FEED" ]]; then
     curl "${CURL[@]}" -b "$COOKIE" \
       -H "Accept: application/xml" \
       -H "X-Audit-Memento: zabbix" \
-      "${PCM}/ManagedSystem/${ms_uuid}/RawMetrics/EnergyMonitor" >"$feed" || true
+      "${PCM}/ManagedSystem/${ms_uuid}/RawMetrics/EnergyMonitor" >"$PCM_FEED" || true
   fi
 
-  [[ -s "$feed" ]] || { echo ""; return; }
+  [[ -s "$PCM_FEED" ]] || { echo ""; return; }
 
-  # Pick newest <entry> by <updated>, extract its JSON href
   local href
-  href="$(python3 - "$feed" <<'PY'
+  href="$(python3 - "$PCM_FEED" <<'PY'
 import sys, xml.etree.ElementTree as ET
 ATOM="http://www.w3.org/2005/Atom"
 def a(t): return "{%s}%s"%(ATOM,t)
@@ -299,9 +299,9 @@ PY
   curl "${CURL[@]}" -b "$COOKIE" \
     -H "Accept: application/json" \
     -H "X-Audit-Memento: zabbix" \
-    "$href" >"$jsonfile" || { echo ""; return; }
+    "$href" >"$PCM_JSON" || { echo ""; return; }
 
-  echo "$jsonfile"
+  echo "$PCM_JSON"
 }
 
 pcm_max_temp() {
@@ -429,7 +429,6 @@ print(json.dumps(out, ensure_ascii=False))
 PY
 }
 
-# ---- main dispatcher ----
 case "$MODE" in
   hmc.ping)
     if logon; then logoff; echo 1; else echo 0; fi
@@ -497,6 +496,16 @@ case "$MODE" in
     logoff
     ;;
 
+  system.temp.baseboard)
+    logon || { echo 0; exit 0; }
+    ms_uuid="$(ms_uuid_by_name "$ARG1")"
+    [[ -z "$ms_uuid" ]] && { logoff; echo 0; exit 0; }
+    jf="$(pcm_latest_energy_json "$ms_uuid")"
+    [[ -z "$jf" ]] && { logoff; echo 0; exit 0; }
+    pcm_max_temp "$jf" baseboard
+    logoff
+    ;;
+
   system.power.watts)
     logon || { echo 0; exit 0; }
     ms_uuid="$(ms_uuid_by_name "$ARG1")"
@@ -506,16 +515,7 @@ case "$MODE" in
     pcm_watts "$jf"
     logoff
     ;;
-   system.temp.baseboard)
-    logon || { echo 0; exit 0; }
-    ms_uuid="$(ms_uuid_by_name "$ARG1")"
-    [[ -z "$ms_uuid" ]] && { logoff; echo 0; exit 0; }
-    jf="$(pcm_latest_energy_json "$ms_uuid")"
-    [[ -z "$jf" ]] && { logoff; echo 0; exit 0; }
-    pcm_max_temp "$jf" baseboard
-    logoff
-    ;;
+
   *)
     echo "[]"
     ;;
-esac
