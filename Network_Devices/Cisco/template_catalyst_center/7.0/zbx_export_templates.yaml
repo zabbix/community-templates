@@ -1,0 +1,2077 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a0be4073df2446989baef3698fc8a9e0
+      name: 'Templates/Network Controllers'
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network Devices'
+  templates:
+    - uuid: 4656adf004bc448b91c5efe79fa85dc1
+      template: 'Cisco Catalyst Center - Access by HTTP'
+      name: 'Cisco Catalyst Center - Access by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: bd3db8417d534be793cb373d5611d725
+          name: 'Access Device Health'
+          type: HTTP_AGENT
+          key: catc.access.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: ACCESS
+            - name: limit
+              value: '{$CATC.ACCESS.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Access
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: 269ba1e657c346c58ba8c131053ed0f5
+          name: 'Discover Access Switches'
+          type: DEPENDENT
+          key: catc.access.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: ccdce0d91f5046a394eceb1aa239df4d
+              name: 'Access Switch Reachability: {#SWNAME}'
+              type: DEPENDENT
+              key: 'catc.access.reachability[{#SWUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#SWUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.access.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: AccessSwitch
+                - tag: CatC-Domain
+                  value: Access
+                - tag: CatC-Model
+                  value: '{#SWMODEL}'
+                - tag: CatC-Site
+                  value: '{#SWSITE}'
+              trigger_prototypes:
+                - uuid: 7204dfd1e21b43248f8aab0f4161c464
+                  expression: 'last(/Cisco Catalyst Center - Access by HTTP/catc.access.reachability[{#SWUUID}],#3)="UNREACHABLE"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - Access by HTTP/catc.access.reachability[{#SWUUID}],#3)="REACHABLE"'
+                  name: 'Access Switch Reachability: {#SWNAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.access.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  function val(v) {
+                      if  (v === null || typeof v === "undefined") {
+                          return "";
+                       }
+                  
+                      // LLD macro values must be primitive-like, not objects/arrays.
+                       if (typeof v === "object") {
+                          return "";
+                      }
+                  
+                       return String(v);
+                  }
+                  
+                  if (!src.response || !Array.isArray(src.response))  {
+                      return JSON.stringify(out);
+                  }
+                  
+                  for (var i = 0; i < src.response.length;  i++) {
+                      var d = src.response[i];
+                  
+                      // Keep only ACCESS role devices.
+                       var role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role !== "ACCESS") {
+                          continue;
+                      }
+                  
+                       // Optional extra guard: keep only switch family if present.
+                      var  family = (d.deviceFamily || "").toString().toUpperCase();
+                      if (family  && family !== "SWITCHES_AND_HUBS") {
+                          continue;
+                      }
+                  
+                       out.push({
+                          "{#SWUUID}": val(d.uuid),
+                          "{#SWNAME}" : val(d.name || d.hostname || d.ipAddress || d.uuid),
+                          "{#SWIP}" : val(d.ipAddress || d.managementIpAddress),
+                          "{#SWMAC}": val(d.macAddress),
+                           "{#SWSITE}": val(d.siteHierarchy || d.siteName || d.location),
+                           "{#SWROLE}": val(d.role || d.deviceRole),
+                          "{#SWFAMILY}" : val(d.deviceFamily),
+                          "{#SWTYPE}": val(d.deviceType),
+                           "{#SWMODEL}": val(d.model),
+                          "{#SWOSVERSION}": val(d.osVersion),
+                   
+                          "{#SWREACHABILITY}": val(d.reachabilityHealth),
+                          " {#SWOVERALLHEALTH}": val(d.overallHealth),
+                          "{#SWISSUECOUNT}" : val(d.issueCount),
+                  
+                          "{#SWCPUUTIL}": val(d.cpuUtilization ||  d.cpuUlitilization),
+                          "{#SWCPUHEALTH}": val(d.cpuHealth),
+                  
+                           "{#SWMEMUTIL}": val(d.memoryUtilization),
+                          "{#SWMEMHEALTH}" : val(d.memoryUtilizationHealth),
+                  
+                          "{#SWINTLINKHEALTH}": val(d.interDeviceLinkAvailHealth),
+                           "{#SWINTLINKFABRIC}": val(d.interDeviceLinkAvailFabric),
+                           "{#SWINTERRHEALTH}": val(d.interfaceLinkErrHealth),
+                  
+                           "{#SWMAXTEMP}": val(d.maxTemperature),
+                          "{#SWAVGTEMP}": val(d.avgTemperature),
+                   
+                          "{#SWWANLINKUTIL}": val(d.wanLinkUtilization),
+                          "{#SWPACKETPOOLHEALTH}" : val(d.packetPoolHealth),
+                          "{#SWWQEPOOLHEALTH}": val(d.wqePoolsHealth),
+                           "{#SWFREEMEMBUFHEALTH}": val(d.freeMemoryBufferHealth),
+                           "{#SWFREETIMERSCORE}": val(d.freeTimerScore)
+                      });
+                  }
+                  
+                  return  JSON.stringify(out);
+    - uuid: adb63cb3fe2949b69853372ade9cbb3b
+      template: 'Cisco Catalyst Center - Core by HTTP'
+      name: 'Cisco Catalyst Center - Core by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: 2bfd27210eec48a8ae37f8b03475f8cd
+          name: 'Core Device Health'
+          type: HTTP_AGENT
+          key: catc.core.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: CORE
+            - name: limit
+              value: '{$CATC.CORE.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Core
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: 3ddd7c306fd14f6a92a139dd2cb2a929
+          name: 'Discover Core Switches'
+          type: DEPENDENT
+          key: catc.core.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 99d1306ad8a141749196d0ac995e990d
+              name: 'CoreSwitch Reachability: {#CORENAME}'
+              type: DEPENDENT
+              key: 'catc.core.reachability[{#COREUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#COREUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.core.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: CoreSwitch
+                - tag: CatC-Domain
+                  value: Core
+                - tag: CatC-Model
+                  value: '{#COREMODEL}'
+                - tag: CatC-Site
+                  value: '{#CORESITE}'
+              trigger_prototypes:
+                - uuid: 1db1c976ee7949119be26cb9d92c852b
+                  expression: 'last(/Cisco Catalyst Center - Core by HTTP/catc.core.reachability[{#COREUUID}],#3)="UNREACHABLE"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - Core by HTTP/catc.core.reachability[{#COREUUID}],#3)="REACHABLE"'
+                  name: 'CoreSwitch Reachability: {#CORENAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.core.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  function val(v) {
+                      if  (v === null || typeof v === "undefined") return "";
+                      if (typeof  v === "object") return "";
+                      return String(v);
+                  }
+                  
+                  if (!src.response  || !Array.isArray(src.response)) {
+                      return JSON.stringify(out);
+                   }
+                  
+                  for (var i = 0; i < src.response.length; i++) {
+                      var d = src.response[i];
+                       var role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role !== "CORE") { continue; }
+                  
+                  var family = (d.deviceFamily  || "").toString().toUpperCase().replace(/[\s-]+/g, "_");
+                  if (family  && family !== "SWITCHES_AND_HUBS") {
+                      continue;
+                  }
+                      out.push({
+                           "{#COREUUID}": val(d.uuid),
+                          "{#CORENAME}": val(d.name  || d.hostname || d.ipAddress || d.managementIpAddress || d.uuid),
+                           "{#CORESITE}": val(d.siteHierarchy || d.siteName || d.location),
+                           "{#CORETYPE}": val(d.deviceType),
+                          "{#COREMODEL}":  val(d.model)
+                      });
+                  }
+                  
+                  return JSON.stringify(out);
+    - uuid: 4ea8a88463dd4b558d17237f25e8bcc5
+      template: 'Cisco Catalyst Center - Distribution by HTTP'
+      name: 'Cisco Catalyst Center - Distribution by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: a70d55a4a7a34568a28c57eef2d7d17e
+          name: 'Distribution Device Health'
+          type: HTTP_AGENT
+          key: catc.distribution.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: DISTRIBUTION
+            - name: limit
+              value: '{$CATC.DISTRIBUTION.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Distribution
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: 5c4496ed33f04701b8ad5124af3f0360
+          name: 'Discover Distribution Switches'
+          type: DEPENDENT
+          key: catc.distribution.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: c439e96ee3224eb6af9879546f6699d5
+              name: 'DistributionSwitch Reachability: {#DISTNAME}'
+              type: DEPENDENT
+              key: 'catc.distribution.reachability[{#DISTUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#DISTUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.distribution.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: DistributionSwitch
+                - tag: CatC-Domain
+                  value: Distribution
+                - tag: CatC-Model
+                  value: '{#DISTMODEL}'
+                - tag: CatC-Site
+                  value: '{#DISTSITE}'
+              trigger_prototypes:
+                - uuid: 226a4b679a8a4a9b80c01d968bccd0fb
+                  expression: 'last(/Cisco Catalyst Center - Distribution by HTTP/catc.distribution.reachability[{#DISTUUID}],#3)="UNREACHABLE"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - Distribution by HTTP/catc.distribution.reachability[{#DISTUUID}],#3)="REACHABLE"'
+                  name: 'DistributionSwitch Reachability: {#DISTNAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.distribution.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  function val(v) {
+                      if  (v === null || typeof v === "undefined") return "";
+                      if (typeof  v === "object") return "";
+                      return String(v);
+                  }
+                  
+                  if (!src.response  || !Array.isArray(src.response)) {
+                      return JSON.stringify(out);
+                   }
+                  
+                  for (var i = 0; i < src.response.length; i++) {
+                      var d = src.response[i];
+                       var role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role !== "DISTRIBUTION") { continue; }
+                  
+                  var family  = (d.deviceFamily || "").toString().toUpperCase().replace(/[\s-]+/g,  "_");
+                  if (family && family !== "SWITCHES_AND_HUBS") {
+                      continue;
+                   }
+                      out.push({
+                          "{#DISTUUID}": val(d.uuid),
+                          "{#DISTNAME}" : val(d.name || d.hostname || d.ipAddress || d.managementIpAddress || d.uuid),
+                           "{#DISTSITE}": val(d.siteHierarchy || d.siteName || d.location),
+                           "{#DISTTYPE}": val(d.deviceType),
+                          "{#DISTMODEL}":  val(d.model)
+                      });
+                  }
+                  
+                  return JSON.stringify(out);
+    - uuid: b4ce02fde93b48ebaaec3338e8ae13e6
+      template: 'Cisco Catalyst Center - Router by HTTP'
+      name: 'Cisco Catalyst Center - Router by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: 9aba54f4249245c9b33f7e1a3b2d3a9b
+          name: 'Routing Device Health'
+          type: HTTP_AGENT
+          key: catc.router.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: ROUTER
+            - name: limit
+              value: '{$CATC.ROUTER.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Routing
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: dabffefd9e0542f4a9c44cd52d73af9c
+          name: 'Discover Routers'
+          type: DEPENDENT
+          key: catc.router.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 538841d2b8344668bd9f917dfdd710d2
+              name: 'Router Reachability: {#RTRNAME}'
+              type: DEPENDENT
+              key: 'catc.router.reachability[{#RTRUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#RTRUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.router.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: Router
+                - tag: CatC-Domain
+                  value: Routing
+                - tag: CatC-Model
+                  value: '{#RTRMODEL}'
+                - tag: CatC-Site
+                  value: '{#RTRSITE}'
+              trigger_prototypes:
+                - uuid: 195a0317a95e4995bd1e8d3881f78649
+                  expression: 'last(/Cisco Catalyst Center - Router by HTTP/catc.router.reachability[{#RTRUUID}],#3)="UNREACHABLE"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - Router by HTTP/catc.router.reachability[{#RTRUUID}],#3)="REACHABLE"'
+                  name: 'Router Reachability: {#RTRNAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.router.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  function val(v) {
+                      if  (v === null || typeof v === "undefined") return "";
+                      if (typeof  v === "object") return "";
+                      return String(v);
+                  }
+                  
+                  if (!src.response  || !Array.isArray(src.response)) {
+                      return JSON.stringify(out);
+                   }
+                  
+                  for (var i = 0; i < src.response.length; i++) {
+                      var d = src.response[i];
+                       var role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role.indexOf("ROUTER") === -1) { continue; }
+                  
+                  var family  = (d.deviceFamily || "").toString().toUpperCase().replace(/[\s-]+/g,  "_");
+                  if (family && family !== "ROUTERS") {
+                      continue;
+                  }
+                       out.push({
+                          "{#RTRUUID}": val(d.uuid),
+                          "{#RTRNAME}" : val(d.name || d.hostname || d.ipAddress || d.managementIpAddress || d.uuid),
+                           "{#RTRSITE}": val(d.siteHierarchy || d.siteName || d.location),
+                           "{#RTRTYPE}": val(d.deviceType),
+                          "{#RTRMODEL}": val(d.model)
+                       });
+                  }
+                  
+                  return JSON.stringify(out);
+    - uuid: a15e0c0828dd45b3a97990d16beba22d
+      template: 'Cisco Catalyst Center - Site by HTTP'
+      name: 'Cisco Catalyst Center - Site by HTTP'
+      description: 'Site health assurance template. Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+      items:
+        - uuid: 04469210335d4f64831686572a3f5506
+          name: 'Site Health Summary'
+          type: HTTP_AGENT
+          key: catc.site.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/site-health'
+          query_fields:
+            - name: limit
+              value: '{$CATC.SITE.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Site
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: 015e164f4bbd4be1a8ab26fe9ce754e9
+          name: 'Discover Sites'
+          type: DEPENDENT
+          key: catc.site.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 53d9b144f4464640bc23b0163cc9e0b1
+              name: 'Site Access Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.access.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.accessGoodCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 7a46c7fa1c3346f79eebf5deac9e3279
+              name: 'Site Access Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.access.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthAccess;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 14f4cce4f6fd49e297af34142bf93c61
+              name: 'Site Access Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.access.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.accessTotalCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 0cfe890620d04582b5c1c9733ff8197b
+              name: 'Site AP Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.ap.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.apDeviceGoodCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 440a644b38a9452fb101e4616f83e534
+              name: 'Site AP Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.ap.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthAP;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 7f920a9cd62248c292ac243ef17364ca
+              name: 'Site AP Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.ap.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.apDeviceTotalCount;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: a89d2d3ea4cd47739988a01e4a29a612
+              name: 'Site Healthy Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.healthy.percent[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.healthyClientsPercentage;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 4d62da9bc82640a0ab1b42f34124c126
+              name: 'Site Total Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.numberOfClients;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: e1058914715c4070860ab42014b0a845
+              name: 'Site Good Wired Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.wired.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.wiredGoodClients;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: d87c2279a0744432a41df3789e10524d
+              name: 'Site Wired Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.wired.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.numberOfWiredClients;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 23d677dd1f3f4773994a9f88d9351b83
+              name: 'Site Good Wireless Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.wireless.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.wirelessGoodClients;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: b58af1d37e284bf09cf04231209330a9
+              name: 'Site Wireless Clients: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.client.wireless.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.numberOfWirelessClients;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 54cb71f73944481f9a243404078abb8b
+              name: 'Site Core Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.core.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.coreGoodCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 3715b2e33f7c4dd8a9f0676bec305620
+              name: 'Site Core Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.core.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthCore;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 5a181f7c207f499085775d7fed858169
+              name: 'Site Core Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.core.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.coreTotalCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 6c9ba3a60a354fbbaeffb8a62672334e
+              name: 'Site Healthy Network Devices: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.device.healthy.percent[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.healthyNetworkDevicePercentage;
+                      if (v  === null || typeof v === "undefined" || v === "") {
+                          return  0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 6b92d1ce7f7047b88cedd525656b7703
+              name: 'Site Total Network Devices: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.device.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.numberOfNetworkDevice;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: ed721421a0744362aef25ad5114a7b3e
+              name: 'Site Distribution Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.distribution.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.distributionGoodCount;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 2ff3b90b908b4288a1ad4bc60493cecb
+              name: 'Site Distribution Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.distribution.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthDistribution;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: cbc9f08d95ac4aa485cf3c453034ae27
+              name: 'Site Distribution Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.distribution.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.distributionTotalCount;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: b8812643ebff4971a9049a262580b328
+              name: 'Site Overall Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.overall.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthAverage;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+              trigger_prototypes:
+                - uuid: 85c02b48cfb84c378bc910a199526283
+                  expression: 'last(/Cisco Catalyst Center - Site by HTTP/catc.site.overall.health[{#SITEID}],#3)<70'
+                  name: 'Site Overall Health: {#SITENAME} degraded'
+                  priority: WARNING
+                  manual_close: 'YES'
+            - uuid: fb0cb7883c6b4fa382310685ab188364
+              name: 'Site Router Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.router.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.routerGoodCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: e77fa91a28964a168d23936824bf7482
+              name: 'Site Router Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.router.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthRouter;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: cb4fe923303845a99f4af55ae2a349de
+              name: 'Site Router Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.router.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.routerTotalCount;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 9590ca3180db46ac84331f77de7dd82a
+              name: 'Site Switch Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.switch.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.switchDeviceGoodCount;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: e65e02eabb11435998c8b4ea0e969463
+              name: 'Site Switch Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.switch.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthSwitch;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 0afab4dfed854b6c952bd22e7d05c9d7
+              name: 'Site Switch Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.switch.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.switchDeviceTotalCount;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 7e7e2e3771b848f29ef2977e0f867128
+              name: 'Site Wired Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wired.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.clientHealthWired;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+              trigger_prototypes:
+                - uuid: 0de0dcd5e0d34b9da48300737d942229
+                  expression: 'last(/Cisco Catalyst Center - Site by HTTP/catc.site.wired.health[{#SITEID}],#3)<70'
+                  name: 'Site Wired Health: {#SITENAME} degraded'
+                  priority: WARNING
+                  manual_close: 'YES'
+            - uuid: 2d280c9afa33444ba7ca330b2cbca826
+              name: 'Site Wireless Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wireless.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.clientHealthWireless;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+              trigger_prototypes:
+                - uuid: 90ec0260f20849b9b7a5b081dcabc82e
+                  expression: 'last(/Cisco Catalyst Center - Site by HTTP/catc.site.wireless.health[{#SITEID}],#3)<70'
+                  name: 'Site Wireless Health: {#SITENAME} degraded'
+                  priority: WARNING
+                  manual_close: 'YES'
+            - uuid: 01242a2b7b8845709675d5f616f8b524
+              name: 'Site Wireless Infrastructure Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wirelessinfra.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthWireless;
+                      if (v === null  || typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 2f7801602f904829a8963bfa83426e36
+              name: 'Site WLC Good Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wlc.good[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.wlcDeviceGoodCount;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: f62ea5f80a43439f80eab9ff80f845ca
+              name: 'Site WLC Health: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wlc.health[{#SITEID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.networkHealthWLC;
+                      if (v === null || typeof  v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+            - uuid: 859ec561eecd44188e62aeaa6cc5f92a
+              name: 'Site WLC Total Count: {#SITENAME}'
+              type: DEPENDENT
+              key: 'catc.site.wlc.total[{#SITEID}]'
+              delay: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = (data && data.response && Array.isArray(data.response))  ? data.response : [];
+                      var row = null;
+                      for (var i = 0; i < rows.length;  i++) {
+                          if (String(rows[i].siteId || "") === String("{#SITEID}" )) {
+                              row = rows[i];
+                              break;
+                          }
+                      }
+                      if (!row) {
+                           return 0;
+                      }
+                      var v = row.wlcDeviceTotalCount;
+                      if (v === null ||  typeof v === "undefined" || v === "") {
+                          return 0;
+                      }
+                      return  String(v);
+              master_item:
+                key: catc.site.health.master
+              tags:
+                - tag: CatC-Domain
+                  value: Site
+                - tag: CatC-Site
+                  value: '{#SITENAME}'
+                - tag: CatC-Site-Path
+                  value: '{#SITEPATH}'
+          master_item:
+            key: catc.site.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var src = JSON.parse(value);
+                      var out = [];
+                  
+                      function  val(v) {
+                          if (v === null || typeof v === "undefined") return  "";
+                          if (typeof v === "object") return "";
+                          return  String(v);
+                      }
+                  
+                      function hasHealthData(s) {
+                          return !(
+                               s.networkHealthAverage === null &&
+                              s.numberOfNetworkDevice  === null &&
+                              s.numberOfClients === null &&
+                              s.healthyNetworkDevicePercentage  === null &&
+                              s.healthyClientsPercentage === null &&
+                               s.clientHealthWired === null &&
+                              s.clientHealthWireless  === null
+                          );
+                      }
+                  
+                      var rows = [];
+                      if (Array.isArray(src.response))  rows = src.response;
+                      else if (src.response && Array.isArray(src.response.sites))  rows = src.response.sites;
+                      else if (Array.isArray(src.sites)) rows  = src.sites;
+                  
+                      for (var i = 0; i < rows.length; i++) {
+                          var  s = rows[i];
+                          if (!s || typeof s !== "object") continue;
+                           if (!hasHealthData(s)) continue;
+                  
+                          var id = val(s.siteId  || s.id || s.groupId || s.uuid);
+                          var name = val(s.siteName ||  s.name || s.groupName || s.displayName || id).trim();
+                          var parent  = val(s.parentSiteName).trim();
+                          var path = parent ? (parent +  " / " + name) : name;
+                  
+                          out.push({
+                              "{#SITEID}" : id,
+                              "{#SITENAME}": name,
+                              "{#SITEPATH}":  path,
+                              "{#SITEPARENT}": parent,
+                              "{#SITETYPE}" : val(s.siteType)
+                          });
+                      }
+                  
+                      return JSON.stringify(out);
+                   } catch (e) {
+                      return JSON.stringify([]);
+                  }
+    - uuid: 738019ebc4d94ee8b49d1f972a2e871c
+      template: 'Cisco Catalyst Center - Wireless by HTTP'
+      name: 'Cisco Catalyst Center - Wireless by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: 41e33a123de7442e9d6681bba70b88d9
+          name: 'AP Device Health'
+          type: HTTP_AGENT
+          key: catc.ap.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: AP
+            - name: limit
+              value: '{$CATC.AP.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: Wireless
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: e6029501e84d4be5ba2ea44b2fa269ca
+          name: 'Discover Access Points'
+          type: DEPENDENT
+          key: catc.ap.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 8c1875ca41da4d50ac214f082777338d
+              name: 'AP Reachability: {#APNAME}'
+              type: DEPENDENT
+              key: 'catc.ap.reachability[{#APUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#APUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.ap.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: AccessPoint
+                - tag: CatC-Domain
+                  value: Wireless
+                - tag: CatC-Site
+                  value: '{#APSITE}'
+                - tag: CatC-WLC
+                  value: '{#APWLC}'
+              trigger_prototypes:
+                - uuid: b1a9fcd178114a78a537663886846483
+                  expression: 'last(/Cisco Catalyst Center - Wireless by HTTP/catc.ap.reachability[{#APUUID}],#3)="DOWN"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - Wireless by HTTP/catc.ap.reachability[{#APUUID}],#3)="UP"'
+                  name: 'AP Reachability: {#APNAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.ap.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  if (!src.response || !Array.isArray(src.response))  {
+                      return JSON.stringify(out);
+                  }
+                  
+                  for (var i = 0; i < src.response.length;  i++) {
+                      var d = src.response[i];
+                  
+                      // Keep only APs.
+                      var  role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role !== "AP") {
+                          continue;
+                      }
+                  
+                      out.push({
+                           "{#APUUID}": String(d.uuid || ""),
+                          "{#APNAME}":  String(d.name || d.hostname || d.managementIpAddress || d.uuid || "" ),
+                          "{#APSITE}": String(d.siteHierarchy || d.siteName || d.location  || ""),
+                          "{#APWLC}": String(d.wlcName || d.associatedWlcName  || d.controllerName || d.associatedWlcIp || ""),
+                          "{#APIP}" : String(d.managementIpAddress || "")
+                      });
+                  }
+                  
+                  return JSON.stringify(out);
+    - uuid: 1288d9186d0346d89d62f94473d886e6
+      template: 'Cisco Catalyst Center - WLC by HTTP'
+      name: 'Cisco Catalyst Center - WLC by HTTP'
+      description: 'Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      groups:
+        - name: 'Templates/Network Controllers'
+        - name: 'Templates/Network Devices'
+      items:
+        - uuid: 5f214ed5ea6742128dcdc2c4eec144cd
+          name: 'Wireless Controller Device Health'
+          type: HTTP_AGENT
+          key: catc.wlc.health.master
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$CATC.USER}'
+          password: '{$CATC.PASS}'
+          url: '{$CATC.PROXY.URL}/dna/intent/api/v1/device-health'
+          query_fields:
+            - name: deviceRole
+              value: WLC
+            - name: limit
+              value: '{$CATC.WLC.BULK.LIMIT}'
+          headers:
+            - name: X-CatC-Host
+              value: '{$CATC.HOST}'
+            - name: X-CatC-Port
+              value: '{$CATC.PORT}'
+            - name: X-Forwarded-Proto
+              value: '{$CATC.PROTO}'
+          tags:
+            - tag: CatC-Domain
+              value: 'Wireless Controller'
+            - tag: Format
+              value: JSON
+      discovery_rules:
+        - uuid: ca616aced9ce4dd18b8f8b385a9de22b
+          name: 'Discover Wireless Controllers'
+          type: DEPENDENT
+          key: catc.wlc.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 70a66f2c39974dd4bf3c78cffab5e9db
+              name: 'WirelessController Reachability: {#WLCNAME}'
+              type: DEPENDENT
+              key: 'catc.wlc.reachability[{#WLCUUID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.response[?(@.uuid == "{#WLCUUID}")].reachabilityHealth.first()'
+              master_item:
+                key: catc.wlc.health.master
+              tags:
+                - tag: CatC-Device-Type
+                  value: WirelessController
+                - tag: CatC-Domain
+                  value: 'Wireless Controller'
+                - tag: CatC-Model
+                  value: '{#WLCMODEL}'
+                - tag: CatC-Site
+                  value: '{#WLCSITE}'
+              trigger_prototypes:
+                - uuid: 46b2b41a86e14853bba90acb4f40f123
+                  expression: 'last(/Cisco Catalyst Center - WLC by HTTP/catc.wlc.reachability[{#WLCUUID}],#3)="UNREACHABLE"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Cisco Catalyst Center - WLC by HTTP/catc.wlc.reachability[{#WLCUUID}],#3)="REACHABLE"'
+                  name: 'WirelessController Reachability: {#WLCNAME}'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: catc.wlc.health.master
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var src = JSON.parse(value);
+                  var out = [];
+                  
+                  function val(v) {
+                      if  (v === null || typeof v === "undefined") return "";
+                      if (typeof  v === "object") return "";
+                      return String(v);
+                  }
+                  
+                  if (!src.response  || !Array.isArray(src.response)) {
+                      return JSON.stringify(out);
+                   }
+                  
+                  for (var i = 0; i < src.response.length; i++) {
+                      var d = src.response[i];
+                       var role = (d.role || d.deviceRole || "").toString().toUpperCase();
+                       if (role && role !== "WLC") { continue; }
+                  
+                  var family = (d.deviceFamily  || "").toString().toUpperCase().replace(/[\s-]+/g, "_");
+                  if (family  && family !== "WIRELESS_CONTROLLER") {
+                      continue;
+                  }
+                      out.push({
+                           "{#WLCUUID}": val(d.uuid),
+                          "{#WLCNAME}": val(d.name  || d.hostname || d.ipAddress || d.managementIpAddress || d.uuid),
+                           "{#WLCSITE}": val(d.siteHierarchy || d.siteName || d.location),
+                           "{#WLCTYPE}": val(d.deviceType),
+                          "{#WLCMODEL}": val(d.model)
+                       });
+                  }
+                  
+                  return JSON.stringify(out);
+    - uuid: 3a91a7e5f84d4e55b007fa86b31c9b68
+      template: 'Cisco Catalyst Center by HTTP'
+      name: 'Cisco Catalyst Center by HTTP'
+      description: 'This template set uses the Catalyst Center Proxy. Version 26.04.05.'
+      vendor:
+        name: mbechc
+        version: 26.04.05
+      templates:
+        - name: 'Cisco Catalyst Center - Access by HTTP'
+        - name: 'Cisco Catalyst Center - Core by HTTP'
+        - name: 'Cisco Catalyst Center - Distribution by HTTP'
+        - name: 'Cisco Catalyst Center - Router by HTTP'
+        - name: 'Cisco Catalyst Center - Site by HTTP'
+        - name: 'Cisco Catalyst Center - Wireless by HTTP'
+        - name: 'Cisco Catalyst Center - WLC by HTTP'
+      groups:
+        - name: 'Templates/Network Controllers'
+      tags:
+        - tag: class
+          value: controller
+        - tag: target
+          value: cisco
+        - tag: target
+          value: cisco-catalyst
+      macros:
+        - macro: '{$CATC.ACCESS.BULK.LIMIT}'
+          value: '500'
+        - macro: '{$CATC.AP.BULK.LIMIT}'
+          value: '500'
+        - macro: '{$CATC.AP.HEALTH.INTERVAL}'
+          value: 2m
+        - macro: '{$CATC.CORE.BULK.LIMIT}'
+          value: '500'
+        - macro: '{$CATC.DISTRIBUTION.BULK.LIMIT}'
+          value: '500'
+        - macro: '{$CATC.HOST}'
+          value: change_me
+        - macro: '{$CATC.NAME}'
+          value: change_me
+        - macro: '{$CATC.PASS}'
+          value: change_me
+        - macro: '{$CATC.PORT}'
+          value: '443'
+        - macro: '{$CATC.PROTO}'
+          value: https
+        - macro: '{$CATC.PROXY.URL}'
+          value: 'http://change_me:8080'
+        - macro: '{$CATC.ROUTER.BULK.LIMIT}'
+          value: '500'
+        - macro: '{$CATC.SITE.BULK.LIMIT}'
+          value: '50'
+        - macro: '{$CATC.SITE.DISCOVERY.INTERVAL}'
+          value: 24h
+        - macro: '{$CATC.TEMPLATE.VERSION}'
+          value: 26.04.01
+        - macro: '{$CATC.USER}'
+          value: change_me
+        - macro: '{$CATC.WLC.BULK.LIMIT}'
+          value: '200'
