@@ -33,7 +33,7 @@ No SNMP on devices. No agent on sensors. Zabbix server (or proxy) calls Tempivo 
 | **Organization host** (you create) | Links **Tempivo by HTTP**; polls `/assets` (discovery) and `/alerts`; org dashboard and alert LLD |
 | **Discovered asset hosts** (automatic) | One host per sensor via **host prototypes**; links **Tempivo asset by HTTP**; one `GET /assets/{id}` per host for metrics |
 
-Set `{$TEMPIVO.ORG.ID}` on the organization host to a short unique label (e.g. building code). Discovered hosts are named `tempivo-{$TEMPIVO.ORG.ID}-{#ASSETID}` so multiple Tempivo orgs in one Zabbix do not collide.
+Set `{$TEMPIVO.ORG.ID}` on the organization host to a short unique label (e.g. `hq`, `building-a`; letters, digits, hyphen only). Discovery copies it into `{#ORGID}`; discovered hosts are named `tempivo-{#ORGID}-{#ASSETID}` so multiple Tempivo orgs in one Zabbix do not collide.
 
 Asset hosts are in **Discovered hosts** and groups **Tempivo/{org id}/{asset name}** after *Tempivo assets* discovery runs.
 
