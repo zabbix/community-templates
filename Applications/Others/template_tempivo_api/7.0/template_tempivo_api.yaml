@@ -11,24 +11,19 @@ zabbix_export:
         Tempivo integration for building operators who already use Zabbix for other
         property sensors. Polls GET /assets and GET /alerts every 5 minutes.
 
-        Per asset (LLD): water temperature, optional ambient temperature and relative
-        humidity (only when the org/device exposes lastAmbientTemperature /
-        lastRelativeHumidity — otherwise items stay in "no data"), status, open alert count.
-
         Open alerts (non-resolved) are discovered for triggers and visibility.
 
-        Host prototypes create one Zabbix host per Tempivo asset (template Tempivo asset by HTTP)
-        for per-sensor views in the host tree. The organization host keeps org-wide items and LLD.
+        Set {$TEMPIVO.ORG.ID} on the organization host (short unique label). Discovered
+        asset hosts collect sensor metrics via template Tempivo asset by HTTP.
+
+        Host prototypes create one Zabbix host per Tempivo asset (template Tempivo asset by HTTP).
+        Sensor metrics are collected on those hosts (one GET /assets/{id} per host). The organization
+        host polls /assets and /alerts once for discovery and org-level alerts only.
 
         Setup: one Zabbix host = one Tempivo organization. Set macros {$TEMPIVO.API.BASEURL}
         and {$TEMPIVO.API.KEY} (from app → Integrations). Link this template to the host.
 
         Requires an API key with permission to list assets and alerts.
-
-        Author: Tempivo (https://tempivo.com). Source: https://github.com/tempivo/tempivo-zabbix
-      vendor:
-        name: Tempivo
-        version: 7.0-0
       groups:
         - name: Templates/Applications
       items:
@@ -141,13 +136,13 @@ zabbix_export:
                   return JSON.stringify(lld);
           host_prototypes:
             - uuid: 19aa2628cd9641cc8fbe1570c7014a39
-              host: 'tempivo-{#ASSETID}'
-              name: 'Tempivo {#ASSETNAME}'
+              host: 'tempivo-{$TEMPIVO.ORG.ID}-{#ASSETID}'
+              name: 'Tempivo {$TEMPIVO.ORG.ID} {#ASSETNAME}'
               group_links:
                 - group:
                     name: 'Discovered hosts'
               group_prototypes:
-                - name: 'Tempivo/{#ASSETNAME}'
+                - name: 'Tempivo/{$TEMPIVO.ORG.ID}/{#ASSETNAME}'
               templates:
                 - name: 'Tempivo asset by HTTP'
               macros:
@@ -161,195 +156,9 @@ zabbix_export:
                   value: '{$TEMPIVO.API.BASEURL}'
                   description: 'Inherited from the organization host.'
                 - macro: '{$TEMPIVO.API.KEY}'
+                  type: SECRET_TEXT
                   value: '{$TEMPIVO.API.KEY}'
-                  description: 'Inherited from the organization host.'
-          item_prototypes:
-            - uuid: 5ff833f389dc49e9a56120f2d1c14ee6
-              name: 'Asset {#ASSETNAME}: Water temperature'
-              type: DEPENDENT
-              key: 'tempivo.asset.water_temp[{#ASSETID}]'
-              delay: '0'
-              history: 30d
-              value_type: FLOAT
-              units: C
-              description: 'Latest water temperature (lastWaterTemperature) in degrees Celsius.'
-              master_item:
-                key: tempivo.assets.get
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var data = JSON.parse(value);
-                      var id = '{#ASSETID}';
-                      var items = data.items || [];
-                      for (var i = 0; i < items.length; i++) {
-                        if (String(items[i].id) === id) {
-                          var t = items[i].lastWaterTemperature;
-                          if (t === null || t === undefined) return null;
-                          return String(t);
-                        }
-                      }
-                      return null;
-              tags:
-                - tag: component
-                  value: temperature
-            - uuid: a0135dedc7d74da0864531d68d55cef3
-              name: 'Asset {#ASSETNAME}: Ambient temperature'
-              type: DEPENDENT
-              key: 'tempivo.asset.ambient_temp[{#ASSETID}]'
-              delay: '0'
-              history: 30d
-              value_type: FLOAT
-              units: C
-              description: |
-                Latest ambient air temperature (lastAmbientTemperature). Only populated for
-                orgs/devices with ambient sensing enabled; otherwise no data.
-              master_item:
-                key: tempivo.assets.get
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var data = JSON.parse(value);
-                      var id = '{#ASSETID}';
-                      var items = data.items || [];
-                      for (var i = 0; i < items.length; i++) {
-                        if (String(items[i].id) === id) {
-                          var t = items[i].lastAmbientTemperature;
-                          if (t === null || t === undefined) return null;
-                          return String(t);
-                        }
-                      }
-                      return null;
-              tags:
-                - tag: component
-                  value: ambient-temperature
-            - uuid: cd78a15724a54d328f8afe73ff9e004e
-              name: 'Asset {#ASSETNAME}: Relative humidity'
-              type: DEPENDENT
-              key: 'tempivo.asset.humidity[{#ASSETID}]'
-              delay: '0'
-              history: 30d
-              value_type: FLOAT
-              units: '%'
-              description: |
-                Latest relative humidity (lastRelativeHumidity). Only populated for
-                orgs/devices with humidity sensing enabled; otherwise no data.
-              master_item:
-                key: tempivo.assets.get
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var data = JSON.parse(value);
-                      var id = '{#ASSETID}';
-                      var items = data.items || [];
-                      for (var i = 0; i < items.length; i++) {
-                        if (String(items[i].id) === id) {
-                          var h = items[i].lastRelativeHumidity;
-                          if (h === null || h === undefined) return null;
-                          return String(h);
-                        }
-                      }
-                      return null;
-              tags:
-                - tag: component
-                  value: humidity
-            - uuid: 5282a8a885ca4c47927382916f94e8b5
-              name: 'Asset {#ASSETNAME}: Status'
-              type: DEPENDENT
-              key: 'tempivo.asset.status[{#ASSETID}]'
-              delay: '0'
-              history: 30d
-              trends: '0'
-              value_type: CHAR
-              description: 'online, offline, low_battery, or alarm.'
-              valuemap:
-                name: 'Tempivo asset status'
-              master_item:
-                key: tempivo.assets.get
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var data = JSON.parse(value);
-                      var id = '{#ASSETID}';
-                      var items = data.items || [];
-                      for (var i = 0; i < items.length; i++) {
-                        if (String(items[i].id) === id) {
-                          return String(items[i].status || 'unknown');
-                        }
-                      }
-                      return 'unknown';
-              tags:
-                - tag: component
-                  value: status
-            - uuid: 2764976b054840f5a4b87f2bbcee6543
-              name: 'Asset {#ASSETNAME}: Open alerts'
-              type: DEPENDENT
-              key: 'tempivo.asset.alerts.open[{#ASSETID}]'
-              delay: '0'
-              history: 30d
-              description: 'Count of non-resolved Tempivo alerts for this asset.'
-              master_item:
-                key: tempivo.alerts.get
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var data = JSON.parse(value);
-                      var id = '{#ASSETID}';
-                      var items = data.items || [];
-                      var n = 0;
-                      for (var i = 0; i < items.length; i++) {
-                        if (String(items[i].assetId) === id && items[i].status !== 'resolved') n++;
-                      }
-                      return String(n);
-              tags:
-                - tag: component
-                  value: alerts
-          trigger_prototypes:
-            - uuid: 434992f17028484a8e9479e87a1c43eb
-              expression: 'last(/Tempivo by HTTP/tempivo.asset.status[{#ASSETID}])="offline"'
-              name: 'Asset {#ASSETNAME}: Offline'
-              priority: WARNING
-              description: 'Tempivo reports this asset as offline.'
-            - uuid: e21396d37cc949beb4624157b52760f5
-              expression: 'last(/Tempivo by HTTP/tempivo.asset.alerts.open[{#ASSETID}])>0'
-              name: 'Asset {#ASSETNAME}: Open Tempivo alert(s)'
-              priority: HIGH
-              description: 'One or more non-resolved alerts exist for this asset in Tempivo.'
-          graph_prototypes:
-            - uuid: b8f4e2a19c3d4f6e8a1b0c2d3e4f5a61
-              name: 'Asset {#ASSETNAME}: Water and ambient temperature'
-              graph_items:
-                - drawtype: GRADIENT_LINE
-                  color: 199C0D
-                  item:
-                    host: 'Tempivo by HTTP'
-                    key: 'tempivo.asset.water_temp[{#ASSETID}]'
-                - sortorder: '1'
-                  drawtype: GRADIENT_LINE
-                  color: F7941D
-                  item:
-                    host: 'Tempivo by HTTP'
-                    key: 'tempivo.asset.ambient_temp[{#ASSETID}]'
-            - uuid: 23578456dab04b4eb28a0003a7ab3bde
-              name: 'Asset {#ASSETNAME}: Relative humidity'
-              graph_items:
-                - drawtype: GRADIENT_LINE
-                  color: 6C59DC
-                  item:
-                    host: 'Tempivo by HTTP'
-                    key: 'tempivo.asset.humidity[{#ASSETID}]'
-            - uuid: ac2b2afe92f2478db763cd33ea5e6581
-              name: 'Asset {#ASSETNAME}: Open alerts'
-              graph_items:
-                - drawtype: GRADIENT_LINE
-                  color: F63100
-                  item:
-                    host: 'Tempivo by HTTP'
-                    key: 'tempivo.asset.alerts.open[{#ASSETID}]'
+                  description: 'Inherited from the organization host (stored as secret).'
         - uuid: 0dc50606f75b481785837c8b5e23639a
           name: 'Tempivo open alerts'
           type: DEPENDENT
@@ -478,39 +287,6 @@ zabbix_export:
         - uuid: dbf47deddab44dae893dca78f69c7daa
           name: Tempivo
           pages:
-            - name: Sensors
-              widgets:
-                - type: graphprototype
-                  width: '72'
-                  height: '8'
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: '2'
-                    - type: GRAPH_PROTOTYPE
-                      name: graphid.0
-                      value:
-                        host: 'Tempivo by HTTP'
-                        name: 'Asset {#ASSETNAME}: Water and ambient temperature'
-                    - type: STRING
-                      name: reference
-                      value: TEMPA
-                - type: graphprototype
-                  'y': '8'
-                  width: '72'
-                  height: '5'
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: '2'
-                    - type: GRAPH_PROTOTYPE
-                      name: graphid.0
-                      value:
-                        host: 'Tempivo by HTTP'
-                        name: 'Asset {#ASSETNAME}: Relative humidity'
-                    - type: STRING
-                      name: reference
-                      value: TEMPB
             - name: Alerts
               widgets:
                 - type: graph
@@ -525,22 +301,6 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: TEMPC
-                - type: graphprototype
-                  'y': '5'
-                  width: '72'
-                  height: '5'
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: '2'
-                    - type: GRAPH_PROTOTYPE
-                      name: graphid.0
-                      value:
-                        host: 'Tempivo by HTTP'
-                        name: 'Asset {#ASSETNAME}: Open alerts'
-                    - type: STRING
-                      name: reference
-                      value: TEMPD
       valuemaps:
         - uuid: 08423e725e48425595250f997a79a06d
           name: 'Tempivo asset status'
@@ -584,6 +344,9 @@ zabbix_export:
             - value: unknown
               newvalue: Unknown
       macros:
+        - macro: '{$TEMPIVO.ORG.ID}'
+          value: 'org'
+          description: 'Short unique id for this Tempivo org (set on the organization host). Used in discovered host names.'
         - macro: '{$TEMPIVO.API.BASEURL}'
           value: 'https://api.tempivo.com/v1'
           description: 'API base URL without trailing slash.'
@@ -721,22 +484,37 @@ zabbix_export:
               expression: 'last(/Tempivo asset by HTTP/tempivo.asset.status)="offline"'
               name: 'Tempivo asset: Offline'
               priority: WARNING
-      valuemaps:
-        - uuid: a8149c75a3cd4f769b4d3a420c97cedf
-          name: 'Tempivo asset status'
-          mappings:
-            - value: online
-              newvalue: Online
-            - value: offline
-              newvalue: Offline
-            - value: low_battery
-              newvalue: 'Low battery'
-            - value: alarm
-              newvalue: Alarm
-            - value: archived
-              newvalue: Archived
-            - value: unknown
-              newvalue: Unknown
+      dashboards:
+        - uuid: 963301bd33734324a13b4a09f3e020a5
+          name: 'Tempivo asset'
+          pages:
+            - name: Sensors
+              widgets:
+                - type: graph
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Tempivo asset by HTTP'
+                        name: 'Tempivo asset: Water and ambient temperature'
+                    - type: STRING
+                      name: reference
+                      value: TASST
+                - type: graph
+                  'y': '5'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Tempivo asset by HTTP'
+                        name: 'Tempivo asset: Relative humidity'
+                    - type: STRING
+                      name: reference
+                      value: TASH
       macros:
         - macro: '{$TEMPIVO.ASSET.ID}'
           value: ''
