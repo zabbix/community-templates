@@ -66,7 +66,7 @@ Follow [Importing templates](https://www.zabbix.com/documentation/current/en/man
 
 ### Validate the YAML file
 
-This file follows the [Zabbix 8.0 export format](https://www.zabbix.com/documentation/8.0/en/manual/xml_export_import) and [community-templates](https://github.com/zabbix/community-templates/tree/main) layout (`template_tempivo_api/8.0/`) and conventions: no root `date` field, and **triggers nested under items** (not a template-level `triggers` block). CI imports this YAML into Zabbix 8.0 on every PR (see `.github/workflows/review_pr.yaml`).
+This file follows the [Zabbix 8.0 export format](https://www.zabbix.com/documentation/8.0/en/manual/xml_export_import) and [community-templates](https://github.com/zabbix/community-templates/tree/main) layout (`template_tempivo_api/8.0/`) and conventions: no root `date` field, and **triggers nested under items** (not a template-level `triggers` block). CI imports this YAML into Zabbix 8.0 (`alpine-trunk` Docker image) on every PR (see `.github/workflows/review_pr.yaml`).
 
 ### Naming for other systems
 
