@@ -1,19 +1,23 @@
-
-
 # OPNsense by HTTP-JSON
 
 ## Overview
 
-This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests. It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions, gateway health, network interfaces, and CARP high-availability status.
+This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
+It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions,
+gateway health, network interfaces, CARP high-availability status, and UPS status via NUT
+(Network UPS Tools).
 
-The template uses OPNsense API key/secret authentication and requires no agent installation on the firewall.
+The template uses OPNsense API key/secret authentication and requires no agent installation
+on the firewall.
 
 ## Requirements
 
 - **Zabbix version**: 7.4 or higher
 - **OPNsense version**: Tested with OPNsense 24.x+ (any version providing the used API endpoints)
-- An **API key and secret** created on the OPNsense appliance (System → Access → Users → API keys)
-- The Zabbix server/proxy must have **HTTPS access** to the OPNsense web interface (port 443 by default)
+- An **API key and secret** created on the OPNsense appliance
+  (System → Access → Users → API keys)
+- The Zabbix server/proxy must have **HTTPS access** to the OPNsense web interface
+  (port 443 by default)
 - The API user needs read access to the following OPNsense API modules:
   - `diagnostics/system`
   - `diagnostics/firewall`
@@ -21,6 +25,7 @@ The template uses OPNsense API key/secret authentication and requires no agent i
   - `diagnostics/traffic`
   - `routes/gateway`
   - `core/firmware`
+  - `nut/diagnostics` *(optional – only required if a UPS is connected)*
 
 ## Setup
 
@@ -43,7 +48,13 @@ The template uses OPNsense API key/secret authentication and requires no agent i
 5. **Verify connectivity**:
    - After a few minutes check that the item `Meta Gatewaystatus` is receiving data
 
-> **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be configured to skip certificate verification for HTTP agent items.
+6. **UPS Monitoring (optional)**:
+   - The UPS items are **disabled by default** (`Meta UPS` item has status `DISABLED`)
+   - Enable the item `Meta UPS` on the host if a UPS is connected and managed by NUT on OPNsense
+   - See the [UPS Monitoring](#ups-monitoring-nut) section below for details
+
+> **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be
+> configured to skip certificate verification for HTTP agent items.
 
 ## Macros Used
 
@@ -51,18 +62,21 @@ The template uses OPNsense API key/secret authentication and requires no agent i
 |-------|---------------|-------------|
 | `{$OPNS.KEY}` | *(empty)* | OPNsense API key. **Required.** |
 | `{$OPNS.SECRET}` | *(empty)* | OPNsense API secret. **Required.** |
-| `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average (1 min) before triggering a warning. |
-| `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Maximum memory utilization percentage before triggering an alert. |
-| `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization percentage before triggering a warning. |
-| `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Minimum packet loss percentage to trigger a gateway packet loss alert. |
-| `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss percentage to trigger a high packet loss alert. |
-| `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Number of days before OPNsense Business Edition license expiry to trigger a warning. |
+| `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
+| `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Maximum memory utilization (%) before triggering an alert. |
+| `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
+| `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
+| `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
+| `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
 | `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
 | `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
 | `{$OPNS.FS.FSTYPE.MATCHES}` | `^(btrfs\|ext2\|ext3\|ext4\|reiser\|xfs\|ffs\|ufs\|jfs\|jfs2\|vxfs\|hfs\|apfs\|refs\|ntfs\|fat32\|zfs)$` | Regex filter for filesystem discovery – included filesystem types. |
 | `{$OPNS.FS.FSTYPE.NOT_MATCHES}` | `^\s$` | Regex filter for filesystem discovery – excluded filesystem types. |
 | `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Warning threshold for filesystem space utilization (%). |
 | `{$OPNS.FS.PUSED.MAX.CRIT}` | `95` | Critical threshold for filesystem space utilization (%). |
+| `{$OPNS.NUT.BAT.LOW}` | `30` | Battery charge (%) below which a warning is triggered. |
+| `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining battery runtime (seconds) below which an alert is triggered. |
+| `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load (%) above which a warning is triggered. |
 
 ## Items Collected
 
@@ -70,25 +84,62 @@ The template uses OPNsense API key/secret authentication and requires no agent i
 
 | Name | Key | Type | Update Interval | Description |
 |------|-----|------|-----------------|-------------|
-| CPU load | `opns.cpu.load` | Dependent | – | System load average (1 min), extracted from system time API. |
-| System Uptime | `opns.system.uptime` | Dependent | – | System uptime converted from human-readable string (e.g. "1 day, 03:05:40") to seconds. Displayed in Zabbix uptime format. |
+| CPU load | `opns.cpu.load` | Dependent | – | System load average (1 min). |
+| System Uptime | `opns.system.uptime` | Dependent | – | Uptime converted to seconds. Displayed in Zabbix uptime format. |
 | Total Memory | `opns.memory.total` | Dependent | – | Total physical memory in bytes. |
 | Used Memory | `opns.memory.used` | Dependent | – | Used memory in bytes. |
 | ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. |
 | Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
-| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `NaN` if no license is present (Community Edition). |
+| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `no license` if not present. |
 
 ### Firewall Items
 
 | Name | Key | Type | Description |
 |------|-----|------|-------------|
 | Firewall states current | `opns.fw.states.current` | Dependent | Current number of active firewall states. |
-| Firewall states max | `opns.fw.states.max` | Dependent | Maximum number of allowed firewall states (kernel limit). |
+| Firewall states max | `opns.fw.states.max` | Dependent | Maximum number of allowed firewall states. |
 | States table utilization in % | `opns.states.util` | Calculated | Percentage of the state table currently in use. |
+
+### UPS Items (NUT)
+
+> These items are only active when `Meta UPS` is enabled on the host.
+
+| Name | Key | Unit | Description |
+|------|-----|------|-------------|
+| UPS Battery Charge | `nut.battery.charge` | % | Current battery charge level. |
+| UPS Battery Runtime | `nut.battery.runtime` | s | Estimated remaining battery runtime in seconds. |
+| UPS Battery Load | `nut.battery.load` | % | Current load on the UPS in percent. |
+| UPS Input Voltage | `nut.input.voltage` | V | Input (mains) voltage. |
+| UPS Input Frequency | `nut.input.frequency` | Hz | Input (mains) frequency. |
+| UPS Output Voltage | `nut.output.voltage` | V | Output voltage supplied to connected devices. |
+| UPS Status | `nut.status` | Text | Current UPS status code (e.g. `OL`, `OB`, `LB`). See status codes below. |
+| UPS Model | `nut.model` | Text | UPS model name as reported by NUT. |
+
+#### UPS Status Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `OL` | On Line | UPS is powered by mains electricity, supplying power to connected devices. |
+| `OB` | On Battery | UPS is running on battery power due to a mains failure. |
+| `LB` | Low Battery | Battery charge is critically low. UPS will shut down soon. |
+| `RB` | Replace Battery | Battery needs replacement due to age or health issues. |
+| `HB` | High Battery | Battery is fully charged (rare). |
+| `CHRG` | Charging | Battery is currently being charged. |
+| `DISCHRG` | Discharging | Battery is actively discharging (more specific than `OB`). |
+| `OVER` | Overload | UPS load exceeds its rated capacity. |
+| `ALARM` | Alarm Active | UPS has triggered an internal alarm (e.g. overload or battery fault). |
+| `CAL` | Calibrating | UPS is performing a battery runtime calibration. |
+| `COMMLOST` | Communication Lost | Communication between NUT and the UPS device is lost. |
+| `OFF` | Off | UPS output is turned off. |
+| `TRIM` | Trim | Input voltage is too high; UPS is stepping it down (buck). |
+| `BOOST` | Boost | Input voltage is too low; UPS is stepping it up. |
+| `TEST` | Self-Test | UPS is performing an automatic self-test. |
+| `SYNC` | Synchronizing | UPS is synchronizing with the mains frequency (rare). |
 
 ### Meta (Raw Data) Items
 
-These items fetch raw JSON data from the OPNsense API and serve as master items for dependent items and discovery rules.
+These items fetch raw JSON from the OPNsense API and serve as master items for dependent
+items and discovery rules.
 
 | Name | Key | Update Interval | API Endpoint |
 |------|-----|-----------------|--------------|
@@ -102,17 +153,30 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 | Meta Interfaces | `opns.meta.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
 | Meta Carp Interfaces | `opns.meta.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
 | Meta Product Info | `opns.meta.product.info` | 30m | `/api/core/firmware/info` |
+| Meta UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
 
 ## Triggers
 
+### System Triggers
+
 | Name | Severity | Description |
 |------|----------|-------------|
-| No data from OPNsense | **High** | Fires when no data is received from `opns.meta.gateway.status` for 5 minutes – indicates the OPNsense API is unreachable. |
-| CPU load is high | **Warning** | Fires when CPU load (1 min avg) exceeds `{$OPNS.CPU.LOAD.MAX}` (default: 2) for 5 minutes. |
-| Memory utilization is high | **Average** | Fires when memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % (default: 90%) for 5 minutes. |
-| OPNSense Business License expires soon | **Average** | Fires when the license expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days (default: 30). Only relevant for OPNsense Business Edition. |
-| State table usage is high | **Warning** | Fires when the state table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
-| {HOST.NAME} has been restarted | **Info** | Fires when the system uptime is less than 10 minutes (600 seconds). |
+| No data from OPNsense | **High** | No data received from `opns.meta.gateway.status` for 5 minutes – API is unreachable. |
+| CPU load is high | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes. |
+| Memory utilization is high | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes. |
+| OPNSense Business License expires soon | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
+| State table usage is high | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
+| {HOST.NAME} has been restarted | **Info** | System uptime is less than 600 seconds (10 minutes). |
+
+### UPS Triggers
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| UPS on Battery | **High** | UPS status contains `OB` – mains power has failed. |
+| Battery low | **Disaster** | UPS status contains `LB` – battery is critically low and shutdown is imminent. |
+| High Load on UPS Battery | **Average** | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%). |
+| Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning** | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%). |
+| Remaining battery runtime is low | **High** | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
 
 ## Discovery Rules
 
@@ -122,25 +186,25 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 |----------|-------|
 | Key | `opns.disk.discovery` |
 | Type | Dependent (master: `opns.meta.disk`) |
-| Filters | `{#FSNAME}` matches/not matches and `{#FSTYPE}` matches/not matches (configurable via macros) |
+| Filters | `{#FSNAME}` and `{#FSTYPE}` configurable via macros |
 | Keep lost resources | 1h |
 
 **Item Prototypes:**
 
 | Name | Key | Unit | Description |
 |------|-----|------|-------------|
-| FS [{#FSNAME}]: Get data | `opns.disk.data[{#FSNAME},data]` | – | Raw JSON data for the filesystem (intermediate item). |
+| FS [{#FSNAME}]: Get data | `opns.disk.data[{#FSNAME},data]` | – | Raw JSON for the filesystem (intermediate item). |
 | FS [{#FSNAME}]: Space: Total | `opns.disk.size[{#FSNAME},total]` | B | Total filesystem size in bytes. |
 | FS [{#FSNAME}]: Space: Used | `opns.disk.size[{#FSNAME},used]` | B | Used space in bytes. |
 | FS [{#FSNAME}]: Space: Available | `opns.disk.size[{#FSNAME},available]` | B | Available space in bytes. |
-| FS [{#FSNAME}]: Space: Used, in % | `opns.disk.size[{#FSNAME},pused]` | B | Used space as percentage. |
+| FS [{#FSNAME}]: Space: Used, in % | `opns.disk.size[{#FSNAME},pused]` | % | Used space as a percentage. |
 
 **Trigger Prototypes:**
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| OPNsense: FS [{#FSNAME}]: Space is low | **Warning** | Used space exceeds `{$OPNS.FS.PUSED.MAX.WARN:"{#FSNAME}"}` % (default: 90%). Depends on "Space is critically low". |
-| OPNsense: FS [{#FSNAME}]: Space is critically low | **Average** | Used space exceeds `{$OPNS.FS.PUSED.MAX.CRIT:"{#FSNAME}"}` % (default: 95%). |
+| OPNsense: FS [{#FSNAME}]: Space is low | **Warning** | Used space exceeds `{$OPNS.FS.PUSED.MAX.WARN}` % (default: 90%). |
+| OPNsense: FS [{#FSNAME}]: Space is critically low | **Average** | Used space exceeds `{$OPNS.FS.PUSED.MAX.CRIT}` % (default: 95%). |
 
 ---
 
@@ -158,19 +222,19 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 | Name | Key | Unit | Description |
 |------|-----|------|-------------|
 | Gateway Address {#GWSTATUSNAME} | `opns.gw.status.address[{#GWSTATUSNAME}]` | – | Gateway IP address. |
-| Gateway Status {#GWSTATUSNAME} | `opns.gw.status.status[{#GWSTATUSNAME}]` | – | Translated gateway status string (e.g., "Online"). |
-| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time in milliseconds. Returns 9999 if monitoring is disabled. |
-| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | Round-trip time standard deviation in ms. Returns 9999 if monitoring is disabled. |
+| Gateway Status {#GWSTATUSNAME} | `opns.gw.status.status[{#GWSTATUSNAME}]` | – | Translated status string (e.g. "Online"). |
+| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time. Returns 9999 if monitoring is disabled. |
+| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | RTT standard deviation. Returns 9999 if monitoring is disabled. |
 | Gateway loss {#GWSTATUSNAME} | `opns.gw.status.loss[{#GWSTATUSNAME}]` | % | Packet loss percentage. Returns 9999 if monitoring is disabled. |
 
 **Trigger Prototypes:**
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % (default: 10%) for 5 min. Depends on "High packet loss". |
-| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % (default: 50%) for 5 min. Depends on "is down". |
+| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. |
+| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. |
 | Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. |
-| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values (loss, stddev, delay) return 9999 – indicates gateway monitoring is not enabled in OPNsense. See [OPNsense Gateway docs](https://docs.opnsense.org/manual/gateways.html). |
+| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense. |
 
 ---
 
@@ -187,7 +251,7 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 
 | Name | Key | Description |
 |------|-----|-------------|
-| Firewall action {#FWACTION} | `opns.fw.action[{#FWACTION}]` | Counter for the discovered firewall action (e.g., pass, block, match). |
+| Firewall action {#FWACTION} | `opns.fw.action[{#FWACTION}]` | Counter for the discovered firewall action (e.g. pass, block, match). |
 
 **Graph Prototypes:**
 
@@ -216,9 +280,10 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| Carp Status Changed on {#OPNS.INTERFACE.NAME} | **High** | Fires when the CARP status of an interface changes (e.g., failover event). |
+| Carp Status Changed on {#OPNS.INTERFACE.NAME} | **High** | CARP status changed – indicates a failover event. |
 
-> **Note:** If no CARP interfaces are configured, the discovery will return a custom error message and no items will be created.
+> **Note:** If no CARP interfaces are configured, the discovery returns a custom error and
+> no items are created.
 
 ---
 
@@ -234,20 +299,20 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 
 | Name | Key | Unit |
 |------|-----|------|
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Bytes received | `opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Bytes transmitted | `opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets received | `opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]` | – |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets transmitted | `opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]` | – |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: multicasts received | `opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]` | – |
+| …Bytes received | `opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]` | Bps |
+| …Bytes transmitted | `opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]` | Bps |
+| …packets received | `opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]` | – |
+| …packets transmitted | `opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]` | – |
+| …multicasts received | `opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]` | – |
 
 **Item Prototypes – Errors & Drops:**
 
 | Name | Key |
 |------|-----|
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: collisions | `opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]` |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: input queue drops | `opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]` |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: output errors | `opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]` |
-| Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets for unknown protocol | `opns.interface.packets.unknown.protocol[{#OPNS.INTERFACE.DEVICE}]` |
+| …collisions | `opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]` |
+| …input queue drops | `opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]` |
+| …output errors | `opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]` |
+| …packets for unknown protocol | `opns.interface.packets.unknown.protocol[{#OPNS.INTERFACE.DEVICE}]` |
 
 **Item Prototypes – Firewall per Interface (IPv4):**
 
@@ -262,14 +327,38 @@ These items fetch raw JSON data from the OPNsense API and serve as master items 
 | …passed packets INv4 | `opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
 | …passed packets OUTv4 | `opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
 
+## UPS Monitoring (NUT)
+
+OPNsense includes a built-in NUT (Network UPS Tools) plugin that exposes UPS status via its
+REST API. This template can optionally monitor a connected UPS using this integration.
+
+### How it works
+
+The `Meta UPS` item fetches the raw NUT status string from the OPNsense API endpoint
+`/api/nut/diagnostics/upsstatus`. A JavaScript preprocessing step parses the newline-separated
+`key: value` response into clean JSON. All UPS dependent items then extract their values
+from this JSON using standard JSONPath preprocessing – no external scripts required.
+
+### Enabling UPS Monitoring
+
+1. Install and configure the **NUT plugin** on OPNsense
+   (Services → Network UPS Tools)
+2. Connect a supported UPS via USB or network
+3. In Zabbix, navigate to the host and **enable the item** `Meta UPS` (`opns.ups.raw`)
+4. All dependent UPS items and triggers will start collecting data automatically
+
+
 ## Dashboards
 
 The template includes a built-in dashboard **"OPNsense Info"** with three pages:
 
-1. **OPNSense Info** – CPU load widget, memory usage pie chart, firewall states pie chart, firewall action SVG graph, and CARP status honeycomb overview.
-2. **Gateway Info** – SVG graphs for gateway round-trip time and packet loss across all discovered gateways.
+1. **OPNSense Info** – CPU load widget, memory usage pie chart, firewall states pie chart,
+   firewall action SVG graph, and CARP status honeycomb overview.
+2. **Gateway Info** – SVG graphs for gateway round-trip time and packet loss across all
+   discovered gateways.
 3. **Interfaces** – SVG graph showing blocked and passed bytes (IPv4) per interface.
 
 ## Feedback
 
-If you encounter any issues or have suggestions for improvement, please open an issue or pull request in the community templates repository.
+If you encounter any issues or have suggestions for improvement, please open an issue or
+pull request in the community templates repository.
