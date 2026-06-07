@@ -60,6 +60,9 @@ There are no discovery rules in this template.
 | IOPS write | - | SNMP_AGENT | server.iops.write |
 | IOwait | - | SNMP_AGENT | server.iowait |
 | License Expiration Left | - | SNMP_AGENT | server.license.expirationLeft |
+| Load average over 1 minute for Machine (Linux only) | - | SNMP_AGENT | server.loadAverage1m |
+| Load average over 5 minutes for Machine (Linux only) | - | SNMP_AGENT | server.loadAverage5m |
+| Load average over 15 minutes for Machine (Linux only) | - | SNMP_AGENT | server.loadAverage15m |
 | Low memory flag | - | SNMP_AGENT | server.lowMemory |
 | Machine CPU usage | - | SNMP_AGENT | server.machine.cpu.util |
 | Total SWAP size | - | SNMP_AGENT | server.machine.swap.totalSize |
