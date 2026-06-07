@@ -103,7 +103,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [OKTA AD Agent Healthcheck](Applications/Others/template_okta_ad_agent_status)
         * [OpenVPN](Applications/Others/template_openvpn_for_thevpncompany)
         * [SAP Availability Linux](Applications/Others/template_sap_process)
-        * [Tempivo by HTTP](Applications/Others/template_tempivo_api)
         * [App TACACS Service](Applications/Others/template_tacacs_service)
         * [App WireGuard](Applications/Others/template_wireguard_vpn)
         * [App Zookeeper](Applications/Others/template_zabbix_zookeper)
