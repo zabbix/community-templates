@@ -1,0 +1,1070 @@
+zabbix_export:
+  version: '8.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 734a821fe39c4b93a030930799d24830
+      template: smart_home_yandex
+      name: 'Умный дом с Алисой'
+      description: 'Шаблон для мониторинга устройств умного дома, интегрированных с помощью API Яндекса. Позволяет получать сведения обо всех устройствах, комнатах и домах аккаунта одним запросом к методу `/v1.0/user/info` API умного дома Яндекса. Используется как источник данных для обнаружения устройств и для зависимых элементов с их показаниями.'
+      wizard_ready: 'YES'
+      readme: |
+        ## Overview
+        
+        Шаблон предназначен для мониторинга устройств умного дома Яндекса (платформа «Дом с Алисой») через облачное API Яндекса по протоколу HTTP без использования внешних скриптов.
+        
+        Сбор данных выполняется одним HTTP-запросом к методу [`/v1.0/user/info`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/reference-alice/user-info) API умного дома. В ответе возвращается список всех устройств, комнат и домов, привязанных к аккаунту Яндекса, а также текущие показания их умений (capabilities) и датчиков (properties). На основе этих данных автоматическое обнаружение (LLD) создаёт элементы данных для каждого устройства, его умения и датчика.
+        
+        Авторизация запросов выполняется по OAuth-токену, который передаётся в заголовке `Authorization: Bearer <токен>` и задаётся через макрос `{$YANDEX.SMART_HOME.TOKEN}`.
+        
+        ## Setup
+        
+        Для работы шаблона необходимо получить OAuth-токен с доступом к API умного дома Яндекса. Токен выпускается через сервис Яндекс OAuth и привязывается к зарегистрированному приложению. Подробности описаны в документации [Отладочный токен](https://yandex.ru/dev/id/doc/ru/tokens/debug-token).
+        
+        1. Зарегистрируйте приложение на странице [Яндекс OAuth](https://oauth.yandex.ru/client/new):
+        
+           - в разделе **Доступ к данным** добавьте права **Доступ к устройствам умного дома и сценариям** — для мониторинга достаточно права на просмотр сведений об устройствах умного дома и их показаниях (`iot:view`);
+           - в разделе **Redirect URI** в качестве платформы выберите **Веб-сервисы** и укажите Redirect URI `https://oauth.yandex.ru/verification_code`;
+           - сохраните приложение и скопируйте его идентификатор **ClientID** из свойств приложения.
+        
+        2. Войдите в Яндекс под той учётной записью, к данным умного дома которой нужен доступ.
+        
+        3. Откройте в браузере ссылку авторизации, подставив `ClientID` приложения:
+        
+           ```text
+           https://oauth.yandex.ru/authorize?response_type=token&client_id=<ClientID приложения>
+           ```
+        
+        4. При необходимости нажмите **Разрешить** на странице подтверждения доступа.
+        
+        5. После подтверждения браузер будет перенаправлен на адрес вида:
+        
+           ```text
+           https://oauth.yandex.ru/verification_code#access_token=<OAuth-токен>&token_type=bearer&expires_in=<время жизни в секундах>
+           ```
+        
+           Скопируйте значение параметра `access_token` — это и есть искомый OAuth-токен. Сохраните его в надёжном месте: сервис Яндекс OAuth не хранит выданные токены в публичном доступе.
+        
+        6. Укажите полученный токен в поле `Token` мастера настройки (макрос `{$YANDEX.SMART_HOME.TOKEN}`).
+      vendor:
+        name: Zabbix
+        version: 8.0-0
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: e5279c387e68427a96e6633aaf910ab0
+          name: 'Get data'
+          type: HTTP_AGENT
+          key: yandex.iot.get_data
+          history: '0'
+          value_type: TEXT
+          description: 'Мастер-элемент: получает сведения обо всех устройствах, комнатах и домах аккаунта одним запросом к методу `/v1.0/user/info` API умного дома Яндекса. Используется как источник данных для обнаружения устройств и для зависимых элементов с их показаниями.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var yandex = {
+                  
+                  	devices: {
+                  		'devices.types.camera':				  'Камера',
+                  		'devices.types.cooking':				 'Кухонная техника',
+                  		'devices.types.cooking.coffee_maker':	'Кофеварка',
+                  		'devices.types.cooking.kettle':		  'Чайник',
+                  		'devices.types.cooking.multicooker':	 'Мультиварка',
+                  		'devices.types.dishwasher':			  'Посудомоечная машина',
+                  		'devices.types.humidifier':			  'Увлажнитель',
+                  		'devices.types.iron':					'Утюг',
+                  		'devices.types.light':				   'Светильник',
+                  		'devices.types.light.lamp':			  'Настольная лампа',
+                  		'devices.types.light.ceiling':		   'Люстра',
+                  		'devices.types.light.strip':			 'Диодная лента',
+                  		'devices.types.media_device':			'Медиаустройство',
+                  		'devices.types.media_device.receiver':   'Ресивер',
+                  		'devices.types.media_device.tv':		 'Телевизор',
+                  		'devices.types.media_device.tv_box':	 'ТВ-приставка',
+                  		'devices.types.openable':				'Открываемое устройство',
+                  		'devices.types.openable.door_lock':	  'Замок двери',
+                  		'devices.types.openable.curtain':		'Шторы',
+                  		'devices.types.openable.valve':		  'Кран',
+                  		'devices.types.other':				   'Прочие устройства',
+                  		'devices.types.pet_drinking_fountain':   'Поилка для животных',
+                  		'devices.types.pet_feeder':			  'Кормушка',
+                  		'devices.types.purifier':				'Очиститель воздуха',
+                  		'devices.types.sensor':				  'Датчик',
+                  		'devices.types.sensor.button':		   'Умная кнопка',
+                  		'devices.types.sensor.climate':		  'Датчик климата',
+                  		'devices.types.sensor.gas':			  'Датчик газа',
+                  		'devices.types.sensor.illumination':	 'Датчик освещенности',
+                  		'devices.types.sensor.motion':		   'Датчик движения',
+                  		'devices.types.sensor.open':			 'Датчик открытия',
+                  		'devices.types.sensor.smoke':			'Датчик дыма',
+                  		'devices.types.sensor.vibration':		'Датчик вибрации',
+                  		'devices.types.sensor.water_leak':	   'Датчик протечки',
+                  		'devices.types.smart_meter':			 'Счетчик',
+                  		'devices.types.smart_meter.cold_water':  'Счетчик холодной воды',
+                  		'devices.types.smart_meter.electricity': 'Счетчик электроэнергии',
+                  		'devices.types.smart_meter.gas':		 'Счетчик газа',
+                  		'devices.types.smart_meter.heat':		'Счетчик тепла',
+                  		'devices.types.smart_meter.hot_water':   'Счетчик горячей воды',
+                  		'devices.types.socket':				  'Умная розетка',
+                  		'devices.types.switch':				  'Выключатель',
+                  		'devices.types.switch.relay':			'Реле',
+                  		'devices.types.thermostat':			  'Терморегулятор',
+                  		'devices.types.thermostat.ac':		   'Кондиционер',
+                  		'devices.types.vacuum_cleaner':		  'Робот-пылесос',
+                  		'devices.types.ventilation':			 'Вентиляция',
+                  		'devices.types.ventilation.fan':		 'Вентилятор',
+                  		'devices.types.washing_machine':		 'Стиральная машина'
+                  	},
+                  
+                  	capability: {
+                  		'devices.capabilities.on_off': {
+                  			instance: {
+                  				on: 'Тумблер',
+                  			},
+                  			value: function(value, instance, unit) {
+                  
+                  				var on_mapping = {
+                  					true:	 { name: 'Включено',	 id: 10001 },
+                  					false:	{ name: 'Выключено',	id: 10000 }
+                  				};
+                  
+                  				return {value: on_mapping[value].id, unit: unit, value_mapping: true};
+                  			}
+                  		},
+                  
+                  		'devices.capabilities.color_setting': {
+                  			instance: {
+                  				hsv:			'Режим HSV',
+                  				rgb:			'Режим RGB',
+                  				temperature_k:  'Режим цветовой температуры',
+                  				scene:		  'Режим эффекта'
+                  			},
+                  			value: function(value, instance, unit) {
+                  
+                  				switch (instance) {
+                  					case 'hsv':
+                  						return {value: 'H:' + value.h + ' S:' + value.s + ' V:' + value.v, unit: unit, value_mapping: false};
+                  					case 'rgb':
+                  						return {value: 'RGB:' + value, unit: unit, value_mapping: false};
+                  					case 'temperature_k':
+                  						return {value: value, unit: '!K', value_mapping: false};
+                  					case 'scene':
+                  						var scene_mapping = {
+                  							alarm:   { name: 'Тревога',	id: 20000 },
+                  							alice:   { name: 'Алиса',	  id: 20001 },
+                  							candle:  { name: 'Свеча',	  id: 20002 },
+                  							dinner:  { name: 'Ужин',	   id: 20003 },
+                  							fantasy: { name: 'Фантазия',   id: 20004 },
+                  							garland: { name: 'Гирлянда',   id: 20005 },
+                  							jungle:  { name: 'Джунгли',	id: 20006 },
+                  							movie:   { name: 'Кино',	   id: 20007 },
+                  							neon:	{ name: 'Неон',	   id: 20008 },
+                  							night:   { name: 'Ночь',	   id: 20009 },
+                  							ocean:   { name: 'Океан',	  id: 20010 },
+                  							party:   { name: 'Вечеринка',  id: 20011 },
+                  							reading: { name: 'Чтение',	 id: 20012 },
+                  							rest:	{ name: 'Отдых',	  id: 20013 },
+                  							romance: { name: 'Романтика',  id: 20014 },
+                  							siren:   { name: 'Сирена',	 id: 20015 }
+                  						};
+                  						return {value: scene_mapping[value].id, unit: unit, value_mapping: true};
+                  				}
+                  
+                  				return {value: JSON.stringify(value), unit: unit, value_mapping: false};
+                  			}
+                  		},
+                  
+                  		'devices.capabilities.video_stream': {
+                  			instance: {
+                  				get_stream: 'Параметры видеопотока'
+                  			},
+                  			value: function(value, instance, unit) {
+                  
+                  				return {value: ', '.join(value.protocols), unit: unit, value_mapping: false};
+                  			}
+                  		},
+                  
+                  		'devices.capabilities.mode': {
+                  			instance: {
+                  				cleanup_mode:	 'Уборка',
+                  				coffee_mode:	  'Кофеварка',
+                  				dishwashing:	  'Мытье посуды',
+                  				fan_speed:		'Скорость вентиляции',
+                  				heat:			 'Нагрев',
+                  				input_source:	 'Источник сигнала',
+                  				program:		  'Программа работы',
+                  				swing:			'Направление воздуха',
+                  				tea_mode:		 'Приготовление чая',
+                  				thermostat:	   'Температурный режим',
+                  				ventilation_mode: 'Режим вентиляции',
+                  				work_speed:	   'Скорость работы'
+                  			},
+                  			value: function(value, instance, unit) {
+                  				var mode_mapping = {
+                  					wet_cleaning:	{ name: 'Влажная уборка',		 id: 30000 },
+                  					dry_cleaning:	{ name: 'Сухая уборка',		   id: 30001 },
+                  					mixed_cleaning:  { name: 'Смешанная уборка',	   id: 30002 },
+                  					auto:			{ name: 'Автоматический режим',   id: 30003 },
+                  					eco:			 { name: 'Экономичный режим',	  id: 30004 },
+                  					smart:		   { name: 'Умный режим',			id: 30005 },
+                  					turbo:		   { name: 'Турбо',				  id: 30006 },
+                  					cool:			{ name: 'Охлаждение',			 id: 30007 },
+                  					dry:			 { name: 'Режим осушения',		 id: 30008 },
+                  					fan_only:		{ name: 'Вентиляция',			 id: 30009 },
+                  					heat:			{ name: 'Обогрев',				id: 30010 },
+                  					preheat:		 { name: 'Подогрев',			   id: 30011 },
+                  					high:			{ name: 'Высокая скорость',	   id: 30012 },
+                  					low:			 { name: 'Низкая скорость',		id: 30013 },
+                  					medium:		  { name: 'Средняя скорость',	   id: 30014 },
+                  					max:			 { name: 'Максимальный',		   id: 30015 },
+                  					min:			 { name: 'Минимальный',			id: 30016 },
+                  					fast:			{ name: 'Быстрый',				id: 30017 },
+                  					slow:			{ name: 'Медленный',			  id: 30018 },
+                  					express:		 { name: 'Экспресс',			   id: 30019 },
+                  					normal:		  { name: 'Нормальный',			 id: 30020 },
+                  					quiet:		   { name: 'Тихий',				  id: 30021 },
+                  					horizontal:	  { name: 'Горизонтальный',		 id: 30022 },
+                  					stationary:	  { name: 'Неподвижный',			id: 30023 },
+                  					vertical:		{ name: 'Вертикальный',		   id: 30024 },
+                  					supply_air:	  { name: 'Приток воздуха',		 id: 30025 },
+                  					extraction_air:  { name: 'Отток воздуха',		  id: 30026 },
+                  					one:			 { name: 'Первый',				 id: 30027 },
+                  					two:			 { name: 'Второй',				 id: 30028 },
+                  					three:		   { name: 'Третий',				 id: 30029 },
+                  					four:			{ name: 'Четвертый',			  id: 30030 },
+                  					five:			{ name: 'Пятый',				  id: 30031 },
+                  					six:			 { name: 'Шестой',				 id: 30032 },
+                  					seven:		   { name: 'Седьмой',				id: 30033 },
+                  					eight:		   { name: 'Восьмой',				id: 30034 },
+                  					nine:			{ name: 'Девятый',				id: 30035 },
+                  					ten:			 { name: 'Десятый',				id: 30036 },
+                  					americano:	   { name: 'Американо',			  id: 30037 },
+                  					cappuccino:	  { name: 'Капучино',			   id: 30038 },
+                  					double_espresso: { name: 'Двойной эспрессо',	   id: 30039 },
+                  					espresso:		{ name: 'Эспрессо',			   id: 30040 },
+                  					latte:		   { name: 'Латте',				  id: 30041 },
+                  					black_tea:	   { name: 'Черный чай',			 id: 30042 },
+                  					flower_tea:	  { name: 'Цветочный чай',		  id: 30043 },
+                  					green_tea:	   { name: 'Зеленый чай',			id: 30044 },
+                  					herbal_tea:	  { name: 'Травяной чай',		   id: 30045 },
+                  					oolong_tea:	  { name: 'Чай улун',			   id: 30046 },
+                  					puerh_tea:	   { name: 'Чай пуэр',			   id: 30047 },
+                  					red_tea:		 { name: 'Красный чай',			id: 30048 },
+                  					white_tea:	   { name: 'Белый чай',			  id: 30049 },
+                  					glass:		   { name: 'Мойка стекла',		   id: 30050 },
+                  					intensive:	   { name: 'Интенсивный',			id: 30051 },
+                  					pre_rinse:	   { name: 'Ополаскивание',		  id: 30052 },
+                  					aspic:		   { name: 'Холодец',				id: 30053 },
+                  					baby_food:	   { name: 'Детское питание',		id: 30054 },
+                  					baking:		  { name: 'Выпечка',				id: 30055 },
+                  					bread:		   { name: 'Хлеб',				   id: 30056 },
+                  					boiling:		 { name: 'Варка',				  id: 30057 },
+                  					cereals:		 { name: 'Крупы',				  id: 30058 },
+                  					cheesecake:	  { name: 'Чизкейк',				id: 30059 },
+                  					deep_fryer:	  { name: 'Фритюр',				 id: 30060 },
+                  					dessert:		 { name: 'Десерты',				id: 30061 },
+                  					fowl:			{ name: 'Дичь',				   id: 30062 },
+                  					frying:		  { name: 'Жарка',				  id: 30063 },
+                  					macaroni:		{ name: 'Макароны',			   id: 30064 },
+                  					milk_porridge:   { name: 'Молочная каша',		  id: 30065 },
+                  					multicooker:	 { name: 'Мультиповар',			id: 30066 },
+                  					pasta:		   { name: 'Паста',				  id: 30067 },
+                  					pilaf:		   { name: 'Плов',				   id: 30068 },
+                  					pizza:		   { name: 'Пицца',				  id: 30069 },
+                  					sauce:		   { name: 'Соус',				   id: 30070 },
+                  					slow_cook:	   { name: 'Томление',			   id: 30071 },
+                  					soup:			{ name: 'Суп',					id: 30072 },
+                  					steam:		   { name: 'Пар',					id: 30073 },
+                  					stewing:		 { name: 'Тушение',				id: 30074 },
+                  					vacuum:		  { name: 'Вакуум',				 id: 30075 },
+                  					yogurt:		  { name: 'Йогурт',				 id: 30076 }
+                  				};
+                  
+                  				return {value: mode_mapping[value].id, unit: unit, value_mapping: true};
+                  			}
+                  		},
+                  
+                  		'devices.capabilities.range': {
+                  			instance: {
+                  				brightness:  'Яркость',
+                  				channel:	 'Канал',
+                  				humidity:	'Влажность',
+                  				open:		'Открыть',
+                  				temperature: 'Температура',
+                  				volume:	  'Громкость'
+                  			},
+                  			value: function(value, instance, unit) {
+                  				switch (instance) {
+                  					case 'brightness':
+                  						
+                  						return {value: value, unit: '%', value_mapping: false};
+                  
+                  					case 'channel':
+                  						
+                  						return {value: value, unit: '', value_mapping: false};
+                  
+                  					case 'humidity':
+                  						
+                  						return {value: value, unit: '%', value_mapping: false};
+                  
+                  					case 'open':
+                  						
+                  						return {value: value, unit: '%', value_mapping: false};
+                  					
+                  					case 'temperature':
+                  						if (unit == 'unit.temperature.celsius') {
+                  							return {value: value, unit: '°C', value_mapping: false};
+                  						}
+                  						if (unit == 'unit.temperature.kelvin') {
+                  							return {value: value, unit: '°K', value_mapping: false};
+                  						}
+                  						if (unit == 'unit.temperature.fahrenheit') {
+                  							return {value: value, unit: '°F', value_mapping: false};
+                  						}
+                  						
+                  						return {value: value, unit: '', value_mapping: false};
+                  					
+                  					case 'volume':
+                  						
+                  						return {value: value, unit: '%', value_mapping: false};
+                  				}
+                  
+                  				return {value: value, unit: unit, value_mapping: false};
+                  			}
+                  		},
+                  
+                  		'devices.capabilities.toggle': {
+                  			instance: {
+                  				backlight:	   'Включение подсветки.',
+                  				controls_locked: 'Блокировка управления и детский режим.',
+                  				ionization:	  'Включение ионизации.',
+                  				keep_warm:	   'Поддержание тепла.',
+                  				mute:			'Выключение звука.',
+                  				oscillation:	 'Включение вращения.',
+                  				pause:		   'Пауза текущей деятельности.'
+                  			},
+                  			value: function(value, instance, unit) {
+                  
+                  				var toggle_mapping = {
+                  					true:	 { name: 'Включено',	 id: 40001 },
+                  					false:	{ name: 'Выключено',	id: 40000 }
+                  				};
+                  
+                  				return {value: toggle_mapping[value].id, unit: unit, value_mapping: true};
+                  			}
+                  		}
+                  	},
+                  
+                  	properties: {
+                  		'devices.properties.float': {
+                  			amperage: {
+                  				name: 'Сила тока',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'A', value_mapping: false};
+                  				}
+                  			},
+                  			battery_level: {
+                  				name: 'Заряд аккумулятора',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: '%', value_mapping: false};
+                  				}
+                  			},
+                  			co2_level: {
+                  				name: 'Уровень CO2',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'ppm', value_mapping: false};
+                  				}
+                  			},
+                  			electricity_meter: {
+                  				name: 'Счетчик электроэнергии',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'kWh', value_mapping: false};
+                  				}
+                  			},
+                  			food_level: {
+                  				name: 'Уровень корма',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: '%', value_mapping: false};
+                  				}
+                  			},
+                  			gas_meter: {
+                  				name: 'Счетчик газа',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'm³', value_mapping: false};
+                  				}
+                  			},
+                  			heat_meter: {
+                  				name: 'Счетчик тепла',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'Gcal', value_mapping: false};
+                  				}
+                  			},
+                  			humidity: {
+                  				name: 'Влажность',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: '%', value_mapping: false};
+                  				}
+                  			},
+                  			illumination: {
+                  				name: 'Освещенность',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'lx', value_mapping: false};
+                  				}
+                  			},
+                  			meter: {
+                  				name: 'Универсальный счетчик',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: unit, value_mapping: false};
+                  				}
+                  			},
+                  			pm1_density: {
+                  				name: 'Загрязнение PM1',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'mcg/m³', value_mapping: false};
+                  				}
+                  			},
+                  			'pm2.5_density': {
+                  				name: 'Загрязнение PM2.5',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'mcg/m³', value_mapping: false};
+                  				}
+                  			},
+                  			pm10_density: {
+                  				name: 'Загрязнение PM10',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'mcg/m³', value_mapping: false};
+                  				}
+                  			},
+                  			power: {
+                  				name: 'Потребляемая мощность',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'W', value_mapping: false};
+                  				}
+                  			},
+                  			pressure: {
+                  				name: 'Давление',
+                  				value: function(value, unit) {
+                  					switch (unit) {
+                  						case 'unit.pressure.atm':
+                  							return {value: value, unit: 'атм', value_mapping: false};
+                  						case 'unit.pressure.pascal':
+                  							return {value: value, unit: 'Па', value_mapping: false};
+                  						case 'unit.pressure.bar':
+                  							return {value: value, unit: 'бар', value_mapping: false};
+                  						case 'unit.pressure.mmhg':
+                  							return {value: value, unit: 'мм рт. ст.', value_mapping: false};
+                  					}
+                  
+                  					return {value: value, unit: unit, value_mapping: false};
+                  				}
+                  			},
+                  			temperature: {
+                  				name: 'Температура',
+                  				value: function(value, unit) {
+                  					switch (unit) {
+                  						case 'unit.temperature.celsius':
+                  							return {value: value, unit: '°C', value_mapping: false};
+                  						case 'unit.temperature.kelvin':
+                  							return {value: value, unit: '°K', value_mapping: false};
+                  						case 'unit.temperature.fahrenheit':
+                  							return {value: value, unit: '°F', value_mapping: false};
+                  					}
+                  
+                  					return {value: value, unit: '°C', value_mapping: false};
+                  				}
+                  			},
+                  			tvoc: {
+                  				name: 'Загрязнение TVOC',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'mcg/m³', value_mapping: false};
+                  				}
+                  			},
+                  			voltage: {
+                  				name: 'Напряжение',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'V', value_mapping: false};
+                  				}
+                  			},
+                  			water_level: {
+                  				name: 'Уровень воды',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: '%', value_mapping: false};
+                  				}
+                  			},
+                  			water_meter: {
+                  				name: 'Счетчик воды',
+                  				value: function(value, unit) {
+                  					return {value: value, unit: 'm³', value_mapping: false};
+                  				}
+                  			}
+                  		}
+                  	},
+                  	
+                  	rooms: {},
+                  
+                  	homes: {},
+                  
+                  	getField: function (data, path, separator, default_value) {
+                  		if (typeof separator === 'undefined') {
+                  			separator = '.';
+                  		}
+                  		var steps = path.split(separator);
+                  		for (var i = 0; i < steps.length; i++) {
+                  			var step = steps[i];
+                  			if (typeof data !== 'object' || data === null || typeof data[step] === 'undefined') {
+                  				if (typeof default_value === 'undefined') {
+                  					throw 'Required field was not found: "' + path + '". Data: ' + JSON.stringify(data);
+                  				}
+                  				return default_value;
+                  			}
+                  
+                  			data = data[step];
+                  		}
+                  
+                  		return data;
+                  	},
+                  
+                  	getRooms: function(data) {
+                  		var rooms = yandex.getField(data, 'rooms', '.', []);
+                  		for (var i = 0; i < rooms.length; i++) {
+                  			this.rooms[rooms[i].id] = rooms[i].name;
+                  		}
+                  	},
+                  
+                  	getHomes: function(data) {
+                  		var homes = yandex.getField(data, 'households', '.', []);
+                  		for (var i = 0; i < homes.length; i++) {
+                  			this.homes[homes[i].id] = homes[i].name;
+                  		}
+                  	},
+                  
+                  	discover: function(data) {
+                  		var devices = yandex.getField(data, 'devices', '.', []);
+                  
+                  		var result = [];
+                  
+                  		for (var i = 0; i < devices.length; i++) {
+                  
+                  			if (typeof this.devices[devices[i].type] === 'undefined') {
+                  				Zabbix.log(4, '[ YANDEX SMART HOME ] WARNING: Device type "' + devices[i].type + '" is not defined in the script. Device index: ' + i);
+                  				continue;
+                  			}
+                  
+                  			var device = {
+                  				id: devices[i].id,
+                  				name: devices[i].name,
+                  				type: this.devices[devices[i].type],
+                  				room: this.rooms[devices[i].room] ? this.rooms[devices[i].room] : devices[i].room,
+                  				home: this.homes[devices[i].household_id] ? this.homes[devices[i].household_id] : devices[i].household_id,
+                  				capabilities: [],
+                  				properties: []
+                  			}
+                  
+                  			var capabilities = this.getField(devices[i], 'capabilities', '.', []);
+                  			for (var j = 0; j < capabilities.length; j++) {
+                  
+                  				if (typeof this.capability[capabilities[j].type] === 'undefined') {
+                  					Zabbix.log(4, '[ YANDEX SMART HOME ] WARNING: Capability type "' + capabilities[j].type + '" is not defined in the script. Device index: ' + i + '. Capability index: ' + j);
+                  					continue;
+                  				}
+                  
+                  				try {
+                  					var capability = {
+                  						index: j,
+                  						type: yandex.capability[capabilities[j].type].instance[capabilities[j].state.instance],
+                  						value: this.capability[capabilities[j].type].value(capabilities[j].state.value, capabilities[j].state.instance, yandex.getField(capabilities[j], 'parameters.unit', '.', ''))
+                  					}
+                  					device.capabilities.push(capability);
+                  				} catch (error) {
+                  					throw 'Error parsing capability. Device index: ' + i + '. Capability index: ' + j + '. Additional info: ' + error;
+                  				}
+                  
+                  			}
+                  
+                  			var properties = this.getField(devices[i], 'properties', '.', []);
+                  			for (var j = 0; j < properties.length; j++) {
+                  
+                  				if (properties[j].type != 'devices.properties.float') {
+                  					continue;
+                  				}
+                  
+                  				if (typeof this.properties[properties[j].type][properties[j].parameters.instance] === 'undefined') {
+                  					Zabbix.log(4, '[ YANDEX SMART HOME ] WARNING: Property type "' + properties[j].type + '" with instance "' + properties[j].parameters.instance + '" is not defined in the script. Device index: ' + i + '. Property index: ' + j);
+                  					continue;
+                  				}
+                  
+                  				try {
+                  					var property = {
+                  						index: j,
+                  						type: yandex.properties[properties[j].type][properties[j].parameters.instance].name,
+                  						value: this.properties[properties[j].type][properties[j].parameters.instance].value(properties[j].state.value, yandex.getField(properties[j], 'parameters.unit', '.', ''))
+                  					}
+                  					device.properties.push(property);
+                  				} catch (error) {
+                  					throw 'Error parsing property. Device index: ' + i + '. Property index: ' + j + '. Additional info: ' + error;
+                  				}
+                  
+                  			 }
+                  
+                  			result.push(device);
+                  		}
+                  
+                  		return result;
+                  	}
+                  };
+                  
+                  try {
+                  
+                  	var data = JSON.parse(value);
+                  	yandex.getRooms(data);
+                  	yandex.getHomes(data);
+                  
+                  	return JSON.stringify(yandex.discover(data));
+                  
+                  } catch (error) {
+                  	error += (String(error).endsWith('.')) ? '' : '.';
+                  	Zabbix.log(3, '[ YANDEX SMART HOME ] ERROR: ' + error);
+                  
+                  	return '[]';
+                  }
+          url: 'https://api.iot.yandex.net/v1.0/user/info'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$YANDEX.SMART_HOME.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+      discovery_rules:
+        - uuid: 9c8e1b0a7c5d4b2e8a1f3c4d5e6f7890
+          name: 'Device capabilities with value mapping discovery'
+          type: NESTED
+          key: 'yandex.iot.capabilities.discovery.mapping[{#DEVICE.ID}]'
+          filter:
+            conditions:
+              - macro: '{#CAPABILITY.VALUE_MAPPING}'
+                value: ^true$
+          item_prototypes:
+            - uuid: 1d1ae265041f4d08b397ac1a74e228e9
+              name: '{#DEVICE.NAME}: Параметр `{#CAPABILITY.TYPE}`'
+              type: DEPENDENT
+              key: 'yandex.iot.capability.value.mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}]'
+              units: '{#CAPABILITY.VALUE_UNIT}'
+              description: 'Текущее состояние умения `{#CAPABILITY.TYPE}` устройства `{#DEVICE.NAME}`. Дискретное значение, которое отображается с помощью таблицы значений.'
+              valuemap:
+                name: 'Yandex Smart Home values'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id==''{#DEVICE.ID}'')].first()'
+                - type: JSONPATH
+                  parameters:
+                    - '$.capabilities.[?(@.index==''{#CAPABILITY.INDEX}'')].value.value.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: yandex.iot.get_data
+              tags:
+                - tag: capability
+                  value: '{#CAPABILITY.TYPE}'
+                - tag: component
+                  value: capability
+                - tag: component
+                  value: device
+                - tag: device
+                  value: '{#DEVICE.TYPE}'
+                - tag: home
+                  value: '{#DEVICE.HOME}'
+                - tag: name
+                  value: '{#DEVICE.NAME}'
+                - tag: room
+                  value: '{#DEVICE.ROOM}'
+              trigger_prototypes:
+                - uuid: 2e1ae265041f4d08b397ac1a74e228e9
+                  expression: 'last(/smart_home_yandex/yandex.iot.capability.value.mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}],#2)<>last(/smart_home_yandex/yandex.iot.capability.value.mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}],#1)'
+                  name: 'Yandex Smart Home: {#DEVICE.NAME}: Параметр `{#CAPABILITY.TYPE}` изменился'
+                  opdata: '{ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Триггер срабатывает при изменении состояния умения `{#CAPABILITY.TYPE}` устройства `{#DEVICE.NAME}`.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+          parent_discovery_rule:
+            key: yandex.iot.devices.discovery
+          lld_macro_paths:
+            - lld_macro: '{#CAPABILITY.INDEX}'
+              path: $.index
+            - lld_macro: '{#CAPABILITY.TYPE}'
+              path: $.type
+            - lld_macro: '{#CAPABILITY.VALUE_MAPPING}'
+              path: $.value.value_mapping
+            - lld_macro: '{#CAPABILITY.VALUE_UNIT}'
+              path: $.value.unit
+            - lld_macro: '{#CAPABILITY.VALUE}'
+              path: $.value.value
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.capabilities
+        - uuid: 305efae1126e4683a41760f7c67a702c
+          name: 'Device capabilities without value mapping discovery'
+          type: NESTED
+          key: 'yandex.iot.capabilities.discovery.not_mapping[{#DEVICE.ID}]'
+          filter:
+            conditions:
+              - macro: '{#CAPABILITY.VALUE_MAPPING}'
+                value: ^true$
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: bebab4a4c19540dda62081859a090ddb
+              name: '{#DEVICE.NAME}: Параметр `{#CAPABILITY.TYPE}`'
+              type: DEPENDENT
+              key: 'yandex.iot.capability.value.not_mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}]'
+              value_type: FLOAT
+              units: '{#CAPABILITY.VALUE_UNIT}'
+              description: 'Текущее значение умения `{#CAPABILITY.TYPE}` устройства `{#DEVICE.NAME}`. Числовая величина в единицах `{#CAPABILITY.VALUE_UNIT}`.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id==''{#DEVICE.ID}'')].first()'
+                - type: JSONPATH
+                  parameters:
+                    - '$.capabilities.[?(@.index==''{#CAPABILITY.INDEX}'')].value.value.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: yandex.iot.get_data
+              tags:
+                - tag: capability
+                  value: '{#CAPABILITY.TYPE}'
+                - tag: component
+                  value: capability
+                - tag: component
+                  value: device
+                - tag: device
+                  value: '{#DEVICE.TYPE}'
+                - tag: home
+                  value: '{#DEVICE.HOME}'
+                - tag: name
+                  value: '{#DEVICE.NAME}'
+                - tag: room
+                  value: '{#DEVICE.ROOM}'
+              trigger_prototypes:
+                - uuid: 850dcd6b68784cc1a714e4a67adab687
+                  expression: 'last(/smart_home_yandex/yandex.iot.capability.value.not_mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}],#2)<>last(/smart_home_yandex/yandex.iot.capability.value.not_mapping[{#DEVICE.ID},{#CAPABILITY.INDEX}],#1)'
+                  name: 'Yandex Smart Home: {#DEVICE.NAME}: Параметр `{#CAPABILITY.TYPE}` изменился'
+                  opdata: '{ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Триггер срабатывает при изменении состояния умения `{#CAPABILITY.TYPE}` устройства `{#DEVICE.NAME}`.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+          parent_discovery_rule:
+            key: yandex.iot.devices.discovery
+          lld_macro_paths:
+            - lld_macro: '{#CAPABILITY.INDEX}'
+              path: $.index
+            - lld_macro: '{#CAPABILITY.TYPE}'
+              path: $.type
+            - lld_macro: '{#CAPABILITY.VALUE_MAPPING}'
+              path: $.value.value_mapping
+            - lld_macro: '{#CAPABILITY.VALUE_UNIT}'
+              path: $.value.unit
+            - lld_macro: '{#CAPABILITY.VALUE}'
+              path: $.value.value
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.capabilities
+        - uuid: d4d1e04037de49458aca5e55114a2a86
+          name: 'Devices discovery'
+          type: DEPENDENT
+          key: yandex.iot.devices.discovery
+          master_item:
+            key: yandex.iot.get_data
+          lld_macro_paths:
+            - lld_macro: '{#DEVICE.HOME}'
+              path: $.home
+            - lld_macro: '{#DEVICE.ID}'
+              path: $.id
+            - lld_macro: '{#DEVICE.NAME}'
+              path: $.name
+            - lld_macro: '{#DEVICE.ROOM}'
+              path: $.room
+            - lld_macro: '{#DEVICE.TYPE}'
+              path: $.type
+        - uuid: 7c9e1b0a7c5d4b2e8a1f3c4d5e6f7890
+          name: 'Device sensors discovery'
+          type: NESTED
+          key: 'yandex.iot.sensors.discovery[{#DEVICE.ID}]'
+          item_prototypes:
+            - uuid: 2d1ae265041f4d08b397ac1a74e228e9
+              name: '{#DEVICE.NAME}: Датчик `{#SENSOR.TYPE}`'
+              type: DEPENDENT
+              key: 'yandex.iot.sensor.value[{#DEVICE.ID},{#SENSOR.INDEX}]'
+              value_type: FLOAT
+              units: '{#SENSOR.VALUE_UNIT}'
+              description: 'Текущее показание датчика `{#SENSOR.TYPE}` устройства `{#DEVICE.NAME}` в единицах `{#SENSOR.VALUE_UNIT}`.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id==''{#DEVICE.ID}'')].first()'
+                - type: JSONPATH
+                  parameters:
+                    - '$.properties.[?(@.index==''{#SENSOR.INDEX}'')].value.value.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: yandex.iot.get_data
+              tags:
+                - tag: component
+                  value: device
+                - tag: component
+                  value: sensor
+                - tag: device
+                  value: '{#DEVICE.TYPE}'
+                - tag: home
+                  value: '{#DEVICE.HOME}'
+                - tag: name
+                  value: '{#DEVICE.NAME}'
+                - tag: room
+                  value: '{#DEVICE.ROOM}'
+                - tag: sensor
+                  value: '{#SENSOR.TYPE}'
+          parent_discovery_rule:
+            key: yandex.iot.devices.discovery
+          lld_macro_paths:
+            - lld_macro: '{#SENSOR.INDEX}'
+              path: $.index
+            - lld_macro: '{#SENSOR.TYPE}'
+              path: $.type
+            - lld_macro: '{#SENSOR.VALUE_UNIT}'
+              path: $.value.unit
+            - lld_macro: '{#SENSOR.VALUE}'
+              path: $.value.value
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.properties
+      tags:
+        - tag: class
+          value: iot
+        - tag: target
+          value: alice
+        - tag: target
+          value: yandex
+      macros:
+        - macro: '{$YANDEX.SMART_HOME.TOKEN}'
+          type: SECRET_TEXT
+          description: 'OAuth-токен для доступа к API умного дома Яндекса. Выпускается через сервис Яндекс OAuth для зарегистрированного приложения с правом `iot:view`. Передаётся в заголовке `Authorization: Bearer <токен>`. Инструкция по получению токена: https://yandex.ru/dev/id/doc/ru/tokens/debug-token.'
+          config:
+            type: TEXT
+            priority: '1'
+            label: Token
+            description: 'Токен для доступа к API Яндекс Умного дома.'
+            required: 'YES'
+            regex: '.*'
+      valuemaps:
+        - uuid: 21f219a41a0648ae96a1c443ae631eb9
+          name: 'Yandex Smart Home values'
+          mappings:
+            - value: '10000'
+              newvalue: Выключено
+            - value: '10001'
+              newvalue: Включено
+            - value: '20000'
+              newvalue: Тревога
+            - value: '20001'
+              newvalue: Алиса
+            - value: '20002'
+              newvalue: Свеча
+            - value: '20003'
+              newvalue: Ужин
+            - value: '20004'
+              newvalue: Фантазия
+            - value: '20005'
+              newvalue: Гирлянда
+            - value: '20006'
+              newvalue: Джунгли
+            - value: '20007'
+              newvalue: Кино
+            - value: '20008'
+              newvalue: Неон
+            - value: '20009'
+              newvalue: Ночь
+            - value: '20010'
+              newvalue: Океан
+            - value: '20011'
+              newvalue: Вечеринка
+            - value: '20012'
+              newvalue: Чтение
+            - value: '20013'
+              newvalue: Отдых
+            - value: '20014'
+              newvalue: Романтика
+            - value: '20015'
+              newvalue: Сирена
+            - value: '30000'
+              newvalue: 'Влажная уборка'
+            - value: '30001'
+              newvalue: 'Сухая уборка'
+            - value: '30002'
+              newvalue: 'Смешанная уборка'
+            - value: '30003'
+              newvalue: 'Автоматический режим'
+            - value: '30004'
+              newvalue: 'Экономичный режим'
+            - value: '30005'
+              newvalue: 'Умный режим'
+            - value: '30006'
+              newvalue: Турбо
+            - value: '30007'
+              newvalue: Охлаждение
+            - value: '30008'
+              newvalue: 'Режим осушения'
+            - value: '30009'
+              newvalue: Вентиляция
+            - value: '30010'
+              newvalue: Обогрев
+            - value: '30011'
+              newvalue: Подогрев
+            - value: '30012'
+              newvalue: 'Высокая скорость'
+            - value: '30013'
+              newvalue: 'Низкая скорость'
+            - value: '30014'
+              newvalue: 'Средняя скорость'
+            - value: '30015'
+              newvalue: Максимальный
+            - value: '30016'
+              newvalue: Минимальный
+            - value: '30017'
+              newvalue: Быстрый
+            - value: '30018'
+              newvalue: Медленный
+            - value: '30019'
+              newvalue: Экспресс
+            - value: '30020'
+              newvalue: Нормальный
+            - value: '30021'
+              newvalue: Тихий
+            - value: '30022'
+              newvalue: Горизонтальный
+            - value: '30023'
+              newvalue: Неподвижный
+            - value: '30024'
+              newvalue: Вертикальный
+            - value: '30025'
+              newvalue: 'Приток воздуха'
+            - value: '30026'
+              newvalue: 'Отток воздуха'
+            - value: '30027'
+              newvalue: Первый
+            - value: '30028'
+              newvalue: Второй
+            - value: '30029'
+              newvalue: Третий
+            - value: '30030'
+              newvalue: Четвертый
+            - value: '30031'
+              newvalue: Пятый
+            - value: '30032'
+              newvalue: Шестой
+            - value: '30033'
+              newvalue: Седьмой
+            - value: '30034'
+              newvalue: Восьмой
+            - value: '30035'
+              newvalue: Девятый
+            - value: '30036'
+              newvalue: Десятый
+            - value: '30037'
+              newvalue: Американо
+            - value: '30038'
+              newvalue: Капучино
+            - value: '30039'
+              newvalue: 'Двойной эспрессо'
+            - value: '30040'
+              newvalue: Эспрессо
+            - value: '30041'
+              newvalue: Латте
+            - value: '30042'
+              newvalue: 'Черный чай'
+            - value: '30043'
+              newvalue: 'Цветочный чай'
+            - value: '30044'
+              newvalue: 'Зеленый чай'
+            - value: '30045'
+              newvalue: 'Травяной чай'
+            - value: '30046'
+              newvalue: 'Чай улун'
+            - value: '30047'
+              newvalue: 'Чай пуэр'
+            - value: '30048'
+              newvalue: 'Красный чай'
+            - value: '30049'
+              newvalue: 'Белый чай'
+            - value: '30050'
+              newvalue: 'Мойка стекла'
+            - value: '30051'
+              newvalue: Интенсивный
+            - value: '30052'
+              newvalue: Ополаскивание
+            - value: '30053'
+              newvalue: Холодец
+            - value: '30054'
+              newvalue: 'Детское питание'
+            - value: '30055'
+              newvalue: Выпечка
+            - value: '30056'
+              newvalue: Хлеб
+            - value: '30057'
+              newvalue: Варка
+            - value: '30058'
+              newvalue: Крупы
+            - value: '30059'
+              newvalue: Чизкейк
+            - value: '30060'
+              newvalue: Фритюр
+            - value: '30061'
+              newvalue: Десерты
+            - value: '30062'
+              newvalue: Дичь
+            - value: '30063'
+              newvalue: Жарка
+            - value: '30064'
+              newvalue: Макароны
+            - value: '30065'
+              newvalue: 'Молочная каша'
+            - value: '30066'
+              newvalue: Мультиповар
+            - value: '30067'
+              newvalue: Паста
+            - value: '30068'
+              newvalue: Плов
+            - value: '30069'
+              newvalue: Пицца
+            - value: '30070'
+              newvalue: Соус
+            - value: '30071'
+              newvalue: Томление
+            - value: '30072'
+              newvalue: Суп
+            - value: '30073'
+              newvalue: Пар
+            - value: '30074'
+              newvalue: Тушение
+            - value: '30075'
+              newvalue: Вакуум
+            - value: '30076'
+              newvalue: Йогурт
+            - value: '40000'
+              newvalue: Выключено
+            - value: '40001'
+              newvalue: Включено
