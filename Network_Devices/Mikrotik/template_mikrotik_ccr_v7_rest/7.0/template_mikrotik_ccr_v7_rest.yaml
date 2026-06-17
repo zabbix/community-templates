@@ -1,0 +1,2383 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 6931e922725a4a96982ec8a6e69cfbe7
+      name: Templates/Network devices
+  templates:
+    - uuid: fc491cff91e54f8089aee80d138b2ea0
+      template: 'MikroTik CCR v7 REST'
+      name: 'MikroTik CCR v7 REST'
+      description: |
+        Standalone, pure-REST template for MikroTik CCR (v7.21+).
+        Replaces "MikroTik by SNMP" + the SNMP-based add-on; no SNMPv3 setup
+        required. Everything flows through /rest/* over HTTP.
+
+        Coverage:
+          - System: CPU, memory, disk, uptime, version, identity, build-time
+          - Health sensors: temps (cpu/sfp/switch/board), fans, PSUs (LLD + state items)
+          - Interface LLD: running, byte/packet counters with CHANGE_PER_SECOND, errors, drops
+          - SFP DOM (per-ethernet POST monitor): module presence, temp, voltage, tx-bias,
+            tx-power, rx-power (REST returns already-scaled values in dBm), rx-loss, tx-fault,
+            vendor, serial, wavelength
+          - BGP session LLD via REST: state, prefix-count, uptime, message + byte counters
+          - VRRP LLD with derived state (master / backup / init-fault / disabled / invalid)
+            — disabled is treated as "maintenance", NOT as an alert state
+          - Connection tracking: total, IPv4, IPv6, max, utilisation %
+
+        Validated 2026-05-21 against CCR2004-1G-12S+2XS, RouterOS 7.21.4 (long-term).
+
+        Requires per-host:
+          - {$ROUTEROS.REST.USER} and {$ROUTEROS.REST.PASSWORD} (SECRET_TEXT)
+          - /ip service www enabled; address-scope it to the Zabbix collector
+          - A RouterOS user with policy=read,api,rest-api (no write needed)
+
+        Side effect: every REST poll auths once and logs a system,info,account entry by
+        default. Suppress with:
+          /system logging set 0 topics=info,!account
+        on each router.
+
+      groups:
+        - name: Templates/Network devices
+
+      macros:
+        - macro: '{$ROUTEROS.REST.SCHEME}'
+          value: http
+          description: 'REST scheme. Plain http; routers should lock www to the Zabbix collector IP.'
+        - macro: '{$ROUTEROS.REST.PORT}'
+          value: '80'
+          description: 'REST API port (RouterOS www service).'
+        - macro: '{$ROUTEROS.REST.USER}'
+          value: zabbix-readonly
+          description: 'RouterOS user for REST API. Must have read + rest-api policy.'
+        - macro: '{$ROUTEROS.REST.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'Password for {$ROUTEROS.REST.USER}.'
+        - macro: '{$ROUTEROS.REST.TIMEOUT}'
+          value: 10s
+          description: 'Per-request timeout for REST items.'
+        - macro: '{$ROUTEROS.POLL.FAST}'
+          value: 10s
+          description: 'Polling cadence for fast-changing data: interface counters, BGP sessions, BGP advertisements (drives bps graphs and prefix-count granularity).'
+        - macro: '{$ROUTEROS.POLL.NORMAL}'
+          value: 1m
+          description: 'Polling cadence for general state: system resource (CPU/mem/disk), VRRP, conntrack.'
+        - macro: '{$ROUTEROS.POLL.SLOW}'
+          value: 5m
+          description: 'Polling cadence for slow-changing data: system identity, system health (temps/fans/PSUs), ethernet list, per-port SFP DOM monitor.'
+        - macro: '{$ROUTEROS.IFACE.NAME.MATCHES}'
+          value: '.*'
+          description: 'Regex of interface names to include in interface LLD.'
+        - macro: '{$ROUTEROS.IFACE.NAME.NOT_MATCHES}'
+          value: '^$'
+          description: 'Regex of interface names to exclude. Defaults to never matching.'
+        - macro: '{$ROUTEROS.IFACE.TYPE.MATCHES}'
+          value: '^(ether|vlan|bond|vrrp|bridge)$'
+          description: 'Regex of interface types to include. ether/vlan/bond/vrrp/bridge by default; excludes pppoe-server, dynamic, etc.'
+        - macro: '{$ROUTEROS.ETH.NAME.MATCHES}'
+          value: '.*'
+          description: 'Regex of ethernet names to include in DOM LLD.'
+        - macro: '{$ROUTEROS.BGP.SESSION.MATCHES}'
+          value: '.*'
+          description: 'Regex of BGP session names to include.'
+        - macro: '{$ROUTEROS.VRRP.NAME.MATCHES}'
+          value: '.*'
+          description: 'Regex of VRRP names to include.'
+        - macro: '{$ROUTEROS.VRRP.EXPECTED_STATE}'
+          value: '0'
+          description: |
+            Expected VRRP state for THIS host. The "wrong role" trigger fires when
+            current state differs and current state IS master or backup (init/fault/
+            disabled/invalid have their own dedicated triggers).
+              0 = master  (primary node)
+              1 = backup  (secondary node)
+            Override per host on secondary/backup boxes (set to 1). Same value applies to
+            all VRRPs on the host; for per-VRRP override use macro context, e.g.
+            {$ROUTEROS.VRRP.EXPECTED_STATE:vrrp-uplink} = 1.
+        - macro: '{$ROUTEROS.HEALTH.NAME.MATCHES}'
+          value: '.*'
+          description: 'Regex of health sensor names to include in numeric LLD.'
+        - macro: '{$ROUTEROS.CPU.LOAD.HIGH}'
+          value: '85'
+          description: 'CPU load % threshold for alert.'
+        - macro: '{$ROUTEROS.MEM.UTIL.HIGH}'
+          value: '85'
+          description: 'Memory utilisation % threshold for alert.'
+        - macro: '{$ROUTEROS.DISK.UTIL.HIGH}'
+          value: '85'
+          description: 'Disk utilisation % threshold for alert.'
+        - macro: '{$ROUTEROS.CONNTRACK.UTIL.HIGH}'
+          value: '85'
+          description: 'Conntrack utilisation % threshold.'
+        - macro: '{$ROUTEROS.SFP.TEMP.HIGH}'
+          value: '70'
+          description: 'SFP temperature ceiling, °C.'
+        - macro: '{$ROUTEROS.SFP.RX_POWER.LOW}'
+          value: '-20'
+          description: 'SFP RX power floor, dBm.'
+        - macro: '{$ROUTEROS.SFP.TX_POWER.LOW}'
+          value: '-9'
+          description: 'SFP TX power floor, dBm.'
+        - macro: '{$ROUTEROS.HEALTH.TEMP.HIGH}'
+          value: '75'
+          description: 'Health-sensor temperature ceiling, °C (cpu/sfp/switch/board temps).'
+        - macro: '{$ROUTEROS.IFACE.ERROR.HIGH}'
+          value: '10'
+          description: 'Interface error rate threshold, errors/sec.'
+        - macro: '{$ROUTEROS.ICMP.PACKETS}'
+          value: '3'
+          description: 'Packets per ICMP probe (icmpping/loss/sec). 1-10.'
+        - macro: '{$ROUTEROS.ICMP.LOSS.HIGH}'
+          value: '20'
+          description: 'ICMP packet-loss % threshold for warning.'
+        - macro: '{$ROUTEROS.ICMP.RTT.HIGH}'
+          value: '0.5'
+          description: 'ICMP RTT ceiling in seconds for warning.'
+
+      items:
+        # ---------------- REST master items ----------------
+        - uuid: aefdfdf1b0624b078c0e2aaec5791b0a
+          name: 'System resource (master)'
+          type: HTTP_AGENT
+          key: routeros.system.resource.raw
+          delay: '{$ROUTEROS.POLL.NORMAL}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/system/resource. Source for CPU, memory, disk, uptime, version.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/system/resource'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: eebfab122c8145ed871187538089d1b7
+          name: 'System identity (master)'
+          type: HTTP_AGENT
+          key: routeros.system.identity.raw
+          delay: '{$ROUTEROS.POLL.SLOW}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/system/identity. sysName equivalent.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/system/identity'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: 5b8455302e964d5b91510e943423b026
+          name: 'System health (master)'
+          type: HTTP_AGENT
+          key: routeros.system.health.raw
+          delay: '{$ROUTEROS.POLL.SLOW}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/system/health. Array of named sensors (cpu/sfp/switch temps, fans, PSUs).'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/system/health'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: health
+
+        - uuid: cd616dd072114ed39d817832349b6ba1
+          name: 'Interface list (master)'
+          type: HTTP_AGENT
+          key: routeros.interface.raw
+          delay: '{$ROUTEROS.POLL.FAST}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/interface. Array of all interfaces with rx/tx counters and admin/oper state.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/interface'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: interface
+
+        - uuid: 8aa6361b25914baaa0306a8ccc7bfe8c
+          name: 'Ethernet ports (master)'
+          type: HTTP_AGENT
+          key: routeros.interface.ethernet.raw
+          delay: '{$ROUTEROS.POLL.SLOW}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/interface/ethernet. Source for ethernet/SFP LLD.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/interface/ethernet'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: interface
+
+        - uuid: 549c83d09d7f486580a3a810c500fe48
+          name: 'BGP sessions (master)'
+          type: HTTP_AGENT
+          key: routeros.bgp.sessions.raw
+          delay: '{$ROUTEROS.POLL.FAST}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/routing/bgp/session. Source for BGP LLD + per-peer fields.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/routing/bgp/session'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: bgp
+
+        - uuid: 256fae7204ca4ee5966b21eb4c91a91e
+          name: 'BGP advertisements: sent count per peer (master)'
+          type: HTTP_AGENT
+          key: routeros.bgp.advertisements.raw
+          delay: '{$ROUTEROS.POLL.FAST}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: |
+            GET /rest/routing/bgp/advertisements. RouterOS may return either an array of
+            advertisement objects or a single object (when there is exactly one). JS
+            preprocessing normalises to a {peer: count} map for downstream join by name.
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/routing/bgp/advertisements'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data;
+                  try { data = JSON.parse(value); } catch (e) { return '{}'; }
+                  if (!data) return '{}';
+                  var arr = Array.isArray(data) ? data : [data];
+                  var counts = {};
+                  for (var i = 0; i < arr.length; i++) {
+                    var p = arr[i] && arr[i].peer ? arr[i].peer : 'unknown';
+                    counts[p] = (counts[p] || 0) + 1;
+                  }
+                  return JSON.stringify(counts);
+          tags:
+            - tag: component
+              value: bgp
+
+        - uuid: 3f9093c8deee4c99a10f2554ac4fe095
+          name: 'VRRP (master)'
+          type: HTTP_AGENT
+          key: routeros.vrrp.raw
+          delay: '{$ROUTEROS.POLL.NORMAL}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/interface/vrrp.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/interface/vrrp'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: vrrp
+
+        - uuid: 13bbef4b470c425c961a30f7cad09045
+          name: 'Conntrack (master)'
+          type: HTTP_AGENT
+          key: routeros.conntrack.raw
+          delay: '{$ROUTEROS.POLL.NORMAL}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          description: 'GET /rest/ip/firewall/connection/tracking.'
+          url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/ip/firewall/connection/tracking'
+          authtype: BASIC
+          username: '{$ROUTEROS.REST.USER}'
+          password: '{$ROUTEROS.REST.PASSWORD}'
+          timeout: '{$ROUTEROS.REST.TIMEOUT}'
+          status_codes: '200'
+          retrieve_mode: BODY
+          request_method: GET
+          tags:
+            - tag: component
+              value: conntrack
+
+        # ---------------- System dependent items (from system/resource) ----------------
+        - uuid: ba01e7d7265a4a28b2f2159d38004023
+          name: 'System: CPU load'
+          type: DEPENDENT
+          key: routeros.system.cpu_load
+          value_type: UNSIGNED
+          units: '%'
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["cpu-load"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: cpu
+
+        - uuid: 21409b63033743b2a42daff562124b9b
+          name: 'System: CPU count'
+          type: DEPENDENT
+          key: routeros.system.cpu_count
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["cpu-count"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: cpu
+
+        - uuid: 5c2fd71d02a44463b52680f679e82a79
+          name: 'System: CPU frequency'
+          type: DEPENDENT
+          key: routeros.system.cpu_freq
+          value_type: UNSIGNED
+          units: MHz
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["cpu-frequency"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: cpu
+
+        - uuid: 99887aafefdb439f8315cf0e75f3b96e
+          name: 'System: free memory'
+          type: DEPENDENT
+          key: routeros.system.mem_free
+          value_type: UNSIGNED
+          units: B
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["free-memory"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: memory
+
+        - uuid: dfbb9348c55a4f7c8ad2c8bbf8f97c0a
+          name: 'System: total memory'
+          type: DEPENDENT
+          key: routeros.system.mem_total
+          value_type: UNSIGNED
+          units: B
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["total-memory"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: memory
+
+        - uuid: 042c0c70307d4c48a5f8d052a798bccc
+          name: 'System: memory utilisation %'
+          type: CALCULATED
+          key: routeros.system.mem_util
+          value_type: FLOAT
+          units: '%'
+          delay: 1m
+          description: '(total - free) / total × 100'
+          params: '100 * (last(//routeros.system.mem_total) - last(//routeros.system.mem_free)) / last(//routeros.system.mem_total)'
+          tags:
+            - tag: component
+              value: memory
+
+        - uuid: 27f64123bcfa479baeaa3aa37cba9529
+          name: 'System: free disk space'
+          type: DEPENDENT
+          key: routeros.system.disk_free
+          value_type: UNSIGNED
+          units: B
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["free-hdd-space"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: storage
+
+        - uuid: ec70dd33aca94a3c9705dba0155251ef
+          name: 'System: total disk space'
+          type: DEPENDENT
+          key: routeros.system.disk_total
+          value_type: UNSIGNED
+          units: B
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["total-hdd-space"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: storage
+
+        - uuid: 5bb613ebb61a465c9f2fae243b3ee064
+          name: 'System: disk utilisation %'
+          type: CALCULATED
+          key: routeros.system.disk_util
+          value_type: FLOAT
+          units: '%'
+          delay: 1m
+          params: '100 * (last(//routeros.system.disk_total) - last(//routeros.system.disk_free)) / last(//routeros.system.disk_total)'
+          tags:
+            - tag: component
+              value: storage
+
+        - uuid: ded42db3e1354777899c4b78ea7cc65a
+          name: 'System: uptime'
+          type: DEPENDENT
+          key: routeros.system.uptime
+          value_type: UNSIGNED
+          units: s
+          description: 'Parses RouterOS uptime string ("23h11s", "1d2h", "1w3d", etc.) into seconds.'
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["uptime"]'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var s = 0;
+                  var m = String(value).match(/(?:(\d+)w)?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+)s)?(?:(\d+)ms)?$/);
+                  if (m) {
+                    s += parseInt(m[1] || 0) * 604800;
+                    s += parseInt(m[2] || 0) * 86400;
+                    s += parseInt(m[3] || 0) * 3600;
+                    s += parseInt(m[4] || 0) * 60;
+                    s += parseInt(m[5] || 0);
+                  }
+                  return s;
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: f43ccd5baab544f69cb567741a64ad13
+          name: 'System: version'
+          type: DEPENDENT
+          key: routeros.system.version
+          value_type: CHAR
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["version"]'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: 58000d95412b42559db465b48aeed999
+          name: 'System: board name'
+          type: DEPENDENT
+          key: routeros.system.board
+          value_type: CHAR
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["board-name"]'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: da9022c783b242908c5212a60db84bdb
+          name: 'System: architecture'
+          type: DEPENDENT
+          key: routeros.system.arch
+          value_type: CHAR
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["architecture-name"]'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: dabc460664b6487ab36a1c741b04eb94
+          name: 'System: build time'
+          type: DEPENDENT
+          key: routeros.system.build_time
+          value_type: CHAR
+          master_item:
+            key: routeros.system.resource.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["build-time"]'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+
+        - uuid: 55a21eaba1d3422ea85cb6abbb0b7eb4
+          name: 'System: identity (sysName)'
+          type: DEPENDENT
+          key: routeros.system.identity
+          value_type: CHAR
+          master_item:
+            key: routeros.system.identity.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["name"]'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: system
+
+        # ---------------- Health state items (top-level, by name) ----------------
+        - uuid: e71c2c8d3f534e0c99919d8ba9a35922
+          name: 'Health: fan-state'
+          type: DEPENDENT
+          key: 'routeros.health.fan_state'
+          value_type: UNSIGNED
+          description: '1=ok, 0=fail, 99=unknown. Extracted from /rest/system/health name=fan-state.'
+          master_item:
+            key: routeros.system.health.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "fan-state")].value.first()'
+            - type: JAVASCRIPT
+              parameters:
+                - 'if (value === "ok") return 1; if (value === "fail" || value === "failed") return 0; return 99;'
+          valuemap:
+            name: 'Component health state'
+          tags:
+            - tag: component
+              value: health
+
+        - uuid: 58a953c06d9b4fefb8a4c833bd4c5c62
+          name: 'Health: psu1-state'
+          type: DEPENDENT
+          key: 'routeros.health.psu1_state'
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.system.health.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "psu1-state")].value.first()'
+            - type: JAVASCRIPT
+              parameters:
+                - 'if (value === "ok") return 1; if (value === "fail" || value === "failed") return 0; return 99;'
+          valuemap:
+            name: 'Component health state'
+          tags:
+            - tag: component
+              value: health
+
+        - uuid: a5f15621c63147fbaf56f650ac0937f2
+          name: 'Health: psu2-state'
+          type: DEPENDENT
+          key: 'routeros.health.psu2_state'
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.system.health.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "psu2-state")].value.first()'
+            - type: JAVASCRIPT
+              parameters:
+                - 'if (value === "ok") return 1; if (value === "fail" || value === "failed") return 0; return 99;'
+          valuemap:
+            name: 'Component health state'
+          tags:
+            - tag: component
+              value: health
+
+        # ---------------- Conntrack dependent items ----------------
+        - uuid: f5b17ddd3a93436abe7020677860e8a9
+          name: 'Conntrack: total entries'
+          type: DEPENDENT
+          key: routeros.conntrack.total
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.conntrack.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["total-entries"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: conntrack
+
+        - uuid: c4819145f49f48a4b7370ce27733127d
+          name: 'Conntrack: IPv4 entries'
+          type: DEPENDENT
+          key: routeros.conntrack.ip4
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.conntrack.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["total-ip4-entries"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: conntrack
+
+        - uuid: e59439b1b78e431f8a07c2f5f14308a1
+          name: 'Conntrack: IPv6 entries'
+          type: DEPENDENT
+          key: routeros.conntrack.ip6
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.conntrack.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["total-ip6-entries"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+          tags:
+            - tag: component
+              value: conntrack
+
+        - uuid: 8f312cd395e042a0a12a3d2a5c9bf7d0
+          name: 'Conntrack: max entries'
+          type: DEPENDENT
+          key: routeros.conntrack.max
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.conntrack.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["max-entries"]'
+            - type: REGEX
+              parameters:
+                - '([0-9]+)'
+                - '\1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: conntrack
+
+        - uuid: 37c5e4c4dfb14b88854a548e548e4920
+          name: 'Conntrack: utilisation %'
+          type: CALCULATED
+          key: routeros.conntrack.util
+          value_type: FLOAT
+          units: '%'
+          delay: 1m
+          params: '100 * last(//routeros.conntrack.total) / last(//routeros.conntrack.max)'
+          tags:
+            - tag: component
+              value: conntrack
+
+        - uuid: b81312e94960424dbb0b0fade9909c6c
+          name: 'Conntrack: enabled mode'
+          type: DEPENDENT
+          key: routeros.conntrack.enabled
+          value_type: UNSIGNED
+          master_item:
+            key: routeros.conntrack.raw
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$["enabled"]'
+            - type: JAVASCRIPT
+              parameters:
+                - 'if (value === "auto") return 2; if (value === "yes") return 1; if (value === "no") return 0; return 99;'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          valuemap:
+            name: 'Conntrack enabled'
+          tags:
+            - tag: component
+              value: conntrack
+
+        # ---------------- ICMP availability (probed from Zabbix server) ----------------
+        - uuid: 2cfb2e99bea04d97bebff84c63ac3264
+          name: 'ICMP: reachable'
+          type: SIMPLE
+          key: 'icmpping[,{$ROUTEROS.ICMP.PACKETS}]'
+          delay: 30s
+          value_type: UNSIGNED
+          description: '1 = at least one of the {$ROUTEROS.ICMP.PACKETS} probes returned, 0 = all lost.'
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: component
+              value: icmp
+
+        - uuid: 69f750462029431386602c2f36bb3ea0
+          name: 'ICMP: packet loss'
+          type: SIMPLE
+          key: 'icmppingloss[,{$ROUTEROS.ICMP.PACKETS}]'
+          delay: 30s
+          value_type: FLOAT
+          units: '%'
+          tags:
+            - tag: component
+              value: icmp
+
+        - uuid: 3df14ce7ea6940d2a5a8917b1efc9a6a
+          name: 'ICMP: response time (avg)'
+          type: SIMPLE
+          key: 'icmppingsec[,{$ROUTEROS.ICMP.PACKETS}]'
+          delay: 30s
+          value_type: FLOAT
+          units: s
+          tags:
+            - tag: component
+              value: icmp
+
+      discovery_rules:
+        # ---------------- Interface LLD (REST) ----------------
+        - uuid: bb9d01cf22f44d678c0994a2873383e4
+          name: 'Network interfaces (REST)'
+          type: DEPENDENT
+          key: routeros.interface.discovery
+          description: |
+            LLD over /rest/interface. Discovers all interfaces with rich counter access.
+            Filter by name and type via macros.
+          master_item:
+            key: routeros.interface.raw
+          lld_macro_paths:
+            - lld_macro: '{#IFNAME}'
+              path: '$.name'
+            - lld_macro: '{#IFTYPE}'
+              path: '$.type'
+            - lld_macro: '{#IFDISABLED}'
+              path: '$.disabled'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFNAME}'
+                value: '{$ROUTEROS.IFACE.NAME.MATCHES}'
+                formulaid: A
+              - macro: '{#IFNAME}'
+                value: '{$ROUTEROS.IFACE.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#IFTYPE}'
+                value: '{$ROUTEROS.IFACE.TYPE.MATCHES}'
+                formulaid: C
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 5f2622a217c74b5aab1bfbf088668116
+              name: 'Interface {#IFNAME} ({#IFTYPE}): running'
+              type: DEPENDENT
+              key: 'routeros.iface.running[{#IFNAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")].running.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: 1c8672264acb446db4b9383d73204266
+              name: 'Interface {#IFNAME}: incoming traffic'
+              type: DEPENDENT
+              key: 'routeros.iface.in[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: bps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["rx-byte"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: d9b055824caa45b6b41d242813a5ff4a
+              name: 'Interface {#IFNAME}: outgoing traffic'
+              type: DEPENDENT
+              key: 'routeros.iface.out[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: bps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["tx-byte"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: c482f52e28fe49d3917ea837b97b20b3
+              name: 'Interface {#IFNAME}: rx packets/s'
+              type: DEPENDENT
+              key: 'routeros.iface.rx_pps[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: pps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["rx-packet"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: da421cad1a4040a4be4d2c20320af30f
+              name: 'Interface {#IFNAME}: tx packets/s'
+              type: DEPENDENT
+              key: 'routeros.iface.tx_pps[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: pps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["tx-packet"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: 8ab7e0c9b8fd4f6199057d4589b1bbb2
+              name: 'Interface {#IFNAME}: rx errors/s'
+              type: DEPENDENT
+              key: 'routeros.iface.rx_err[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: eps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["rx-error"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: 012c05e202e94dcebf2a98ce1e510451
+              name: 'Interface {#IFNAME}: tx errors/s'
+              type: DEPENDENT
+              key: 'routeros.iface.tx_err[{#IFNAME}]'
+              value_type: UNSIGNED
+              units: eps
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["tx-error"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: 5e88f59301ed4de49b5aa2d45cd92791
+              name: 'Interface {#IFNAME}: link-downs'
+              type: DEPENDENT
+              key: 'routeros.iface.link_downs[{#IFNAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.interface.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#IFNAME}")]["link-downs"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+          trigger_prototypes:
+            - uuid: c08d0bcb051843e5bd35fd58a76716a6
+              expression: 'last(/MikroTik CCR v7 REST/routeros.iface.running[{#IFNAME}])=0 and "{#IFDISABLED}"="false" and "{#IFTYPE}"<>"vrrp"'
+              name: 'Interface {#IFNAME} ({#IFTYPE}): not running'
+              priority: HIGH
+              manual_close: 'YES'
+              description: |
+                running=false on an admin-enabled, non-VRRP interface.
+                Admin-disabled interfaces (disabled=true) are intentionally not running
+                and are excluded. VRRP interfaces have their own state derivation.
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: ec3710e83df3479e8135072125f61682
+              expression: 'last(/MikroTik CCR v7 REST/routeros.iface.rx_err[{#IFNAME}])>{$ROUTEROS.IFACE.ERROR.HIGH} or last(/MikroTik CCR v7 REST/routeros.iface.tx_err[{#IFNAME}])>{$ROUTEROS.IFACE.ERROR.HIGH}'
+              name: 'Interface {#IFNAME}: error rate above {$ROUTEROS.IFACE.ERROR.HIGH} eps'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+            - uuid: a527cc4d14ad4126923e4a457e2816a3
+              expression: 'change(/MikroTik CCR v7 REST/routeros.iface.link_downs[{#IFNAME}])>0 and "{#IFDISABLED}"="false"'
+              name: 'Interface {#IFNAME}: link bounced (link-downs counter increased)'
+              priority: WARNING
+              manual_close: 'YES'
+              description: |
+                link-downs counter incremented since last poll = the interface
+                transitioned down→up (link flap). Auto-resolves on next poll once the
+                counter is stable. Manual_close is on so you can dismiss; problem
+                history retains the event regardless.
+              tags:
+                - tag: component
+                  value: interface
+                - tag: interface
+                  value: '{#IFNAME}'
+
+          graph_prototypes:
+            - uuid: 44719a1e5b834dee9442c6b2b6f5b899
+              name: 'Interface {#IFNAME}: traffic (in/out)'
+              ymin_type_1: FIXED
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.iface.in[{#IFNAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.iface.out[{#IFNAME}]'
+
+        # ---------------- Ethernet + SFP DOM LLD (REST monitor) ----------------
+        - uuid: 34413f24ae2443b48aa2898d5d36fcf4
+          name: 'Ethernet ports + SFP DOM (REST)'
+          type: DEPENDENT
+          key: routeros.ethernet.discovery
+          description: |
+            LLD over /rest/interface/ethernet. For each ethernet port, creates a per-port
+            POST-monitor master item that returns SFP DOM (filled when a transceiver is
+            present; "module-present:false" rows leave DOM fields empty).
+          master_item:
+            key: routeros.interface.ethernet.raw
+          lld_macro_paths:
+            - lld_macro: '{#ETHNAME}'
+              path: '$.name'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#ETHNAME}'
+                value: '{$ROUTEROS.ETH.NAME.MATCHES}'
+                formulaid: A
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 4b4c57ec390e4cb88a93eb43bfc4bf18
+              name: 'Ethernet {#ETHNAME}: DOM raw (master)'
+              type: HTTP_AGENT
+              key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              delay: '{$ROUTEROS.POLL.SLOW}'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'POST /rest/interface/ethernet/monitor with once=true. Returns DOM (or empty fields if no SFP).'
+              url: '{$ROUTEROS.REST.SCHEME}://{HOST.CONN}:{$ROUTEROS.REST.PORT}/rest/interface/ethernet/monitor'
+              authtype: BASIC
+              username: '{$ROUTEROS.REST.USER}'
+              password: '{$ROUTEROS.REST.PASSWORD}'
+              timeout: '{$ROUTEROS.REST.TIMEOUT}'
+              status_codes: '200'
+              retrieve_mode: BODY
+              request_method: POST
+              post_type: JSON
+              posts: '{".id":"{#ETHNAME}","once":"true",".proplist":"name,sfp-module-present,sfp-temperature,sfp-supply-voltage,sfp-tx-bias-current,sfp-tx-power,sfp-rx-power,sfp-rx-loss,sfp-tx-fault,sfp-vendor-name,sfp-vendor-part-number,sfp-vendor-serial,sfp-wavelength,status,rate"}'
+              tags:
+                - tag: component
+                  value: ethernet
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 0fd6ff5bf72e4053b8ddef2156de0822
+              name: 'Ethernet {#ETHNAME}: SFP module present'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.present[{#ETHNAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-module-present"]'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 9c265704da4d40b4933bf351e055132c
+              name: 'Ethernet {#ETHNAME}: SFP temperature'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.temp[{#ETHNAME}]'
+              value_type: FLOAT
+              units: °C
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-temperature"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 6d01e6c819c94730b69112cb6fb07400
+              name: 'Ethernet {#ETHNAME}: SFP supply voltage'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.voltage[{#ETHNAME}]'
+              value_type: FLOAT
+              units: V
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-supply-voltage"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 04f6ade0b21d499b8f3459012f0f0e51
+              name: 'Ethernet {#ETHNAME}: SFP TX bias current'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.tx_bias[{#ETHNAME}]'
+              value_type: FLOAT
+              units: mA
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-tx-bias-current"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 48b28c6a34cd43abb43e0b2b220d54b3
+              name: 'Ethernet {#ETHNAME}: SFP TX power'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.tx_power[{#ETHNAME}]'
+              value_type: FLOAT
+              units: dBm
+              description: 'REST returns already-scaled dBm (e.g. "-1.856"). No multiplier needed.'
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-tx-power"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 040606e7569e41b8babe13b347f67b11
+              name: 'Ethernet {#ETHNAME}: SFP RX power'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.rx_power[{#ETHNAME}]'
+              value_type: FLOAT
+              units: dBm
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-rx-power"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 33934faef1f34c628bbaeda3a906ca3c
+              name: 'Ethernet {#ETHNAME}: SFP rx-loss'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.rx_loss[{#ETHNAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-rx-loss"]'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 44e40c516cff4708bcd41bb79aa658e3
+              name: 'Ethernet {#ETHNAME}: SFP tx-fault'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.tx_fault[{#ETHNAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-tx-fault"]'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: cbba0a65c3564b19a9452130c8558286
+              name: 'Ethernet {#ETHNAME}: SFP vendor'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.vendor[{#ETHNAME}]'
+              value_type: CHAR
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-vendor-name"]'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: b263f4619257402880e4016264157f58
+              name: 'Ethernet {#ETHNAME}: SFP part number'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.part[{#ETHNAME}]'
+              value_type: CHAR
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-vendor-part-number"]'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: dda17d20bb59464690b80cb36cb03c98
+              name: 'Ethernet {#ETHNAME}: SFP serial'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.serial[{#ETHNAME}]'
+              value_type: CHAR
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-vendor-serial"]'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 8d03b6362d3c43cab56c2abd62e1a480
+              name: 'Ethernet {#ETHNAME}: SFP wavelength'
+              type: DEPENDENT
+              key: 'routeros.eth.sfp.wavelength[{#ETHNAME}]'
+              value_type: UNSIGNED
+              units: nm
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["sfp-wavelength"]'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 3dbb9c42316346618c854b5904471c62
+              name: 'Ethernet {#ETHNAME}: link status'
+              type: DEPENDENT
+              key: 'routeros.eth.status[{#ETHNAME}]'
+              value_type: CHAR
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["status"]'
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: ethernet
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: fd4812a4f13c43eb955be323cafd0d0c
+              name: 'Ethernet {#ETHNAME}: link rate'
+              type: DEPENDENT
+              key: 'routeros.eth.rate[{#ETHNAME}]'
+              value_type: CHAR
+              master_item:
+                key: 'routeros.eth.dom.raw[{#ETHNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0]["rate"]'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: ethernet
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+          trigger_prototypes:
+            - uuid: 32eca4435f604f888c280ef08443e671
+              expression: 'last(/MikroTik CCR v7 REST/routeros.eth.sfp.rx_loss[{#ETHNAME}])=1'
+              name: 'Ethernet {#ETHNAME}: SFP RX loss'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: 56199f15d1ce490398eb7a3917be7eca
+              expression: 'last(/MikroTik CCR v7 REST/routeros.eth.sfp.tx_fault[{#ETHNAME}])=1'
+              name: 'Ethernet {#ETHNAME}: SFP TX fault'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: ecbdbe7b6321424e9852f2bd11c70501
+              expression: 'last(/MikroTik CCR v7 REST/routeros.eth.sfp.temp[{#ETHNAME}])>{$ROUTEROS.SFP.TEMP.HIGH}'
+              name: 'Ethernet {#ETHNAME}: SFP temperature above {$ROUTEROS.SFP.TEMP.HIGH} °C'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+            - uuid: d27b711c50b14d5487fda9971dbd2b29
+              expression: 'last(/MikroTik CCR v7 REST/routeros.eth.sfp.rx_power[{#ETHNAME}])<{$ROUTEROS.SFP.RX_POWER.LOW} and last(/MikroTik CCR v7 REST/routeros.eth.sfp.present[{#ETHNAME}])=1'
+              name: 'Ethernet {#ETHNAME}: SFP RX power below {$ROUTEROS.SFP.RX_POWER.LOW} dBm'
+              priority: WARNING
+              manual_close: 'YES'
+              description: 'Guarded by SFP module-present=1 so empty cages do not alarm.'
+              tags:
+                - tag: component
+                  value: sfp
+                - tag: interface
+                  value: '{#ETHNAME}'
+
+          graph_prototypes:
+            - uuid: 79aab1c0b6e84d24b649bdcaea93c1b1
+              name: 'Ethernet {#ETHNAME}: SFP optical power (TX/RX)'
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: D84315
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.eth.sfp.tx_power[{#ETHNAME}]'
+                - sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: 0D47A1
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.eth.sfp.rx_power[{#ETHNAME}]'
+
+        # ---------------- BGP LLD (REST) ----------------
+        - uuid: 26ffe14303b547b2bee911c2d3d53529
+          name: 'BGP sessions (REST)'
+          type: DEPENDENT
+          key: routeros.bgp.discovery
+          description: 'LLD over /rest/routing/bgp/session.'
+          master_item:
+            key: routeros.bgp.sessions.raw
+          lld_macro_paths:
+            - lld_macro: '{#BGP_NAME}'
+              path: '$.name'
+            - lld_macro: '{#BGP_REMOTE_ADDR}'
+              path: '$["remote.address"]'
+            - lld_macro: '{#BGP_REMOTE_AS}'
+              path: '$["remote.as"]'
+            - lld_macro: '{#BGP_INSTANCE}'
+              path: '$.instance'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#BGP_NAME}'
+                value: '{$ROUTEROS.BGP.SESSION.MATCHES}'
+                formulaid: A
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 5b3c77101f24432d833b479e757efb84
+              name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): established'
+              type: DEPENDENT
+              key: 'routeros.bgp.established[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")].established.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: e6aadac270984191891c0885e1809586
+              name: 'BGP {#BGP_NAME}: prefix count (received)'
+              type: DEPENDENT
+              key: 'routeros.bgp.prefix_count[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              description: |
+                Prefixes RECEIVED from this peer. Source: prefix-count field in
+                /rest/routing/bgp/session. Sent prefix count is a separate item
+                (routeros.bgp.sent_count) derived from /rest/routing/bgp/advertisements.
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["prefix-count"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: 36f6e87777af46a29b55f57d93d82c45
+              name: 'BGP {#BGP_NAME}: uptime'
+              type: DEPENDENT
+              key: 'routeros.bgp.uptime[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              units: s
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")].uptime.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var s = 0;
+                      var m = String(value).match(/(?:(\d+)w)?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+)s)?(?:(\d+)ms)?$/);
+                      if (m) {
+                        s += parseInt(m[1] || 0) * 604800;
+                        s += parseInt(m[2] || 0) * 86400;
+                        s += parseInt(m[3] || 0) * 3600;
+                        s += parseInt(m[4] || 0) * 60;
+                        s += parseInt(m[5] || 0);
+                      }
+                      return s;
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: cb4de264dd7644b6a2e61b9a6d67063c
+              name: 'BGP {#BGP_NAME}: remote address'
+              type: DEPENDENT
+              key: 'routeros.bgp.remote_addr[{#BGP_NAME}]'
+              value_type: CHAR
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["remote.address"].first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: db541f25b5594a0d968a1e87f6429ffd
+              name: 'BGP {#BGP_NAME}: remote AS'
+              type: DEPENDENT
+              key: 'routeros.bgp.remote_as[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["remote.as"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: 40220ac97b05444f8ab83471aebd9867
+              name: 'BGP {#BGP_NAME}: local bytes'
+              type: DEPENDENT
+              key: 'routeros.bgp.local_bytes[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              units: B
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["local.bytes"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: a173a832b20e4545b7ba4ea00c1f864f
+              name: 'BGP {#BGP_NAME}: remote bytes'
+              type: DEPENDENT
+              key: 'routeros.bgp.remote_bytes[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              units: B
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["remote.bytes"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: d1f9696a79014c06bb7640862ec8ae49
+              name: 'BGP {#BGP_NAME}: local messages'
+              type: DEPENDENT
+              key: 'routeros.bgp.local_msgs[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["local.messages"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: a4f46d5b3cba489da9d82276dc27915e
+              name: 'BGP {#BGP_NAME}: remote messages'
+              type: DEPENDENT
+              key: 'routeros.bgp.remote_msgs[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.bgp.sessions.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#BGP_NAME}")]["remote.messages"].first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: d543ba773c3b4be682e90f820f5a7f56
+              name: 'BGP {#BGP_NAME}: prefix count (sent)'
+              type: DEPENDENT
+              key: 'routeros.bgp.sent_count[{#BGP_NAME}]'
+              value_type: UNSIGNED
+              description: |
+                Prefixes ADVERTISED to this peer (count of routes we are sending).
+                Source: /rest/routing/bgp/advertisements joined by peer name.
+                The received counterpart is routeros.bgp.prefix_count.
+              master_item:
+                key: routeros.bgp.advertisements.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$["{#BGP_NAME}"]'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+                - tag: source
+                  value: rest
+
+          trigger_prototypes:
+            - uuid: 1846fc28b04c4a0889d11b99e6b22e18
+              expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=0'
+              name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): session not established'
+              priority: HIGH
+              manual_close: 'YES'
+              description: |
+                established=0. AUTO-RESOLVES when the session comes back up — deliberately
+                NOT sticky. The two "0 prefixes" triggers DEPEND ON this one, so it must
+                reflect the CURRENT session state: if it stayed latched in PROBLEM after
+                recovery, the dependency would suppress the 0-prefix triggers all night and
+                a real overnight prefix change would be missed. The sticky overnight record
+                of a flap lives in the "session uptime regression" trigger instead.
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: 9248df5c9e344421ace2eb6e1516e124
+              expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.prefix_count[{#BGP_NAME}])=0 and last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=1 and (change(/MikroTik CCR v7 REST/routeros.bgp.prefix_count[{#BGP_NAME}])<>0 or change(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])>0)'
+              name: 'BGP {#BGP_NAME}: established with 0 prefixes received'
+              priority: WARNING
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Session is up but receives no routes — filter chain issue or peer advertises nothing.
+                EDGE-TRIGGERED: fires only on the transition into the bad state (received-prefix
+                count moves to 0, or the session (re)establishes already at 0). While it sits flat
+                at 0 the expression is false, so recovery_mode NONE + manual_close means a manual
+                close STICKS — it will not re-fire until the received-prefix count actually changes
+                (e.g. routes appear then are withdrawn again) or the session re-establishes.
+              dependencies:
+                - name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): session not established'
+                  expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=0'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: fda1b61100a8446f8846bc8e62fe2103
+              expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.sent_count[{#BGP_NAME}])=0 and last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=1 and (change(/MikroTik CCR v7 REST/routeros.bgp.sent_count[{#BGP_NAME}])<>0 or change(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])>0)'
+              name: 'BGP {#BGP_NAME}: established with 0 prefixes sent'
+              priority: HIGH
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Session is up but we are NOT advertising anything. Likely cause: BGP-Out
+                filter chain misconfigured, output.network address-list missing the
+                advertised prefix, or operator accidentally pulled the advertisement.
+                EDGE-TRIGGERED: fires only on the transition into the bad state (sent-prefix
+                count moves to 0, or the session (re)establishes already at 0). While it sits
+                flat at 0 the expression is false, so recovery_mode NONE + manual_close means a
+                manual close STICKS — it will not re-fire until the sent-prefix count actually
+                changes or the session re-establishes.
+              dependencies:
+                - name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): session not established'
+                  expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=0'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: 7f31a70da1254be28674b743dcc108e7
+              expression: 'change(/MikroTik CCR v7 REST/routeros.bgp.uptime[{#BGP_NAME}])<0'
+              name: 'BGP {#BGP_NAME}: session uptime regression (re-established)'
+              priority: INFO
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Session uptime dropped — the BGP session bounced and re-established.
+                Sticky (recovery_mode NONE): this is now the SOLE overnight record of a
+                flap. The "session not established" trigger auto-resolves on recovery, so
+                if a session bounced and came back before morning, THIS trigger is what
+                still shows it. Close it once you have acknowledged the flap.
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+          graph_prototypes:
+            - uuid: 1439c41243914fd8ac5da39e8b766dd9
+              name: 'BGP {#BGP_NAME}: prefixes (sent/received)'
+              ymin_type_1: FIXED
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 0D47A1
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.bgp.prefix_count[{#BGP_NAME}]'
+                - sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: D84315
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.bgp.sent_count[{#BGP_NAME}]'
+
+            - uuid: f3b40998d8f74692988a1167f5a8de5d
+              name: 'BGP {#BGP_NAME}: byte counters'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.bgp.local_bytes[{#BGP_NAME}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.bgp.remote_bytes[{#BGP_NAME}]'
+
+        # ---------------- VRRP LLD (REST) ----------------
+        - uuid: 9e0d238e194e45e7abb33558f47a3605
+          name: 'VRRP interfaces (REST)'
+          type: DEPENDENT
+          key: routeros.vrrp.discovery
+          master_item:
+            key: routeros.vrrp.raw
+          lld_macro_paths:
+            - lld_macro: '{#VRRP_NAME}'
+              path: '$.name'
+            - lld_macro: '{#VRRP_VRID}'
+              path: '$.vrid'
+            - lld_macro: '{#VRRP_IFACE}'
+              path: '$.interface'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#VRRP_NAME}'
+                value: '{$ROUTEROS.VRRP.NAME.MATCHES}'
+                formulaid: A
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 7c8d0bd4aa3543f98802709dfb7ec652
+              name: 'VRRP {#VRRP_NAME} (vrid {#VRRP_VRID}): state (derived)'
+              type: DEPENDENT
+              key: 'routeros.vrrp.state[{#VRRP_NAME}]'
+              value_type: UNSIGNED
+              description: |
+                0=master, 1=backup, 2=init/fault, 3=disabled (maintenance — NOT an alert), 4=invalid, 99=unknown.
+              master_item:
+                key: routeros.vrrp.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#VRRP_NAME}")].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var v;
+                      try { v = JSON.parse(value); } catch (e) { return 99; }
+                      if (!v) return 99;
+                      if (v.invalid === "true") return 4;
+                      if (v.disabled === "true") return 3;
+                      if (v.running === "true") return 0;
+                      if (v.backup === "true") return 1;
+                      return 2;
+              valuemap:
+                name: 'VRRP state'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+            - uuid: 07f06c7ffd2d47379b5c5e1a725bab3c
+              name: 'VRRP {#VRRP_NAME}: priority'
+              type: DEPENDENT
+              key: 'routeros.vrrp.priority[{#VRRP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.vrrp.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#VRRP_NAME}")].priority.first()'
+                - type: REGEX
+                  parameters:
+                    - '([0-9]+)'
+                    - '\1'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+            - uuid: 7f6300d39d4a4f1b8f4eb45037778ce6
+              name: 'VRRP {#VRRP_NAME}: disabled flag'
+              type: DEPENDENT
+              key: 'routeros.vrrp.disabled[{#VRRP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.vrrp.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#VRRP_NAME}")].disabled.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+            - uuid: 28b103b3fb9d47bc99f8230938fefb16
+              name: 'VRRP {#VRRP_NAME}: invalid flag'
+              type: DEPENDENT
+              key: 'routeros.vrrp.invalid[{#VRRP_NAME}]'
+              value_type: UNSIGNED
+              master_item:
+                key: routeros.vrrp.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#VRRP_NAME}")].invalid.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "true" ? 1 : 0;'
+              valuemap:
+                name: 'RouterOS boolean'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+          trigger_prototypes:
+            - uuid: ce60ea4484b7403d8fa5b5d25a2dc5f9
+              expression: 'last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=2'
+              name: 'VRRP {#VRRP_NAME}: init/fault'
+              priority: HIGH
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: 'Not master, not backup, not disabled. Real fault, distinct from intentional maintenance.'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+            - uuid: 339a758da16a426c98e4e8670c899a6d
+              expression: 'last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=4'
+              name: 'VRRP {#VRRP_NAME}: config invalid'
+              priority: HIGH
+              recovery_mode: NONE
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+            - uuid: f3c9d029951343aba2b326286adb1e7d
+              expression: '(last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=0 or last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=1) and last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])<>{$ROUTEROS.VRRP.EXPECTED_STATE}'
+              name: 'VRRP {#VRRP_NAME}: not in expected role'
+              priority: DISASTER
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Current state is master or backup but does not match the host-level
+                {$ROUTEROS.VRRP.EXPECTED_STATE} macro. Examples:
+                  - Primary node went BACKUP unexpectedly (expected=0, current=1) — failover happened
+                  - Secondary node became MASTER while the primary is alive (expected=1, current=0) — split-brain
+                  - Per-VRRP override: set {$ROUTEROS.VRRP.EXPECTED_STATE:vrrp-uplink}=1
+                    if vrrp-uplink should specifically be backup on this host.
+                init/fault, invalid, disabled (maintenance) states are handled by other
+                triggers and do not fire this one.
+              tags:
+                - tag: component
+                  value: vrrp
+                - tag: vrrp
+                  value: '{#VRRP_NAME}'
+
+          graph_prototypes:
+            - uuid: 9b50a93214d54bc79e3b523ff08ac90d
+              name: 'VRRP {#VRRP_NAME}: priority'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 6F2DA8
+                  item:
+                    host: 'MikroTik CCR v7 REST'
+                    key: 'routeros.vrrp.priority[{#VRRP_NAME}]'
+
+        # ---------------- System health sensor LLD ----------------
+        - uuid: 2370bd1e434c4fd6ae87531dddb9d67d
+          name: 'Health sensors — numeric (REST)'
+          type: DEPENDENT
+          key: routeros.health.numeric.discovery
+          description: |
+            LLD over /rest/system/health. Includes only sensors with a non-empty "type"
+            field (temperatures in °C, fan speeds in RPM, voltages, etc.). State sensors
+            (fan-state, psu1-state, psu2-state) have empty type and are handled by
+            dedicated top-level items.
+          master_item:
+            key: routeros.system.health.raw
+          lld_macro_paths:
+            - lld_macro: '{#HEALTH_NAME}'
+              path: '$.name'
+            - lld_macro: '{#HEALTH_TYPE}'
+              path: '$.type'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#HEALTH_NAME}'
+                value: '{$ROUTEROS.HEALTH.NAME.MATCHES}'
+                formulaid: A
+              - macro: '{#HEALTH_TYPE}'
+                value: '.+'
+                formulaid: B
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 6fc4ced57db140dfa3b7345d4635e688
+              name: 'Health {#HEALTH_NAME} ({#HEALTH_TYPE})'
+              type: DEPENDENT
+              key: 'routeros.health.value[{#HEALTH_NAME}]'
+              value_type: FLOAT
+              units: '{#HEALTH_TYPE}'
+              master_item:
+                key: routeros.system.health.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name == "{#HEALTH_NAME}")].value.first()'
+              tags:
+                - tag: component
+                  value: health
+                - tag: sensor
+                  value: '{#HEALTH_NAME}'
+
+          trigger_prototypes:
+            - uuid: 6ba95f19c11743a2ab1f599c377286eb
+              expression: 'last(/MikroTik CCR v7 REST/routeros.health.value[{#HEALTH_NAME}])>{$ROUTEROS.HEALTH.TEMP.HIGH} and ("{#HEALTH_TYPE}"="C")'
+              name: 'Health {#HEALTH_NAME}: above {$ROUTEROS.HEALTH.TEMP.HIGH} °C'
+              priority: WARNING
+              manual_close: 'YES'
+              description: 'Temperature ceiling for any °C-typed health sensor.'
+              tags:
+                - tag: component
+                  value: health
+                - tag: sensor
+                  value: '{#HEALTH_NAME}'
+
+      valuemaps:
+        - uuid: 92539d2843764a9ea5c74f445dad35d7
+          name: 'VRRP state'
+          mappings:
+            - value: '0'
+              newvalue: master
+            - value: '1'
+              newvalue: backup
+            - value: '2'
+              newvalue: init/fault
+            - value: '3'
+              newvalue: disabled (maintenance)
+            - value: '4'
+              newvalue: invalid
+            - value: '99'
+              newvalue: unknown
+
+        - uuid: efed26a4f2fc4b2aaaddf51a7ed6bf59
+          name: 'RouterOS boolean'
+          mappings:
+            - value: '0'
+              newvalue: 'false'
+            - value: '1'
+              newvalue: 'true'
+
+        - uuid: 6b9be1ffffb4407ba901de6394cf0113
+          name: 'Component health state'
+          mappings:
+            - value: '0'
+              newvalue: fail
+            - value: '1'
+              newvalue: ok
+            - value: '99'
+              newvalue: unknown
+
+        - uuid: 6ac8cad2f1684a9bb7a8ac5102d1294f
+          name: 'Conntrack enabled'
+          mappings:
+            - value: '0'
+              newvalue: 'no'
+            - value: '1'
+              newvalue: 'yes'
+            - value: '2'
+              newvalue: auto
+            - value: '99'
+              newvalue: unknown
+
+        - uuid: 6886fb5a7c2b452db216cbe266412c06
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+
+  triggers:
+    - uuid: 41c999bef8ad496e8106f44708e0c91d
+      expression: 'last(/MikroTik CCR v7 REST/routeros.system.cpu_load)>{$ROUTEROS.CPU.LOAD.HIGH}'
+      name: 'CPU load above {$ROUTEROS.CPU.LOAD.HIGH}%'
+      priority: WARNING
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: cpu
+
+    - uuid: dad759536919420790ecff93b104ed70
+      expression: 'last(/MikroTik CCR v7 REST/routeros.system.mem_util)>{$ROUTEROS.MEM.UTIL.HIGH}'
+      name: 'Memory utilisation above {$ROUTEROS.MEM.UTIL.HIGH}%'
+      priority: WARNING
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: memory
+
+    - uuid: 8e06411346d3497484c484d4a609d1ea
+      expression: 'last(/MikroTik CCR v7 REST/routeros.system.disk_util)>{$ROUTEROS.DISK.UTIL.HIGH}'
+      name: 'Disk utilisation above {$ROUTEROS.DISK.UTIL.HIGH}%'
+      priority: WARNING
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: storage
+
+    - uuid: 753ebbaac05b47df8e91e3faddc139ef
+      expression: 'last(/MikroTik CCR v7 REST/routeros.conntrack.util)>{$ROUTEROS.CONNTRACK.UTIL.HIGH}'
+      name: 'Conntrack utilisation above {$ROUTEROS.CONNTRACK.UTIL.HIGH}%'
+      priority: WARNING
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: conntrack
+
+    - uuid: 5db9cbd57dab4b0ba49d8c2e860095f6
+      expression: 'last(/MikroTik CCR v7 REST/routeros.health.fan_state)=0'
+      name: 'Fan state: FAIL'
+      priority: HIGH
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: health
+
+    - uuid: 7c60cb16b4ac4b9184431858448a0f10
+      expression: 'last(/MikroTik CCR v7 REST/routeros.health.psu1_state)=0'
+      name: 'PSU1 state: FAIL'
+      priority: HIGH
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: health
+
+    - uuid: 42d7b4dd54ad4bb8af095bef2c6f8f69
+      expression: 'last(/MikroTik CCR v7 REST/routeros.health.psu2_state)=0'
+      name: 'PSU2 state: FAIL'
+      priority: HIGH
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: health
+
+    - uuid: 05faa73179dc4fcc976802bdf5de6a83
+      expression: 'last(/MikroTik CCR v7 REST/routeros.system.uptime)<300'
+      name: 'Host recently restarted (uptime < 5m)'
+      priority: INFO
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: system
+
+    - uuid: 2e43b3ea121e45048994931d09c1b2c6
+      expression: 'last(/MikroTik CCR v7 REST/routeros.system.version,#1)<>last(/MikroTik CCR v7 REST/routeros.system.version,#2)'
+      name: 'RouterOS version changed'
+      priority: INFO
+      description: 'Fires on any change to the version string. Reset manually.'
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: system
+
+    - uuid: 64190771a360495eaff0a21016357c3b
+      expression: 'max(/MikroTik CCR v7 REST/icmpping[,{$ROUTEROS.ICMP.PACKETS}],#3)=0'
+      name: 'Host unreachable via ICMP'
+      priority: DISASTER
+      manual_close: 'YES'
+      description: '3 consecutive probes all returned 0 (host unreachable from Zabbix server).'
+      tags:
+        - tag: component
+          value: icmp
+        - tag: scope
+          value: availability
+
+    - uuid: fac68d0a1d7440ff880e9b7f6d2ea475
+      expression: 'min(/MikroTik CCR v7 REST/icmppingloss[,{$ROUTEROS.ICMP.PACKETS}],5m)>{$ROUTEROS.ICMP.LOSS.HIGH}'
+      name: 'ICMP packet loss > {$ROUTEROS.ICMP.LOSS.HIGH}% sustained 5m'
+      priority: WARNING
+      manual_close: 'YES'
+      description: 'Packet loss has been above threshold for the entire 5m window — likely a real path issue, not a transient spike.'
+      dependencies:
+        - name: 'Host unreachable via ICMP'
+          expression: 'max(/MikroTik CCR v7 REST/icmpping[,{$ROUTEROS.ICMP.PACKETS}],#3)=0'
+      tags:
+        - tag: component
+          value: icmp
+
+    - uuid: e2bb560ae16e47ca8ea839acf008089b
+      expression: 'avg(/MikroTik CCR v7 REST/icmppingsec[,{$ROUTEROS.ICMP.PACKETS}],5m)>{$ROUTEROS.ICMP.RTT.HIGH}'
+      name: 'ICMP RTT > {$ROUTEROS.ICMP.RTT.HIGH}s (avg over 5m)'
+      priority: INFO
+      manual_close: 'YES'
+      tags:
+        - tag: component
+          value: icmp
+
+  graphs:
+    - uuid: 373832bba9b1450a8145e04c168b823e
+      name: 'System: CPU load'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 1A7C11
+          item:
+            host: 'MikroTik CCR v7 REST'
+            key: routeros.system.cpu_load
+
+    - uuid: 0d97d5609beb4272a0af10eb969626fe
+      name: 'System: memory utilisation'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 2774A4
+          item:
+            host: 'MikroTik CCR v7 REST'
+            key: routeros.system.mem_util
+
+    - uuid: ff1597b076b7479c85c6cc7f0d949879
+      name: 'System: disk utilisation'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 6F2DA8
+          item:
+            host: 'MikroTik CCR v7 REST'
+            key: routeros.system.disk_util
+
+    - uuid: 96c26c62ee694a7a955c05c8b485eb9e
+      name: 'Conntrack: utilisation'
+      ymin_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: D84315
+          item:
+            host: 'MikroTik CCR v7 REST'
+            key: routeros.conntrack.util
+
+    - uuid: aeb66f25e16644a592978e7926bf75ba
+      name: 'ICMP: response time'
+      ymin_type_1: FIXED
+      graph_items:
+        - drawtype: BOLD_LINE
+          color: 0D47A1
+          item:
+            host: 'MikroTik CCR v7 REST'
+            key: 'icmppingsec[,{$ROUTEROS.ICMP.PACKETS}]'
