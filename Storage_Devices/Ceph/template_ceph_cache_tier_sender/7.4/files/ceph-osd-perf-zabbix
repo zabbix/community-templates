@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+#
+# ceph-osd-perf-zabbix — Collect local Ceph OSD perf dump counters and send
+# them to Zabbix with zabbix_sender. No sudo/UserParameter required.
+# Run as root from cron or systemd timer.
+#
+VERSION="2.0.1"
+# Author: Alexander Rydzewski <rydzewski.al@gmail.com>
+# License: MIT — see the LICENSE file in this repository (SPDX-License-Identifier: MIT)
+
+SENDER="/usr/bin/zabbix_sender"
+CEPH="/usr/bin/ceph"
+
+CONFIG=""
+for c in /etc/zabbix/zabbix_agent2.conf /etc/zabbix/zabbix_agentd.conf; do
+    [[ -f "$c" ]] && CONFIG="$c" && break
+done
+[[ -z "$CONFIG" ]] && CONFIG="/etc/zabbix/zabbix_agent2.conf"
+
+# Two independent discovery keys, sent together by --discovery, driving two
+# independent Zabbix discovery rules. Operators enable/disable the
+# corresponding rule in the template (raw is disabled by default) — no
+# script changes required to turn either branch on/off.
+DISCOVERY_PICK_KEY="ceph.cache.local.discovery"
+DISCOVERY_RAW_KEY="ceph.osd.local.discovery"
+
+PERF_RAW_KEY_PREFIX="ceph.osd.local.perf"
+
+# Picked metric keys (host-local, sent frequently — ~15s).
+# Cache-tier metrics only: counters and latencies not exposed by the Ceph
+# mgr Prometheus module (which only exposes apply/commit latency_ms,
+# weight/up/in, and metadata at the OSD level — no tier_* counters).
+KEY_PROMOTE_COUNT="ceph.cache.local.promote.count"
+KEY_FLUSH_COUNT="ceph.cache.local.flush.count"
+KEY_EVICT_COUNT="ceph.cache.local.evict.count"
+KEY_PROXY_READ_COUNT="ceph.cache.local.proxy.read.count"
+KEY_PROXY_WRITE_COUNT="ceph.cache.local.proxy.write.count"
+KEY_DIRTY_OBJECTS="ceph.cache.local.dirty.objects"
+KEY_FLUSH_LAT="ceph.cache.local.flush.latency"
+KEY_PROMOTE_LAT="ceph.cache.local.promote.latency"
+KEY_READ_LAT="ceph.cache.local.read.latency"
+
+# ---------------------------------------------------------------------------
+
+__usage() {
+    cat <<EOF
+$(basename "$0") [OPTION]
+
+Collect Ceph local OSD perf counters through admin sockets and send to Zabbix
+using zabbix_sender. Intended to run as root from cron/systemd, without sudo.
+
+Options:
+  -v, --version         Show version
+  -c, --config FILE     Zabbix agent config file
+  -d, --discovery       Send local OSD discovery to BOTH discovery keys below
+                        (equivalent to --discovery-pick + --discovery-raw
+                        together; safe to run unconditionally even if the
+                        raw rule is disabled in the template)
+      --discovery-pick  Send local OSD discovery to the cache-tier key only
+                        (${DISCOVERY_PICK_KEY})
+      --discovery-raw   Send local OSD discovery to the raw key only
+                        (${DISCOVERY_RAW_KEY})
+      --perf-raw        Send full perf dump JSON per OSD (run infrequently,
+                        normally less often than once per minute). Feeds
+                        dependent items under the raw discovery rule. May
+                        duplicate data already available from Prometheus —
+                        intended to work standalone if needed.
+      --perf-pick       Send picked cache-tier metrics per OSD (run
+                        frequently, ~15s). Limited to metrics NOT exposed
+                        by the Ceph mgr Prometheus module — complements
+                        it, does not duplicate.
+  -a, --all             Send discovery + perf-raw + perf-pick
+      --show            Print data that would be sent
+      --dry             Skip sending (no output unless combined with --show)
+  -h, --help            Show help
+
+Zabbix discovery keys:
+  ${DISCOVERY_PICK_KEY}    (cache-tier discovery rule, enabled by default)
+  ${DISCOVERY_RAW_KEY}     (raw discovery rule, disabled by default)
+
+Zabbix keys (perf-raw):
+  ${PERF_RAW_KEY_PREFIX}[<osd_id>]
+
+Zabbix keys (perf-pick, cache-tier only, per OSD):
+  ${KEY_PROMOTE_COUNT}[<osd_id>]   (Delta speed per second in Zabbix)
+  ${KEY_FLUSH_COUNT}[<osd_id>]
+  ${KEY_EVICT_COUNT}[<osd_id>]
+  ${KEY_PROXY_READ_COUNT}[<osd_id>]
+  ${KEY_PROXY_WRITE_COUNT}[<osd_id>]
+  ${KEY_DIRTY_OBJECTS}[<osd_id>]
+  ${KEY_FLUSH_LAT}[<osd_id>]
+  ${KEY_PROMOTE_LAT}[<osd_id>]
+  ${KEY_READ_LAT}[<osd_id>]
+EOF
+}
+
+__json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '"%s"' "$s"
+}
+
+# Parse a scalar value from perf dump JSON without jq.
+# Usage: __perf_get _varname "$perf_json" "section" "key"
+# For nested avgtime: __perf_get _varname "$perf_json" "section" "key" "avgtime"
+__perf_get() {
+    local -n _val=$1
+    local json="$2" section="$3" key="$4" subkey="${5:-}"
+
+    local section_json
+    section_json="$(printf '%s' "$json" \
+        | sed -n "/\"${section}\"[[:space:]]*:[[:space:]]*{/,/^    }/p")"
+
+    if [[ -n "$subkey" ]]; then
+        # Extract nested object then get subkey
+        local obj
+        obj="$(printf '%s' "$section_json" \
+            | sed -n "/\"${key}\"[[:space:]]*:[[:space:]]*{/,/}/p")"
+        _val="$(printf '%s' "$obj" \
+            | grep "\"${subkey}\"" \
+            | sed 's/.*:[[:space:]]*\([0-9.eE+-]*\).*/\1/')"
+    else
+        _val="$(printf '%s' "$section_json" \
+            | grep "\"${key}\"[[:space:]]*:[[:space:]]*[0-9]" \
+            | sed 's/.*:[[:space:]]*\([0-9.eE+-]*\).*/\1/')"
+    fi
+}
+
+__find_local_osds() {
+    local -n _osd=$1
+    _osd=()
+
+    local -A seen_=()
+    local s osd
+
+    for s in /var/run/ceph/*osd.*.asok /run/ceph/*osd.*.asok; do
+        [[ -e "$s" ]] || continue
+        osd="$(basename "$s" | sed -n 's/.*osd\.\([0-9]\+\).*/\1/p')"
+        [[ -n "$osd" ]] || continue
+        [[ -v seen_[$osd] ]] && continue
+        seen_[$osd]=1
+        _osd+=("$osd" "$s")
+    done
+}
+
+__build_args() {
+    args_=()
+    if ! sed -nr 's/^[[:space:]]*Hostname=([^#[:space:]].*)$/\1/p' \
+            "$CONFIG" 2>/dev/null | grep -q .; then
+        args_+=(-s "$(hostname)")
+    fi
+}
+
+__build_discovery_payload() {
+    local -n _payload=$1
+    local -a osd_=()
+    __find_local_osds osd_
+
+    _payload=""
+    [[ ${#osd_[@]} -gt 0 ]] || return 0
+
+    local data="" row daemon
+    local i=0
+    while [[ $i -lt ${#osd_[@]} ]]; do
+        local osd="${osd_[$i]}"
+        local asok="${osd_[$((i+1))]}"
+        (( i += 2 ))
+
+        daemon="osd.${osd}"
+        row="{\"{#HOSTNAME}\":\"$HOSTNAME\",\"{#OSD_ID}\":\"$osd\",\"{#CEPH_DAEMON}\":\"$daemon\",\"{#ASOK}\":$(__json_escape "$asok")}"
+
+        [[ -z "$data" ]] && data="$row" || data="$data,$row"
+    done
+
+    [[ -z "$data" ]] && return 0
+    _payload="{\"data\":[$data]}"
+}
+
+# Sends OSD discovery payload to the cache-tier discovery key only.
+__send_discovery_pick() {
+    local payload=""
+    __build_discovery_payload payload
+    [[ -n "$payload" ]] || return 0
+
+    [[ $OPT_SHOW -eq 1 ]] && printf '[discovery-pick]\n%s -> %s\n' "$DISCOVERY_PICK_KEY" "$payload"
+    [[ $OPT_DRY  -eq 1 ]] && return 0
+
+    "$SENDER" --config "$CONFIG" "${args_[@]}" \
+        -k "$DISCOVERY_PICK_KEY" \
+        -o "$payload"
+}
+
+# Sends OSD discovery payload to the raw discovery key only.
+__send_discovery_raw() {
+    local payload=""
+    __build_discovery_payload payload
+    [[ -n "$payload" ]] || return 0
+
+    [[ $OPT_SHOW -eq 1 ]] && printf '[discovery-raw]\n%s -> %s\n' "$DISCOVERY_RAW_KEY" "$payload"
+    [[ $OPT_DRY  -eq 1 ]] && return 0
+
+    "$SENDER" --config "$CONFIG" "${args_[@]}" \
+        -k "$DISCOVERY_RAW_KEY" \
+        -o "$payload"
+}
+
+# Sends the same OSD discovery payload to BOTH discovery keys in a single
+# zabbix_sender call. Equivalent to --discovery-pick + --discovery-raw, but
+# either branch can still be enabled/disabled independently in the template
+# (the raw rule is disabled by default), regardless of which discovery
+# flag(s) are wired into the systemd timer.
+__send_discovery() {
+    local payload=""
+    __build_discovery_payload payload
+    [[ -n "$payload" ]] || return 0
+
+    [[ $OPT_SHOW -eq 1 ]] && printf '[discovery]\n%s -> %s\n%s -> %s\n' \
+        "$DISCOVERY_PICK_KEY" "$payload" "$DISCOVERY_RAW_KEY" "$payload"
+    [[ $OPT_DRY  -eq 1 ]] && return 0
+
+    printf -- '- %s %s\n- %s %s\n' \
+        "$DISCOVERY_PICK_KEY" "$payload" \
+        "$DISCOVERY_RAW_KEY" "$payload" \
+        | "$SENDER" --config "$CONFIG" "${args_[@]}" -i -
+}
+
+__send_perf_raw() {
+    local -a osd_=()
+    __find_local_osds osd_
+
+    [[ ${#osd_[@]} -gt 0 ]] || return 0
+
+    local -a line_=()
+    local perf
+    local i=0
+    while [[ $i -lt ${#osd_[@]} ]]; do
+        local osd="${osd_[$i]}"
+        local asok="${osd_[$((i+1))]}"
+        (( i += 2 ))
+
+        perf="$("$CEPH" --admin-daemon "$asok" perf dump 2>/dev/null)"
+        [[ -n "$perf" ]] || continue
+
+        line_+=("$(printf -- '- %s[%s] %s' "$PERF_RAW_KEY_PREFIX" "$osd" "$perf")")
+    done
+
+    [[ ${#line_[@]} -gt 0 ]] || return 0
+
+    [[ $OPT_SHOW -eq 1 ]] && printf '[perf-raw]\n%s\n' "${line_[*]}"
+    [[ $OPT_DRY  -eq 1 ]] && return 0
+
+    printf '%s\n' "${line_[@]}" \
+        | "$SENDER" --config "$CONFIG" "${args_[@]}" -i -
+}
+
+# Cache-tier metrics only — anything NOT exposed by the Ceph mgr Prometheus
+# module. General OSD metrics (op latency, recovery, bluestore, throttle,
+# etc.) live in --perf-raw / the raw discovery rule instead.
+__send_perf_pick() {
+    local -a osd_=()
+    __find_local_osds osd_
+
+    [[ ${#osd_[@]} -gt 0 ]] || return 0
+
+    local -a line_=()
+    local perf v
+    local i=0
+    while [[ $i -lt ${#osd_[@]} ]]; do
+        local osd="${osd_[$i]}"
+        local asok="${osd_[$((i+1))]}"
+        (( i += 2 ))
+
+        perf="$("$CEPH" --admin-daemon "$asok" perf dump 2>/dev/null)"
+        [[ -n "$perf" ]] || continue
+
+        # Cache-tier counters. Flush/evict use agent_* perf counters because
+        # tier_flush/tier_evict do not report usable data on modern Ceph.
+        __perf_get v "$perf" osd tier_promote;          line_+=("- ${KEY_PROMOTE_COUNT}[$osd] $v")
+        __perf_get v "$perf" osd agent_flush;           line_+=("- ${KEY_FLUSH_COUNT}[$osd] $v")
+        __perf_get v "$perf" osd agent_evict;           line_+=("- ${KEY_EVICT_COUNT}[$osd] $v")
+        __perf_get v "$perf" osd tier_proxy_read;       line_+=("- ${KEY_PROXY_READ_COUNT}[$osd] $v")
+        __perf_get v "$perf" osd tier_proxy_write;      line_+=("- ${KEY_PROXY_WRITE_COUNT}[$osd] $v")
+        __perf_get v "$perf" osd tier_dirty;            line_+=("- ${KEY_DIRTY_OBJECTS}[$osd] $v")
+
+        # tier latencies (avgtime = sum/avgcount, computed by Ceph)
+        __perf_get v "$perf" osd osd_tier_flush_lat   avgtime; line_+=("- ${KEY_FLUSH_LAT}[$osd] $v")
+        __perf_get v "$perf" osd osd_tier_promote_lat avgtime; line_+=("- ${KEY_PROMOTE_LAT}[$osd] $v")
+        __perf_get v "$perf" osd osd_tier_r_lat       avgtime; line_+=("- ${KEY_READ_LAT}[$osd] $v")
+    done
+
+    [[ ${#line_[@]} -gt 0 ]] || return 0
+
+    [[ $OPT_SHOW -eq 1 ]] && { printf '[perf-pick]\n'; printf '%s\n' "${line_[@]}"; }
+    [[ $OPT_DRY  -eq 1 ]] && return 0
+
+    printf '%s\n' "${line_[@]}" \
+        | "$SENDER" --config "$CONFIG" "${args_[@]}" -i -
+}
+
+# ---------------------------------------------------------------------------
+
+do_discovery=0
+do_discovery_pick=0
+do_discovery_raw=0
+do_perf_raw=0
+do_perf_pick=0
+OPT_SHOW=0
+OPT_DRY=0
+
+while [[ "${1:-}" = -?* ]]; do
+    case "$1" in
+        -h|--help)          __usage; exit 0 ;;
+        -v|--version)       echo "$(basename "$0") version ${VERSION}"; exit 0 ;;
+        -c|--config)        shift; CONFIG="$1" ;;
+        -d|--discovery)     do_discovery=1 ;;
+        --discovery-pick)   do_discovery_pick=1 ;;
+        --discovery-raw)    do_discovery_raw=1 ;;
+        --perf-raw)         do_perf_raw=1 ;;
+        --perf-pick)        do_perf_pick=1 ;;
+        -a|--all)           do_discovery=1; do_perf_raw=1; do_perf_pick=1 ;;
+        --show)             OPT_SHOW=1 ;;
+        --dry)              OPT_DRY=1 ;;
+        *) echo "Invalid option: $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+
+[[ $do_discovery -eq 0 && $do_discovery_pick -eq 0 && $do_discovery_raw -eq 0 \
+    && $do_perf_raw -eq 0 && $do_perf_pick -eq 0 ]] \
+    && do_discovery=1 && do_perf_raw=1 && do_perf_pick=1
+
+[[ -x "$SENDER" ]] || { echo "zabbix_sender not found: $SENDER" >&2; exit 1; }
+[[ -x "$CEPH" ]]   || { echo "ceph binary not found: $CEPH" >&2; exit 1; }
+
+__build_args
+
+[[ $do_discovery      -eq 1 ]] && __send_discovery
+[[ $do_discovery_pick -eq 1 ]] && __send_discovery_pick
+[[ $do_discovery_raw  -eq 1 ]] && __send_discovery_raw
+[[ $do_perf_raw       -eq 1 ]] && __send_perf_raw
+[[ $do_perf_pick      -eq 1 ]] && __send_perf_pick
+
+exit 0
+

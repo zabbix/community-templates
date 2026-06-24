@@ -1,0 +1,565 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+    - uuid: 13cc9163654c491d95a73406b9ca8dea
+      name: Templates/Cluster/Ceph
+    - uuid: 794fdc3c0cd44a0fb6fa23c0c3706b8e
+      name: Templates/Storage
+  templates:
+    - uuid: 49ee0da708e3457d9ed3cc9db619beac
+      template: 'Template App Ceph Cache Tier per OSD by sender'
+      name: 'Template App Ceph Cache Tier per OSD by sender'
+      description: |
+        Per-OSD Ceph local metrics via zabbix_sender, complementing the Prometheus-endpoint templates (which do not expose cache-tier internals or most per-OSD perf-dump counters).
+
+        Author: Alexander Rydzewski (https://github.com/AlexRydzewski)
+        Project: https://github.com/AlexRydzewski/ceph-prometheus-zabbix-monitoring
+        Collector install: see README.md and files/install.sh
+        ceph-osd-perf-zabbix --discovery sends the OSD list to BOTH discovery keys below every 10m, so either branch can be enabled independently without touching the script or its timers:
+        - ceph.cache.local.discovery   -> "Ceph cache-tier local OSD
+          discovery" rule (enabled by default). Cache-tier-only counters
+          and latencies NOT exposed by the Ceph mgr Prometheus module.
+          Fed directly by --perf-pick every 15s, no dependent items.
+        
+        - ceph.osd.local.discovery     -> "Ceph raw local OSD discovery"
+          rule (DISABLED by default). One full perf-dump JSON blob per
+          OSD, fed by --perf-raw at a lower frequency (normally less than
+          once per minute). General OSD metrics are extracted from it via
+          dependent items with JSONPath preprocessing. May duplicate data
+          already available from Prometheus; intended to also work
+          standalone if Prometheus is not in use. Enable this rule only
+          if you need this data — it creates one extra item per OSD plus
+          one dependent item per extracted metric.
+        
+        No sudo/UserParameter required.
+        
+        Flush/evict rates use agent_flush/agent_evict perf counters (not tier_flush/tier_evict;
+        tier_* counters do not report usable data on modern Ceph).
+      groups:
+        - name: Templates/Applications
+        - name: Templates/Cluster/Ceph
+        - name: Templates/Storage
+      items:
+        - uuid: c1302de30e00498eb75b88009e8b4f44
+          name: 'Ceph local OSD discovery (cache-tier)'
+          type: TRAP
+          key: ceph.cache.local.discovery
+          history: 1d
+          value_type: TEXT
+          description: 'Raw local OSD discovery JSON sent by ceph-osd-perf-zabbix --discovery. Feeds the cache-tier discovery rule.'
+          tags:
+            - tag: component
+              value: discovery
+        - uuid: 51d794e0741e41b69c9417586800d111
+          name: 'Ceph local OSD discovery (raw)'
+          type: TRAP
+          key: ceph.osd.local.discovery
+          history: 1d
+          value_type: TEXT
+          description: 'Raw local OSD discovery JSON sent by ceph-osd-perf-zabbix --discovery. Feeds the raw discovery rule (disabled by default).'
+          tags:
+            - tag: component
+              value: discovery
+      discovery_rules:
+        - uuid: 0b6cb05f718a4f5093de94a65d9b2720
+          name: 'Ceph cache-tier local OSD discovery'
+          type: DEPENDENT
+          key: ceph.cache.local.osd.discovery
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Creates per-OSD cache-tier trapper items from ceph.cache.local.discovery. Enabled by default — fed every 15s by ceph-osd-perf-zabbix --perf-pick.'
+          item_prototypes:
+            - uuid: b32b64a03c30482da4011297b8c0684c
+              name: 'OSD {#CEPH_DAEMON}: Cache dirty objects'
+              type: TRAP
+              key: 'ceph.cache.local.dirty.objects[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              description: 'Current OSD perf counter tier_dirty.'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 4be20e02b4464650822e074ef50ca405
+              name: 'OSD {#CEPH_DAEMON}: Cache evict rate'
+              type: TRAP
+              key: 'ceph.cache.local.evict.count[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: ops/s
+              description: 'Derived from OSD perf counter agent_evict (cache agent; tier_evict does not report usable data on modern Ceph). Sender sends cumulative counter; Zabbix stores change per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 913da0fbde21493b83c20868124ad4a1
+              name: 'OSD {#CEPH_DAEMON}: Cache flush rate'
+              type: TRAP
+              key: 'ceph.cache.local.flush.count[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: ops/s
+              description: 'Derived from OSD perf counter agent_flush (cache agent; tier_flush does not report usable data on modern Ceph). Sender sends cumulative counter; Zabbix stores change per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 9729a40e39964ec7ac911b90dfb8e8fc
+              name: 'OSD {#CEPH_DAEMON}: Cache flush latency'
+              type: TRAP
+              key: 'ceph.cache.local.flush.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'Current OSD perf counter osd_tier_flush_lat.avgtime.'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: e4177d0f09594fe0b5a2d97d935673ad
+              name: 'OSD {#CEPH_DAEMON}: Cache promote rate'
+              type: TRAP
+              key: 'ceph.cache.local.promote.count[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: ops/s
+              description: 'Derived from OSD perf counter tier_promote. Sender sends cumulative counter; Zabbix stores change per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 3609e207c7d9478e970b44e349be9c7d
+              name: 'OSD {#CEPH_DAEMON}: Cache promote latency'
+              type: TRAP
+              key: 'ceph.cache.local.promote.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'Current OSD perf counter osd_tier_promote_lat.avgtime.'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 3236866947d24e8588959bcb97137f75
+              name: 'OSD {#CEPH_DAEMON}: Cache proxy read rate'
+              type: TRAP
+              key: 'ceph.cache.local.proxy.read.count[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: ops/s
+              description: 'Derived from OSD perf counter tier_proxy_read. Sender sends cumulative counter; Zabbix stores change per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: d146e1c3992d4439a6fff9bd07f7d69b
+              name: 'OSD {#CEPH_DAEMON}: Cache proxy write rate'
+              type: TRAP
+              key: 'ceph.cache.local.proxy.write.count[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: ops/s
+              description: 'Derived from OSD perf counter tier_proxy_write. Sender sends cumulative counter; Zabbix stores change per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 07a431eee058490ebd32689bb7c07752
+              name: 'OSD {#CEPH_DAEMON}: Cache read latency'
+              type: TRAP
+              key: 'ceph.cache.local.read.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'Current OSD perf counter osd_tier_r_lat.avgtime.'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              tags:
+                - tag: component
+                  value: cache-tier
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+          graph_prototypes:
+            - uuid: 33977ee1a9ab49beb4e9eef24ba5b803
+              name: 'OSD {#CEPH_DAEMON}: Cache tier ops/s'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.promote.count[{#OSD_ID}]'
+                - color: F63100
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.flush.count[{#OSD_ID}]'
+                  sortorder: '1'
+                - color: 2774A4
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.evict.count[{#OSD_ID}]'
+                  sortorder: '2'
+            - uuid: b4f91b5dc7774d4bb2aa9395e2044e73
+              name: 'OSD {#CEPH_DAEMON}: Cache tier latency'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.read.latency[{#OSD_ID}]'
+                - color: F63100
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.promote.latency[{#OSD_ID}]'
+                  sortorder: '1'
+                - color: 2774A4
+                  item:
+                    host: 'Template App Ceph Cache Tier per OSD by sender'
+                    key: 'ceph.cache.local.flush.latency[{#OSD_ID}]'
+                  sortorder: '2'
+          master_item:
+            key: ceph.cache.local.discovery
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+        - uuid: 7ecbe88fe5cd438bb4de9b6a00f5c7fc
+          name: 'Ceph raw local OSD discovery'
+          type: DEPENDENT
+          key: ceph.osd.local.raw.osd.discovery
+          status: DISABLED
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Creates one raw perf-dump item per OSD from ceph.osd.local.discovery, plus dependent items extracting general (non-cache-tier) OSD metrics from it. Disabled by default — enable only when you need this data; it creates one TEXT item plus 9 dependent items per OSD. Normally fed by ceph-osd-perf-zabbix --perf-raw at a frequency lower than once per minute. May duplicate data already exposed by the Ceph mgr Prometheus module; designed to also work standalone.'
+          item_prototypes:
+            - uuid: ff05c51df0624d39a54f5cffc1a19d67
+              name: 'OSD {#CEPH_DAEMON}: BlueStore AIO wait latency'
+              type: DEPENDENT
+              key: 'ceph.osd.local.bluestore.aio.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'OSD perf counter bluestore.state_aio_wait_lat.avgtime.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.bluestore.state_aio_wait_lat.avgtime
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: d75f811d8ac4413da6b16bf10218bb3c
+              name: 'OSD {#CEPH_DAEMON}: BlueStore KV sync latency'
+              type: DEPENDENT
+              key: 'ceph.osd.local.bluestore.kv.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'OSD perf counter bluestore.kv_sync_lat.avgtime.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.bluestore.kv_sync_lat.avgtime
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 89e0678d2cfe483a9fb8ff057228422c
+              name: 'OSD {#CEPH_DAEMON}: Op latency'
+              type: DEPENDENT
+              key: 'ceph.osd.local.op.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'OSD perf counter osd.op_latency.avgtime.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.op_latency.avgtime
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 2f4cd82c90c643499c8c4588a7ee02f4
+              name: 'OSD {#CEPH_DAEMON}: Op read latency'
+              type: DEPENDENT
+              key: 'ceph.osd.local.op.read.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'OSD perf counter osd.op_r_latency.avgtime.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.op_r_latency.avgtime
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 1e7183eefa8849bba0c5a660ccadf436
+              name: 'OSD {#CEPH_DAEMON}: Ops in progress'
+              type: DEPENDENT
+              key: 'ceph.osd.local.op.wip[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              description: 'OSD perf counter osd.op_wip.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.op_wip
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 5c001c8506e440f6b525605a1493a8f0
+              name: 'OSD {#CEPH_DAEMON}: Op write latency'
+              type: DEPENDENT
+              key: 'ceph.osd.local.op.write.latency[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'OSD perf counter osd.op_w_latency.avgtime.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.op_w_latency.avgtime
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: d0ff10544acd44c989121b906c3e1236
+              name: 'OSD {#CEPH_DAEMON}: Raw perf dump'
+              type: TRAP
+              key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              history: 1d
+              value_type: TEXT
+              description: 'Full ceph daemon osd.N perf dump JSON, sent by ceph-osd-perf-zabbix --perf-raw. Source for dependent items below.'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 2801d6ef73da42ab9f327d5c6784430e
+              name: 'OSD {#CEPH_DAEMON}: Recovery bytes'
+              type: DEPENDENT
+              key: 'ceph.osd.local.recovery.bytes[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              units: B
+              description: 'OSD perf counter osd.recovery_bytes (cumulative). Apply CHANGE_PER_SECOND in a calculated/trigger item if a rate is needed.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.recovery_bytes
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 1467a3bdc7c241ce860ad167e485eaf2
+              name: 'OSD {#CEPH_DAEMON}: Recovery ops'
+              type: DEPENDENT
+              key: 'ceph.osd.local.recovery.ops[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              description: 'OSD perf counter osd.recovery_ops (cumulative). Apply CHANGE_PER_SECOND in a calculated/trigger item if a rate is needed.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.osd.recovery_ops
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+            - uuid: 16133dcd7bae441ab6c4c516dd66be79
+              name: 'OSD {#CEPH_DAEMON}: Client message throttle failures'
+              type: DEPENDENT
+              key: 'ceph.osd.local.throttle.fail[{#OSD_ID}]'
+              history: 7d
+              value_type: FLOAT
+              description: 'OSD perf counter throttle-osd_client_messages.get_or_fail_fail (cumulative).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''throttle-osd_client_messages''].get_or_fail_fail'
+              master_item:
+                key: 'ceph.osd.local.perf[{#OSD_ID}]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: host
+                  value: '{#HOSTNAME}'
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+          trigger_prototypes:
+            - uuid: c78a296de8fc4c4d8d1a8b4d76fb4571
+              expression: 'nodata(/Template App Ceph Cache Tier per OSD by sender/ceph.osd.local.perf[{#OSD_ID}],{$CEPH.CACHE.RAW.NODATA})=1'
+              name: 'OSD {#CEPH_DAEMON}: no raw perf dump data'
+              priority: WARNING
+              description: 'ceph-osd-perf-zabbix --perf-raw has not sent data for this OSD recently. Applies when the raw discovery rule is enabled.'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: osd
+                  value: '{#CEPH_DAEMON}'
+          master_item:
+            key: ceph.osd.local.discovery
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+      dashboards:
+        - uuid: 0e4e990dc91f4c7380b4e499b0f6a402
+          name: Ceph — Cache tier
+          pages:
+          - name: Cache tier
+            widgets:
+            - type: graphprototype
+              y: '0'
+              width: '72'
+              height: '10'
+              fields:
+              - type: INTEGER
+                name: columns
+                value: '2'
+              - type: GRAPH_PROTOTYPE
+                name: graphid.0
+                value:
+                  host: Template App Ceph Cache Tier per OSD by sender
+                  name: 'OSD {#CEPH_DAEMON}: Cache tier ops/s'
+              - type: STRING
+                name: reference
+                value: CEC01
+            - type: graphprototype
+              y: '10'
+              width: '72'
+              height: '10'
+              fields:
+              - type: INTEGER
+                name: columns
+                value: '2'
+              - type: GRAPH_PROTOTYPE
+                name: graphid.0
+                value:
+                  host: Template App Ceph Cache Tier per OSD by sender
+                  name: 'OSD {#CEPH_DAEMON}: Cache tier latency'
+              - type: STRING
+                name: reference
+                value: CEC02
+      macros:
+        - macro: '{$CEPH.CACHE.DISCOVERY.NODATA}'
+          value: 15m
+          description: 'Time without cache-tier discovery data before alerting.'
+        - macro: '{$CEPH.CACHE.RAW.NODATA}'
+          value: 10m
+          description: 'Time without raw perf-dump data before alerting (per OSD, raw branch only).'
+      tags:
+        - tag: class
+          value: storage
+        - tag: target
+          value: ceph-cache-tier
+  triggers:
+    - uuid: 70ac150b478c455f8f55521d9e062475
+      expression: 'nodata(/Template App Ceph Cache Tier per OSD by sender/ceph.cache.local.discovery,{$CEPH.CACHE.DISCOVERY.NODATA})=1'
+      name: 'Ceph cache-tier: no OSD discovery data'
+      priority: WARNING
+      description: 'ceph-osd-perf-zabbix --discovery has not sent data recently. Check systemd timers and zabbix_sender connectivity.'
+      tags:
+        - tag: component
+          value: discovery
