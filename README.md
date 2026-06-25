@@ -114,6 +114,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Canary](Applications/Security/template_canary_files_monitoring)
         * [cve-2016-0728](Applications/Security/template_cve-2016-0728_check)
         * [DEVLINE](Applications/Security/template_devline_windows_monitoring_cctv)
+        * [Flowtriq Agent by HTTP](Applications/Security/template_flowtriq_agent_http)
     * [TV_Broadcasting](Applications/TV_Broadcasting)
         * [Service HLS](Applications/TV_Broadcasting/template_service_hls)
         * [Vizrt SNMP](Applications/TV_Broadcasting/template_vizrt_viz_engine_snmp)

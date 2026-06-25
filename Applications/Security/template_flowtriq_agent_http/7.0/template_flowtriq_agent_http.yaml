@@ -1,0 +1,340 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: cb68518647b34d6482aba902b9bed25d
+      name: Templates/Applications
+  templates:
+    - uuid: 5dbba782fd0046a593c102204a8f3bed
+      template: 'Flowtriq Agent by HTTP'
+      name: 'Flowtriq Agent by HTTP'
+      description: |
+        Monitors a Flowtriq DDoS detection agent via its Prometheus-compatible
+        metrics endpoint (default port 9145, path /metrics).
+
+        Collects traffic rates (PPS/BPS), active attack status, incident
+        counters, mitigation activity, and agent health metrics.
+
+        Setup: create a Zabbix host for each Flowtriq agent node. Set the
+        {$FLOWTRIQ.AGENT.HOST} and {$FLOWTRIQ.AGENT.PORT} macros to point at
+        the agent's metrics endpoint. Link this template.
+
+        Requires Zabbix 7.0+ with HTTP agent support. The Zabbix server or
+        proxy must be able to reach the agent metrics port.
+      vendor:
+        name: Flowtriq
+        version: '7.0'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: f1f0c491590649679a25b0de1bdb6f1b
+          name: 'Flowtriq: Get metrics'
+          type: HTTP_AGENT
+          key: flowtriq.metrics.get
+          delay: '{$FLOWTRIQ.SCRAPE.INTERVAL}'
+          history: 0d
+          trends: '0'
+          value_type: TEXT
+          description: 'Raw Prometheus metrics from the Flowtriq agent /metrics endpoint. Used as a master item for dependent items.'
+          url: '{$FLOWTRIQ.AGENT.SCHEME}://{$FLOWTRIQ.AGENT.HOST}:{$FLOWTRIQ.AGENT.PORT}{$FLOWTRIQ.METRICS.PATH}'
+          request_method: GET
+          timeout: 15s
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 339d44481df94016aa805dfbd713833a
+              expression: 'nodata(/Flowtriq Agent by HTTP/flowtriq.metrics.get,{$FLOWTRIQ.NODATA.TIMEOUT})=1'
+              name: 'Flowtriq: Metrics endpoint not responding'
+              priority: HIGH
+              description: 'No data received from the Flowtriq agent metrics endpoint. Verify that the agent process is running and the endpoint is reachable from the Zabbix server or proxy.'
+        - uuid: fbbbec3635e446fda44b5823c75ee315
+          name: 'Flowtriq: Agent uptime'
+          type: DEPENDENT
+          key: flowtriq.agent.uptime
+          delay: '0'
+          units: s
+          description: 'Seconds since the Flowtriq agent process started.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_agent_uptime_seconds'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 3896119e99b94776b5b297535473edc8
+              expression: 'last(/Flowtriq Agent by HTTP/flowtriq.agent.uptime)<600'
+              name: 'Flowtriq: Agent recently restarted'
+              priority: INFO
+              description: 'The Flowtriq agent has been running for less than 10 minutes, indicating a recent restart.'
+        - uuid: f719718a41f8433c9a4cb694ea4ef360
+          name: 'Flowtriq: Flow sources'
+          type: DEPENDENT
+          key: flowtriq.agent.flow_sources
+          delay: '0'
+          description: 'Number of active flow sources (sFlow/NetFlow collectors) feeding this agent.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_agent_flow_sources'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: e728ee10d1c94f29bd62a674b8862e7b
+              expression: 'last(/Flowtriq Agent by HTTP/flowtriq.agent.flow_sources)=0'
+              name: 'Flowtriq: No active flow sources'
+              priority: HIGH
+              description: 'The agent has zero active flow sources. It is not receiving any sFlow or NetFlow data and cannot detect attacks.'
+        - uuid: 9a81c2e1b60a4303aaace3a016701f9a
+          name: 'Flowtriq: Last API report'
+          type: DEPENDENT
+          key: flowtriq.agent.last_report
+          delay: '0'
+          units: unixtime
+          description: 'Unix timestamp of the last successful report from this agent to the Flowtriq API.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_agent_last_report_timestamp'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: dcb15177c0a64571978596e8fedc5309
+              expression: '(now()-last(/Flowtriq Agent by HTTP/flowtriq.agent.last_report))>{$FLOWTRIQ.API.LAG.WARN}'
+              name: 'Flowtriq: Agent not reporting to API'
+              priority: AVERAGE
+              description: 'The agent has not successfully reported to the Flowtriq API within the expected interval. Check network connectivity to the Flowtriq API and agent logs.'
+        - uuid: 795ff7db1fe24408b62fb32afd56fb2b
+          name: 'Flowtriq: Traffic PPS'
+          type: DEPENDENT
+          key: flowtriq.traffic.pps
+          delay: '0'
+          units: pps
+          description: 'Current packets per second observed by the agent across all monitored interfaces.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_traffic_pps'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: fec1e5550eb848f4abe4ebb14288e362
+          name: 'Flowtriq: Traffic BPS'
+          type: DEPENDENT
+          key: flowtriq.traffic.bps
+          delay: '0'
+          units: bps
+          description: 'Current bits per second observed by the agent across all monitored interfaces.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_traffic_bps'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: 943e6436b0d2423a81115a15ece5a5b1
+          name: 'Flowtriq: Active flows'
+          type: DEPENDENT
+          key: flowtriq.traffic.flows
+          delay: '0'
+          description: 'Number of active flows currently tracked by the agent.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_traffic_flows'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: eef4a0c955654626959a721dfbfa6de6
+          name: 'Flowtriq: Active attacks'
+          type: DEPENDENT
+          key: flowtriq.active_attacks
+          delay: '0'
+          description: 'Number of DDoS attacks currently in progress as detected by this agent.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_active_attacks'
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: attacks
+          triggers:
+            - uuid: 253bf9143f2a4eecb30c0d2df0715ae1
+              expression: 'last(/Flowtriq Agent by HTTP/flowtriq.active_attacks)>0'
+              name: 'Flowtriq: Active DDoS attack detected'
+              priority: WARNING
+              description: 'The agent is currently detecting one or more active DDoS attacks. Check the Flowtriq dashboard for attack details including target IPs, vectors, and severity.'
+              manual_close: 'YES'
+            - uuid: 1ecc7513cc014f7582ebb83228e54adf
+              expression: 'min(/Flowtriq Agent by HTTP/flowtriq.active_attacks,5m)>0'
+              name: 'Flowtriq: Sustained DDoS attack (5+ minutes)'
+              priority: HIGH
+              description: 'One or more DDoS attacks have been continuously active for at least 5 minutes. This may indicate a persistent volumetric or application-layer attack requiring attention.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Flowtriq: Active DDoS attack detected'
+                  expression: 'last(/Flowtriq Agent by HTTP/flowtriq.active_attacks)>0'
+        - uuid: 01546a3bec454306b2a2804d9ad76597
+          name: 'Flowtriq: Total incidents'
+          type: DEPENDENT
+          key: flowtriq.incidents.total
+          delay: '0'
+          description: 'Total number of incidents detected since agent start. This is a monotonically increasing counter.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_incidents_total'
+                - ''
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: attacks
+        - uuid: ce56418bc7fe4071bd4372fc582020a5
+          name: 'Flowtriq: Mitigated incidents'
+          type: DEPENDENT
+          key: flowtriq.incidents.mitigated
+          delay: '0'
+          description: 'Total number of incidents where automated mitigation was triggered. This is a monotonically increasing counter.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'flowtriq_incidents_mitigated_total'
+                - ''
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: flowtriq.metrics.get
+          tags:
+            - tag: component
+              value: attacks
+      tags:
+        - tag: class
+          value: security
+        - tag: target
+          value: flowtriq
+      macros:
+        - macro: '{$FLOWTRIQ.AGENT.HOST}'
+          description: 'Hostname or IP of the Flowtriq agent metrics endpoint.'
+        - macro: '{$FLOWTRIQ.AGENT.PORT}'
+          value: '9145'
+          description: 'Port of the Flowtriq agent metrics endpoint.'
+        - macro: '{$FLOWTRIQ.AGENT.SCHEME}'
+          value: 'http'
+          description: 'URL scheme for the metrics endpoint (http or https).'
+        - macro: '{$FLOWTRIQ.METRICS.PATH}'
+          value: '/metrics'
+          description: 'Path to the Prometheus metrics endpoint on the agent.'
+        - macro: '{$FLOWTRIQ.SCRAPE.INTERVAL}'
+          value: '30s'
+          description: 'How often to poll the metrics endpoint.'
+        - macro: '{$FLOWTRIQ.NODATA.TIMEOUT}'
+          value: '10m'
+          description: 'Trigger if no data is received within this interval.'
+        - macro: '{$FLOWTRIQ.API.LAG.WARN}'
+          value: '600'
+          description: 'Seconds of API reporting lag before triggering a warning.'
+      dashboards:
+        - uuid: 9a916b88720840668d993549b499100c
+          name: 'Flowtriq Agent'
+          pages:
+            - name: Overview
+              widgets:
+                - type: GRAPH_CLASSIC
+                  name: 'Traffic rates'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.traffic.pps
+                    - type: ITEM
+                      name: itemid.1
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.traffic.bps
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+                - type: GRAPH_CLASSIC
+                  name: 'Attack activity'
+                  x: '12'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.active_attacks
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+                - type: GRAPH_CLASSIC
+                  name: 'Incident rate'
+                  'y': '5'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.incidents.total
+                    - type: ITEM
+                      name: itemid.1
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.incidents.mitigated
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+                - type: GRAPH_CLASSIC
+                  name: 'Agent health'
+                  x: '12'
+                  'y': '5'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.agent.uptime
+                    - type: ITEM
+                      name: itemid.1
+                      value:
+                        host: 'Flowtriq Agent by HTTP'
+                        key: flowtriq.agent.flow_sources
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
