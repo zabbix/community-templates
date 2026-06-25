@@ -739,6 +739,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [watchdog.environment.monitor.Geist1250](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/Monitoring_Equipment/template_vertiv_geist_watchdog_1200s)
         * [Volt Pop Protect SNMP](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/Monitoring_Equipment/template_volt_pop_protect_snmp)
         * [Volt Pop Protect SNMP](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/Monitoring_Equipment/template_volt_pop_protect_snmp-4.0)
+        * [Kentix Devices SNMP](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/Monitoring_Equipment/template_kentix_snmp)
     * [Discovery Audemat](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/template_audemat_fm_monitor)
     * [RoomAlert 3E](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/template_avtech_room_alert_3e)
     * [Fronius Solar](SCADA_IoT_Energy_Home_Automation_Industrial_monitoring/template_fronius_device)
