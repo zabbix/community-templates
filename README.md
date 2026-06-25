@@ -577,6 +577,8 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [SOCOMEC UPS](Power_(UPS)/Others/template_socomec_netys_rt-snmp_v1)
         * [Template Module Generic SNMP](Power_(UPS)/Others/template_universal_ups_snmp_(rfc-1628))
         * [UPS Microtek MAX plus SERIES 2kVA](Power_(UPS)/Others/template_ups_microtek_max_plus_series_2kva)
+        * [Piller CS141 SNMP](Power_(UPS)/template_piller_cs141_snmp/7.4)
+        * [Piller CS141 Modbus](Power_(UPS)/template_piller_cs141_modbus/7.4)
     * [Powercom](Power_(UPS)/Powercom)
         * [UPSMONPro](Power_(UPS)/Powercom/template_powercom_ups_monitoring_throught_upsmon_pro_web)
         * [PowerCom](Power_(UPS)/Powercom/template_snmp_netagent_cy504_powercom)
