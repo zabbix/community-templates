@@ -914,6 +914,8 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [Synology DiskStation](Storage_Devices/Synology/template_synology_diskstation)
         * [Synology DiskStation](Storage_Devices/Synology/template_synology_diskstation_snmpv3)
         * [Zshare Synology Cluster](Storage_Devices/Synology/template_synology_dsm_6.2_cluster_monitoring)
+    * [TrueNAS](Storage_Devices/TrueNAS)
+        * [TrueNAS by WebSocket API](Storage_Devices/TrueNAS/template_truenas_by_websocket_api)
     * [MIB Asustor](Storage_Devices/template_asustor_storage_devices)
     * [SNMP AvidNEXIS-MIB](Storage_Devices/template_avid_nexis)
     * [Huawei Storage OceanStor](Storage_Devices/template_oceanstore_huawei_2600)
