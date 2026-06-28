@@ -2,7 +2,7 @@
 
 ## Overview
 
-This template monitors **TrueNAS** through the TrueNAS WebSocket JSON-RPC API. Zabbix itself collects data with one HTTP agent master item that talks to a small HTTP bridge service named `zabbix-websocket-bridge`. The bridge opens the WebSocket connection to TrueNAS, executes a batch of read-only JSON-RPC calls, and returns one aggregated JSON response to Zabbix.
+This template monitors **TrueNAS** through the TrueNAS WebSocket JSON-RPC API. Zabbix itself collects data with HTTP agent items that talk to a small HTTP bridge service named `zabbix-websocket-bridge`. The bridge opens the WebSocket connection to TrueNAS, executes a batch of read-only JSON-RPC calls, and returns one aggregated JSON response to Zabbix. The bridge health endpoint is monitored separately.
 
 TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The legacy REST API is deprecated in TrueNAS 25.04 and removed in TrueNAS 26, so new integrations should use the WebSocket API.
 
@@ -11,14 +11,14 @@ TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The le
 | Area | Count |
 |---|---:|
 | Zabbix version | 7.4 |
-| Master items | 1 HTTP agent |
-| Dependent items | 50 |
+| Master items | 2 HTTP agents |
+| Dependent items | 52 |
 | Low-level discovery rules | 10 |
 | Item prototypes | 81 |
-| Triggers and trigger prototypes | 54 |
+| Triggers and trigger prototypes | 56 |
 | User macros | 60 |
 
-The template covers system information, API health, alerts, boot pool, pools, datasets, disks, services, network adapters, certificates, data protection tasks, apps, containers, and virtual machines.
+The template covers bridge health, system information, API health, alerts, boot pool, pools, datasets, disks, services, network adapters, certificates, data protection tasks, apps, containers, and virtual machines.
 
 ## Requirements
 
@@ -55,6 +55,8 @@ The bridge exposes:
 |---|---|
 | `GET /health` | Health check. Returns `{"status":"ok"}`. |
 | `POST /api/v1/jsonrpc/batch` | Executes one WebSocket JSON-RPC batch against the target from the request body. |
+
+The template checks `GET /health` directly and expects `status` to be `ok`. This separates bridge reachability problems from TrueNAS API or batch-call failures.
 
 The bridge is stateless. It does not store credentials, sessions, targets, request payloads, or responses. Every Zabbix master item request contains the TrueNAS target and the API calls to execute.
 
@@ -279,7 +281,7 @@ Community template note: the bridge project is public, but it is licensed separa
 
 ## TrueNAS API Calls
 
-The master item sends one batch containing these JSON-RPC calls:
+The TrueNAS data master item sends one batch containing these JSON-RPC calls:
 
 | Batch name | Method |
 |---|---|
@@ -359,7 +361,7 @@ At minimum, set these macros at host level:
 
 ### 7. Check Data Collection
 
-After linking the template, check `TrueNAS: Get data` first. All dependent items and discovery rules depend on this master item.
+After linking the template, check `TrueNAS: WebSocket bridge health` first. Then check `TrueNAS: Get data`; the TrueNAS data dependent items and discovery rules depend on this batch master item.
 
 ## Macros
 
@@ -432,7 +434,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 
 | Metric group | Examples |
 |---|---|
-| API and bridge health | Bridge response status, API login response, failed API calls, authenticator |
+| API and bridge health | Bridge health endpoint status, bridge batch response status, API login response, failed API calls, authenticator |
 | System identity | Hostname, version, product, serial number |
 | System readiness | System ready state, uptime, restart detection |
 | CPU and memory | CPU model, cores, physical cores, CPU utilization, CPU temperature, physical memory, ECC memory |
@@ -464,7 +466,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 
 | Severity | Count | Examples |
 |---|---:|---|
-| High | 7 | API login failed, bridge request failed, boot pool unhealthy, pool unhealthy, pool offline, expired certificates |
+| High | 9 | Bridge health check failed, API login failed, bridge request failed, boot pool unhealthy, pool unhealthy, pool offline, expired certificates |
 | Average | 20 | API batch failed, system not ready, critical capacity, high temperatures, data protection task failures, app/container/VM state mismatch |
 | Warning | 23 | Warning alerts, warning capacity, certificate expiration, network link down, ZFS read/write/checksum errors, high CPU utilization |
 | Information | 4 | Updates available, app updates available, system restarted |
@@ -472,7 +474,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 Important trigger areas:
 
 - API availability and authentication
-- Bridge response health
+- Bridge health endpoint and batch response health
 - TrueNAS alert counts
 - Certificate expiration
 - Network adapter link state
@@ -493,10 +495,11 @@ Template-level tags:
 | `class` | `storage` |
 | `target` | `truenas` |
 
-Items and triggers also use component and scope tags for filtering, for example:
+Items and triggers also use component, scope, and task type tags for filtering:
 
-- `component`: `raw`, `system`, `storage`, `network`, `certificate`, `dataprotection`, `virtualization`, `service`
+- `component`: `application`, `bridge`, `certificate`, `cpu`, `dataprotection`, `environment`, `hardware`, `memory`, `network`, `raw`, `storage`, `system`, `virtualization`
 - `scope`: `availability`, `capacity`, `health`, `notice`, `performance`
+- `task_type`: populated for Data Protection task item prototypes
 
 ## Security Notes
 
@@ -521,6 +524,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 |---|---|
 | `TrueNAS: Get data` is unsupported | Verify `{$TRUENAS.WSBRIDGE.URL}`, bridge reachability, and bridge logs. |
 | Bridge request fails | Check that the Zabbix Server or Proxy can reach the bridge URL. |
+| WebSocket bridge health check failed | Verify `GET {$TRUENAS.WSBRIDGE.URL}/health`, bridge container state, bridge logs, and network path from Zabbix Server or Proxy. |
 | API login failed | Verify `{$TRUENAS.API.USER}`, `{$TRUENAS.API.KEY}`, and TrueNAS API-key status. |
 | TLS error | Check TrueNAS certificate trust and `{$TRUENAS.API.TLS_VERIFY}`. |
 | Some discovery rules are empty | Confirm the related API method exists and the API user has read permissions. |
@@ -536,20 +540,12 @@ Items and triggers also use component and scope tags for filtering, for example:
 | Path | Purpose |
 |---|---|
 | `template_truenas_by_websocket_api.yaml` | Zabbix 7.4 template export |
-| `files/` | Recommended location for bridge helper files, scripts, images, or additional documentation |
 
 ## References
 
-- Zabbix community template guidelines: <https://www.zabbix.com/documentation/guidelines/en/thosts/community_templates>
 - TrueNAS API documentation: <https://api.truenas.com/>
 - TrueNAS API client: <https://github.com/truenas/api_client>
-- TrueNAS `interface.query`: <https://api.truenas.com/v25.10/api_methods_interface.query.html>
-- TrueNAS `certificate.query`: <https://api.truenas.com/v25.10/api_methods_certificate.query.html>
-- TrueNAS `cloud_backup.query`: <https://api.truenas.com/v25.04/api_methods_cloud_backup.query.html>
-- TrueNAS `cloudsync.query`: <https://api.truenas.com/v25.04/api_methods_cloudsync.query.html>
-- TrueNAS `pool.snapshottask.query`: <https://api.truenas.com/v25.04/api_methods_pool.snapshottask.query.html>
-- TrueNAS `rsynctask.query`: <https://api.truenas.com/v25.04/api_methods_rsynctask.query.html>
-- TrueNAS `replication.query`: <https://api.truenas.com/v25.04/api_methods_replication.query.html>
+-
 
 ## License
 
