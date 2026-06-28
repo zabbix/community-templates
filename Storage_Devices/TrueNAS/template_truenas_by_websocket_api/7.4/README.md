@@ -12,13 +12,13 @@ TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The le
 |---|---:|
 | Zabbix version | 7.4 |
 | Master items | 1 HTTP agent |
-| Dependent items | 38 |
-| Low-level discovery rules | 7 |
-| Item prototypes | 58 |
-| Triggers and trigger prototypes | 49 |
-| User macros | 45 |
+| Dependent items | 42 |
+| Low-level discovery rules | 8 |
+| Item prototypes | 65 |
+| Triggers and trigger prototypes | 51 |
+| User macros | 50 |
 
-The template covers system information, API health, alerts, boot pool, pools, datasets, disks, services, apps, containers, and virtual machines.
+The template covers system information, API health, alerts, boot pool, pools, datasets, disks, services, data protection tasks, apps, containers, and virtual machines.
 
 ## Requirements
 
@@ -296,11 +296,16 @@ The master item sends one batch containing these JSON-RPC calls:
 | `disks` | `disk.query` |
 | `disk_temperatures` | `disk.temperatures` |
 | `services` | `service.query` |
+| `cloud_backups` | `cloud_backup.query` |
+| `cloud_sync_tasks` | `cloudsync.query` |
+| `periodic_snapshot_tasks` | `pool.snapshottask.query` |
+| `rsync_tasks` | `rsynctask.query` |
+| `replication_tasks` | `replication.query` |
 | `apps` | `app.query` |
 | `vms` | `vm.query` |
 | `containers` | `container.query` |
 
-The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, reporting, app, VM, and container data. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`.
+The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, reporting, data protection, app, VM, and container data. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`. Periodic snapshot monitoring requires `SNAPSHOT_TASK_READ`; the other data protection APIs require their corresponding read permissions.
 
 If a TrueNAS version does not support one of the optional methods, the related discovery rule returns no objects and `TrueNAS: API calls failed` reports the failed batch call.
 
@@ -383,6 +388,11 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | `{$TRUENAS.DATASET.NAME.NOT_MATCHES}` | `^$` | Regular expression for dataset discovery exclusion. |
 | `{$TRUENAS.DATASET.USED.MAX.CRIT}` | `90` | Critical threshold for dataset used space, in percent. |
 | `{$TRUENAS.DATASET.USED.MAX.WARN}` | `80` | Warning threshold for dataset used space, in percent. |
+| `{$TRUENAS.DP.TASK.JOB.STATE.FAILED.MATCHES}` | `^(FAILED\|ABORTED\|ERROR\|EXCEPTION)$` | Regular expression for Data Protection task job states considered failed. Non-empty job error text is also treated as failed. |
+| `{$TRUENAS.DP.TASK.NAME.MATCHES}` | `^.*$` | Regular expression for Data Protection task discovery inclusion by normalized task name. |
+| `{$TRUENAS.DP.TASK.NAME.NOT_MATCHES}` | `^$` | Regular expression for Data Protection task discovery exclusion by normalized task name. |
+| `{$TRUENAS.DP.TASK.TYPE.MATCHES}` | `^.*$` | Regular expression for Data Protection task discovery inclusion by task type. Supported types: `truecloud_backup`, `cloud_sync`, `periodic_snapshot`, `rsync`, `replication`. |
+| `{$TRUENAS.DP.TASK.TYPE.NOT_MATCHES}` | `^$` | Regular expression for Data Protection task discovery exclusion by task type. |
 | `{$TRUENAS.DISK.NAME.MATCHES}` | `^.*$` | Regular expression for disk discovery inclusion. |
 | `{$TRUENAS.DISK.NAME.NOT_MATCHES}` | `^$` | Regular expression for disk discovery exclusion. |
 | `{$TRUENAS.DISK.TEMP.MAX.CRIT}` | `55` | Critical disk temperature threshold, in degrees Celsius. |
@@ -418,6 +428,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | Updates | Available update count and available versions |
 | Alerts | Total, warning, and critical alerts |
 | Boot pool | Health, status, warning flag, size, allocated, free, used percentage |
+| Data protection | Total, enabled, and failed Data Protection task counters |
 | Apps, containers, VMs | Total and running or not-running counters |
 
 ### Low-Level Discovery
@@ -426,6 +437,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 |---|---:|---:|---|
 | App discovery | 7 | 3 | App state and update availability |
 | Container discovery | 10 | 7 | Container state, CPU, memory, and storage |
+| Data protection task discovery | 7 | 1 | TrueCloud Backup, Cloud Sync, Periodic Snapshot, Rsync, and Replication tasks |
 | Dataset discovery | 9 | 2 | Dataset usage, quota, reservation, read-only state |
 | Disk discovery | 7 | 5 | Disk identity, size, temperature, and ZFS errors |
 | Pool discovery | 12 | 9 | Pool health, status, capacity, scan errors, and ZFS errors |
@@ -437,7 +449,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | Severity | Count | Examples |
 |---|---:|---|
 | High | 6 | API login failed, bridge request failed, boot pool unhealthy, pool unhealthy, pool offline |
-| Average | 18 | API batch failed, system not ready, critical capacity, high temperatures, app/container/VM state mismatch |
+| Average | 20 | API batch failed, system not ready, critical capacity, high temperatures, data protection task failures, app/container/VM state mismatch |
 | Warning | 21 | Warning alerts, warning capacity, ZFS read/write/checksum errors, high CPU utilization |
 | Information | 4 | Updates available, app updates available, system restarted |
 
@@ -450,6 +462,7 @@ Important trigger areas:
 - Pool, dataset, container, and VM capacity
 - Disk and CPU temperature
 - Disk and pool ZFS errors
+- Data Protection task job failures
 - App, container, service, and VM state
 - System update availability and restart detection
 
@@ -464,7 +477,7 @@ Template-level tags:
 
 Items and triggers also use component and scope tags for filtering, for example:
 
-- `component`: `raw`, `system`, `storage`, `virtualization`, `service`
+- `component`: `raw`, `system`, `storage`, `dataprotection`, `virtualization`, `service`
 - `scope`: `availability`, `capacity`, `health`, `notice`, `performance`
 
 ## Security Notes
@@ -480,7 +493,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 
 - The current template depends on `zabbix-websocket-bridge`; the bridge implementation is not contained in this version folder yet.
 - The TrueNAS target URL is currently built as `wss://{HOST.CONN}{$TRUENAS.API.PATH}` and does not expose a dedicated port macro.
-- Optional methods such as `app.query`, `vm.query`, or `container.query` can be unavailable on some TrueNAS versions or installations.
+- Optional methods such as `app.query`, `vm.query`, `container.query`, `cloud_backup.query`, `cloudsync.query`, `pool.snapshottask.query`, `rsynctask.query`, or `replication.query` can be unavailable on some TrueNAS versions or installations.
 - Disk temperatures and reporting metrics depend on hardware support and TrueNAS middleware data availability.
 - TrueNAS 24.10 and older can use different endpoint behavior and are not the primary target.
 
@@ -493,6 +506,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 | API login failed | Verify `{$TRUENAS.API.USER}`, `{$TRUENAS.API.KEY}`, and TrueNAS API-key status. |
 | TLS error | Check TrueNAS certificate trust and `{$TRUENAS.API.TLS_VERIFY}`. |
 | Some discovery rules are empty | Confirm the related API method exists and the API user has read permissions. |
+| Data Protection tasks are missing | Confirm permissions for Cloud Backup, Cloud Sync, Snapshot Tasks, Rsync Tasks, and Replication Tasks. |
 | `TrueNAS: API calls failed` is non-zero | Inspect the master item JSON for the failed method name and returned error. |
 | Dependent items have no data | Confirm that `TrueNAS: Get data` returns valid JSON and review preprocessing errors. |
 
@@ -506,9 +520,13 @@ Items and triggers also use component and scope tags for filtering, for example:
 ## References
 
 - Zabbix community template guidelines: <https://www.zabbix.com/documentation/guidelines/en/thosts/community_templates>
-- TrueNAS API reference: <https://www.truenas.com/docs/scale/api/>
 - TrueNAS API documentation: <https://api.truenas.com/>
 - TrueNAS API client: <https://github.com/truenas/api_client>
+- TrueNAS `cloud_backup.query`: <https://api.truenas.com/v25.04/api_methods_cloud_backup.query.html>
+- TrueNAS `cloudsync.query`: <https://api.truenas.com/v25.04/api_methods_cloudsync.query.html>
+- TrueNAS `pool.snapshottask.query`: <https://api.truenas.com/v25.04/api_methods_pool.snapshottask.query.html>
+- TrueNAS `rsynctask.query`: <https://api.truenas.com/v25.04/api_methods_rsynctask.query.html>
+- TrueNAS `replication.query`: <https://api.truenas.com/v25.04/api_methods_replication.query.html>
 
 ## License
 

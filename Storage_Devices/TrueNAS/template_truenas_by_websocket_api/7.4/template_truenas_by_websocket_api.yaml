@@ -23,7 +23,7 @@ zabbix_export:
         
         The Zabbix Server or Zabbix Proxy that executes the HTTP agent item must be able to reach the bridge URL. The bridge itself must be able to reach the TrueNAS SCALE WebSocket API URL.
         
-        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, and reporting data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ.
+        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
         
         App, VM, and container monitoring uses app.query, vm.query, and container.query. These methods require the corresponding read permissions in TrueNAS. If the target TrueNAS version does not support one of these methods, the related discovery rule returns no entities and the API batch failure item reports the failed call.
       groups:
@@ -461,6 +461,248 @@ zabbix_export:
           tags:
             - tag: component
               value: virtualization
+        - uuid: 39274a0074754203907c2c5507247212
+          name: 'TrueNAS: Data protection tasks raw'
+          type: DEPENDENT
+          key: truenas.dataprotection.tasks.raw
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var results = data.results || {};
+                  var tasks = [];
+
+                  function resultArray(name) {
+                      var response = results[name] || {};
+                      return Array.isArray(response.result) ? response.result : [];
+                  }
+
+                  function text(value) {
+                      if (value === null || typeof value === "undefined") {
+                          return "";
+                      }
+
+                      if (Array.isArray(value)) {
+                          return value.join(", ");
+                      }
+
+                      if (typeof value === "object") {
+                          return JSON.stringify(value);
+                      }
+
+                      return String(value);
+                  }
+
+                  function bool(value, defaultValue) {
+                      if (typeof value === "undefined" || value === null) {
+                          return defaultValue ? 1 : 0;
+                      }
+
+                      if (value === true || value === 1) {
+                          return 1;
+                      }
+
+                      var valueText = String(value).toUpperCase();
+
+                      return (valueText === "TRUE" || valueText === "YES" || valueText === "ENABLED" || valueText === "1") ? 1 : 0;
+                  }
+
+                  function scheduleToText(schedule) {
+                      if (!schedule || typeof schedule !== "object") {
+                          return text(schedule);
+                      }
+
+                      var parts = [];
+                      var keys = ["minute", "hour", "dom", "month", "dow", "begin", "end"];
+
+                      for (var i = 0; i < keys.length; i++) {
+                          if (typeof schedule[keys[i]] !== "undefined" && schedule[keys[i]] !== null) {
+                              parts.push(keys[i] + "=" + schedule[keys[i]]);
+                          }
+                      }
+
+                      return parts.length > 0 ? parts.join(" ") : JSON.stringify(schedule);
+                  }
+
+                  function jobState(task) {
+                      var job = task.job || {};
+                      var state = job.state || job.status || task.job_state || task.state;
+
+                      if (state && typeof state === "object") {
+                          state = state.state || state.status || state.result || "";
+                      }
+
+                      return text(state).toUpperCase();
+                  }
+
+                  function jobError(task) {
+                      var job = task.job || {};
+                      return text(job.error || job.exception || job.exc_info || task.job_error || task.error || "");
+                  }
+
+                  function taskName(prefix, task, fallback) {
+                      return text(task.description || task.name || task.id || fallback || prefix);
+                  }
+
+                  function add(type, task, name, source, target) {
+                      tasks.push({
+                          type: type,
+                          id: text(task.id || name),
+                          name: type + ": " + taskName(type, task, name),
+                          enabled: bool(task.enabled, true),
+                          job_state: jobState(task),
+                          job_error: jobError(task),
+                          schedule: scheduleToText(task.schedule),
+                          source: text(source),
+                          target: text(target)
+                      });
+                  }
+
+                  var cloudBackups = resultArray("cloud_backups");
+
+                  for (var i = 0; i < cloudBackups.length; i++) {
+                      var cloudBackup = cloudBackups[i];
+                      var attributes = cloudBackup.attributes || {};
+                      var cloudBackupTarget = attributes.bucket || attributes.repository || attributes.remote || attributes.folder || attributes.path || "";
+
+                      add("truecloud_backup", cloudBackup, "TrueCloud Backup " + cloudBackup.id, cloudBackup.path || cloudBackup.include, cloudBackupTarget);
+                  }
+
+                  var cloudSyncTasks = resultArray("cloud_sync_tasks");
+
+                  for (var j = 0; j < cloudSyncTasks.length; j++) {
+                      var cloudSync = cloudSyncTasks[j];
+                      var syncAttributes = cloudSync.attributes || {};
+                      var remotePath = cloudSync.remote_path || syncAttributes.folder || syncAttributes.bucket || syncAttributes.path || "";
+
+                      add("cloud_sync", cloudSync, "Cloud Sync " + cloudSync.id, cloudSync.path, remotePath);
+                  }
+
+                  var snapshotTasks = resultArray("periodic_snapshot_tasks");
+
+                  for (var k = 0; k < snapshotTasks.length; k++) {
+                      var snapshotTask = snapshotTasks[k];
+                      var snapshotTarget = snapshotTask.naming_schema || ((snapshotTask.lifetime_value || "") + " " + (snapshotTask.lifetime_unit || ""));
+
+                      add("periodic_snapshot", snapshotTask, "Periodic Snapshot " + snapshotTask.id, snapshotTask.dataset, snapshotTarget);
+                  }
+
+                  var rsyncTasks = resultArray("rsync_tasks");
+
+                  for (var l = 0; l < rsyncTasks.length; l++) {
+                      var rsyncTask = rsyncTasks[l];
+                      var rsyncTarget = [rsyncTask.remotehost, rsyncTask.remotepath || rsyncTask.remote_path].filter(Boolean).join(":");
+
+                      add("rsync", rsyncTask, "Rsync " + rsyncTask.id, rsyncTask.path || rsyncTask.dataset, rsyncTarget);
+                  }
+
+                  var replicationTasks = resultArray("replication_tasks");
+
+                  for (var m = 0; m < replicationTasks.length; m++) {
+                      var replicationTask = replicationTasks[m];
+
+                      add("replication", replicationTask, "Replication " + replicationTask.id, replicationTask.source_datasets, replicationTask.target_dataset);
+                  }
+
+                  return JSON.stringify(tasks);
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: dataprotection
+        - uuid: 3abebee4486e4df3883b60454d5f04f9
+          name: 'TrueNAS: Data protection tasks total'
+          type: DEPENDENT
+          key: truenas.dataprotection.tasks.total
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var tasks = JSON.parse(value);
+
+                  return Array.isArray(tasks) ? tasks.length : 0;
+          master_item:
+            key: truenas.dataprotection.tasks.raw
+          tags:
+            - tag: component
+              value: dataprotection
+        - uuid: 80335d5e295742d8945b653a95b50667
+          name: 'TrueNAS: Data protection tasks enabled'
+          type: DEPENDENT
+          key: truenas.dataprotection.tasks.enabled
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var tasks = JSON.parse(value);
+                  var count = 0;
+
+                  if (!Array.isArray(tasks)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < tasks.length; i++) {
+                      if (Number(tasks[i].enabled) === 1) {
+                          count++;
+                      }
+                  }
+
+                  return count;
+          master_item:
+            key: truenas.dataprotection.tasks.raw
+          tags:
+            - tag: component
+              value: dataprotection
+        - uuid: c3b2458fcde449a59c5d66936ba309ea
+          name: 'TrueNAS: Data protection tasks failed'
+          type: DEPENDENT
+          key: truenas.dataprotection.tasks.failed
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var tasks = JSON.parse(value);
+                  var failedPattern = "{$TRUENAS.DP.TASK.JOB.STATE.FAILED.MATCHES}";
+                  var failed = 0;
+                  var regexp;
+
+                  try {
+                      regexp = new RegExp(failedPattern, "i");
+                  } catch (error) {
+                      regexp = /^(FAILED|ABORTED|ERROR|EXCEPTION)$/i;
+                  }
+
+                  if (!Array.isArray(tasks)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < tasks.length; i++) {
+                      var enabled = Number(tasks[i].enabled) === 1;
+                      var state = String(tasks[i].job_state || "");
+                      var errorText = String(tasks[i].job_error || "");
+
+                      if (enabled && (regexp.test(state) || errorText.length > 0)) {
+                          failed++;
+                      }
+                  }
+
+                  return failed;
+          master_item:
+            key: truenas.dataprotection.tasks.raw
+          tags:
+            - tag: component
+              value: dataprotection
+          triggers:
+            - uuid: de4ca5c442b542519cea47ae3ceb527c
+              expression: 'last(/TrueNAS by WebSocket API/truenas.dataprotection.tasks.failed)>0'
+              name: 'TrueNAS: Data protection task failures exist'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: health
         - uuid: 1ccd60752d3242a7b0f92abbf415dc44
           name: 'TrueNAS: Get data'
           type: HTTP_AGENT
@@ -591,6 +833,31 @@ zabbix_export:
                 {
                   "name": "services",
                   "method": "service.query",
+                  "params": []
+                },
+                {
+                  "name": "cloud_backups",
+                  "method": "cloud_backup.query",
+                  "params": []
+                },
+                {
+                  "name": "cloud_sync_tasks",
+                  "method": "cloudsync.query",
+                  "params": []
+                },
+                {
+                  "name": "periodic_snapshot_tasks",
+                  "method": "pool.snapshottask.query",
+                  "params": []
+                },
+                {
+                  "name": "rsync_tasks",
+                  "method": "rsynctask.query",
+                  "params": []
+                },
+                {
+                  "name": "replication_tasks",
+                  "method": "replication.query",
                   "params": []
                 },
                 {
@@ -2311,6 +2578,277 @@ zabbix_export:
                   }
                   
                   return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: e1683e4807364e9ea4428058f058ba8e
+          name: 'TrueNAS: Data protection task discovery'
+          type: DEPENDENT
+          key: truenas.dataprotection.task.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#TASK.NAME}'
+                value: '{$TRUENAS.DP.TASK.NAME.MATCHES}'
+              - macro: '{#TASK.NAME}'
+                value: '{$TRUENAS.DP.TASK.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#TASK.TYPE}'
+                value: '{$TRUENAS.DP.TASK.TYPE.MATCHES}'
+              - macro: '{#TASK.TYPE}'
+                value: '{$TRUENAS.DP.TASK.TYPE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 3cd509194a17447da97e2283e7a62d23
+              name: 'Data protection task "{#TASK.NAME}": Enabled'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.enabled[{#TASK.TYPE},{#TASK.ID}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return Number(tasks[i].enabled) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+            - uuid: 5083da33922d42d2bfcd45d3195ff70e
+              name: 'Data protection task "{#TASK.NAME}": Job state'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.job_state[{#TASK.TYPE},{#TASK.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return String(tasks[i].job_state || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+            - uuid: 571f5741358c4761b7b9193188b04afa
+              name: 'Data protection task "{#TASK.NAME}": Job failed'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.job_failed[{#TASK.TYPE},{#TASK.ID}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+                      var failedPattern = "{$TRUENAS.DP.TASK.JOB.STATE.FAILED.MATCHES}";
+                      var regexp;
+
+                      try {
+                          regexp = new RegExp(failedPattern, "i");
+                      } catch (error) {
+                          regexp = /^(FAILED|ABORTED|ERROR|EXCEPTION)$/i;
+                      }
+
+                      if (!Array.isArray(tasks)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) !== taskType || String(tasks[i].id) !== taskId) {
+                              continue;
+                          }
+
+                          var state = String(tasks[i].job_state || "");
+                          var errorText = String(tasks[i].job_error || "");
+
+                          return (regexp.test(state) || errorText.length > 0) ? 1 : 0;
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+              trigger_prototypes:
+                - uuid: f6d4f552d4b44825b596f97bb49e2c16
+                  expression: 'last(/TrueNAS by WebSocket API/truenas.dataprotection.task.enabled[{#TASK.TYPE},{#TASK.ID}])=1 and last(/TrueNAS by WebSocket API/truenas.dataprotection.task.job_failed[{#TASK.TYPE},{#TASK.ID}])=1'
+                  name: 'Data protection task "{#TASK.NAME}": Last job failed'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: health
+            - uuid: a86fb181f9ac48ebad5e032e1541bd38
+              name: 'Data protection task "{#TASK.NAME}": Job error'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.job_error[{#TASK.TYPE},{#TASK.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return String(tasks[i].job_error || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+            - uuid: 6396c6fd51014aee9b3d83e07adab65f
+              name: 'Data protection task "{#TASK.NAME}": Source'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.source[{#TASK.TYPE},{#TASK.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return String(tasks[i].source || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+            - uuid: 3f6768970d6c495cb75555ce099c0376
+              name: 'Data protection task "{#TASK.NAME}": Target'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.target[{#TASK.TYPE},{#TASK.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return String(tasks[i].target || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+            - uuid: 8be5f0f6c1334cfbae07ecea5aa9ee4e
+              name: 'Data protection task "{#TASK.NAME}": Schedule'
+              type: DEPENDENT
+              key: 'truenas.dataprotection.task.schedule[{#TASK.TYPE},{#TASK.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var tasks = JSON.parse(value);
+                      var taskType = "{#TASK.TYPE}";
+                      var taskId = "{#TASK.ID}";
+
+                      if (!Array.isArray(tasks)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < tasks.length; i++) {
+                          if (String(tasks[i].type) === taskType && String(tasks[i].id) === taskId) {
+                              return String(tasks[i].schedule || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.dataprotection.tasks.raw
+              tags:
+                - tag: component
+                  value: dataprotection
+                - tag: task_type
+                  value: '{#TASK.TYPE}'
+          master_item:
+            key: truenas.dataprotection.tasks.raw
+          lld_macro_paths:
+            - lld_macro: '{#TASK.ID}'
+              path: $.id
+            - lld_macro: '{#TASK.NAME}'
+              path: $.name
+            - lld_macro: '{#TASK.TYPE}'
+              path: $.type
+          preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1h
@@ -4587,6 +5125,21 @@ zabbix_export:
         - macro: '{$TRUENAS.DATASET.USED.MAX.WARN}'
           value: '80'
           description: 'Warning threshold for dataset used space, in percent.'
+        - macro: '{$TRUENAS.DP.TASK.JOB.STATE.FAILED.MATCHES}'
+          value: '^(FAILED|ABORTED|ERROR|EXCEPTION)$'
+          description: 'Regular expression for Data Protection task job states that should be considered failed. State values are matched case-insensitively. Non-empty job error text is also treated as failed.'
+        - macro: '{$TRUENAS.DP.TASK.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for Data Protection task discovery inclusion by normalized task name.'
+        - macro: '{$TRUENAS.DP.TASK.NAME.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for Data Protection task discovery exclusion by normalized task name.'
+        - macro: '{$TRUENAS.DP.TASK.TYPE.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for Data Protection task discovery inclusion by task type. Supported normalized types: truecloud_backup, cloud_sync, periodic_snapshot, rsync, replication.'
+        - macro: '{$TRUENAS.DP.TASK.TYPE.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for Data Protection task discovery exclusion by task type.'
         - macro: '{$TRUENAS.DISK.NAME.MATCHES}'
           value: '^.*$'
           description: 'Regular expression for disk discovery inclusion.'
