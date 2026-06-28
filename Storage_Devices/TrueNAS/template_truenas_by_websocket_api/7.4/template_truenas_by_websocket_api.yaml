@@ -542,10 +542,22 @@ zabbix_export:
           valuemap:
             name: 'TrueNAS Yes/No'
           preprocessing:
-            - type: JSONPATH
+            - type: JAVASCRIPT
               parameters:
-                - $.ok
-            - type: BOOL_TO_DECIMAL
+                - |
+                  var data;
+
+                  try {
+                      data = JSON.parse(value);
+                  } catch (error) {
+                      return 0;
+                  }
+
+                  if (data.detail && typeof data.detail === "object") {
+                      data = data.detail;
+                  }
+
+                  return data.ok === true ? 1 : 0;
           master_item:
             key: truenas.get
           tags:
@@ -555,10 +567,60 @@ zabbix_export:
             - uuid: 7f217498f9aa48f192709cff12f71ed9
               expression: 'last(/TrueNAS by WebSocket API/truenas.bridge.response.ok)=0'
               name: 'TrueNAS: Bridge batch request failed'
+              event_name: 'TrueNAS: Bridge batch request failed: {?last(//truenas.bridge.response.error)}'
+              opdata: 'Error: {?last(//truenas.bridge.response.error)}'
               priority: HIGH
               tags:
                 - tag: scope
                   value: availability
+        - uuid: 7a10c9d75b0c4f8f900a413211d2b6e6
+          name: 'TrueNAS: Bridge response error'
+          type: DEPENDENT
+          key: truenas.bridge.response.error
+          value_type: TEXT
+          description: 'Error text returned by zabbix-websocket-bridge for failed batch requests.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data;
+
+                  try {
+                      data = JSON.parse(value);
+                  } catch (error) {
+                      return String(value || "").substring(0, 1900);
+                  }
+
+                  if (data.detail && typeof data.detail === "object") {
+                      data = data.detail;
+                  }
+
+                  function stringify(value) {
+                      if (value === null || value === undefined) {
+                          return "";
+                      }
+
+                      if (typeof value === "string") {
+                          return value;
+                      }
+
+                      try {
+                          return JSON.stringify(value);
+                      } catch (error) {
+                          return String(value);
+                      }
+                  }
+
+                  if (Array.isArray(data.errors) && data.errors.length > 0) {
+                      return data.errors.map(stringify).join("; ");
+                  }
+
+                  return stringify(data.error || data.message || data.reason || "");
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: raw
         - uuid: 662efc3c67774387adcbc9abc8a81f17
           name: 'TrueNAS: WebSocket bridge available'
           type: DEPENDENT
@@ -1542,6 +1604,8 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           url: '{$TRUENAS.WSBRIDGE.URL}/api/v1/jsonrpc/batch'
+          timeout: '{$TRUENAS.WSBRIDGE.REQUEST.TIMEOUT}'
+          status_codes: '200,502,503,504'
           post_type: JSON
           posts: |
             {
@@ -1549,7 +1613,7 @@ zabbix_export:
                 "url": "wss://{HOST.CONN}{$TRUENAS.API.PATH}",
                 "verify_tls": {$TRUENAS.API.TLS_VERIFY}
               },
-              "timeout": 10,
+              "timeout": {$TRUENAS.WSBRIDGE.TARGET.TIMEOUT},
               "calls": [
                 {
                   "name": "auth_login",
@@ -1718,6 +1782,16 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+          triggers:
+            - uuid: 8e808f26112f4fbfacf3e5e3b47c89b7
+              expression: 'nodata(/TrueNAS by WebSocket API/truenas.get,{$TRUENAS.GET.NODATA.TIMEOUT})=1'
+              name: 'TrueNAS: Get data has no data'
+              opdata: 'No master data for {$TRUENAS.GET.NODATA.TIMEOUT}; HTTP timeout: {$TRUENAS.WSBRIDGE.REQUEST.TIMEOUT}'
+              priority: HIGH
+              description: 'The TrueNAS data master item has not returned data. This also stops all dependent items from updating. Check the WebSocket bridge, network path, and the HTTP agent timeout macro.'
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: 7c6b1d68357243fbb692812bc5135025
           name: 'TrueNAS: CPU cores'
           type: DEPENDENT
@@ -6528,6 +6602,9 @@ zabbix_export:
         - macro: '{$TRUENAS.DISK.TEMP.MAX.WARN}'
           value: '45'
           description: 'Warning disk temperature threshold, in degrees Celsius.'
+        - macro: '{$TRUENAS.GET.NODATA.TIMEOUT}'
+          value: 5m
+          description: 'Time window for the TrueNAS data master item no-data trigger. Increase this if the collection interval is changed.'
         - macro: '{$TRUENAS.INTERFACE.LINK.MONITOR.MATCHES}'
           value: '^.*$'
           description: 'Regular expression for network interfaces whose link state should raise trigger alerts.'
@@ -6594,6 +6671,12 @@ zabbix_export:
         - macro: '{$TRUENAS.VM.STATE.OK.MATCHES}'
           value: ^RUNNING$
           description: 'Regular expression for VM states that should be considered healthy. State values are matched in upper case.'
+        - macro: '{$TRUENAS.WSBRIDGE.REQUEST.TIMEOUT}'
+          value: 15s
+          description: 'Zabbix HTTP agent timeout for the request to the zabbix-websocket-bridge batch endpoint. Increase this if TrueNAS API collection takes longer than the default HTTP agent timeout.'
+        - macro: '{$TRUENAS.WSBRIDGE.TARGET.TIMEOUT}'
+          value: '10'
+          description: 'Timeout in seconds used by zabbix-websocket-bridge while communicating with the target TrueNAS WebSocket API.'
         - macro: '{$TRUENAS.WSBRIDGE.URL}'
           value: 'http://zabbix-websocket-bridge:8080'
           description: 'URL of the zabbix-websocket-bridge instance. Use a Docker service name if the bridge runs in the same Docker Compose network, for example http://zabbix-websocket-bridge:8080. Use a full HTTP or HTTPS URL if the bridge runs on another host.'

@@ -12,11 +12,11 @@ TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The le
 |---|---:|
 | Zabbix version | 7.4 |
 | Master items | 2 HTTP agents |
-| Dependent items | 54 |
+| Dependent items | 55 |
 | Low-level discovery rules | 10 |
 | Item prototypes | 81 |
-| Triggers and trigger prototypes | 56 |
-| User macros | 60 |
+| Triggers and trigger prototypes | 57 |
+| User macros | 63 |
 
 The template covers bridge health, system information, API health, alerts, boot pool, pools, datasets, disks, services, network adapters, certificates, data protection tasks, apps, containers, and virtual machines.
 
@@ -241,7 +241,7 @@ curl -s -X POST http://<bridge-address>:8080/api/v1/jsonrpc/batch \
       "url": "wss://<truenas-host>/api/current",
       "verify_tls": true
     },
-    "timeout": 10,
+    "timeout": <target-timeout-seconds>,
     "calls": [
       {
         "name": "auth_login",
@@ -403,6 +403,7 @@ After linking the template, check `TrueNAS: WebSocket bridge health` first. Then
 | `{$TRUENAS.DISK.NAME.NOT_MATCHES}` | `^$` | Regular expression for disk discovery exclusion. |
 | `{$TRUENAS.DISK.TEMP.MAX.CRIT}` | `55` | Critical disk temperature threshold, in degrees Celsius. |
 | `{$TRUENAS.DISK.TEMP.MAX.WARN}` | `45` | Warning disk temperature threshold, in degrees Celsius. |
+| `{$TRUENAS.GET.NODATA.TIMEOUT}` | `5m` | Time window for the `TrueNAS: Get data has no data` trigger. |
 | `{$TRUENAS.INTERFACE.LINK.MONITOR.MATCHES}` | `^.*$` | Regular expression for network interfaces whose link state should raise trigger alerts. |
 | `{$TRUENAS.INTERFACE.LINK.MONITOR.NOT_MATCHES}` | `^$` | Regular expression for network interfaces excluded from link state trigger alerts. |
 | `{$TRUENAS.INTERFACE.LINK.STATE.UP.MATCHES}` | `^(LINK_STATE_UP\|UP\|ACTIVE)$` | Regular expression for network interface link states considered up. |
@@ -425,6 +426,8 @@ After linking the template, check `TrueNAS: WebSocket bridge health` first. Then
 | `{$TRUENAS.VM.NAME.MATCHES}` | `^.*$` | Regular expression for VM discovery inclusion. |
 | `{$TRUENAS.VM.NAME.NOT_MATCHES}` | `^$` | Regular expression for VM discovery exclusion. |
 | `{$TRUENAS.VM.STATE.OK.MATCHES}` | `^RUNNING$` | Regular expression for VM states considered healthy. |
+| `{$TRUENAS.WSBRIDGE.REQUEST.TIMEOUT}` | `15s` | Zabbix HTTP agent timeout for the request to the bridge batch endpoint. Increase this if `TrueNAS: Get data` times out. |
+| `{$TRUENAS.WSBRIDGE.TARGET.TIMEOUT}` | `10` | Timeout in seconds used by the bridge while communicating with the target TrueNAS WebSocket API. |
 | `{$TRUENAS.WSBRIDGE.URL}` | `http://zabbix-websocket-bridge:8080` | URL of the `zabbix-websocket-bridge` instance. |
 
 ## Items Collected
@@ -531,6 +534,8 @@ Items and triggers also use component, scope, and task type tags for filtering:
 | Unused network adapters trigger link-down alerts | Exclude them with `{$TRUENAS.INTERFACE.LINK.MONITOR.NOT_MATCHES}` or the interface discovery filter macros. |
 | Certificates are missing | Confirm that the API user has `CERTIFICATE_READ` permission. |
 | Data Protection tasks are missing | Confirm permissions for Cloud Backup, Cloud Sync, Snapshot Tasks, Rsync Tasks, and Replication Tasks. |
+| `TrueNAS: Get data` times out | Increase `{$TRUENAS.WSBRIDGE.REQUEST.TIMEOUT}` and verify bridge logs, TrueNAS API response time, and network latency. |
+| `TrueNAS: Get data` returns HTTP 502, 503, or 504 | Check `TrueNAS: Bridge batch request failed` operational data for the bridge error text, then verify bridge logs and connectivity from the bridge to the TrueNAS WebSocket API. Increase `{$TRUENAS.WSBRIDGE.TARGET.TIMEOUT}` if the target API call batch needs more time. |
 | `TrueNAS: API calls failed` is non-zero | Check `TrueNAS: API failed call details` or the trigger operational data for the failed method name and returned error. |
 | Dependent items have no data | Confirm that `TrueNAS: Get data` returns valid JSON and review preprocessing errors. |
 
