@@ -12,7 +12,7 @@ TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The le
 |---|---:|
 | Zabbix version | 7.4 |
 | Master items | 2 HTTP agents |
-| Dependent items | 52 |
+| Dependent items | 54 |
 | Low-level discovery rules | 10 |
 | Item prototypes | 81 |
 | Triggers and trigger prototypes | 56 |
@@ -307,11 +307,10 @@ The TrueNAS data master item sends one batch containing these JSON-RPC calls:
 | `replication_tasks` | `replication.query` |
 | `apps` | `app.query` |
 | `vms` | `vm.query` |
-| `containers` | `container.query` |
 
-The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, network interface, certificate, update, reporting, data protection, app, VM, and container data. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`. Network adapter monitoring uses `interface.query` and requires `NETWORK_INTERFACE_READ`. Certificate monitoring uses `certificate.query` and requires `CERTIFICATE_READ`. Periodic snapshot monitoring requires `SNAPSHOT_TASK_READ`; the other data protection APIs require their corresponding read permissions.
+The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, network interface, certificate, update, reporting, data protection, app, and VM data. App-container data is read from `app.query`. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`. Network adapter monitoring uses `interface.query` and requires `NETWORK_INTERFACE_READ`. Certificate monitoring uses `certificate.query` and requires `CERTIFICATE_READ`. Periodic snapshot monitoring requires `SNAPSHOT_TASK_READ`; the other data protection APIs require their corresponding read permissions.
 
-If a TrueNAS version does not support one of the optional methods, the related discovery rule returns no objects and `TrueNAS: API calls failed` reports the failed batch call.
+App container monitoring is derived from the `container_details` data returned by `app.query`; the template does not call `container.query`. If a TrueNAS version does not support one of the optional app or VM methods, the related discovery rule returns no objects and `TrueNAS: API calls failed` reports the failed batch call.
 
 ## Setup
 
@@ -514,7 +513,7 @@ Items and triggers also use component, scope, and task type tags for filtering:
 
 - The current template depends on `zabbix-websocket-bridge`; the bridge implementation is not contained in this version folder yet.
 - The TrueNAS target URL is currently built as `wss://{HOST.CONN}{$TRUENAS.API.PATH}` and does not expose a dedicated port macro.
-- Optional or permissioned methods such as `interface.query`, `certificate.query`, `app.query`, `vm.query`, `container.query`, `cloud_backup.query`, `cloudsync.query`, `pool.snapshottask.query`, `rsynctask.query`, or `replication.query` can be unavailable on some TrueNAS versions or installations.
+- Optional or permissioned methods such as `interface.query`, `certificate.query`, `app.query`, `vm.query`, `cloud_backup.query`, `cloudsync.query`, `pool.snapshottask.query`, `rsynctask.query`, or `replication.query` can be unavailable on some TrueNAS versions or installations. App containers are monitored through `app.query` container details instead of a separate `container.query` call.
 - Disk temperatures and reporting metrics depend on hardware support and TrueNAS middleware data availability.
 - TrueNAS 24.10 and older can use different endpoint behavior and are not the primary target.
 
@@ -532,7 +531,7 @@ Items and triggers also use component, scope, and task type tags for filtering:
 | Unused network adapters trigger link-down alerts | Exclude them with `{$TRUENAS.INTERFACE.LINK.MONITOR.NOT_MATCHES}` or the interface discovery filter macros. |
 | Certificates are missing | Confirm that the API user has `CERTIFICATE_READ` permission. |
 | Data Protection tasks are missing | Confirm permissions for Cloud Backup, Cloud Sync, Snapshot Tasks, Rsync Tasks, and Replication Tasks. |
-| `TrueNAS: API calls failed` is non-zero | Inspect the master item JSON for the failed method name and returned error. |
+| `TrueNAS: API calls failed` is non-zero | Check `TrueNAS: API failed call details` or the trigger operational data for the failed method name and returned error. |
 | Dependent items have no data | Confirm that `TrueNAS: Get data` returns valid JSON and review preprocessing errors. |
 
 ## Files

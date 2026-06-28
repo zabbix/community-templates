@@ -25,7 +25,7 @@ zabbix_export:
         
         The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, network interface, certificate, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Network interface monitoring uses interface.query and requires NETWORK_INTERFACE_READ. Certificate monitoring uses certificate.query and requires CERTIFICATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
         
-        App, VM, and container monitoring uses app.query, vm.query, and container.query. These methods require the corresponding read permissions in TrueNAS. If the target TrueNAS version does not support one of these methods, the related discovery rule returns no entities and the API batch failure item reports the failed call.
+        App and app-container monitoring uses app.query, including the container_details returned for each app. VM monitoring uses vm.query. These methods require the corresponding read permissions in TrueNAS. If the target TrueNAS version does not support one of these methods, the related discovery rule returns no entities and the API batch failure item reports the failed call.
       groups:
         - name: Templates
       items:
@@ -155,13 +155,13 @@ zabbix_export:
                   var data = JSON.parse(value);
                   var failed = 0;
                   var results = data.results || {};
-                  
+
                   if (Array.isArray(data.errors)) {
                       failed += data.errors.length;
                   }
-                  
+
                   for (var name in results) {
-                      if (Object.prototype.hasOwnProperty.call(results, name) && results[name].ok === false) {
+                      if (Object.prototype.hasOwnProperty.call(results, name) && results[name] && results[name].ok === false) {
                           failed++;
                       }
                   }
@@ -174,12 +174,157 @@ zabbix_export:
               value: raw
           triggers:
             - uuid: d55424488b90471ab2a4e852576160c7
-              expression: 'last(/TrueNAS by WebSocket API/truenas.api.calls.failed)>0'
+              expression: 'last(/TrueNAS by WebSocket API/truenas.api.calls.failed)>0 and last(/TrueNAS by WebSocket API/truenas.api.calls.failed.details)<>""'
               name: 'TrueNAS: API batch contains failed calls'
+              event_name: 'TrueNAS: API batch contains failed calls: {?last(//truenas.api.calls.failed.details)}'
+              opdata: 'Failed calls: {?last(//truenas.api.calls.failed.details)}'
               priority: AVERAGE
               tags:
                 - tag: scope
                   value: availability
+        - uuid: 94708b07c98b4b29960f4c48d53ccc47
+          name: 'TrueNAS: API failed call details'
+          type: DEPENDENT
+          key: truenas.api.calls.failed.details
+          value_type: TEXT
+          description: 'Failed JSON-RPC call names, methods, and returned errors from the bridge batch response.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var results = data.results || {};
+                  var details = [];
+                  var methodByName = {
+                      auth_login: "auth.login_ex",
+                      system_info: "system.info",
+                      update_available_versions: "update.available_versions",
+                      cpu_usage: "reporting.get_data",
+                      cpu_temperature: "reporting.get_data",
+                      system_ready: "system.ready",
+                      alerts: "alert.list",
+                      pools: "pool.query",
+                      boot_pool: "boot.get_state",
+                      datasets: "pool.dataset.query",
+                      disks: "disk.query",
+                      disk_temperatures: "disk.temperatures",
+                      services: "service.query",
+                      interfaces: "interface.query",
+                      certificates: "certificate.query",
+                      cloud_backups: "cloud_backup.query",
+                      cloud_sync_tasks: "cloudsync.query",
+                      periodic_snapshot_tasks: "pool.snapshottask.query",
+                      rsync_tasks: "rsynctask.query",
+                      replication_tasks: "replication.query",
+                      apps: "app.query",
+                      vms: "vm.query"
+                  };
+
+                  function stringify(value) {
+                      if (value === null || value === undefined) {
+                          return "";
+                      }
+
+                      if (typeof value === "string") {
+                          return value;
+                      }
+
+                      try {
+                          return JSON.stringify(value);
+                      } catch (error) {
+                          return String(value);
+                      }
+                  }
+
+                  function callLabel(name) {
+                      var method = methodByName[name];
+
+                      if (method) {
+                          return name + " (" + method + ")";
+                      }
+
+                      return name;
+                  }
+
+                  function errorText(error) {
+                      var parts = [];
+
+                      if (error === null || error === undefined) {
+                          return "failed without error details";
+                      }
+
+                      if (typeof error !== "object") {
+                          return String(error);
+                      }
+
+                      if (error.code !== undefined) {
+                          parts.push("code " + String(error.code));
+                      }
+
+                      if (error.message !== undefined) {
+                          parts.push(String(error.message));
+                      } else if (error.reason !== undefined) {
+                          parts.push(String(error.reason));
+                      } else if (error.error !== undefined && error.error !== error) {
+                          parts.push(errorText(error.error));
+                      }
+
+                      if (error.data !== undefined) {
+                          parts.push(stringify(error.data));
+                      }
+
+                      if (parts.length > 0) {
+                          return parts.join(": ");
+                      }
+
+                      return stringify(error);
+                  }
+
+                  function batchLabel(error) {
+                      if (error && typeof error === "object") {
+                          if (error.name !== undefined) {
+                              return callLabel(String(error.name));
+                          }
+
+                          if (error.method !== undefined) {
+                              return String(error.method);
+                          }
+                      }
+
+                      return "batch";
+                  }
+
+                  if (Array.isArray(data.errors)) {
+                      for (var i = 0; i < data.errors.length; i++) {
+                          details.push(batchLabel(data.errors[i]) + ": " + errorText(data.errors[i]));
+                      }
+                  }
+
+                  for (var name in results) {
+                      if (Object.prototype.hasOwnProperty.call(results, name) && results[name] && results[name].ok === false) {
+                          var response = results[name];
+                          var error = Object.prototype.hasOwnProperty.call(response, "error") ? response.error : response;
+
+                          details.push(callLabel(name) + ": " + errorText(error));
+                      }
+                  }
+
+                  if (details.length === 0) {
+                      return "";
+                  }
+
+                  var text = details.join("; ");
+
+                  if (text.length > 1900) {
+                      return text.substring(0, 1900) + "...";
+                  }
+
+                  return text;
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: raw
         - uuid: 3eae325dfb394b21b5465f2510821c07
           name: 'TrueNAS: API login response'
           type: DEPENDENT
@@ -480,6 +625,214 @@ zabbix_export:
           tags:
             - tag: component
               value: bridge
+        - uuid: 1132d740a1d6424390361fb8536e4e70
+          name: 'TrueNAS: App containers raw'
+          type: DEPENDENT
+          key: truenas.app.containers.raw
+          value_type: TEXT
+          description: 'Synthetic container list derived from app.query container_details. This replaces the unsupported container.query batch call on TrueNAS versions where app containers are exposed only through app.query.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var apps = (((data.results || {}).apps || {}).result) || [];
+                  var datasets = (((data.results || {}).datasets || {}).result) || [];
+                  var containers = [];
+
+                  function asArray(value) {
+                      if (Array.isArray(value)) {
+                          return value;
+                      }
+
+                      if (value && typeof value === "object") {
+                          var values = [];
+
+                          for (var key in value) {
+                              if (Object.prototype.hasOwnProperty.call(value, key)) {
+                                  values.push(value[key]);
+                              }
+                          }
+
+                          return values;
+                      }
+
+                      return [];
+                  }
+
+                  function text(value) {
+                      return String(value === null || value === undefined ? "" : value);
+                  }
+
+                  function normalizeDatasetName(path) {
+                      path = text(path);
+
+                      if (path.indexOf("/mnt/") === 0) {
+                          path = path.substring(5);
+                      }
+
+                      return path.replace(/^\/+|\/+$/g, "");
+                  }
+
+                  function datasetName(dataset) {
+                      return text(dataset.id || dataset.name || "");
+                  }
+
+                  function findDatasetByPath(path) {
+                      var normalized = normalizeDatasetName(path);
+                      var best = "";
+
+                      if (normalized === "") {
+                          return "";
+                      }
+
+                      for (var i = 0; i < datasets.length; i++) {
+                          var name = datasetName(datasets[i]);
+
+                          if (name === "") {
+                              continue;
+                          }
+
+                          if ((normalized === name || normalized.indexOf(name + "/") === 0) && name.length > best.length) {
+                              best = name;
+                          }
+                      }
+
+                      return best;
+                  }
+
+                  function collectVolumePaths(value, paths, depth) {
+                      if (value === null || value === undefined || depth > 4) {
+                          return;
+                      }
+
+                      if (typeof value === "string") {
+                          if (value.indexOf("/mnt/") === 0) {
+                              paths.push(value);
+                          }
+
+                          return;
+                      }
+
+                      if (Array.isArray(value)) {
+                          for (var i = 0; i < value.length; i++) {
+                              collectVolumePaths(value[i], paths, depth + 1);
+                          }
+
+                          return;
+                      }
+
+                      if (typeof value === "object") {
+                          var keys = ["source", "host_path", "hostPath", "path", "mountpoint", "mount_point"];
+
+                          for (var j = 0; j < keys.length; j++) {
+                              if (Object.prototype.hasOwnProperty.call(value, keys[j])) {
+                                  collectVolumePaths(value[keys[j]], paths, depth + 1);
+                              }
+                          }
+                      }
+                  }
+
+                  function containerDataset(container) {
+                      var direct = normalizeDatasetName(container.dataset || container.root_dataset || container.mountpoint || "");
+
+                      if (direct !== "") {
+                          return findDatasetByPath(direct) || direct;
+                      }
+
+                      var paths = [];
+                      collectVolumePaths(container.volume_mounts, paths, 0);
+                      collectVolumePaths(container.volumes, paths, 0);
+
+                      for (var i = 0; i < paths.length; i++) {
+                          var dataset = findDatasetByPath(paths[i]);
+
+                          if (dataset !== "") {
+                              return dataset;
+                          }
+                      }
+
+                      return "";
+                  }
+
+                  function appName(app) {
+                      return text(app.name || app.id);
+                  }
+
+                  function containerServiceName(container, index) {
+                      return text(container.service_name || container.name || container.id || ("container_" + index));
+                  }
+
+                  function containerDisplayName(app, container, index) {
+                      var appDisplayName = appName(app);
+                      var serviceName = containerServiceName(container, index);
+
+                      if (appDisplayName !== "" && serviceName !== "") {
+                          return appDisplayName + "/" + serviceName;
+                      }
+
+                      return serviceName || appDisplayName;
+                  }
+
+                  function containerState(app, container) {
+                      return text(((container.status || {}).state) || container.state || app.state);
+                  }
+
+                  if (!Array.isArray(apps)) {
+                      apps = [];
+                  }
+
+                  for (var i = 0; i < apps.length; i++) {
+                      var app = apps[i] || {};
+                      var details = asArray(app.container_details);
+
+                      for (var j = 0; j < details.length; j++) {
+                          var container = details[j] || {};
+                          var state = containerState(app, container);
+                          var name = containerDisplayName(app, container, j);
+
+                          containers.push({
+                              name: name,
+                              id: text(container.id || name),
+                              app_name: appName(app),
+                              app_state: text(app.state),
+                              service_name: containerServiceName(container, j),
+                              image: text(container.image),
+                              state: state,
+                              status: {
+                                  state: state
+                              },
+                              autostart: app.autostart || app.start_on_boot || false,
+                              dataset: containerDataset(container),
+                              port_config: container.port_config || [],
+                              ports: container.ports || container.port_config || [],
+                              volume_mounts: container.volume_mounts || [],
+                              volumes: container.volumes || [],
+                              metrics: container.metrics || {},
+                              stats: container.stats || {},
+                              runtime: container.runtime || {},
+                              usage: container.usage || {}
+                          });
+                      }
+                  }
+
+                  return JSON.stringify({
+                      results: {
+                          containers: {
+                              ok: true,
+                              result: containers
+                          },
+                          datasets: {
+                              ok: true,
+                              result: datasets
+                          }
+                      }
+                  });
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: application
         - uuid: 3ab1f281f4824afd90d213d221c6e857
           name: 'TrueNAS: Containers running'
           type: DEPENDENT
@@ -506,7 +859,7 @@ zabbix_export:
                   
                   return count;
           master_item:
-            key: truenas.get
+            key: truenas.app.containers.raw
           tags:
             - tag: component
               value: virtualization
@@ -523,7 +876,7 @@ zabbix_export:
                   
                   return Array.isArray(containers) ? containers.length : 0;
           master_item:
-            key: truenas.get
+            key: truenas.app.containers.raw
           tags:
             - tag: component
               value: virtualization
@@ -1357,11 +1710,6 @@ zabbix_export:
                 {
                   "name": "vms",
                   "method": "vm.query",
-                  "params": []
-                },
-                {
-                  "name": "containers",
-                  "method": "container.query",
                   "params": []
                 }
               ]
@@ -2874,7 +3222,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -2958,7 +3306,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -2998,7 +3346,7 @@ zabbix_export:
                       
                       return "";
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -3130,7 +3478,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -3226,7 +3574,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -3261,7 +3609,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -3294,7 +3642,7 @@ zabbix_export:
                       
                       return "";
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: virtualization
@@ -3376,7 +3724,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: storage
@@ -3469,7 +3817,7 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: storage
@@ -3566,12 +3914,12 @@ zabbix_export:
                       
                       return 0;
               master_item:
-                key: truenas.get
+                key: truenas.app.containers.raw
               tags:
                 - tag: component
                   value: storage
           master_item:
-            key: truenas.get
+            key: truenas.app.containers.raw
           lld_macro_paths:
             - lld_macro: '{#CONTAINER.NAME}'
               path: $.name
