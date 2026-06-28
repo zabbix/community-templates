@@ -23,7 +23,7 @@ zabbix_export:
         
         The Zabbix Server or Zabbix Proxy that executes the HTTP agent item must be able to reach the bridge URL. The bridge itself must be able to reach the TrueNAS SCALE WebSocket API URL.
         
-        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, certificate, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Certificate monitoring uses certificate.query and requires CERTIFICATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
+        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, network interface, certificate, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Network interface monitoring uses interface.query and requires NETWORK_INTERFACE_READ. Certificate monitoring uses certificate.query and requires CERTIFICATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
         
         App, VM, and container monitoring uses app.query, vm.query, and container.query. These methods require the corresponding read permissions in TrueNAS. If the target TrueNAS version does not support one of these methods, the related discovery rule returns no entities and the API batch failure item reports the failed call.
       groups:
@@ -461,6 +461,233 @@ zabbix_export:
           tags:
             - tag: component
               value: virtualization
+        - uuid: 2ec944cbded145308454a70e8bd2fcd4
+          name: 'TrueNAS: Interfaces raw'
+          type: DEPENDENT
+          key: truenas.interfaces.raw
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var interfaces = (((data.results || {}).interfaces || {}).result) || [];
+                  var result = [];
+
+                  function text(value) {
+                      if (value === null || typeof value === "undefined") {
+                          return "";
+                      }
+
+                      if (Array.isArray(value)) {
+                          return value.join(", ");
+                      }
+
+                      if (typeof value === "object") {
+                          return JSON.stringify(value);
+                      }
+
+                      return String(value);
+                  }
+
+                  function bool(value) {
+                      if (value === true || value === 1) {
+                          return 1;
+                      }
+
+                      var valueText = String(value || "").toUpperCase();
+
+                      return (valueText === "TRUE" || valueText === "YES" || valueText === "ENABLED" || valueText === "1") ? 1 : 0;
+                  }
+
+                  function pick(object, keys) {
+                      if (!object || typeof object !== "object") {
+                          return "";
+                      }
+
+                      for (var i = 0; i < keys.length; i++) {
+                          if (object[keys[i]] !== null && typeof object[keys[i]] !== "undefined") {
+                              return object[keys[i]];
+                          }
+                      }
+
+                      return "";
+                  }
+
+                  function aliasText(aliases) {
+                      if (!Array.isArray(aliases)) {
+                          return text(aliases);
+                      }
+
+                      var result = [];
+
+                      for (var i = 0; i < aliases.length; i++) {
+                          var alias = aliases[i];
+
+                          if (typeof alias === "object") {
+                              var address = alias.address || alias.addr || "";
+                              var netmask = alias.netmask || alias.prefixlen || alias.prefix || "";
+                              result.push(address + (netmask !== "" ? "/" + netmask : ""));
+                          } else {
+                              result.push(String(alias));
+                          }
+                      }
+
+                      return result.filter(Boolean).join(", ");
+                  }
+
+                  function linkState(interfaceObject) {
+                      var state = interfaceObject.state || {};
+                      return text(pick(state, ["link_state", "linkstate", "link"]) || interfaceObject.link_state || interfaceObject.linkstate || interfaceObject.state);
+                  }
+
+                  function linkUp(state) {
+                      var upPattern = "{$TRUENAS.INTERFACE.LINK.STATE.UP.MATCHES}";
+                      var regexp;
+
+                      try {
+                          regexp = new RegExp(upPattern, "i");
+                      } catch (error) {
+                          regexp = /^(LINK_STATE_UP|UP|ACTIVE)$/i;
+                      }
+
+                      return regexp.test(String(state || "")) ? 1 : 0;
+                  }
+
+                  function linkMonitor(name) {
+                      var matches = "{$TRUENAS.INTERFACE.LINK.MONITOR.MATCHES}";
+                      var notMatches = "{$TRUENAS.INTERFACE.LINK.MONITOR.NOT_MATCHES}";
+                      var includeRegexp;
+                      var excludeRegexp;
+
+                      try {
+                          includeRegexp = new RegExp(matches);
+                      } catch (error) {
+                          includeRegexp = /^.*$/;
+                      }
+
+                      try {
+                          excludeRegexp = new RegExp(notMatches);
+                      } catch (error) {
+                          excludeRegexp = /^$/;
+                      }
+
+                      return includeRegexp.test(name) && !excludeRegexp.test(name) ? 1 : 0;
+                  }
+
+                  if (!Array.isArray(interfaces)) {
+                      return JSON.stringify(result);
+                  }
+
+                  for (var i = 0; i < interfaces.length; i++) {
+                      var iface = interfaces[i];
+                      var state = iface.state || {};
+                      var name = text(iface.name || iface.id || pick(state, ["name", "orig_name"]) || i);
+                      var link = linkState(iface);
+                      var aliases = iface.aliases;
+
+                      if (!Array.isArray(aliases) || aliases.length === 0) {
+                          aliases = state.aliases;
+                      }
+
+                      result.push({
+                          id: name,
+                          name: name,
+                          type: text(iface.type || state.type || "UNKNOWN"),
+                          description: text(iface.description || state.description || ""),
+                          link_state: link,
+                          link_up: linkUp(link),
+                          link_monitor: linkMonitor(name),
+                          mtu: Number(iface.mtu || state.mtu || 0),
+                          mac: text(iface.macaddress || iface.mac_address || state.link_address || state.macaddress || state.mac_address || ""),
+                          aliases: aliasText(aliases),
+                          ipv4_dhcp: bool(iface.ipv4_dhcp),
+                          ipv6_auto: bool(iface.ipv6_auto),
+                          media: text(state.active_media_subtype || state.active_media_type || state.media_subtype || state.media_type || ""),
+                          bridge_members: text(iface.bridge_members || state.bridge_members || ""),
+                          lag_ports: text(iface.lag_ports || state.lag_ports || ""),
+                          vlan_parent: text(iface.vlan_parent_interface || state.vlan_parent || ""),
+                          vlan_tag: text(iface.vlan_tag || state.vlan_id || "")
+                      });
+                  }
+
+                  return JSON.stringify(result);
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: network
+        - uuid: b31734d106df4c4c988dcd21c594445e
+          name: 'TrueNAS: Interfaces total'
+          type: DEPENDENT
+          key: truenas.interfaces.total
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var interfaces = JSON.parse(value);
+
+                  return Array.isArray(interfaces) ? interfaces.length : 0;
+          master_item:
+            key: truenas.interfaces.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: 6ad917a763d24a42898b0ad038379900
+          name: 'TrueNAS: Interfaces link up'
+          type: DEPENDENT
+          key: truenas.interfaces.link_up
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var interfaces = JSON.parse(value);
+                  var count = 0;
+
+                  if (!Array.isArray(interfaces)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < interfaces.length; i++) {
+                      if (Number(interfaces[i].link_up) === 1) {
+                          count++;
+                      }
+                  }
+
+                  return count;
+          master_item:
+            key: truenas.interfaces.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: 75b546e078c14665ae859c879661a084
+          name: 'TrueNAS: Interfaces monitored link down'
+          type: DEPENDENT
+          key: truenas.interfaces.link_down
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var interfaces = JSON.parse(value);
+                  var count = 0;
+
+                  if (!Array.isArray(interfaces)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < interfaces.length; i++) {
+                      if (Number(interfaces[i].link_monitor) === 1 && Number(interfaces[i].link_up) !== 1) {
+                          count++;
+                      }
+                  }
+
+                  return count;
+          master_item:
+            key: truenas.interfaces.raw
+          tags:
+            - tag: component
+              value: network
         - uuid: b7be9f3a4df24006bc2439cdea95f2a5
           name: 'TrueNAS: Certificates raw'
           type: DEPENDENT
@@ -1019,6 +1246,11 @@ zabbix_export:
                 {
                   "name": "services",
                   "method": "service.query",
+                  "params": []
+                },
+                {
+                  "name": "interfaces",
+                  "method": "interface.query",
                   "params": []
                 },
                 {
@@ -2212,6 +2444,326 @@ zabbix_export:
               path: $.id
             - lld_macro: '{#CERT.NAME}'
               path: $.name
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: b9250a5c2dc242cf80f0eaac2a536fd9
+          name: 'TrueNAS: Interface discovery'
+          type: DEPENDENT
+          key: truenas.interface.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFACE.NAME}'
+                value: '{$TRUENAS.INTERFACE.NAME.MATCHES}'
+              - macro: '{#IFACE.NAME}'
+                value: '{$TRUENAS.INTERFACE.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#IFACE.TYPE}'
+                value: '{$TRUENAS.INTERFACE.TYPE.MATCHES}'
+              - macro: '{#IFACE.TYPE}'
+                value: '{$TRUENAS.INTERFACE.TYPE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: d49e8c65c7314b7ebfce7d27d080d58f
+              name: 'Interface "{#IFACE.NAME}": Link up'
+              type: DEPENDENT
+              key: 'truenas.interface.link_up[{#IFACE.NAME}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return Number(interfaces[i].link_up) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+              trigger_prototypes:
+                - uuid: 18d13e8924be4d8ca4e1d8c24ecb0697
+                  expression: 'last(/TrueNAS by WebSocket API/truenas.interface.link_monitor[{#IFACE.NAME}])=1 and last(/TrueNAS by WebSocket API/truenas.interface.link_up[{#IFACE.NAME}])=0'
+                  name: 'Interface "{#IFACE.NAME}": Link is down'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 6ab8f9ee0ab847a49bcfd757ab639ddf
+              name: 'Interface "{#IFACE.NAME}": Link monitoring enabled'
+              type: DEPENDENT
+              key: 'truenas.interface.link_monitor[{#IFACE.NAME}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return Number(interfaces[i].link_monitor) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 0ebadee99a384a0cbda74c3022e0dee8
+              name: 'Interface "{#IFACE.NAME}": Link state'
+              type: DEPENDENT
+              key: 'truenas.interface.link_state[{#IFACE.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return String(interfaces[i].link_state || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: fb7d5b5f6ca34fceb3436056c1b19d84
+              name: 'Interface "{#IFACE.NAME}": Type'
+              type: DEPENDENT
+              key: 'truenas.interface.type[{#IFACE.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return String(interfaces[i].type || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 2a629350b1e84e329db667e4c040ed2f
+              name: 'Interface "{#IFACE.NAME}": MTU'
+              type: DEPENDENT
+              key: 'truenas.interface.mtu[{#IFACE.NAME}]'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return Number(interfaces[i].mtu || 0);
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 7cef0ee9fbd648e7aba1cace5516ac13
+              name: 'Interface "{#IFACE.NAME}": MAC address'
+              type: DEPENDENT
+              key: 'truenas.interface.mac[{#IFACE.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return String(interfaces[i].mac || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 7c88a3d5c5824403866a3c0f7a762c2a
+              name: 'Interface "{#IFACE.NAME}": Aliases'
+              type: DEPENDENT
+              key: 'truenas.interface.aliases[{#IFACE.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return String(interfaces[i].aliases || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 01d73b89213a48608482272c67c682c3
+              name: 'Interface "{#IFACE.NAME}": IPv4 DHCP'
+              type: DEPENDENT
+              key: 'truenas.interface.ipv4_dhcp[{#IFACE.NAME}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return Number(interfaces[i].ipv4_dhcp) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 10b6e66fd3474867bd450ab57c037a63
+              name: 'Interface "{#IFACE.NAME}": IPv6 auto'
+              type: DEPENDENT
+              key: 'truenas.interface.ipv6_auto[{#IFACE.NAME}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return Number(interfaces[i].ipv6_auto) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+            - uuid: da2e305cc5c04889804a64728553e147
+              name: 'Interface "{#IFACE.NAME}": Media'
+              type: DEPENDENT
+              key: 'truenas.interface.media[{#IFACE.NAME}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var interfaces = JSON.parse(value);
+                      var interfaceName = "{#IFACE.NAME}";
+
+                      if (!Array.isArray(interfaces)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < interfaces.length; i++) {
+                          if (String(interfaces[i].name) === interfaceName) {
+                              return String(interfaces[i].media || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.interfaces.raw
+              tags:
+                - tag: component
+                  value: network
+          master_item:
+            key: truenas.interfaces.raw
+          lld_macro_paths:
+            - lld_macro: '{#IFACE.NAME}'
+              path: $.name
+            - lld_macro: '{#IFACE.TYPE}'
+              path: $.type
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -5562,6 +6114,27 @@ zabbix_export:
         - macro: '{$TRUENAS.DISK.TEMP.MAX.WARN}'
           value: '45'
           description: 'Warning disk temperature threshold, in degrees Celsius.'
+        - macro: '{$TRUENAS.INTERFACE.LINK.MONITOR.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for network interfaces whose link state should raise trigger alerts.'
+        - macro: '{$TRUENAS.INTERFACE.LINK.MONITOR.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for network interfaces excluded from link state trigger alerts.'
+        - macro: '{$TRUENAS.INTERFACE.LINK.STATE.UP.MATCHES}'
+          value: '^(LINK_STATE_UP|UP|ACTIVE)$'
+          description: 'Regular expression for network interface link states that should be considered up. State values are matched case-insensitively.'
+        - macro: '{$TRUENAS.INTERFACE.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for network interface discovery inclusion by interface name.'
+        - macro: '{$TRUENAS.INTERFACE.NAME.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for network interface discovery exclusion by interface name.'
+        - macro: '{$TRUENAS.INTERFACE.TYPE.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for network interface discovery inclusion by interface type.'
+        - macro: '{$TRUENAS.INTERFACE.TYPE.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for network interface discovery exclusion by interface type.'
         - macro: '{$TRUENAS.POOL.NAME.MATCHES}'
           value: '^.*$'
           description: 'Regular expression for pool discovery inclusion.'
