@@ -12,13 +12,13 @@ TrueNAS 25.04 and later uses a versioned JSON-RPC 2.0 API over WebSocket. The le
 |---|---:|
 | Zabbix version | 7.4 |
 | Master items | 1 HTTP agent |
-| Dependent items | 42 |
-| Low-level discovery rules | 8 |
-| Item prototypes | 65 |
-| Triggers and trigger prototypes | 51 |
-| User macros | 50 |
+| Dependent items | 46 |
+| Low-level discovery rules | 9 |
+| Item prototypes | 71 |
+| Triggers and trigger prototypes | 53 |
+| User macros | 53 |
 
-The template covers system information, API health, alerts, boot pool, pools, datasets, disks, services, data protection tasks, apps, containers, and virtual machines.
+The template covers system information, API health, alerts, boot pool, pools, datasets, disks, services, certificates, data protection tasks, apps, containers, and virtual machines.
 
 ## Requirements
 
@@ -296,6 +296,7 @@ The master item sends one batch containing these JSON-RPC calls:
 | `disks` | `disk.query` |
 | `disk_temperatures` | `disk.temperatures` |
 | `services` | `service.query` |
+| `certificates` | `certificate.query` |
 | `cloud_backups` | `cloud_backup.query` |
 | `cloud_sync_tasks` | `cloudsync.query` |
 | `periodic_snapshot_tasks` | `pool.snapshottask.query` |
@@ -305,7 +306,7 @@ The master item sends one batch containing these JSON-RPC calls:
 | `vms` | `vm.query` |
 | `containers` | `container.query` |
 
-The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, reporting, data protection, app, VM, and container data. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`. Periodic snapshot monitoring requires `SNAPSHOT_TASK_READ`; the other data protection APIs require their corresponding read permissions.
+The TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, certificate, update, reporting, data protection, app, VM, and container data. Update monitoring uses `update.available_versions` and requires update-read permissions such as `SYSTEM_UPDATE_READ`. Certificate monitoring uses `certificate.query` and requires `CERTIFICATE_READ`. Periodic snapshot monitoring requires `SNAPSHOT_TASK_READ`; the other data protection APIs require their corresponding read permissions.
 
 If a TrueNAS version does not support one of the optional methods, the related discovery rule returns no objects and `TrueNAS: API calls failed` reports the failed batch call.
 
@@ -372,6 +373,9 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | `{$TRUENAS.APP.STATE.OK.MATCHES}` | `^RUNNING$` | Regular expression for app states considered healthy. |
 | `{$TRUENAS.BOOT.POOL.USED.MAX.CRIT}` | `90` | Critical threshold for boot pool used space, in percent. |
 | `{$TRUENAS.BOOT.POOL.USED.MAX.WARN}` | `80` | Warning threshold for boot pool used space, in percent. |
+| `{$TRUENAS.CERT.EXPIRES.WARN}` | `30` | Warning threshold for certificate expiration, in days before the certificate valid-until date. |
+| `{$TRUENAS.CERT.NAME.MATCHES}` | `^.*$` | Regular expression for certificate discovery inclusion by certificate name. |
+| `{$TRUENAS.CERT.NAME.NOT_MATCHES}` | `^$` | Regular expression for certificate discovery exclusion by certificate name. |
 | `{$TRUENAS.CONTAINER.CPU.UTIL.MAX.CRIT}` | `95` | Critical threshold for container CPU utilization, in percent. |
 | `{$TRUENAS.CONTAINER.CPU.UTIL.MAX.WARN}` | `85` | Warning threshold for container CPU utilization, in percent. |
 | `{$TRUENAS.CONTAINER.MEMORY.USED.MAX.CRIT}` | `95` | Critical threshold for container memory usage, in percent. |
@@ -428,6 +432,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | Updates | Available update count and available versions |
 | Alerts | Total, warning, and critical alerts |
 | Boot pool | Health, status, warning flag, size, allocated, free, used percentage |
+| Certificates | Total, expiring soon, and expired certificate counters |
 | Data protection | Total, enabled, and failed Data Protection task counters |
 | Apps, containers, VMs | Total and running or not-running counters |
 
@@ -436,6 +441,7 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 | Discovery rule | Item prototypes | Trigger prototypes | Scope |
 |---|---:|---:|---|
 | App discovery | 7 | 3 | App state and update availability |
+| Certificate discovery | 6 | 2 | Certificate expiration, parsed state, common name, and SAN |
 | Container discovery | 10 | 7 | Container state, CPU, memory, and storage |
 | Data protection task discovery | 7 | 1 | TrueCloud Backup, Cloud Sync, Periodic Snapshot, Rsync, and Replication tasks |
 | Dataset discovery | 9 | 2 | Dataset usage, quota, reservation, read-only state |
@@ -448,9 +454,9 @@ After linking the template, check `TrueNAS: Get data` first. All dependent items
 
 | Severity | Count | Examples |
 |---|---:|---|
-| High | 6 | API login failed, bridge request failed, boot pool unhealthy, pool unhealthy, pool offline |
+| High | 7 | API login failed, bridge request failed, boot pool unhealthy, pool unhealthy, pool offline, expired certificates |
 | Average | 20 | API batch failed, system not ready, critical capacity, high temperatures, data protection task failures, app/container/VM state mismatch |
-| Warning | 21 | Warning alerts, warning capacity, ZFS read/write/checksum errors, high CPU utilization |
+| Warning | 22 | Warning alerts, warning capacity, certificate expiration, ZFS read/write/checksum errors, high CPU utilization |
 | Information | 4 | Updates available, app updates available, system restarted |
 
 Important trigger areas:
@@ -458,6 +464,7 @@ Important trigger areas:
 - API availability and authentication
 - Bridge response health
 - TrueNAS alert counts
+- Certificate expiration
 - Boot pool and data pool health
 - Pool, dataset, container, and VM capacity
 - Disk and CPU temperature
@@ -477,7 +484,7 @@ Template-level tags:
 
 Items and triggers also use component and scope tags for filtering, for example:
 
-- `component`: `raw`, `system`, `storage`, `dataprotection`, `virtualization`, `service`
+- `component`: `raw`, `system`, `storage`, `certificate`, `dataprotection`, `virtualization`, `service`
 - `scope`: `availability`, `capacity`, `health`, `notice`, `performance`
 
 ## Security Notes
@@ -493,7 +500,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 
 - The current template depends on `zabbix-websocket-bridge`; the bridge implementation is not contained in this version folder yet.
 - The TrueNAS target URL is currently built as `wss://{HOST.CONN}{$TRUENAS.API.PATH}` and does not expose a dedicated port macro.
-- Optional methods such as `app.query`, `vm.query`, `container.query`, `cloud_backup.query`, `cloudsync.query`, `pool.snapshottask.query`, `rsynctask.query`, or `replication.query` can be unavailable on some TrueNAS versions or installations.
+- Optional or permissioned methods such as `certificate.query`, `app.query`, `vm.query`, `container.query`, `cloud_backup.query`, `cloudsync.query`, `pool.snapshottask.query`, `rsynctask.query`, or `replication.query` can be unavailable on some TrueNAS versions or installations.
 - Disk temperatures and reporting metrics depend on hardware support and TrueNAS middleware data availability.
 - TrueNAS 24.10 and older can use different endpoint behavior and are not the primary target.
 
@@ -506,6 +513,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 | API login failed | Verify `{$TRUENAS.API.USER}`, `{$TRUENAS.API.KEY}`, and TrueNAS API-key status. |
 | TLS error | Check TrueNAS certificate trust and `{$TRUENAS.API.TLS_VERIFY}`. |
 | Some discovery rules are empty | Confirm the related API method exists and the API user has read permissions. |
+| Certificates are missing | Confirm that the API user has `CERTIFICATE_READ` permission. |
 | Data Protection tasks are missing | Confirm permissions for Cloud Backup, Cloud Sync, Snapshot Tasks, Rsync Tasks, and Replication Tasks. |
 | `TrueNAS: API calls failed` is non-zero | Inspect the master item JSON for the failed method name and returned error. |
 | Dependent items have no data | Confirm that `TrueNAS: Get data` returns valid JSON and review preprocessing errors. |
@@ -522,6 +530,7 @@ Items and triggers also use component and scope tags for filtering, for example:
 - Zabbix community template guidelines: <https://www.zabbix.com/documentation/guidelines/en/thosts/community_templates>
 - TrueNAS API documentation: <https://api.truenas.com/>
 - TrueNAS API client: <https://github.com/truenas/api_client>
+- TrueNAS `certificate.query`: <https://api.truenas.com/v25.10/api_methods_certificate.query.html>
 - TrueNAS `cloud_backup.query`: <https://api.truenas.com/v25.04/api_methods_cloud_backup.query.html>
 - TrueNAS `cloudsync.query`: <https://api.truenas.com/v25.04/api_methods_cloudsync.query.html>
 - TrueNAS `pool.snapshottask.query`: <https://api.truenas.com/v25.04/api_methods_pool.snapshottask.query.html>

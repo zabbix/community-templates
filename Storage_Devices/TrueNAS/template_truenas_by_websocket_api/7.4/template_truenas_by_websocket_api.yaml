@@ -23,7 +23,7 @@ zabbix_export:
         
         The Zabbix Server or Zabbix Proxy that executes the HTTP agent item must be able to reach the bridge URL. The bridge itself must be able to reach the TrueNAS SCALE WebSocket API URL.
         
-        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
+        The configured TrueNAS API user must be allowed to read system, alert, pool, dataset, disk, service, certificate, update, reporting, and Data Protection task data. CPU utilization is retrieved through reporting.get_data and requires reporting read permissions. System update monitoring uses update.available_versions and requires SYSTEM_UPDATE_READ. Certificate monitoring uses certificate.query and requires CERTIFICATE_READ. Data Protection monitoring uses cloud_backup.query, cloudsync.query, pool.snapshottask.query, rsynctask.query, and replication.query.
         
         App, VM, and container monitoring uses app.query, vm.query, and container.query. These methods require the corresponding read permissions in TrueNAS. If the target TrueNAS version does not support one of these methods, the related discovery rule returns no entities and the API batch failure item reports the failed call.
       groups:
@@ -461,6 +461,192 @@ zabbix_export:
           tags:
             - tag: component
               value: virtualization
+        - uuid: b7be9f3a4df24006bc2439cdea95f2a5
+          name: 'TrueNAS: Certificates raw'
+          type: DEPENDENT
+          key: truenas.certificates.raw
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var certificates = (((data.results || {}).certificates || {}).result) || [];
+                  var result = [];
+
+                  function text(value) {
+                      if (value === null || typeof value === "undefined") {
+                          return "";
+                      }
+
+                      if (Array.isArray(value)) {
+                          return value.join(", ");
+                      }
+
+                      if (typeof value === "object") {
+                          return JSON.stringify(value);
+                      }
+
+                      return String(value);
+                  }
+
+                  function parseTime(value) {
+                      if (value === null || typeof value === "undefined" || value === "") {
+                          return null;
+                      }
+
+                      if (typeof value === "number") {
+                          return value > 100000000000 ? value : value * 1000;
+                      }
+
+                      var parsed = Date.parse(String(value));
+
+                      return isNaN(parsed) ? null : parsed;
+                  }
+
+                  function valueFrom(certificate, keys) {
+                      for (var i = 0; i < keys.length; i++) {
+                          if (certificate[keys[i]] !== null && typeof certificate[keys[i]] !== "undefined") {
+                              return certificate[keys[i]];
+                          }
+                      }
+
+                      return "";
+                  }
+
+                  function expired(certificate, validUntil) {
+                      if (certificate.expired === true) {
+                          return 1;
+                      }
+
+                      if (certificate.expired === false) {
+                          return 0;
+                      }
+
+                      var timestamp = parseTime(validUntil);
+
+                      return timestamp !== null && timestamp <= Date.now() ? 1 : 0;
+                  }
+
+                  function daysRemaining(validUntil) {
+                      var timestamp = parseTime(validUntil);
+
+                      if (timestamp === null) {
+                          return 2147483647;
+                      }
+
+                      var days = Math.ceil((timestamp - Date.now()) / 86400000);
+
+                      return days > 0 ? days : 0;
+                  }
+
+                  if (!Array.isArray(certificates)) {
+                      return JSON.stringify(result);
+                  }
+
+                  for (var i = 0; i < certificates.length; i++) {
+                      var certificate = certificates[i];
+                      var id = text(certificate.id || certificate.name || certificate.cert_name || i);
+                      var name = text(certificate.name || certificate.cert_name || certificate.common || id);
+                      var validFrom = valueFrom(certificate, ["from", "not_before", "notBefore", "valid_from"]);
+                      var validUntil = valueFrom(certificate, ["until", "not_after", "notAfter", "valid_until", "valid_to"]);
+
+                      result.push({
+                          id: id,
+                          name: name,
+                          common_name: text(certificate.common || certificate.common_name || ""),
+                          san: text(certificate.san || certificate.subject_alt_names || ""),
+                          valid_from: text(validFrom),
+                          valid_until: text(validUntil),
+                          days_remaining: daysRemaining(validUntil),
+                          expired: expired(certificate, validUntil),
+                          parsed: certificate.parsed === true ? 1 : 0,
+                          ca: certificate.cert_type_CA === true ? 1 : 0
+                      });
+                  }
+
+                  return JSON.stringify(result);
+          master_item:
+            key: truenas.get
+          tags:
+            - tag: component
+              value: certificate
+        - uuid: 3b3d3f5c6d144dc09d98dd6710ff7c36
+          name: 'TrueNAS: Certificates total'
+          type: DEPENDENT
+          key: truenas.certificates.total
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var certificates = JSON.parse(value);
+
+                  return Array.isArray(certificates) ? certificates.length : 0;
+          master_item:
+            key: truenas.certificates.raw
+          tags:
+            - tag: component
+              value: certificate
+        - uuid: 5734333cd279431e8edf057538886ed6
+          name: 'TrueNAS: Certificates expiring soon'
+          type: DEPENDENT
+          key: truenas.certificates.expiring
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var certificates = JSON.parse(value);
+                  var warnDays = Number("{$TRUENAS.CERT.EXPIRES.WARN}");
+                  var count = 0;
+
+                  if (isNaN(warnDays) || warnDays < 0) {
+                      warnDays = 30;
+                  }
+
+                  if (!Array.isArray(certificates)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < certificates.length; i++) {
+                      if (Number(certificates[i].expired) !== 1 && Number(certificates[i].days_remaining) <= warnDays) {
+                          count++;
+                      }
+                  }
+
+                  return count;
+          master_item:
+            key: truenas.certificates.raw
+          tags:
+            - tag: component
+              value: certificate
+        - uuid: de7d9835d5e64204b28d2acb92e1fb92
+          name: 'TrueNAS: Certificates expired'
+          type: DEPENDENT
+          key: truenas.certificates.expired
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var certificates = JSON.parse(value);
+                  var count = 0;
+
+                  if (!Array.isArray(certificates)) {
+                      return 0;
+                  }
+
+                  for (var i = 0; i < certificates.length; i++) {
+                      if (Number(certificates[i].expired) === 1) {
+                          count++;
+                      }
+                  }
+
+                  return count;
+          master_item:
+            key: truenas.certificates.raw
+          tags:
+            - tag: component
+              value: certificate
         - uuid: 39274a0074754203907c2c5507247212
           name: 'TrueNAS: Data protection tasks raw'
           type: DEPENDENT
@@ -833,6 +1019,11 @@ zabbix_export:
                 {
                   "name": "services",
                   "method": "service.query",
+                  "params": []
+                },
+                {
+                  "name": "certificates",
+                  "method": "certificate.query",
                   "params": []
                 },
                 {
@@ -1812,6 +2003,216 @@ zabbix_export:
                   }
                   
                   return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: eb7a85e315d84812b406c74bd4882d60
+          name: 'TrueNAS: Certificate discovery'
+          type: DEPENDENT
+          key: truenas.certificate.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#CERT.NAME}'
+                value: '{$TRUENAS.CERT.NAME.MATCHES}'
+              - macro: '{#CERT.NAME}'
+                value: '{$TRUENAS.CERT.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: f155ac0d47fd4d5c95d1026c2e794d58
+              name: 'Certificate "{#CERT.NAME}": Days remaining'
+              type: DEPENDENT
+              key: 'truenas.certificate.days_remaining[{#CERT.ID}]'
+              units: d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return 2147483647;
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return Number(certificates[i].days_remaining);
+                          }
+                      }
+
+                      return 2147483647;
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+              trigger_prototypes:
+                - uuid: ff7158d52ef24319856823e9302532c5
+                  expression: 'last(/TrueNAS by WebSocket API/truenas.certificate.expired[{#CERT.ID}])=0 and last(/TrueNAS by WebSocket API/truenas.certificate.days_remaining[{#CERT.ID}])<={$TRUENAS.CERT.EXPIRES.WARN}'
+                  name: 'Certificate "{#CERT.NAME}": Expires in {$TRUENAS.CERT.EXPIRES.WARN} days or less'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: bdff0a17eff3451ca39e0b7b054270e5
+              name: 'Certificate "{#CERT.NAME}": Expired'
+              type: DEPENDENT
+              key: 'truenas.certificate.expired[{#CERT.ID}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return Number(certificates[i].expired) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+              trigger_prototypes:
+                - uuid: 435a39742d0b41c88b4f56eb2cbe56dd
+                  expression: 'last(/TrueNAS by WebSocket API/truenas.certificate.expired[{#CERT.ID}])=1'
+                  name: 'Certificate "{#CERT.NAME}": Certificate has expired'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 6b4f8969f8984b088d7b7bc5c3c097c2
+              name: 'Certificate "{#CERT.NAME}": Parsed'
+              type: DEPENDENT
+              key: 'truenas.certificate.parsed[{#CERT.ID}]'
+              valuemap:
+                name: 'TrueNAS Yes/No'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return 0;
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return Number(certificates[i].parsed) === 1 ? 1 : 0;
+                          }
+                      }
+
+                      return 0;
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+            - uuid: d8a3b98132514da5b793a6c6c9304cc5
+              name: 'Certificate "{#CERT.NAME}": Valid until'
+              type: DEPENDENT
+              key: 'truenas.certificate.valid_until[{#CERT.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return String(certificates[i].valid_until || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+            - uuid: 0abc1162b1984f509df3ff1686d1da71
+              name: 'Certificate "{#CERT.NAME}": Common name'
+              type: DEPENDENT
+              key: 'truenas.certificate.common_name[{#CERT.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return String(certificates[i].common_name || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+            - uuid: 14539b6afda742b4804753b8553e9726
+              name: 'Certificate "{#CERT.NAME}": Subject alternative names'
+              type: DEPENDENT
+              key: 'truenas.certificate.san[{#CERT.ID}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificates = JSON.parse(value);
+                      var certificateId = "{#CERT.ID}";
+
+                      if (!Array.isArray(certificates)) {
+                          return "";
+                      }
+
+                      for (var i = 0; i < certificates.length; i++) {
+                          if (String(certificates[i].id) === certificateId) {
+                              return String(certificates[i].san || "");
+                          }
+                      }
+
+                      return "";
+              master_item:
+                key: truenas.certificates.raw
+              tags:
+                - tag: component
+                  value: certificate
+          master_item:
+            key: truenas.certificates.raw
+          lld_macro_paths:
+            - lld_macro: '{#CERT.ID}'
+              path: $.id
+            - lld_macro: '{#CERT.NAME}'
+              path: $.name
+          preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1h
@@ -5077,6 +5478,15 @@ zabbix_export:
         - macro: '{$TRUENAS.BOOT.POOL.USED.MAX.WARN}'
           value: '80'
           description: 'Warning threshold for boot pool used space, in percent.'
+        - macro: '{$TRUENAS.CERT.EXPIRES.WARN}'
+          value: '30'
+          description: 'Warning threshold for certificate expiration, in days before the certificate valid-until date.'
+        - macro: '{$TRUENAS.CERT.NAME.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression for certificate discovery inclusion by certificate name.'
+        - macro: '{$TRUENAS.CERT.NAME.NOT_MATCHES}'
+          value: ^$
+          description: 'Regular expression for certificate discovery exclusion by certificate name.'
         - macro: '{$TRUENAS.CONTAINER.CPU.UTIL.MAX.CRIT}'
           value: '95'
           description: 'Critical threshold for container CPU utilization, in percent.'
