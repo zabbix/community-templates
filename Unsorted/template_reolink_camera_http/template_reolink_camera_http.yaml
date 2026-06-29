@@ -1,0 +1,371 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: d37f71c7e3f7469bab645852a69a2018
+      name: 'Templates/Video surveillance'
+  templates:
+    - uuid: c7e61ea899f94220ac3b1b7f06d4f288
+      template: 'Reolink Camera by HTTP'
+      name: 'Reolink Camera by HTTP'
+      description: |
+        Monitors Reolink Cameras via http cgi-bin get
+
+        Tested on Reolink RLC-520A IP cameras, may work partially or in full with other units.
+
+        Setup:
+
+        1 - Enable the API on the camera.  Some models like this one disable local web/API features by default.
+
+        * Open your Reolink PC Client or log directly into the camera's web UI.
+        * Go to Device Settings > Network > Advanced > Server Settings.
+        * Ensure HTTP or HTTPS is checked and enabled.
+
+        2 - Import this template, link to a host, and set the following macros
+
+        * {$REOLINK.USER}
+        * {$REOLINK.PASSWORD}
+        * {$REOLINK.PORT}
+
+        You do not have to set an interface, but consider also using the built in ICMP Ping template as well.  That template *does* require an agent interface set.
+
+        Suggestions, comments, pull requests welcome.
+
+        Thanks to https://github.com/mnpg/Reolink_api_documentations and others for providing enough data to get this far.
+      groups:
+        - name: 'Templates/Video surveillance'
+      macros:
+        - macro: '{$REOLINK.USER}'
+          value: 'admin'
+          description: 'Username which can log into the camera.'
+        - macro: '{$REOLINK.PASSWORD}'
+          type: SECRET_TEXT
+          value: ''
+          description: 'Password assigned.'
+        - macro: '{$REOLINK.PORT}'
+          value: '80'
+          description: 'HTTP port camera using. Usually 80 if http.'
+        - macro: '{$REOLINK.DELAY.DEVICE}'
+          value: '1h'
+          description: 'Check interval for static hardware info.'
+        - macro: '{$REOLINK.DELAY.PERF}'
+          value: '10m'
+          description: 'Polling intervals for performance info.'
+        - macro: '{$REOLINK.DELAY.STORAGE}'
+          value: '10m'
+          description: 'Interval for checking local storage.'
+        - macro: '{$REOLINK.NODATA.TIME}'
+          value: '20m'
+          description: 'Grace period before alerting on missing API data.'
+        - macro: '{$REOLINK.CPU.TIME}'
+          value: '20m'
+          description: 'Length of time CPU use high to trigger issue. Min double DELAY.PERF'
+      items:
+        - uuid: 7fe6116eb7b8473f89b142de9161f39a
+          name: 'Reolink: Get device info'
+          type: HTTP_AGENT
+          key: reolink.device.get
+          delay: '{$REOLINK.DELAY.DEVICE}'
+          value_type: TEXT
+          description: 'Fetches the static system info.'
+          url: 'http://{HOST.CONN}:{$REOLINK.PORT}/cgi-bin/api.cgi?cmd=GetDevInfo&user={$REOLINK.USER}&password={$REOLINK.PASSWORD}'
+          tags:
+            - tag: component
+              value: device
+        - uuid: 13d540f25f64450798928a68c1de88bb
+          name: 'Reolink: Firmware version'
+          type: DEPENDENT
+          key: reolink.device.firmware
+          value_type: TEXT
+          description: 'Current active firmware.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.DevInfo.firmVer'
+          master_item:
+            key: reolink.device.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: b6c72d74876040688e07e68d1783da80
+          name: 'Reolink: Hardware version'
+          type: DEPENDENT
+          key: reolink.device.hardware
+          value_type: TEXT
+          description: 'Hardware version.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.DevInfo.hardVer'
+          master_item:
+            key: reolink.device.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 93e90692d1414aee9e04fbd56755639c
+          name: 'Reolink: Camera model'
+          type: DEPENDENT
+          key: reolink.device.model
+          value_type: TEXT
+          description: 'Camera model.'
+          inventory_link: MODEL
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.DevInfo.model'
+          master_item:
+            key: reolink.device.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 59ce120b46c84e508774af74d0827e87
+          name: 'Reolink: Device name'
+          type: DEPENDENT
+          key: reolink.device.name
+          value_type: TEXT
+          description: 'Assigned device name.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.DevInfo.name'
+          master_item:
+            key: reolink.device.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: d673861b0f8f494ab8afa64ff104b618
+          name: 'Reolink: Serial number'
+          type: DEPENDENT
+          key: reolink.device.serial
+          value_type: TEXT
+          description: 'Hardware serial number.'
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.DevInfo.serial'
+          master_item:
+            key: reolink.device.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 91314ff28e4f4f8dbfd7c26975308526
+          name: 'Reolink: Get performance info'
+          type: HTTP_AGENT
+          key: reolink.performance.get
+          delay: '{$REOLINK.DELAY.PERF}'
+          value_type: TEXT
+          description: 'Aggregates running perfomance information.'
+          url: 'http://{HOST.CONN}:{$REOLINK.PORT}/cgi-bin/api.cgi?cmd=GetPerformance&user={$REOLINK.USER}&password={$REOLINK.PASSWORD}'
+          tags:
+            - tag: component
+              value: performance
+          triggers:
+            - uuid: f722ed300b3243ba9b4a9275ce318f2e
+              expression: 'nodata(/Reolink Camera by HTTP/reolink.performance.get,{$REOLINK.NODATA.TIME})=1'
+              name: 'Reolink: HTTP API service is down'
+              priority: AVERAGE
+              description: 'Camera API issue. The web service may be disabled or unresponsive.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e72fb0e276f84d04abe54a033f8a9823
+          name: 'Reolink: CPU usage'
+          type: DEPENDENT
+          key: reolink.performance.cpu
+          units: '%'
+          description: 'CPU use percentage.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.Performance.cpuUsed'
+          master_item:
+            key: reolink.performance.get
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: b8a215b7cabc491c9116ced92eeb1094
+              expression: 'min(/Reolink Camera by HTTP/reolink.performance.cpu,{$REOLINK.CPU.TIME})>90'
+              name: 'Reolink: High CPU usage'
+              priority: WARNING
+              description: 'Sustained high CPU use.'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 0c27863156e1421daa0445282c30d65b
+          name: 'Reolink: Network throughput'
+          type: DEPENDENT
+          key: reolink.performance.throughput
+          units: bps
+          description: 'Camera network throughput.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.Performance.netThroughput'
+            - type: MULTIPLIER
+              parameters:
+                - '1000'
+          master_item:
+            key: reolink.performance.get
+          tags:
+            - tag: component
+              value: network
+        - uuid: 3be34845f7e94747a26b1e8db7da3dd9
+          name: 'Reolink: Get storage info'
+          type: HTTP_AGENT
+          key: reolink.storage.get
+          delay: '{$REOLINK.DELAY.STORAGE}'
+          value_type: TEXT
+          description: 'Aggregates bulk drive block mappings, volume table descriptors, partition layouts, and file access states.'
+          url: 'http://{HOST.CONN}:{$REOLINK.PORT}/cgi-bin/api.cgi?cmd=GetHddInfo&user={$REOLINK.USER}&password={$REOLINK.PASSWORD}'
+          tags:
+            - tag: component
+              value: storage
+        - uuid: 6a343aee6e1b45b28918a322062dfbb1
+          name: 'Reolink: Storage total capacity'
+          type: DEPENDENT
+          key: reolink.storage.total_capacity
+          units: B
+          description: 'Total storage capacity.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.HddInfo[0].capacity'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: MULTIPLIER
+              parameters:
+                - '1048576'
+          master_item:
+            key: reolink.storage.get
+          tags:
+            - tag: component
+              value: storage
+        - uuid: fc35642efc054d21ab2d4620fb964462
+          name: 'Reolink: Storage status'
+          type: DEPENDENT
+          key: reolink.storage.format
+          description: 'Storage status, where 1 represents a healthy active partition file structure and 0 indicates an error or raw block space.'
+          valuemap:
+            name: 'Storage Status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.HddInfo[0].format'
+          master_item:
+            key: reolink.storage.get
+          tags:
+            - tag: component
+              value: storage
+          triggers:
+            - uuid: 82172f3ad45b4b848026d518aa0953b7
+              expression: 'last(/Reolink Camera by HTTP/reolink.storage.format)=0'
+              name: 'Reolink: Storage error or unformatted'
+              priority: HIGH
+              description: 'The storage interface registers error or unformatted.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 89f0c4c262104e73a7ab33d9641058b7
+          name: 'Reolink: Storage free space'
+          type: DEPENDENT
+          key: reolink.storage.free
+          units: B
+          description: 'Storage space remaining available.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.HddInfo[0].size'
+            - type: MULTIPLIER
+              parameters:
+                - '1048576'
+          master_item:
+            key: reolink.storage.get
+          tags:
+            - tag: component
+              value: storage
+        - uuid: aef4a363454f4b1895522b721fef041e
+          name: 'Reolink: Storage present'
+          type: DEPENDENT
+          key: reolink.storage.mount
+          description: 'Storage present state. 1 is mounted, 0 unmounted or removed.'
+          valuemap:
+            name: 'Storage Present State'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].value.HddInfo[0].mount'
+          master_item:
+            key: reolink.storage.get
+          tags:
+            - tag: component
+              value: storage
+          triggers:
+            - uuid: ddf87e6ab7bb48329edbe789fee84b15
+              expression: 'last(/Reolink Camera by HTTP/reolink.storage.mount)=0'
+              name: 'Reolink: Storage missing'
+              priority: HIGH
+              description: 'Storage not present.'
+              tags:
+                - tag: scope
+                  value: availability
+      tags:
+        - tag: class
+          value: hardware
+        - tag: target
+          value: cctv
+        - tag: target
+          value: reolink
+      valuemaps:
+        - uuid: e597df94770d4abda29cf4f884bf03a1
+          name: 'Storage Present State'
+          mappings:
+            - value: '0'
+              newvalue: Missing/Disconnected
+            - value: '1'
+              newvalue: Mounted
+        - uuid: c61bdde7e83d470a96ef8e81dfbb90c1
+          name: 'Storage Status'
+          mappings:
+            - value: '0'
+              newvalue: Error/Unformatted
+            - value: '1'
+              newvalue: Healthy
+  triggers:
+    - uuid: f467a15b005740c688a4cd625351ec8e
+      expression: 'last(/Reolink Camera by HTTP/reolink.storage.free)<(last(/Reolink Camera by HTTP/reolink.storage.total_capacity)*0.1)'
+      recovery_mode: RECOVERY_EXPRESSION
+      recovery_expression: 'last(/Reolink Camera by HTTP/reolink.storage.free)>(last(/Reolink Camera by HTTP/reolink.storage.total_capacity)*0.12)'
+      name: 'Reolink: Storage space is low'
+      priority: WARNING
+      description: 'Storage space below 10% of total.'
+      tags:
+        - tag: scope
+          value: capacity
+  graphs:
+    - uuid: a2fd68e5f04b4ae88300ca460d41c805
+      name: 'CPU Usage'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 199C0D
+          item:
+            host: 'Reolink Camera by HTTP'
+            key: reolink.performance.cpu
+    - uuid: 7eed2abece484b629abb8bad46815b6e
+      name: 'Network Throughput'
+      yaxismax: '0'
+      graph_items:
+        - color: EF6C00
+          item:
+            host: 'Reolink Camera by HTTP'
+            key: reolink.performance.throughput
+    - uuid: 020bd5177cd24b7da688ba81b2f65fed
+      name: 'Storage Free Space'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 4000FF
+          item:
+            host: 'Reolink Camera by HTTP'
+            key: reolink.storage.free
