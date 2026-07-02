@@ -32,7 +32,8 @@ The template collects hardware info, some performance logs, and local storage in
 |:-------------------------- |:----------------------------------------------------------------------- |:------------- |
 | `{$REOLINK.USER}`          | Username assigned to the camera monitoring account.                     | `admin`       |
 | `{$REOLINK.PASSWORD}`      | Password assigned to the camera monitoring account.                     | *Required*    |
-| `{$REOLINK.PORT}`          | Access port utilized by the camera's internal web handler.              | `80`          |
+| `{$REOLINK.PORT}`          | Access port utilized by the camera's internal web handler.              | `443`         |
+| `{$REOLINK.PROTOCOL}`      | Specify http or https protocol used by camera web handler.              | `https`       |
 | `{$REOLINK.DELAY.DEVICE}`  | Check interval for static hardware identification info.                 | `1h`          |
 | `{$REOLINK.DELAY.PERF}`    | Polling intervals for engine execution and processing diagnostics.      | `10m`         |
 | `{$REOLINK.DELAY.STORAGE}` | Interval for checking the physical allocation maps of local storage.    | `10m`         |
