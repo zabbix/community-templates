@@ -133,39 +133,74 @@ zabbix_export:
                 throw 'Failed to list datastores: HTTP status ' + req.getStatus();
             }
 
+            function nsSuffix(ns) {
+                return ns ? '/' + ns : '';
+            }
+
             var result = [];
             (JSON.parse(resp).data || []).forEach(function (store) {
                 if (store.error) {
                     return;
                 }
-                var groupResp = req.get(encodeURI(base + '/admin/datastore/' + store.store + '/groups'));
-                if (req.getStatus() !== 200) {
-                    Zabbix.log(3, 'PBS group list failed for datastore ' + store.store + ': HTTP status ' + req.getStatus());
-                    return;
+
+                // Enumerate namespaces: the root (empty string) is always included,
+                // sub-namespaces come from the namespace endpoint. On failure only
+                // the root namespace is monitored.
+                var namespaces = [''];
+                try {
+                    var nsResp = req.get(encodeURI(base + '/admin/datastore/' + store.store + '/namespace'));
+                    if (req.getStatus() === 200) {
+                        (JSON.parse(nsResp).data || []).forEach(function (item) {
+                            if (item.ns && namespaces.indexOf(item.ns) === -1) {
+                                namespaces.push(item.ns);
+                            }
+                        });
+                    } else {
+                        Zabbix.log(4, 'PBS namespace list failed for datastore ' + store.store + ': HTTP status ' + req.getStatus() + ' (monitoring root namespace only)');
+                    }
+                } catch (error) {
+                    Zabbix.log(4, 'PBS namespace enumeration error for datastore ' + store.store + ': ' + error + ' (monitoring root namespace only)');
                 }
-                (JSON.parse(groupResp).data || []).forEach(function (group) {
-                    if (!(group['last-backup'] > 0)) {
+
+                namespaces.forEach(function (ns) {
+                    var groupUrl = encodeURI(base + '/admin/datastore/' + store.store + '/groups');
+                    if (ns) {
+                        groupUrl += '?ns=' + encodeURIComponent(ns);
+                    }
+                    var groupResp = req.get(groupUrl);
+                    if (req.getStatus() !== 200) {
+                        Zabbix.log(3, 'PBS group list failed for datastore ' + store.store + ' namespace "' + ns + '": HTTP status ' + req.getStatus());
                         return;
                     }
-                    result.push({
-                        datastore: store.store,
-                        group: group['backup-type'] + '/' + group['backup-id'],
-                        type: group['backup-type'],
-                        id: group['backup-id'],
-                        last: group['last-backup'],
-                        comment: group.comment || ''
+                    (JSON.parse(groupResp).data || []).forEach(function (group) {
+                        if (!(group['last-backup'] > 0)) {
+                            return;
+                        }
+                        result.push({
+                            datastore: store.store,
+                            ns: ns,
+                            ns_suffix: nsSuffix(ns),
+                            group: group['backup-type'] + '/' + group['backup-id'],
+                            type: group['backup-type'],
+                            id: group['backup-id'],
+                            last: group['last-backup'],
+                            comment: group.comment || ''
+                        });
                     });
                 });
             });
             return JSON.stringify(result);
           description: |
             Backup groups and their latest snapshot time (last-backup), across all
-            datastores, from the per-datastore groups endpoint. One entry per backup
-            group is stored per poll, including the group comment so that freshness
+            datastores and all namespaces, from the per-datastore groups endpoint.
+            Namespaces are enumerated recursively via the namespace endpoint; the
+            root namespace is always included. One entry per backup group is stored
+            per poll, including the namespace and the group comment so that freshness
             alerting can be suppressed for intentionally-retained groups (for example
             the leftover backups of a VM/CT that was deleted at the source). Datastores
             that report an error or cannot be queried are skipped; their freshness
-            items keep their last known value until the datastore recovers.
+            items keep their last known value until the datastore recovers (the
+            datastore error trigger covers that condition).
           timeout: 30s
           parameters:
             - name: port
@@ -2439,26 +2474,30 @@ zabbix_export:
           enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
           description: |
             Discovers the backup groups (backup-type/backup-id, e.g. host/myclient)
-            that have at least one snapshot in any datastore.
+            that have at least one snapshot in any datastore and any namespace,
+            including the root namespace. Each discovered entity is identified by
+            datastore, namespace and group, so the same group name in different
+            namespaces is tracked separately.
             Note: a client that has never produced a single snapshot is not
             discovered and therefore not monitored for freshness.
           item_prototypes:
             - uuid: e41c4d860873477a97611b98bb8ca60e
-              name: 'Backup group [{#DATASTORE.NAME}/{#BACKUP.GROUP}]: Last snapshot age'
+              name: 'Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}]: Last snapshot age'
               type: DEPENDENT
-              key: 'proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.GROUP}]'
+              key: 'proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}]'
               history: 90d
               units: s
               description: |
                 Seconds since the most recent snapshot of backup group {#BACKUP.GROUP}
-                in datastore {#DATASTORE.NAME}.
+                in datastore {#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}. An empty
+                namespace suffix denotes the datastore's root namespace.
                 For datastores filled by a sync job the snapshots keep the original
                 backup-time of the source, so on the sync target this measures
                 end-to-end freshness (client backup plus sync).
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.datastore == ''{#DATASTORE.NAME}'' && @.group == ''{#BACKUP.GROUP}'')].last.first()'
+                    - '$.[?(@.datastore == ''{#DATASTORE.NAME}'' && @.ns == ''{#BACKUP.NAMESPACE}'' && @.group == ''{#BACKUP.GROUP}'')].last.first()'
                   error_handler: DISCARD_VALUE
                 - type: JAVASCRIPT
                   parameters:
@@ -2472,12 +2511,14 @@ zabbix_export:
                   value: backup
                 - tag: datastore
                   value: '{#DATASTORE.NAME}'
+                - tag: namespace
+                  value: '{#BACKUP.NAMESPACE}'
               trigger_prototypes:
                 - uuid: 9d4d36649a1e4728839bcdf313f77e6f
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
-                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}/{#BACKUP.GROUP}] last snapshot older than high threshold'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
+                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than high threshold'
                   priority: HIGH
-                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}] is older than {$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}. The client backup job has not produced a new snapshot for an extended period; check the client and its backup schedule. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
+                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}] is older than {$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}. The client backup job has not produced a new snapshot for an extended period; check the client and its backup schedule. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
                   manual_close: 'YES'
                   dependencies:
                     - name: 'Proxmox Backup Server: API service not available'
@@ -2486,16 +2527,16 @@ zabbix_export:
                     - tag: scope
                       value: notice
                 - uuid: ad372da28008485da184353c2922f644
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}'
-                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}/{#BACKUP.GROUP}] last snapshot older than warning threshold'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}'
+                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than warning threshold'
                   priority: WARNING
-                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}] is older than {$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}. A recent client backup run may have failed or been skipped. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
+                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}] is older than {$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}. A recent client backup run may have failed or been skipped. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
                   manual_close: 'YES'
                   dependencies:
                     - name: 'Proxmox Backup Server: API service not available'
                       expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
-                    - name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}/{#BACKUP.GROUP}] last snapshot older than high threshold'
-                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
+                    - name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than high threshold'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
                   tags:
                     - tag: scope
                       value: notice
@@ -2508,6 +2549,10 @@ zabbix_export:
               path: $.group
             - lld_macro: '{#BACKUP.ID}'
               path: $.id
+            - lld_macro: '{#BACKUP.NAMESPACE}'
+              path: $.ns
+            - lld_macro: '{#BACKUP.NAMESPACE.SUFFIX}'
+              path: $.ns_suffix
             - lld_macro: '{#BACKUP.TYPE}'
               path: $.type
             - lld_macro: '{#DATASTORE.NAME}'
@@ -2596,16 +2641,16 @@ zabbix_export:
           description: 'The enabled-runtime unit-status of the service for the trigger expression.'
         - macro: '{$PBS.SNAPSHOT.AGE.HIGH}'
           value: 50h
-          description: 'Last-snapshot age of a backup group above which a HIGH severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context.'
+          description: 'Last-snapshot age of a backup group above which a HIGH severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context; the context matches by group name only, so the same group name in different namespaces shares one threshold.'
         - macro: '{$PBS.SNAPSHOT.AGE.WARN}'
           value: 30h
-          description: 'Last-snapshot age of a backup group above which a WARNING severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context.'
+          description: 'Last-snapshot age of a backup group above which a WARNING severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context; the context matches by group name only, so the same group name in different namespaces shares one threshold.'
         - macro: '{$PBS.SNAPSHOT.IGNORE.COMMENT}'
           value: '(?i)no-monitor'
           description: 'Regular expression matched against a backup group''s comment; a match suppresses that group''s snapshot-freshness triggers. Set the group comment in PBS to include the marker for groups whose source VM/CT was deleted but whose backups are intentionally retained.'
         - macro: '{$PBS.SNAPSHOT.INTERVAL}'
           value: 15m
-          description: 'Polling interval of the backup group list used for snapshot freshness. Listing groups scans every backup group of each datastore, so keep this interval moderate.'
+          description: 'Polling interval of the backup group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces (one namespace-list call plus one groups call per namespace per datastore), so keep this interval moderate.'
         - macro: '{$PBS.SUBSCRIPTION.STATE.ACTIVE}'
           value: active
           description: 'The active status of the subscription for the trigger expression.'

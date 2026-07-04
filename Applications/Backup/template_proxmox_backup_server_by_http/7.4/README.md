@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, and subscription information, and automatically generates discovery rules for datastores disks, zfs pools and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
+This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, and subscription information, and automatically generates discovery rules for datastores disks, zfs pools and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
 
 ---
 
@@ -98,13 +98,13 @@ The `Audit` role on `/` and `DatastoreAudit` on `/datastore` are sufficient for 
 
 ### Optional Macros
 
-These have sensible defaults and only need changing to override behaviour. The snapshot-age macros support per-backup-group overrides via the `{#BACKUP.GROUP}` macro context (e.g. set `{$PBS.SNAPSHOT.AGE.WARN:"vm/100"}` on the host to relax the threshold for a single group).
+These have sensible defaults and only need changing to override behaviour. The snapshot-age macros support per-backup-group overrides via the `{#BACKUP.GROUP}` macro context (e.g. set `{$PBS.SNAPSHOT.AGE.WARN:"vm/100"}` on the host to relax the threshold for a single group). The context matches by group name only, so the same group name in different namespaces shares one threshold.
 
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
 | `{$PBS.SNAPSHOT.AGE.WARN}`       | `30h`            | Age of a backup group's most recent snapshot above which a WARNING trigger fires (suits a daily schedule). |
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
-| `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness.                                  |
+| `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
 | `{$PBS.SNAPSHOT.IGNORE.COMMENT}` | `(?i)no-monitor` | Regex matched against a group's comment; a match suppresses that group's freshness triggers.            |
 | `{$PBS.TASKS.DAYS}`              | `2`              | Age window (days) of tasks scanned when looking for failed tasks.                                       |
 | `{$PBS.LLD.DISABLE.LOST}`        | `1h`             | Grace period after which a discovered backup-group item is disabled once its group no longer exists.    |
@@ -122,7 +122,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 | **proxmox.disk.ssd.discovery**   | Detect if disk is SSD                                       |
 | **proxmox.service.discovery**    | Detection of all running services                           |
 | **proxmox.zfs.discovery**        | Detection of all zfs pools                                  |
-| **proxmox.backupgroup.discovery**| Detection of backup groups (backup-type/backup-id) that have at least one snapshot |
+| **proxmox.backupgroup.discovery**| Detection of backup groups (backup-type/backup-id) that have at least one snapshot, in any datastore and namespace |
 
 ### 2. Trigger Prototypes
 
@@ -139,7 +139,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 ## Backup Group Snapshot Freshness
 
-The **Backup group discovery** rule (`proxmox.backupgroup.discovery`) discovers every backup group — a `backup-type/backup-id` pair such as `vm/100` or `host/myclient` — that has at least one snapshot in any datastore, and creates a **Last snapshot age** item per group. That item reports the number of seconds since the group's most recent snapshot, so it measures end-to-end freshness: for datastores fed by a sync job the snapshots keep the source's original backup time, so the age on the sync target reflects the client backup plus the sync.
+The **Backup group discovery** rule (`proxmox.backupgroup.discovery`) discovers every backup group — a `backup-type/backup-id` pair such as `vm/100` or `host/myclient` — that has at least one snapshot in any datastore and any namespace (including the root namespace), and creates a **Last snapshot age** item per group. Each discovered item is identified by datastore, namespace and group, so the same group name in different namespaces is tracked separately; an empty namespace suffix in an item or trigger name denotes the datastore's root namespace. That item reports the number of seconds since the group's most recent snapshot, so it measures end-to-end freshness: for datastores fed by a sync job the snapshots keep the source's original backup time, so the age on the sync target reflects the client backup plus the sync.
 
 Two trigger prototypes alert when a group falls behind schedule:
 
@@ -150,7 +150,7 @@ The HIGH trigger suppresses the WARNING one (dependency), so a stale group raise
 
 ### Suppressing freshness alerts for retained backups
 
-When a source VM/CT has been deleted but its backups are intentionally kept, the group stops receiving new snapshots and would otherwise alert forever. To silence such a group, add a marker to its comment in PBS (**Datastore → Content → select the group → Edit comment**) matching `{$PBS.SNAPSHOT.IGNORE.COMMENT}` (default: the text `no-monitor`, case-insensitive). A discovery override then drops the freshness trigger prototypes for that group while keeping the age item.
+When a source VM/CT has been deleted but its backups are intentionally kept, the group stops receiving new snapshots and would otherwise alert forever. To silence such a group, add a marker to its comment in PBS (**Datastore → Content → select the group → Edit comment**) matching `{$PBS.SNAPSHOT.IGNORE.COMMENT}` (default: the text `no-monitor`, case-insensitive). A discovery override then drops the freshness trigger prototypes for that group while keeping the age item. Comments are stored per group per namespace, so this suppresses only that group in the namespace whose comment you edit.
 
 ### Lost-group lifecycle
 
