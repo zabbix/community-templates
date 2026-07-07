@@ -8,9 +8,8 @@ availability, and agent availability — with macro-based thresholds, so they ca
 be consumed as audit evidence.
 
 Vendor-neutral: the only vendor-specific piece (a trigger URL) is a macro that
-defaults to empty, so the template works standalone. It was originally created
-for the MORI-SOC portfolio, but carries no MORI-specific dependency and can be
-used without it.
+defaults to empty, so the template works standalone. The optional
+`{$BASELINE.URL}` link can point to any dashboard, runbook, or audit system.
 
 ## Requirements
 
