@@ -1,0 +1,1081 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 13cff74909f84ea58e0654585660315a
+      name: Templates/Applications
+  templates:
+    - uuid: f7cefefbf429447a846d21c7bb2ce49c
+      template: 'LiteLLM by HTTP'
+      name: 'LiteLLM by HTTP'
+      description: |
+        Monitors a LiteLLM proxy server over HTTP.
+
+        Collection:
+        - Prometheus metrics are scraped from the LiteLLM `/metrics/` endpoint by an HTTP agent
+          master item and parsed with dependent items (Prometheus -> JSON, then JSONPath).
+        - Availability is taken from the unauthenticated `/health/liveliness` and `/health/readiness` endpoints.
+        - Per-deployment (model_id) metrics are discovered via low-level discovery on `litellm_deployment_state`.
+
+        Requirements:
+        - The LiteLLM Prometheus exporter must be enabled:
+          `litellm_settings: { callbacks: ["prometheus"] }`.
+        - A LiteLLM virtual key allowed to call `/metrics` in `{$LITELLM.API.TOKEN}`
+          (sent in the `x-litellm-api-key` header). If `require_auth_for_metrics_endpoint`
+          is false, the key is not needed.
+        - Add a host interface whose DNS/IP points at the LiteLLM proxy; the items use `{HOST.CONN}`.
+
+        Notes:
+        - Keep the trailing slash in `{$LITELLM.METRICS.PATH}` (`/metrics`) redirects to `/metrics/`.
+        - If the metrics endpoint sits behind HTTP Basic auth at an ingress, set the master item's
+          Authentication to "Basic" and fill `{$LITELLM.METRICS.USER}` / `{$LITELLM.METRICS.PASSWORD}`
+          (the LiteLLM key still travels in the x-litellm-api-key header, so both layers coexist).
+
+        Tested against Zabbix 7.4 and LiteLLM proxy with the Prometheus callback enabled.
+
+        Author: @nikosch86.
+        Source, documentation and issues: https://github.com/nikosch86/zabbix-litellm
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 031b1ee3de2f4c64b8ceb55b2ed03474
+          name: 'LiteLLM: Get metrics'
+          type: HTTP_AGENT
+          key: litellm.metrics
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          description: 'Raw Prometheus payload from the LiteLLM /metrics/ endpoint, converted to JSON for dependent items.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - ''
+          timeout: '{$LITELLM.HTTP.TIMEOUT}'
+          url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}{$LITELLM.METRICS.PATH}'
+          headers:
+            - name: x-litellm-api-key
+              value: '{$LITELLM.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: c9a380fe13394283ae347ee736048335
+          name: 'LiteLLM: Service alive'
+          type: HTTP_AGENT
+          key: litellm.liveness
+          delay: 1m
+          history: 7d
+          trends: 365d
+          description: 'Liveliness probe (/health/liveliness). 1 = alive, 0 = bad response.'
+          valuemap:
+            name: 'LiteLLM service state'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - alive
+                - '1'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          timeout: '{$LITELLM.HTTP.TIMEOUT}'
+          url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}/health/liveliness'
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: d28e98a5011349dfa4edfdb9791d633d
+              expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+              name: 'LiteLLM: Service is not responding'
+              priority: HIGH
+              description: 'The LiteLLM liveliness probe is failing or no data has been received.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: f4c1252135004ada8d5c4c7b5f373265
+          name: 'LiteLLM: Get readiness'
+          type: HTTP_AGENT
+          key: litellm.readiness.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          description: 'Raw JSON from the /health/readiness endpoint.'
+          timeout: '{$LITELLM.HTTP.TIMEOUT}'
+          url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}/health/readiness'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: c18b376ac7634774b848e8a1902a319a
+          name: 'LiteLLM: Readiness status'
+          type: DEPENDENT
+          key: litellm.readiness.status
+          history: 7d
+          value_type: CHAR
+          description: 'Overall readiness status reported by /health/readiness.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: litellm.readiness.raw
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: 62e681231e9445cbaeb901d5d9e75437
+              expression: 'last(/LiteLLM by HTTP/litellm.readiness.status)<>"healthy" and length(last(/LiteLLM by HTTP/litellm.readiness.status))>0'
+              name: 'LiteLLM: Readiness status is not healthy'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'The proxy reports a readiness status other than "healthy".'
+              dependencies:
+                - name: 'LiteLLM: Service is not responding'
+                  expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                - name: 'LiteLLM: Database is not connected'
+                  expression: 'last(/LiteLLM by HTTP/litellm.readiness.db)<>"connected" and length(last(/LiteLLM by HTTP/litellm.readiness.db))>0'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e7a8314651f748d6b6723f2b43c2b89e
+          name: 'LiteLLM: Database connection'
+          type: DEPENDENT
+          key: litellm.readiness.db
+          history: 7d
+          value_type: CHAR
+          description: 'Database connection state from /health/readiness.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.db
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: litellm.readiness.raw
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: 798daa63c8064784b7657df85a157143
+              expression: 'last(/LiteLLM by HTTP/litellm.readiness.db)<>"connected" and length(last(/LiteLLM by HTTP/litellm.readiness.db))>0'
+              name: 'LiteLLM: Database is not connected'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The proxy reports that its database is not connected.'
+              dependencies:
+                - name: 'LiteLLM: Service is not responding'
+                  expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 445b3ff9c1d14978b17c2d087a21eb25
+          name: 'LiteLLM: Requests per second'
+          type: DEPENDENT
+          key: litellm.requests.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: rps
+          description: 'Client-side requests to the proxy, per second (all routes and keys).'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_proxy_total_requests_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: requests
+          triggers:
+            - uuid: da758e429a774bf7ae74ec3a09980e7a
+              expression: 'nodata(/LiteLLM by HTTP/litellm.requests.rate,{$LITELLM.METRICS.NODATA})=1'
+              name: 'LiteLLM: Prometheus metrics are not being collected'
+              priority: WARNING
+              description: 'No data from the /metrics scrape. Check the endpoint, the API key, and that the prometheus callback is enabled.'
+              dependencies:
+                - name: 'LiteLLM: Service is not responding'
+                  expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 93a6bc6b0611468191e8fbf0ae04b1e4
+          name: 'LiteLLM: Failed requests per second'
+          type: DEPENDENT
+          key: litellm.requests.failed.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: rps
+          description: 'Proxy-side failed responses per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_proxy_failed_requests_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: requests
+        - uuid: ca5ba2acd9a44e6a9f8bda6d1fa1f777
+          name: 'LiteLLM: LLM API failures per second'
+          type: DEPENDENT
+          key: litellm.llm.failed.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: rps
+          description: 'Failed calls from the proxy to the upstream LLM APIs, per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_llm_api_failed_requests_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: requests
+        - uuid: 611d02a673c74434b117d92ce44859e7
+          name: 'LiteLLM: Error rate'
+          type: CALCULATED
+          key: litellm.error.ratio
+          delay: 1m
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: '%'
+          params: '100*last(//litellm.requests.failed.rate)/(last(//litellm.requests.rate)+(last(//litellm.requests.rate)=0))'
+          description: 'Failed requests as a percentage of total proxy requests.'
+          tags:
+            - tag: component
+              value: requests
+          triggers:
+            - uuid: 7921daa669d4491b86b134924d5d4b80
+              expression: 'min(/LiteLLM by HTTP/litellm.error.ratio,5m)>{$LITELLM.ERROR.RATE.WARN}'
+              name: 'LiteLLM: Request error rate is high'
+              event_name: 'LiteLLM: Request error rate is high (over {$LITELLM.ERROR.RATE.WARN}% for 5m)'
+              priority: WARNING
+              description: 'The proxy failed-request ratio has stayed above the threshold for 5 minutes.'
+              dependencies:
+                - name: 'LiteLLM: Service is not responding'
+                  expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                - name: 'LiteLLM: Prometheus metrics are not being collected'
+                  expression: 'nodata(/LiteLLM by HTTP/litellm.requests.rate,{$LITELLM.METRICS.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 025fb0167b8146f1be82c0bd5bacaa4e
+          name: 'LiteLLM: In-flight requests'
+          type: DEPENDENT
+          key: litellm.in_flight
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          description: 'HTTP requests currently being processed across workers.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_in_flight_requests")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: requests
+        - uuid: 95b05471f94b407cbc0821975e0c3007
+          name: 'LiteLLM: Total tokens per second'
+          type: DEPENDENT
+          key: litellm.tokens.total.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: tokens/s
+          description: 'Total tokens (input + output) processed per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_total_tokens_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: tokens
+        - uuid: acb8d6af6bb64b979ce9ad2fd500c242
+          name: 'LiteLLM: Input tokens per second'
+          type: DEPENDENT
+          key: litellm.tokens.input.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: tokens/s
+          description: 'Prompt/input tokens processed per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_input_tokens_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: tokens
+        - uuid: d4675e2d4bbc473293f712de14f467a3
+          name: 'LiteLLM: Output tokens per second'
+          type: DEPENDENT
+          key: litellm.tokens.output.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: tokens/s
+          description: 'Completion/output tokens produced per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_output_tokens_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: tokens
+        - uuid: f2e9ffacc31745a78b795cd918a2f53f
+          name: 'LiteLLM: Total spend'
+          type: DEPENDENT
+          key: litellm.spend.total
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: '$'
+          description: 'Cumulative spend reported by the proxy across all keys.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_spend_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: spend
+        - uuid: 6e0d338216ac4a61a5980fbabcb27055
+          name: 'LiteLLM: Request latency, sum rate'
+          type: DEPENDENT
+          key: litellm.request.latency.sum.rate
+          history: 7d
+          value_type: FLOAT
+          description: 'Helper: per-second rate of the total request latency histogram sum.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_request_total_latency_metric_sum")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: performance
+        - uuid: 01eda77cd66345a19c42e983daa9edec
+          name: 'LiteLLM: Request latency, count rate'
+          type: DEPENDENT
+          key: litellm.request.latency.count.rate
+          history: 7d
+          value_type: FLOAT
+          description: 'Helper: per-second rate of the total request latency histogram count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_request_total_latency_metric_count")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: performance
+        - uuid: 4d00d77c62274a12a4b4f9306b27f633
+          name: 'LiteLLM: Request latency, average'
+          type: CALCULATED
+          key: litellm.request.latency.avg
+          delay: 1m
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: s
+          params: 'last(//litellm.request.latency.sum.rate)/(last(//litellm.request.latency.count.rate)+(last(//litellm.request.latency.count.rate)=0))'
+          description: 'Average end-to-end request latency over the last interval (total latency).'
+          tags:
+            - tag: component
+              value: performance
+          triggers:
+            - uuid: 2b857bcdf2374d708c4104a0003a344f
+              expression: 'min(/LiteLLM by HTTP/litellm.request.latency.avg,5m)>{$LITELLM.LATENCY.CRIT}'
+              name: 'LiteLLM: Request latency is critically high'
+              event_name: 'LiteLLM: Request latency is critically high (over {$LITELLM.LATENCY.CRIT}s for 5m)'
+              priority: HIGH
+              description: 'Average request latency has stayed above the critical threshold for 5 minutes.'
+              dependencies:
+                - name: 'LiteLLM: Service is not responding'
+                  expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 1c5f6cab12f1476499cc40038f630878
+              expression: 'min(/LiteLLM by HTTP/litellm.request.latency.avg,5m)>{$LITELLM.LATENCY.WARN}'
+              name: 'LiteLLM: Request latency is high'
+              event_name: 'LiteLLM: Request latency is high (over {$LITELLM.LATENCY.WARN}s for 5m)'
+              priority: WARNING
+              description: 'Average request latency has stayed above the warning threshold for 5 minutes.'
+              dependencies:
+                - name: 'LiteLLM: Request latency is critically high'
+                  expression: 'min(/LiteLLM by HTTP/litellm.request.latency.avg,5m)>{$LITELLM.LATENCY.CRIT}'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 11a6e3fe8b3c47bb8a56362b9d59f22f
+          name: 'LiteLLM: LLM API latency, sum rate'
+          type: DEPENDENT
+          key: litellm.llm.latency.sum.rate
+          history: 7d
+          value_type: FLOAT
+          description: 'Helper: per-second rate of the upstream LLM API latency histogram sum.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_llm_api_latency_metric_sum")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: performance
+        - uuid: 8be6e46fa54e4818943fe897d01b70fe
+          name: 'LiteLLM: LLM API latency, count rate'
+          type: DEPENDENT
+          key: litellm.llm.latency.count.rate
+          history: 7d
+          value_type: FLOAT
+          description: 'Helper: per-second rate of the upstream LLM API latency histogram count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_llm_api_latency_metric_count")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: performance
+        - uuid: 4035b91f76d24a209209cc7d71b157b3
+          name: 'LiteLLM: LLM API latency, average'
+          type: CALCULATED
+          key: litellm.llm.latency.avg
+          delay: 1m
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: s
+          params: 'last(//litellm.llm.latency.sum.rate)/(last(//litellm.llm.latency.count.rate)+(last(//litellm.llm.latency.count.rate)=0))'
+          description: 'Average latency of upstream LLM API calls over the last interval.'
+          tags:
+            - tag: component
+              value: performance
+        - uuid: a971bb3c76814423959b32ce6c2b150a
+          name: 'LiteLLM: Cache hits per second'
+          type: DEPENDENT
+          key: litellm.cache.hits.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: ops
+          description: 'Cache hits per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_cache_hits_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: b9672211d7c24941b83faf59c2f1d8a5
+          name: 'LiteLLM: Cache misses per second'
+          type: DEPENDENT
+          key: litellm.cache.misses.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: ops
+          description: 'Cache misses per second.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_cache_misses_metric_total")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 491278a09c0e43b6aa83628f713b12fe
+          name: 'LiteLLM: Cache hit ratio'
+          type: CALCULATED
+          key: litellm.cache.hit.ratio
+          delay: 1m
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: '%'
+          params: '100*last(//litellm.cache.hits.rate)/((last(//litellm.cache.hits.rate)+last(//litellm.cache.misses.rate))+((last(//litellm.cache.hits.rate)+last(//litellm.cache.misses.rate))=0))'
+          description: 'Cache hits as a percentage of all cache lookups over the last interval.'
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 951dc2d6e5e94aadb40e4b070c117592
+          name: 'LiteLLM: Total users'
+          type: DEPENDENT
+          key: litellm.total_users
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          description: 'Number of users known to the proxy (requires DB-backed user tracking).'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_total_users")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: platform
+        - uuid: 2bde36d5dbcb4c3094a35d76c7bc059a
+          name: 'LiteLLM: Teams count'
+          type: DEPENDENT
+          key: litellm.teams_count
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          description: 'Number of teams known to the proxy.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_teams_count")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: platform
+      discovery_rules:
+        - uuid: 261d523527c442c8956b30939d74ef32
+          name: 'LiteLLM: Deployments discovery'
+          type: DEPENDENT
+          key: litellm.deployment.discovery
+          description: 'Discovers LLM deployments (model_id) from litellm_deployment_state.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_deployment_state")]'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: litellm.metrics
+          lld_macro_paths:
+            - lld_macro: '{#MODEL_ID}'
+              path: "$.labels['model_id']"
+            - lld_macro: '{#MODEL}'
+              path: "$.labels['litellm_model_name']"
+            - lld_macro: '{#API_BASE}'
+              path: "$.labels['api_base']"
+            - lld_macro: '{#PROVIDER}'
+              path: "$.labels['api_provider']"
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#MODEL}'
+                value: '{$LITELLM.LLD.MODEL.MATCHES}'
+                formulaid: A
+              - macro: '{#MODEL}'
+                value: '{$LITELLM.LLD.MODEL.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: 3fd96005456d4b60a0a69ee39e9e598b
+              name: 'LiteLLM: Deployment state [{#MODEL}]'
+              type: DEPENDENT
+              key: 'litellm.deployment.state[{#MODEL_ID}]'
+              history: 7d
+              trends: 365d
+              description: 'Deployment health: 0 = healthy, 1 = partial outage, 2 = complete outage.'
+              valuemap:
+                name: 'LiteLLM deployment state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="litellm_deployment_state" && @.labels.model_id=="{#MODEL_ID}")].value.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: litellm.metrics
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+              trigger_prototypes:
+                - uuid: 739700ade18a41f8852e8b90ad4644c2
+                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=2'
+                  name: 'LiteLLM: Deployment [{#MODEL}] is in complete outage'
+                  opdata: 'api_base: {#API_BASE}'
+                  priority: HIGH
+                  description: 'Deployment {#MODEL} ({#API_BASE}) reports a complete outage.'
+                  dependencies:
+                    - name: 'LiteLLM: Service is not responding'
+                      expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 1d6b0ec04e6645c6a9b8d333fccc30dc
+                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=1'
+                  name: 'LiteLLM: Deployment [{#MODEL}] is in partial outage'
+                  opdata: 'api_base: {#API_BASE}'
+                  priority: WARNING
+                  description: 'Deployment {#MODEL} ({#API_BASE}) reports a partial outage.'
+                  dependencies:
+                    - name: 'LiteLLM: Service is not responding'
+                      expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                    - name: 'LiteLLM: Deployment [{#MODEL}] is in complete outage'
+                      expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=2'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 625be7b95785441ebf2d8e0ff421e04b
+              name: 'LiteLLM: Deployment successful responses per second [{#MODEL}]'
+              type: DEPENDENT
+              key: 'litellm.deployment.success.rate[{#MODEL_ID}]'
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: rps
+              description: 'Successful upstream responses per second for this deployment.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="litellm_deployment_success_responses_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: litellm.metrics
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+            - uuid: b809e3d5c4e940218083cbf4db915a70
+              name: 'LiteLLM: Deployment failed responses per second [{#MODEL}]'
+              type: DEPENDENT
+              key: 'litellm.deployment.failure.rate[{#MODEL_ID}]'
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: rps
+              description: 'Failed upstream responses per second for this deployment.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="litellm_deployment_failure_responses_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: litellm.metrics
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+            - uuid: e69246be39e94e72b9b480e2c19124d6
+              name: 'LiteLLM: Deployment total requests per second [{#MODEL}]'
+              type: DEPENDENT
+              key: 'litellm.deployment.total.rate[{#MODEL_ID}]'
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: rps
+              description: 'Total upstream requests per second for this deployment.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="litellm_deployment_total_requests_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: litellm.metrics
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+            - uuid: 66d131d5c44442a4bcca6d06c3676a9a
+              name: 'LiteLLM: Deployment error rate [{#MODEL}]'
+              type: CALCULATED
+              key: 'litellm.deployment.failure.ratio[{#MODEL_ID}]'
+              delay: 1m
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//litellm.deployment.failure.rate[{#MODEL_ID}])/(last(//litellm.deployment.total.rate[{#MODEL_ID}])+(last(//litellm.deployment.total.rate[{#MODEL_ID}])=0))'
+              description: 'Failed responses as a percentage of total requests for this deployment.'
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+              trigger_prototypes:
+                - uuid: 4bc082e750c6437c8566a8cc53cb5d04
+                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.failure.ratio[{#MODEL_ID}],5m)>{$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}'
+                  name: 'LiteLLM: Deployment [{#MODEL}] error rate is high'
+                  event_name: 'LiteLLM: Deployment [{#MODEL}] error rate is high (over {$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}% for 5m)'
+                  priority: AVERAGE
+                  description: 'Upstream error ratio for deployment {#MODEL} ({#API_BASE}) has stayed high for 5 minutes.'
+                  dependencies:
+                    - name: 'LiteLLM: Service is not responding'
+                      expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 7fe6fd4ec7b848f0968a2a84e6e279ab
+              name: 'LiteLLM: Deployment cooldowns per second [{#MODEL}]'
+              type: DEPENDENT
+              key: 'litellm.deployment.cooled_down.rate[{#MODEL_ID}]'
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              description: 'Rate at which this deployment is cooled down by the router (provider errors / rate limits).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="litellm_deployment_cooled_down_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: litellm.metrics
+              tags:
+                - tag: component
+                  value: deployment
+                - tag: model
+                  value: '{#MODEL}'
+              trigger_prototypes:
+                - uuid: 0800545b584e4e8eaef14296ac32fc55
+                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.cooled_down.rate[{#MODEL_ID}],5m)>0'
+                  name: 'LiteLLM: Deployment [{#MODEL}] is being cooled down'
+                  opdata: 'api_base: {#API_BASE}'
+                  priority: WARNING
+                  description: 'The router has been cooling down deployment {#MODEL} ({#API_BASE}), indicating upstream errors or rate limiting.'
+                  dependencies:
+                    - name: 'LiteLLM: Service is not responding'
+                      expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: availability
+          graph_prototypes:
+            - uuid: 2dc146a6acca4190b51c45c9a1bae53b
+              name: 'LiteLLM: Deployment throughput [{#MODEL}]'
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'LiteLLM by HTTP'
+                    key: 'litellm.deployment.success.rate[{#MODEL_ID}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'LiteLLM by HTTP'
+                    key: 'litellm.deployment.failure.rate[{#MODEL_ID}]'
+                - sortorder: '2'
+                  color: 2774A4
+                  item:
+                    host: 'LiteLLM by HTTP'
+                    key: 'litellm.deployment.total.rate[{#MODEL_ID}]'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: litellm
+      macros:
+        - macro: '{$LITELLM.API.TOKEN}'
+          type: SECRET_TEXT
+          description: 'LiteLLM virtual key allowed to call /metrics. Sent in the x-litellm-api-key header. Leave empty if metrics auth is disabled.'
+        - macro: '{$LITELLM.SCHEME}'
+          value: https
+          description: 'Request scheme: http or https.'
+        - macro: '{$LITELLM.PORT}'
+          value: '443'
+          description: 'TCP port of the LiteLLM proxy.'
+        - macro: '{$LITELLM.METRICS.PATH}'
+          value: /metrics/
+          description: 'Path of the Prometheus metrics endpoint. Keep the trailing slash.'
+        - macro: '{$LITELLM.METRICS.USER}'
+          description: 'Optional username if the metrics endpoint is behind HTTP Basic auth (set the master item Authentication to Basic to use it).'
+        - macro: '{$LITELLM.METRICS.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'Optional password for HTTP Basic auth on the metrics endpoint.'
+        - macro: '{$LITELLM.HTTP.TIMEOUT}'
+          value: 10s
+          description: 'HTTP request timeout for the agent items.'
+        - macro: '{$LITELLM.METRICS.NODATA}'
+          value: 10m
+          description: 'Interval with no data after which availability/scrape triggers fire.'
+        - macro: '{$LITELLM.ERROR.RATE.WARN}'
+          value: '5'
+          description: 'Proxy request error-rate warning threshold, in percent.'
+        - macro: '{$LITELLM.LATENCY.WARN}'
+          value: '10'
+          description: 'Average request latency warning threshold, in seconds.'
+        - macro: '{$LITELLM.LATENCY.CRIT}'
+          value: '30'
+          description: 'Average request latency critical threshold, in seconds.'
+        - macro: '{$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}'
+          value: '10'
+          description: 'Per-deployment error-rate warning threshold, in percent.'
+        - macro: '{$LITELLM.LLD.MODEL.MATCHES}'
+          value: '.*'
+          description: 'Discovered deployments whose model name matches this regex are kept.'
+        - macro: '{$LITELLM.LLD.MODEL.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Discovered deployments whose model name matches this regex are dropped.'
+      valuemaps:
+        - uuid: 92d05d088d114ccf9296d6081664fb1f
+          name: 'LiteLLM service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 83b04b2da8164fb2925847d320ddfdd2
+          name: 'LiteLLM deployment state'
+          mappings:
+            - value: '0'
+              newvalue: Healthy
+            - value: '1'
+              newvalue: 'Partial outage'
+            - value: '2'
+              newvalue: 'Complete outage'
+      dashboards:
+        - uuid: 50725e3134124ed9a27d5a2c60e5a940
+          name: 'LiteLLM overview'
+          pages:
+            - widgets:
+                - type: graph
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Output tokens per second'
+                    - type: STRING
+                      name: reference
+                      value: AAAAF
+                    - type: INTEGER
+                      name: source_type
+                      value: '0'
+                - type: graph
+                  'y': '5'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Requests and errors'
+                    - type: STRING
+                      name: reference
+                      value: AAAAA
+                    - type: INTEGER
+                      name: source_type
+                      value: '0'
+                - type: graph
+                  x: '36'
+                  'y': '5'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Token throughput'
+                    - type: STRING
+                      name: reference
+                      value: AAAAB
+                    - type: INTEGER
+                      name: source_type
+                      value: '0'
+                - type: graph
+                  'y': '10'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Latency'
+                    - type: STRING
+                      name: reference
+                      value: AAAAC
+                    - type: INTEGER
+                      name: source_type
+                      value: '0'
+                - type: graph
+                  x: '36'
+                  'y': '10'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Cache operations'
+                    - type: STRING
+                      name: reference
+                      value: AAAAD
+                    - type: INTEGER
+                      name: source_type
+                      value: '0'
+                - type: graphprototype
+                  'y': '15'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid
+                      value:
+                        host: 'LiteLLM by HTTP'
+                        name: 'LiteLLM: Deployment throughput [{#MODEL}]'
+                    - type: STRING
+                      name: reference
+                      value: AAAAE
+                    - type: INTEGER
+                      name: rows
+                      value: '1'
+                    - type: INTEGER
+                      name: source_type
+                      value: '2'
+  graphs:
+    - uuid: 6da6af29794a42948c9a459c52440f03
+      name: 'LiteLLM: Output tokens per second'
+      graph_items:
+        - drawtype: BOLD_LINE
+          color: 1A7C11
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.tokens.output.rate
+    - uuid: 81c1ffab85a3418da1bc8cb1ccf379b2
+      name: 'LiteLLM: Requests and errors'
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 1A7C11
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.requests.rate
+        - sortorder: '1'
+          color: F63100
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.requests.failed.rate
+        - sortorder: '2'
+          color: A54F10
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.llm.failed.rate
+    - uuid: 9494fc6d919b4198ac27c8a3fc7653df
+      name: 'LiteLLM: Token throughput'
+      graph_items:
+        - drawtype: BOLD_LINE
+          color: 1A7C11
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.tokens.total.rate
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.tokens.input.rate
+        - sortorder: '2'
+          color: F63100
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.tokens.output.rate
+    - uuid: 33fd585747e449d8be42b1fe47a44a4e
+      name: 'LiteLLM: Latency'
+      graph_items:
+        - drawtype: BOLD_LINE
+          color: 1A7C11
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.request.latency.avg
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.llm.latency.avg
+    - uuid: c43313c81d8a48ab9b04c909d6111bb6
+      name: 'LiteLLM: Cache operations'
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 1A7C11
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.cache.hits.rate
+        - sortorder: '1'
+          color: F63100
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.cache.misses.rate

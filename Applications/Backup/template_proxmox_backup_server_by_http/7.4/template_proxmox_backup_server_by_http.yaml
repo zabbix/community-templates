@@ -115,6 +115,249 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 430dbc8869df4f5a9083055812c4c85a
+          name: 'Get backup groups'
+          type: SCRIPT
+          key: proxmox.backupgroups
+          delay: '{$PBS.SNAPSHOT.INTERVAL}'
+          history: 1d
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var base = 'https://' + params.url + ':' + params.port + '/api2/json';
+            var req = new HttpRequest();
+            req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+            var resp = req.get(encodeURI(base + '/status/datastore-usage'));
+            if (req.getStatus() !== 200) {
+                throw 'Failed to list datastores: HTTP status ' + req.getStatus();
+            }
+
+            function nsSuffix(ns) {
+                return ns ? '/' + ns : '';
+            }
+
+            var result = [];
+            (JSON.parse(resp).data || []).forEach(function (store) {
+                if (store.error) {
+                    return;
+                }
+
+                // Enumerate namespaces: the root (empty string) is always included,
+                // sub-namespaces come from the namespace endpoint. On failure only
+                // the root namespace is monitored.
+                var namespaces = [''];
+                try {
+                    var nsResp = req.get(encodeURI(base + '/admin/datastore/' + store.store + '/namespace'));
+                    if (req.getStatus() === 200) {
+                        (JSON.parse(nsResp).data || []).forEach(function (item) {
+                            if (item.ns && namespaces.indexOf(item.ns) === -1) {
+                                namespaces.push(item.ns);
+                            }
+                        });
+                    } else {
+                        Zabbix.log(4, 'PBS namespace list failed for datastore ' + store.store + ': HTTP status ' + req.getStatus() + ' (monitoring root namespace only)');
+                    }
+                } catch (error) {
+                    Zabbix.log(4, 'PBS namespace enumeration error for datastore ' + store.store + ': ' + error + ' (monitoring root namespace only)');
+                }
+
+                namespaces.forEach(function (ns) {
+                    var groupUrl = encodeURI(base + '/admin/datastore/' + store.store + '/groups');
+                    if (ns) {
+                        groupUrl += '?ns=' + encodeURIComponent(ns);
+                    }
+                    var groupResp = req.get(groupUrl);
+                    if (req.getStatus() !== 200) {
+                        Zabbix.log(3, 'PBS group list failed for datastore ' + store.store + ' namespace "' + ns + '": HTTP status ' + req.getStatus());
+                        return;
+                    }
+                    (JSON.parse(groupResp).data || []).forEach(function (group) {
+                        if (!(group['last-backup'] > 0)) {
+                            return;
+                        }
+                        result.push({
+                            datastore: store.store,
+                            ns: ns,
+                            ns_suffix: nsSuffix(ns),
+                            group: group['backup-type'] + '/' + group['backup-id'],
+                            type: group['backup-type'],
+                            id: group['backup-id'],
+                            last: group['last-backup'],
+                            comment: group.comment || ''
+                        });
+                    });
+                });
+            });
+            return JSON.stringify(result);
+          description: |
+            Backup groups and their latest snapshot time (last-backup), across all
+            datastores and all namespaces, from the per-datastore groups endpoint.
+            Namespaces are enumerated recursively via the namespace endpoint; the
+            root namespace is always included. One entry per backup group is stored
+            per poll, including the namespace and the group comment so that freshness
+            alerting can be suppressed for intentionally-retained groups (for example
+            the leftover backups of a VM/CT that was deleted at the source). Datastores
+            that report an error or cannot be queried are skipped; their freshness
+            items keep their last known value until the datastore recovers (the
+            datastore error trigger covers that condition).
+          timeout: 30s
+          parameters:
+            - name: port
+              value: '{$PBS.URL.PORT}'
+            - name: secret
+              value: '{$PBS.TOKEN.SECRET}'
+            - name: token
+              value: '{$PBS.TOKEN.ID}'
+            - name: url
+              value: '{$PBS.URL.HOST}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 17e7c9ee749946aaaf19ae4f1148f0d1
+          name: 'Get failed tasks'
+          type: HTTP_AGENT
+          key: proxmox.tasks.error
+          delay: 5m
+          history: 7d
+          value_type: TEXT
+          description: 'Erroneous tasks from the node task log.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'Error getting data'
+            - type: JSONPATH
+              parameters:
+                - $.data
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var result = [];
+                  const daysAgo = {$PBS.TASKS.DAYS};
+                  const daysInSeconds = daysAgo * 86400;
+                  const currentTimestamp = Math.floor(Date.now() / 1000);
+                  const thresholdTimestamp = currentTimestamp - daysInSeconds;
+
+                  tasks = JSON.parse(value);
+                  if (tasks instanceof Array) {
+                      tasks.forEach(function (task) {
+                          if (task.starttime > thresholdTimestamp) {
+                              result.push(task);
+                          }
+                      });
+                  }
+
+                  return JSON.stringify(result);
+          timeout: '{$PBS.API.TIMEOUT}'
+          url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/localhost/tasks'
+          query_fields:
+            - name: errors
+              value: 'true'
+            - name: running
+              value: 'false'
+            - name: statusfilter
+              value: error
+            - name: statusfilter
+              value: warning
+          headers:
+            - name: Authorization
+              value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: b1e3da2de2ae416393f0ea3cfdd1136b
+          name: 'Failed backup tasks'
+          type: DEPENDENT
+          key: proxmox.tasks.error.backup
+          history: 7d
+          value_type: TEXT
+          description: 'Failed backup tasks (worker type prefix "backup") within the last {$PBS.TASKS.DAYS} days.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var result = [];
+                  var tasks = JSON.parse(value);
+                  if (tasks instanceof Array) {
+                      tasks.forEach(function (task) {
+                          if (String(task.worker_type || '').indexOf('backup') === 0) {
+                              result.push(task);
+                          }
+                      });
+                  }
+                  return JSON.stringify(result);
+          master_item:
+            key: proxmox.tasks.error
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: ea855b13f3844b65ab0c9cf1839b56dd
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.backup)<>"[]"'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.backup)="[]"'
+              name: 'Proxmox Backup Server: Failed backup tasks found'
+              opdata: '{ITEM.VALUE}'
+              priority: HIGH
+              description: 'Backup tasks failed within the last {$PBS.TASKS.DAYS} days. A client backup did not complete.'
+              dependencies:
+                - name: 'Proxmox Backup Server: API service not available'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 2c1882c1b4ad475e961922283a62ef2a
+          name: 'Failed other tasks'
+          type: DEPENDENT
+          key: proxmox.tasks.error.other
+          history: 7d
+          value_type: TEXT
+          description: 'Failed tasks within the last {$PBS.TASKS.DAYS} days whose worker type is neither a backup job nor one of the maintenance jobs (garbage collection, prune, sync, verify) already monitored per datastore. Catches e.g. tape and reader tasks.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var prefixes = ['backup', 'garbage_collection', 'prune', 'sync', 'verif'];
+                  var result = [];
+                  var tasks = JSON.parse(value);
+                  if (tasks instanceof Array) {
+                      tasks.forEach(function (task) {
+                          var type = String(task.worker_type || '');
+                          var matched = false;
+                          for (var i = 0; i < prefixes.length; i++) {
+                              if (type.indexOf(prefixes[i]) === 0) {
+                                  matched = true;
+                                  break;
+                              }
+                          }
+                          if (!matched) {
+                              result.push(task);
+                          }
+                      });
+                  }
+                  return JSON.stringify(result);
+          master_item:
+            key: proxmox.tasks.error
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: c445dde077474ebd95939a71ee703605
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.other)<>"[]"'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.other)="[]"'
+              name: 'Proxmox Backup Server: Failed tasks found'
+              opdata: '{ITEM.VALUE}'
+              priority: HIGH
+              description: 'Failed tasks occurred within the last {$PBS.TASKS.DAYS} days whose worker type is not covered by the failed-backup-tasks item or by the per-datastore maintenance-job monitoring.'
+              dependencies:
+                - name: 'Proxmox Backup Server: API service not available'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+              tags:
+                - tag: scope
+                  value: notice
       discovery_rules:
         - uuid: 1e239eda8de84d12a060f817463cdaaa
           name: 'Datastore discovery'
@@ -2222,6 +2465,111 @@ zabbix_export:
           lld_macro_paths:
             - lld_macro: '{#ZFS.NAME}'
               path: $.name
+        - uuid: de800b33f3054bb5a49d5e68f4c7851a
+          name: 'Backup group discovery'
+          type: DEPENDENT
+          key: proxmox.backupgroup.discovery
+          lifetime: '{$PBS.LLD.KEEP.LOST}'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
+          description: |
+            Discovers the backup groups (backup-type/backup-id, e.g. host/myclient)
+            that have at least one snapshot in any datastore and any namespace,
+            including the root namespace. Each discovered entity is identified by
+            datastore, namespace and group, so the same group name in different
+            namespaces is tracked separately.
+            Note: a client that has never produced a single snapshot is not
+            discovered and therefore not monitored for freshness.
+          item_prototypes:
+            - uuid: e41c4d860873477a97611b98bb8ca60e
+              name: 'Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}]: Last snapshot age'
+              type: DEPENDENT
+              key: 'proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}]'
+              history: 90d
+              units: s
+              description: |
+                Seconds since the most recent snapshot of backup group {#BACKUP.GROUP}
+                in datastore {#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}. An empty
+                namespace suffix denotes the datastore's root namespace.
+                For datastores filled by a sync job the snapshots keep the original
+                backup-time of the source, so on the sync target this measures
+                end-to-end freshness (client backup plus sync).
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.datastore == ''{#DATASTORE.NAME}'' && @.ns == ''{#BACKUP.NAMESPACE}'' && @.group == ''{#BACKUP.GROUP}'')].last.first()'
+                  error_handler: DISCARD_VALUE
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return Math.max(0, Math.floor(Date.now() / 1000) - value);'
+              master_item:
+                key: proxmox.backupgroups
+              tags:
+                - tag: backup_group
+                  value: '{#BACKUP.GROUP}'
+                - tag: component
+                  value: backup
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+                - tag: namespace
+                  value: '{#BACKUP.NAMESPACE}'
+              trigger_prototypes:
+                - uuid: 9d4d36649a1e4728839bcdf313f77e6f
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
+                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than high threshold'
+                  priority: HIGH
+                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}] is older than {$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}. The client backup job has not produced a new snapshot for an extended period; check the client and its backup schedule. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: ad372da28008485da184353c2922f644
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}'
+                  name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than warning threshold'
+                  priority: WARNING
+                  description: 'The most recent snapshot of backup group [{#BACKUP.GROUP}] in datastore [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}] is older than {$PBS.SNAPSHOT.AGE.WARN:"{#BACKUP.GROUP}"}. A recent client backup run may have failed or been skipped. If the source VM/CT was deleted and the backups are intentionally retained, add the {$PBS.SNAPSHOT.IGNORE.COMMENT} marker to the group comment in PBS (Datastore > Content > group > Edit comment) to stop monitoring its freshness.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                    - name: 'Proxmox Backup Server: Backup group [{#DATASTORE.NAME}{#BACKUP.NAMESPACE.SUFFIX}/{#BACKUP.GROUP}] last snapshot older than high threshold'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.backupgroup.lastsnapshot.age[{#DATASTORE.NAME},{#BACKUP.NAMESPACE},{#BACKUP.GROUP}])>{$PBS.SNAPSHOT.AGE.HIGH:"{#BACKUP.GROUP}"}'
+                  tags:
+                    - tag: scope
+                      value: notice
+          master_item:
+            key: proxmox.backupgroups
+          lld_macro_paths:
+            - lld_macro: '{#BACKUP.COMMENT}'
+              path: $.comment
+            - lld_macro: '{#BACKUP.GROUP}'
+              path: $.group
+            - lld_macro: '{#BACKUP.ID}'
+              path: $.id
+            - lld_macro: '{#BACKUP.NAMESPACE}'
+              path: $.ns
+            - lld_macro: '{#BACKUP.NAMESPACE.SUFFIX}'
+              path: $.ns_suffix
+            - lld_macro: '{#BACKUP.TYPE}'
+              path: $.type
+            - lld_macro: '{#DATASTORE.NAME}'
+              path: $.datastore
+          overrides:
+            - name: 'No freshness triggers for comment-marked backup groups'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#BACKUP.COMMENT}'
+                    value: '{$PBS.SNAPSHOT.IGNORE.COMMENT}'
+                    operator: MATCHES_REGEX
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: 'last snapshot older than'
+                  discover: NO_DISCOVER
       tags:
         - tag: class
           value: software
@@ -2264,6 +2612,12 @@ zabbix_export:
         - macro: '{$PBS.DISK.WEAROUT.WARN}'
           value: '70'
           description: 'Warning threshold of disk wearout expressed in %.'
+        - macro: '{$PBS.LLD.DISABLE.LOST}'
+          value: 1h
+          description: 'Grace period after which a discovered backup-group item is disabled once its group no longer exists in PBS, instead of polling the gone resource for the full keep period. Must exceed the discovery interval.'
+        - macro: '{$PBS.LLD.KEEP.LOST}'
+          value: 14d
+          description: 'Period after which a no-longer-present, already-disabled discovered backup-group item is deleted from the host. Must exceed {$PBS.LLD.DISABLE.LOST}.'
         - macro: '{$PBS.MEMORY.PUSE.CRIT}'
           value: '90'
           description: 'Critical threshold of memory usage expressed in %.'
@@ -2285,12 +2639,27 @@ zabbix_export:
         - macro: '{$PBS.SERVICE.UNITSTATE.RUNTIME}'
           value: enabled-runtime
           description: 'The enabled-runtime unit-status of the service for the trigger expression.'
+        - macro: '{$PBS.SNAPSHOT.AGE.HIGH}'
+          value: 50h
+          description: 'Last-snapshot age of a backup group above which a HIGH severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context; the context matches by group name only, so the same group name in different namespaces shares one threshold.'
+        - macro: '{$PBS.SNAPSHOT.AGE.WARN}'
+          value: 30h
+          description: 'Last-snapshot age of a backup group above which a WARNING severity trigger fires. Default suits a daily backup schedule. Can be overridden per backup group using the {#BACKUP.GROUP} macro context; the context matches by group name only, so the same group name in different namespaces shares one threshold.'
+        - macro: '{$PBS.SNAPSHOT.IGNORE.COMMENT}'
+          value: '(?i)no-monitor'
+          description: 'Regular expression matched against a backup group''s comment; a match suppresses that group''s snapshot-freshness triggers. Set the group comment in PBS to include the marker for groups whose source VM/CT was deleted but whose backups are intentionally retained.'
+        - macro: '{$PBS.SNAPSHOT.INTERVAL}'
+          value: 15m
+          description: 'Polling interval of the backup group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces (one namespace-list call plus one groups call per namespace per datastore), so keep this interval moderate.'
         - macro: '{$PBS.SUBSCRIPTION.STATE.ACTIVE}'
           value: active
           description: 'The active status of the subscription for the trigger expression.'
         - macro: '{$PBS.SWAP.PUSE.CRIT}'
           value: '90'
           description: 'Critical threshold of swap usage expressed in %.'
+        - macro: '{$PBS.TASKS.DAYS}'
+          value: '2'
+          description: 'Age of tasks to consider when looking for failed tasks (days).'
         - macro: '{$PBS.TOKEN.ID}'
           value: USER@REALM!TOKENID
           description: 'API tokens allow stateless access to most parts of the REST API by another system, software or API client.'
