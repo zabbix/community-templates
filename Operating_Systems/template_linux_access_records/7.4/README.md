@@ -2,7 +2,7 @@
 
 Collects OS-level **access records** (SSH logins, sudo) from the local auth log via
 Zabbix agent (active) `log[]` items — for security auditing and compliance evidence
-(e.g. ISMS-P 2.9.4, ISO/IEC 27001 A.8.15, PIPA access-record duty).
+(e.g. access-logging and audit-trail requirements such as ISO/IEC 27001).
 
 **Author:** saranf
 
