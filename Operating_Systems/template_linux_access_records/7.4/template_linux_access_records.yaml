@@ -1,0 +1,93 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a7b3f1c9d24e4a6f8b1c0e5d9f2a4c60
+      name: Templates/Operating systems
+  templates:
+    - uuid: 3f9c1e7a5b2d4c8e9a0f1b3d5e7c9a11
+      template: 'Linux access records by Zabbix agent active'
+      name: 'Linux access records by Zabbix agent active'
+      description: |
+        Collects OS-level access records (SSH logins, sudo) from the local auth log via
+        Zabbix agent (active) log items, for security auditing and compliance evidence
+        (e.g. ISMS-P 2.9.4, ISO/IEC 27001 A.8.15, PIPA access-record duty).
+
+        The template only reads the auth log — no changes to the monitored host beyond a
+        Zabbix agent (active) with ServerActive configured and read access to the log path.
+
+        Set {$ACCESSLOG.PATH} to /var/log/secure (RHEL/CentOS/Rocky) or /var/log/auth.log
+        (Debian/Ubuntu). Long-term retention & tamper-proof storage of access records is
+        out of scope of this template — forward to a log store (Loki/SIEM) if required by law.
+      groups:
+        - name: Templates/Operating systems
+      macros:
+        - macro: '{$ACCESSLOG.PATH}'
+          value: '/var/log/secure'
+          description: 'Auth log path. RHEL family: /var/log/secure ; Debian family: /var/log/auth.log'
+        - macro: '{$ACCESSLOG.ACCEPTED.REGEX}'
+          value: 'Accepted (password|publickey|keyboard-interactive)'
+          description: 'Regex matching successful login lines (sshd).'
+        - macro: '{$ACCESSLOG.FAILED.REGEX}'
+          value: 'Failed password for'
+          description: 'Regex matching failed login lines (sshd).'
+        - macro: '{$ACCESSLOG.SUDO.REGEX}'
+          value: 'sudo:.*COMMAND='
+          description: 'Regex matching sudo command execution lines.'
+        - macro: '{$ACCESSLOG.FAILED.WINDOW}'
+          value: '5m'
+          description: 'Window used to count failed logins for the brute-force trigger.'
+        - macro: '{$ACCESSLOG.FAILED.MAX}'
+          value: '10'
+          description: 'Failed logins within the window above that raise a Warning.'
+      items:
+        - uuid: 1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f
+          name: 'Access records: accepted logins'
+          type: ZABBIX_ACTIVE
+          key: 'log[{$ACCESSLOG.PATH},"{$ACCESSLOG.ACCEPTED.REGEX}",,,skip]'
+          delay: '30s'
+          history: '90d'
+          value_type: LOG
+          description: 'Successful login lines (who/when/from) captured from the auth log.'
+          tags:
+            - tag: class
+              value: security
+            - tag: component
+              value: access-record
+        - uuid: 2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f70
+          name: 'Access records: failed logins'
+          type: ZABBIX_ACTIVE
+          key: 'log[{$ACCESSLOG.PATH},"{$ACCESSLOG.FAILED.REGEX}",,,skip]'
+          delay: '30s'
+          history: '90d'
+          value_type: LOG
+          description: 'Failed login lines — feeds the brute-force trigger below.'
+          tags:
+            - tag: class
+              value: security
+            - tag: component
+              value: access-record
+        - uuid: 3e4f5a6b7c8d9e0f1a2b3c4d5e6f7081
+          name: 'Access records: sudo commands'
+          type: ZABBIX_ACTIVE
+          key: 'log[{$ACCESSLOG.PATH},"{$ACCESSLOG.SUDO.REGEX}",,,skip]'
+          delay: '30s'
+          history: '90d'
+          value_type: LOG
+          description: 'Privilege-escalation (sudo) command lines from the auth log.'
+          tags:
+            - tag: class
+              value: security
+            - tag: component
+              value: access-record
+      triggers:
+        - uuid: 4f5a6b7c8d9e0f1a2b3c4d5e6f708192
+          expression: 'count(/Linux access records by Zabbix agent active/log[{$ACCESSLOG.PATH},"{$ACCESSLOG.FAILED.REGEX}",,,skip],{$ACCESSLOG.FAILED.WINDOW})>{$ACCESSLOG.FAILED.MAX}'
+          name: 'Too many failed logins on {HOST.NAME} (>{$ACCESSLOG.FAILED.MAX} in {$ACCESSLOG.FAILED.WINDOW})'
+          priority: WARNING
+          description: 'Possible brute-force: failed logins in the window exceed the threshold.'
+          manual_close: 'YES'
+          tags:
+            - tag: class
+              value: security
+            - tag: source
+              value: linux-access-records
