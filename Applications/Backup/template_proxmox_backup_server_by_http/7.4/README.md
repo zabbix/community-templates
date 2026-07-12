@@ -10,9 +10,18 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 
 - **Zabbix Server** version 7.4 or higher  
 - **HTTP Agent** module enabled on the Zabbix server  
-- Proxmox Backup Server API token with read permissions for System and Datastores
+- Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below)
 - Host macros defined on the Zabbix host object (see “Macros” section)
-  
+- A Proxmox Backup Server certificate that the Zabbix server trusts (see “TLS certificate validation”)
+
+### TLS certificate validation
+
+The template validates the Proxmox Backup Server's TLS certificate on every request, because each request carries the API token in an `Authorization` header and an unvalidated connection would expose that token to interception.
+
+A default PBS installation uses a **self-signed** certificate, which the Zabbix server will not trust out of the box. Either install a certificate from a CA the Zabbix server already trusts, or add the PBS CA certificate to the trust store of the machine running the Zabbix server (on Debian/Ubuntu: drop the CA into `/usr/local/share/ca-certificates/` and run `update-ca-certificates`, then restart `zabbix-server`).
+
+If the certificate is not trusted, the items fail and the **API service not available** trigger fires — the template will not fall back to an unverified connection.
+
 ## 1. Create the Zabbix API User
 
 1. **Log in**  
@@ -39,6 +48,13 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
      - **Role:** `DatastoreAudit`
    - Click **Add**.
 
+5. **Assign RemoteAudit role** *(needed for sync-job monitoring)*
+   - Under **Access Control → Permissions**, click **Add → User Permission**  
+     - **Path:** `/remote`
+     - **User:** `zabbix@pbs`
+     - **Role:** `RemoteAudit`
+   - Click **Add**.
+
 ---
 
 ## 2. Create the API Token with Privilege Separation
@@ -63,7 +79,28 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
      - **Role:** `DatastoreAudit`
    - Click **Add**.
 
-The `Audit` role on `/` and `DatastoreAudit` on `/datastore` are sufficient for the snapshot-freshness and task-error monitoring described below — no additional permissions are required.
+4. **Assign RemoteAudit role** — *required for sync-job monitoring*
+   - Go to **Datacenter → Permissions** → **Add → API Token Permission**
+     - **Path:** `/remote`
+     - **User/Group/API Token:** `zabbix@pbs!Zabbix`
+     - **Role:** `RemoteAudit`
+   - Click **Add**.
+
+> ### ⚠ Why `RemoteAudit` matters more than it looks
+>
+> Sync jobs are **remote-scoped**, and PBS **filters configuration listings by permission**: a token that
+> may not read `/remote` is handed an **empty list, not a `403`**.
+>
+> So a token with only `Audit` and `DatastoreAudit` sees *zero* **pull** sync jobs, every sync item
+> reports success, and **sync monitoring silently does nothing** — while looking perfectly healthy. If you
+> run pull sync jobs, grant `RemoteAudit` or you are not monitoring them.
+>
+> Note this is only **half** of what makes sync monitoring go quiet. `/admin/sync` also defaults to
+> listing **pull** jobs only, so a server whose sync jobs are all **push** jobs reports none no matter
+> what privileges you grant. The template passes `sync-direction=all` to cover both — see
+> `{$PBS.SYNC.DIRECTION}`.
+
+`Audit` on `/`, `DatastoreAudit` on `/datastore` and `RemoteAudit` on `/remote` are sufficient for everything this template monitors — no write privileges are needed anywhere.
 
 ## Installation
 
@@ -106,9 +143,14 @@ These have sensible defaults and only need changing to override behaviour. The s
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
 | `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
 | `{$PBS.SNAPSHOT.IGNORE.COMMENT}` | `(?i)no-monitor` | Regex matched against a group's comment; a match suppresses that group's freshness triggers.            |
+| `{$PBS.SYNC.DIRECTION}`          | `all`            | Which sync jobs to list. `/admin/sync` defaults to `pull`, so a server whose sync jobs are all **push** jobs reports none at all and its sync monitoring silently does nothing. `all` covers both. Only change this if your PBS predates push sync and rejects the parameter. |
 | `{$PBS.TASKS.DAYS}`              | `2`              | Age window (days) of tasks scanned when looking for failed tasks.                                       |
 | `{$PBS.LLD.DISABLE.LOST}`        | `1h`             | Grace period after which a discovered backup-group item is disabled once its group no longer exists.    |
 | `{$PBS.LLD.KEEP.LOST}`           | `14d`            | Period after which a vanished, already-disabled backup-group item is deleted (must exceed `{$PBS.LLD.DISABLE.LOST}`). |
+| `{$PBS.SUBSCRIPTION.STATE.ACTIVE}`   | `active`         | Regex of subscription states considered acceptable. **Running PBS without a subscription? Set this to `active\|notfound`** — see “Running without a subscription” below. |
+| `{$PBS.VERIFY.INTERVAL}`         | `1h`             | Polling interval of the snapshot verification state. Each poll lists every snapshot of every datastore across all namespaces, which is markedly more expensive than the other items, so keep this interval long. |
+| `{$PBS.VERIFY.JOB.EXPECTED}`     | `1`              | Whether a verify job is expected to exist for a datastore. Set to `0`, optionally with a datastore context, to suppress the “No verify job configured” trigger for datastores intentionally left unverified. |
+| `{$PBS.SNAPSHOT.UNVERIFIED.WARN}` | `0`             | Snapshots missed by verification tolerated per datastore before the “Snapshots missed by verification” trigger fires. Supports a `{#DATASTORE.NAME}` context. |
 
 ## Contents of the Template
 
@@ -136,6 +178,10 @@ These have sensible defaults and only need changing to override behaviour. The s
 - Backup group snapshot too old (warning / high)
 - Failed backup tasks
 - Failed other tasks
+- Failed manual verify tasks
+- Maintenance job (garbage collection / prune / verify / sync) finished with error or warning
+- No verify job configured on a datastore
+- Snapshots failing verification (high) / snapshots missed by verification (warning)
 
 ## Backup Group Snapshot Freshness
 
@@ -161,9 +207,41 @@ A group that disappears from PBS (for example after the last snapshot is pruned)
 The **Get failed tasks** item polls the node task log for tasks that finished with an error or warning within the last `{$PBS.TASKS.DAYS}` days (default `2`) and feeds two dependent items:
 
 - **Failed backup tasks** (`proxmox.tasks.error.backup`) — client backup jobs that did not complete. This is the signal for "a backup failed", which the per-datastore maintenance-job monitoring does not cover.
+- **Failed manual verify tasks** (`proxmox.tasks.error.verify`) — verify tasks started by hand (worker types `verify`, `verify_snapshot`, `verify_group`). Scheduled verify jobs (`verificationjob`) are deliberately excluded here because they are already covered per datastore; the `/admin/verify` endpoint that the per-datastore items read only knows about *configured* jobs, so without this item a manual verify that found corruption would report nowhere.
 - **Failed other tasks** (`proxmox.tasks.error.other`) — errored tasks whose worker type is neither a backup job nor one of the maintenance jobs already monitored per datastore (garbage collection, prune, sync, verify); it catches e.g. tape and reader tasks.
 
-Each raises a HIGH trigger while at least one matching failed task is present in the window, and recovers automatically once the window clears. Garbage-collection, prune, verify and sync outcomes are intentionally **not** duplicated here — they are already tracked per datastore by the `proxmox.datastore.{gc,prune,verify,sync}.last-run-state` items.
+Each raises a HIGH trigger while at least one matching failed task is present in the window, and recovers automatically once the window clears. Scheduled garbage-collection, prune, verify and sync outcomes are intentionally **not** duplicated here — they are tracked per datastore by the `proxmox.datastore.{gc,prune,verify,sync}.last-run-state` items.
+
+## Running without a subscription
+
+Proxmox Backup Server is free software; the subscription is optional paid support. Running without one is a normal, fully supported deployment — and a **Dockerised PBS cannot hold a subscription at all**. Such a node reports its subscription state as `notfound`, permanently.
+
+PBS reports exactly one of: `new`, `notfound`, `active`, `invalid`, `expired`, `suspended`.
+
+`{$PBS.SUBSCRIPTION.STATE.ACTIVE}` is a **regular expression listing the states you consider acceptable**, and defaults to `active`. If you have no subscription, set it to:
+
+```
+{$PBS.SUBSCRIPTION.STATE.ACTIVE} = active|notfound
+```
+
+Do this **instead of disabling the trigger.** `notfound` then stops alerting, while `invalid`, `expired` and `suspended` still do — and those are genuinely worth knowing about even on a free install. Disabling the trigger outright throws that away. The macro supports a node context, so you can set it per node.
+
+## Verification Monitoring
+
+Verification is what detects corrupt backup data, so the template tracks it from three angles. They are complementary — none of them subsumes the others.
+
+**1. Did the verify job run, and did it pass?** The per-datastore `proxmox.datastore.verify.last-run-state` item reports the outcome of the datastore's configured verify jobs, and raises a **HIGH** trigger when the last run failed (a failed verify means at least one corrupt chunk) and a **WARNING** when it completed with warnings. Where a datastore has several verify jobs, the *worst* outcome is reported, so a failing job is not hidden behind a healthy one.
+
+**2. Is there a verify job at all?** A datastore with no verify job configured is never checked for corruption, and its verify item never receives a value — which on a dashboard is indistinguishable from a healthy datastore. The **Verify job configured** item makes that state explicit and raises a **WARNING**. Set `{$PBS.VERIFY.JOB.EXPECTED}` to `0` (optionally with a datastore context) for datastores you intentionally leave unverified.
+
+**3. What is the actual state of the data?** The **Get snapshot verification state** item walks every snapshot of every datastore across all namespaces and reports two counts per datastore:
+
+- **Snapshots failing verification** — snapshots whose last verification *failed*. This is corrupt backup data; restoring from those snapshots may not be possible. Raises a **HIGH** trigger.
+- **Snapshots missed by verification** — snapshots that **already existed when a verify job last finished** and are *still* unverified. That run should have covered them and did not, so verification is silently skipping data: its scope does not reach them, or it is not completing. They are neither known-good nor known-bad. Raises a **WARNING** above `{$PBS.SNAPSHOT.UNVERIFIED.WARN}`.
+
+  Backups taken *since* the last verify run are **not** counted — they are waiting their turn, not being skipped. This distinction matters: on any datastore that backs up more often than it verifies (a daily backup with a weekly verify, say), simply counting *all* unverified snapshots would be non-zero roughly six days in seven and would tell you nothing at all.
+
+Because it enumerates every snapshot, this item polls on its own slow interval (`{$PBS.VERIFY.INTERVAL}`, one hour by default). A datastore whose snapshot list cannot be read is omitted rather than reported as clean, so a transient API failure cannot silently clear a real alarm.
 
 ## Related Projects
 

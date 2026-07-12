@@ -97,6 +97,8 @@ zabbix_export:
               error_handler_params: 'Error getting data'
           timeout: '{$PBS.API.TIMEOUT}'
           url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/datastore'
+          verify_peer: 'YES'
+          verify_host: 'YES'
           headers:
             - name: Authorization
               value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -214,6 +216,146 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 6b789e3e632b4a20ae5b9433a0e0eccc
+          name: 'Get snapshot verification state'
+          type: SCRIPT
+          key: proxmox.datastore.verification
+          delay: '{$PBS.VERIFY.INTERVAL}'
+          history: 1d
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var base = 'https://' + params.url + ':' + params.port + '/api2/json';
+
+            var req = new HttpRequest();
+            req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+            var resp = req.get(encodeURI(base + '/status/datastore-usage'));
+            if (req.getStatus() !== 200) {
+                throw 'Failed to list datastores: HTTP status ' + req.getStatus();
+            }
+
+            // Latest verify-job completion per datastore. PBS verifies on a schedule,
+            // so this is the cutoff a snapshot must predate to count as missed.
+            var verifiedUntil = {};
+            var verifyResp = req.get(encodeURI(base + '/admin/verify'));
+            if (req.getStatus() === 200) {
+                (JSON.parse(verifyResp).data || []).forEach(function (job) {
+                    var end = job['last-run-endtime'];
+                    if (!job.store || !end) {
+                        return;
+                    }
+                    if (!verifiedUntil[job.store] || end > verifiedUntil[job.store]) {
+                        verifiedUntil[job.store] = end;
+                    }
+                });
+            } else {
+                Zabbix.log(3, 'PBS verify job list failed: HTTP status ' + req.getStatus() + ' (missed-snapshot counts will be 0)');
+            }
+
+            var result = [];
+            (JSON.parse(resp).data || []).forEach(function (store) {
+                if (store.error) {
+                    return;
+                }
+
+                // Enumerate namespaces: the root (empty string) is always included,
+                // sub-namespaces come from the namespace endpoint. On failure only
+                // the root namespace is counted.
+                var namespaces = [''];
+                try {
+                    var nsResp = req.get(encodeURI(base + '/admin/datastore/' + store.store + '/namespace'));
+                    if (req.getStatus() === 200) {
+                        (JSON.parse(nsResp).data || []).forEach(function (item) {
+                            if (item.ns && namespaces.indexOf(item.ns) === -1) {
+                                namespaces.push(item.ns);
+                            }
+                        });
+                    } else {
+                        Zabbix.log(4, 'PBS namespace list failed for datastore ' + store.store + ': HTTP status ' + req.getStatus() + ' (counting root namespace only)');
+                    }
+                } catch (error) {
+                    Zabbix.log(4, 'PBS namespace enumeration error for datastore ' + store.store + ': ' + error + ' (counting root namespace only)');
+                }
+
+                var failed = 0;
+                var unverified = 0;
+                var total = 0;
+                var complete = true;
+
+                namespaces.forEach(function (ns) {
+                    var snapUrl = encodeURI(base + '/admin/datastore/' + store.store + '/snapshots');
+                    if (ns) {
+                        snapUrl += '?ns=' + encodeURIComponent(ns);
+                    }
+                    var snapResp = req.get(snapUrl);
+                    if (req.getStatus() !== 200) {
+                        Zabbix.log(3, 'PBS snapshot list failed for datastore ' + store.store + ' namespace "' + ns + '": HTTP status ' + req.getStatus());
+                        complete = false;
+                        return;
+                    }
+                    (JSON.parse(snapResp).data || []).forEach(function (snap) {
+                        total++;
+                        if (!snap.verification) {
+                            // PBS omits "verification" entirely for a snapshot it has never
+                            // verified. Such a snapshot is only missed if it predates the
+                            // last completed verify run; anything newer is not due yet.
+                            var cutoff = verifiedUntil[store.store];
+                            if (cutoff && (snap['backup-time'] || 0) < cutoff) {
+                                unverified++;
+                            }
+                        } else if (snap.verification.state === 'failed') {
+                            failed++;
+                        }
+                    });
+                });
+
+                // A datastore whose snapshot list could not be read completely is left
+                // out rather than reported as clean, so that a transient API failure
+                // cannot silently clear a real "failed verification" alarm.
+                if (complete) {
+                    result.push({
+                        store: store.store,
+                        failed: failed,
+                        unverified: unverified,
+                        total: total
+                    });
+                }
+            });
+            return JSON.stringify(result);
+          description: |
+            Per-datastore counts of snapshots whose last verification failed, and of
+            snapshots that verification should have covered but did not, across all
+            namespaces.
+
+            PBS omits the "verification" field entirely for a snapshot it has never
+            verified, so a never-verified snapshot is not the same thing as a healthy one.
+            A snapshot is only counted as missed if it already existed when a verify job
+            last finished (its backup-time predates that job's last-run-endtime) and is
+            still unverified - meaning that run should have covered it and did not.
+
+            Counting every unverified snapshot instead would flag each backup taken since
+            the last verify run. On any datastore that backs up more often than it verifies
+            - a daily backup with a weekly verify, say - that is the normal steady state,
+            and the count would be non-zero almost permanently while meaning nothing.
+
+            This walks every snapshot of every datastore, so it is polled on its own slow
+            interval ({$PBS.VERIFY.INTERVAL}, one hour by default) rather than with the
+            other items. Datastores whose snapshot list cannot be read are omitted rather
+            than reported clean.
+          timeout: 30s
+          parameters:
+            - name: port
+              value: '{$PBS.URL.PORT}'
+            - name: secret
+              value: '{$PBS.TOKEN.SECRET}'
+            - name: token
+              value: '{$PBS.TOKEN.ID}'
+            - name: url
+              value: '{$PBS.URL.HOST}'
+          tags:
+            - tag: component
+              value: raw
         - uuid: 17e7c9ee749946aaaf19ae4f1148f0d1
           name: 'Get failed tasks'
           type: HTTP_AGENT
@@ -252,6 +394,8 @@ zabbix_export:
                   return JSON.stringify(result);
           timeout: '{$PBS.API.TIMEOUT}'
           url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/localhost/tasks'
+          verify_peer: 'YES'
+          verify_host: 'YES'
           query_fields:
             - name: errors
               value: 'true'
@@ -358,6 +502,48 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: notice
+        - uuid: 0de75b8c8d2844d49de4061f9ae74b6e
+          name: 'Failed manual verify tasks'
+          type: DEPENDENT
+          key: proxmox.tasks.error.verify
+          history: 7d
+          value_type: TEXT
+          description: 'Failed manual verify tasks (worker types "verify", "verify_snapshot", "verify_group") within the last {$PBS.TASKS.DAYS} days. Scheduled verify jobs (worker type "verificationjob") are deliberately excluded here because they are monitored per datastore by the verify last-run-state triggers; the /admin/verify endpoint those use only knows about configured jobs, so a manual verify would otherwise report nowhere.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var manual = ['verify', 'verify_snapshot', 'verify_group'];
+                  var result = [];
+                  var tasks = JSON.parse(value);
+                  if (tasks instanceof Array) {
+                      tasks.forEach(function (task) {
+                          if (manual.indexOf(String(task.worker_type || '')) !== -1) {
+                              result.push(task);
+                          }
+                      });
+                  }
+                  return JSON.stringify(result);
+          master_item:
+            key: proxmox.tasks.error
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: 2cb141744b9b44398e212164c1a2d7bb
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.verify)<>"[]"'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Proxmox Backup Server by HTTP/proxmox.tasks.error.verify)="[]"'
+              name: 'Proxmox Backup Server: Failed manual verify tasks found'
+              opdata: '{ITEM.VALUE}'
+              priority: HIGH
+              description: 'A manually started verify task failed within the last {$PBS.TASKS.DAYS} days, meaning it found at least one corrupt chunk or snapshot.'
+              dependencies:
+                - name: 'Proxmox Backup Server: API service not available'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+              tags:
+                - tag: scope
+                  value: notice
       discovery_rules:
         - uuid: 1e239eda8de84d12a060f817463cdaaa
           name: 'Datastore discovery'
@@ -375,7 +561,7 @@ zabbix_export:
             - uuid: 9487bd5d056c4925a7cd5cdc6b96056a
               name: 'Datastore [{#DATASTORE.NAME}]: Estimated Full'
               type: CALCULATED
-              key: 'pbs.datastore.estimated-full[{#DATASTORE.NAME}]'
+              key: 'proxmox.datastore.estimated-full[{#DATASTORE.NAME}]'
               delay: 15m
               value_type: FLOAT
               units: s
@@ -388,7 +574,7 @@ zabbix_export:
                   value: '{#DATASTORE.NAME}'
               trigger_prototypes:
                 - uuid: 5c14a8a59cb64939933dd8bed4903e4d
-                  expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])>0'
                   name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.CRIT}'
                   opdata: '{ITEM.LASTVALUE1}'
                   priority: AVERAGE
@@ -396,13 +582,13 @@ zabbix_export:
                     - tag: scope
                       value: capacity
                 - uuid: ae20faf571d84bdab96b1bc83f80e3d6
-                  expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.WARN:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.WARN:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])>0'
                   name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.WARN}'
                   opdata: '{ITEM.LASTVALUE1}'
                   priority: WARNING
                   dependencies:
                     - name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] estimated full < {$PBS.DATASTORE.AVAILABLE.CRIT}'
-                      expression: 'last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/pbs.datastore.estimated-full[{#DATASTORE.NAME}])>0'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])<{$PBS.DATASTORE.AVAILABLE.CRIT:"{#DATASTORE.NAME}"} and last(/Proxmox Backup Server by HTTP/proxmox.datastore.estimated-full[{#DATASTORE.NAME}])>0'
                   tags:
                     - tag: scope
                       value: capacity
@@ -555,7 +741,7 @@ zabbix_export:
                   value: '{#DATASTORE.NAME}'
               trigger_prototypes:
                 - uuid: 4fbbcbd97cdf4885ad2e4234e9dbf6a6
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
                   name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Error'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
@@ -563,24 +749,13 @@ zabbix_export:
                     - tag: scope
                       value: notice
                 - uuid: 31e75d5f5621405fb2b5cee830ef966a
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=1'
                   name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Warning'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: WARNING
                   dependencies:
                     - name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Error'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
-                  tags:
-                    - tag: scope
-                      value: notice
-                - uuid: 9ba930a0279a4904bcbf14f67146a9bd
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"OK"'
-                  name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} is not OK'
-                  opdata: 'Last state: {ITEM.LASTVALUE1}'
-                  priority: WARNING
-                  dependencies:
-                    - name: 'Proxmox Backup Server: Last Garbage Collection on {#DATASTORE.NAME} finished with Warning'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.gc.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
                   tags:
                     - tag: scope
                       value: notice
@@ -744,6 +919,8 @@ zabbix_export:
                     - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/gc'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -773,7 +950,7 @@ zabbix_export:
                   value: '{#DATASTORE.NAME}'
               trigger_prototypes:
                 - uuid: 7a4a74b8eec54c12898bc59f92a8bc47
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
                   name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Error'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
@@ -781,24 +958,13 @@ zabbix_export:
                     - tag: scope
                       value: notice
                 - uuid: 3765a2fad9e44bf6ba566dae0d5e68cd
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=1'
                   name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Warning'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: WARNING
                   dependencies:
                     - name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Error'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","error")=1'
-                  tags:
-                    - tag: scope
-                      value: notice
-                - uuid: 9101af3e08684525a3cd7a05db1cf8f8
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"OK"'
-                  name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} is not OK'
-                  opdata: 'Last state: {ITEM.LASTVALUE1}'
-                  priority: WARNING
-                  dependencies:
-                    - name: 'Proxmox Backup Server: Last prune on {#DATASTORE.NAME} finished with Warning'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","warning")=1'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.prune.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
                   tags:
                     - tag: scope
                       value: notice
@@ -815,11 +981,47 @@ zabbix_export:
                     - '-1'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'Error getting data'
-                - type: JSONPATH
+                - type: JAVASCRIPT
                   parameters:
-                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+                    - |
+                      try {
+                          var data = JSON.parse(value).data || [];
+                          var rank = function (job) {
+                              // PBS renders the last run as "OK", as "WARNINGS: <count>",
+                              // or as the bare error message. Anything that is neither OK
+                              // nor a warning is therefore a failure.
+                              var state = String(job['last-run-state'] || '');
+                              if (state === '') {
+                                  return 0;
+                              }
+                              if (state === 'OK') {
+                                  return 1;
+                              }
+                              if (state.indexOf('WARNINGS:') === 0) {
+                                  return 2;
+                              }
+                              return 3;
+                          };
+                          // A datastore may have several prune jobs. Report the worst
+                          // last-run-state of them, so a failing job is not hidden behind
+                          // a healthy one that happens to be listed first.
+                          var worst = null;
+                          data.forEach(function (job) {
+                              if (job.store !== '{#DATASTORE.NAME}') {
+                                  return;
+                              }
+                              if (worst === null || rank(job) > rank(worst)) {
+                                  worst = job;
+                              }
+                          });
+                          return JSON.stringify(worst === null ? {} : worst);
+                      } catch (e) {
+                          return value;
+                      }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/prune'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -847,6 +1049,8 @@ zabbix_export:
                     - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/status/datastore-usage'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -865,7 +1069,7 @@ zabbix_export:
                   parameters:
                     - |
                       try {
-                          var parsed = JSON.parse(value.data);
+                          var parsed = JSON.parse(value).data;
                           if (Array.isArray(parsed) && parsed.length === 0) {
                               return "not found";
                           } else {
@@ -876,7 +1080,11 @@ zabbix_export:
                       }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
+                - name: sync-direction
+                  value: '{$PBS.SYNC.DIRECTION}'
                 - name: store
                   value: '{#DATASTORE.NAME}'
               headers:
@@ -926,7 +1134,7 @@ zabbix_export:
                 - tag: datastore
                   value: '{#DATASTORE.NAME}'
             - uuid: 8bdf959336194a039c9aed587a0e507c
-              name: 'Datastore [{#DATASTORE.NAME}]: Verfiy Last Run State'
+              name: 'Datastore [{#DATASTORE.NAME}]: Verify Last Run State'
               type: DEPENDENT
               key: 'proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}]'
               value_type: TEXT
@@ -943,6 +1151,27 @@ zabbix_export:
                   value: datastore
                 - tag: datastore
                   value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: 600e4538982148c88979dc370ae79b51
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
+                  name: 'Proxmox Backup Server: Last Verify on {#DATASTORE.NAME} finished with Error'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'A verify job that ends in error state has found at least one corrupt chunk or snapshot. Check the task log on the Proxmox Backup Server.'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: d22d2d396978429e9b2291ecc11c9428
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=1'
+                  name: 'Proxmox Backup Server: Last Verify on {#DATASTORE.NAME} finished with Warning'
+                  opdata: 'Last state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Last Verify on {#DATASTORE.NAME} finished with Error'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.last-run-state[{#DATASTORE.NAME}],1,"iregexp","^WARNINGS: ")=0'
+                  tags:
+                    - tag: scope
+                      value: notice
             - uuid: 013ce8440c9840babfe56d1f0a568844
               name: 'Datastore [{#DATASTORE.NAME}]: Get verify info'
               type: HTTP_AGENT
@@ -956,11 +1185,47 @@ zabbix_export:
                     - '-1'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'Error getting data'
-                - type: JSONPATH
+                - type: JAVASCRIPT
                   parameters:
-                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+                    - |
+                      try {
+                          var data = JSON.parse(value).data || [];
+                          var rank = function (job) {
+                              // PBS renders the last run as "OK", as "WARNINGS: <count>",
+                              // or as the bare error message. Anything that is neither OK
+                              // nor a warning is therefore a failure.
+                              var state = String(job['last-run-state'] || '');
+                              if (state === '') {
+                                  return 0;
+                              }
+                              if (state === 'OK') {
+                                  return 1;
+                              }
+                              if (state.indexOf('WARNINGS:') === 0) {
+                                  return 2;
+                              }
+                              return 3;
+                          };
+                          // A datastore may have several verify jobs. Report the worst
+                          // last-run-state of them, so a failing job is not hidden behind
+                          // a healthy one that happens to be listed first.
+                          var worst = null;
+                          data.forEach(function (job) {
+                              if (job.store !== '{#DATASTORE.NAME}') {
+                                  return;
+                              }
+                              if (worst === null || rank(job) > rank(worst)) {
+                                  worst = job;
+                              }
+                          });
+                          return JSON.stringify(worst === null ? {} : worst);
+                      } catch (e) {
+                          return value;
+                      }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/verify'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -970,11 +1235,119 @@ zabbix_export:
               tags:
                 - tag: component
                   value: raw
+            - uuid: fe534be0d8b145c2bccde3a26b2e0d12
+              name: 'Datastore [{#DATASTORE.NAME}]: Snapshots failing verification'
+              type: DEPENDENT
+              key: 'proxmox.datastore.snapshots.failed[{#DATASTORE.NAME}]'
+              description: 'Number of snapshots in this datastore whose last verification failed, across all namespaces. A non-zero value means corrupt backup data.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.store == "{#DATASTORE.NAME}")].failed.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.datastore.verification
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: a6e462dd3fa1422ca8d649d1641d80e3
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.snapshots.failed[{#DATASTORE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Snapshots failing verification on {#DATASTORE.NAME}'
+                  opdata: 'Failed snapshots: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'At least one snapshot in this datastore failed its last verification, which means its backup data is corrupt. Restoring from it may not be possible.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: da5016a4c7744832ae787de6073ee93f
+              name: 'Datastore [{#DATASTORE.NAME}]: Snapshots missed by verification'
+              type: DEPENDENT
+              key: 'proxmox.datastore.snapshots.unverified[{#DATASTORE.NAME}]'
+              description: 'Number of snapshots in this datastore that already existed when verification last finished and are still unverified - snapshots the verify job should have covered but did not. Backups taken since the last verify run are not counted: they are waiting their turn, not skipped. A non-zero value means verification is silently missing data, which is neither known-good nor known-bad.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.store == "{#DATASTORE.NAME}")].unverified.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.datastore.verification
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: 69a4c9952b854dac9bf6f52fb83715bf
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.snapshots.unverified[{#DATASTORE.NAME}])>{$PBS.SNAPSHOT.UNVERIFIED.WARN:"{#DATASTORE.NAME}"}'
+                  name: 'Proxmox Backup Server: Snapshots missed by verification on {#DATASTORE.NAME}'
+                  opdata: 'Missed snapshots: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Snapshots that already existed when verification last finished are still unverified, so the verify job is silently skipping data - its scope does not cover them, or it is not completing. Their integrity is unknown: they are neither known-good nor known-bad. Backups taken since the last verify run are not counted here.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Snapshots failing verification on {#DATASTORE.NAME}'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.snapshots.failed[{#DATASTORE.NAME}])>0'
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 2c637cb0f09c4049ab0a3850ce654ba1
+              name: 'Datastore [{#DATASTORE.NAME}]: Verify job configured'
+              type: HTTP_AGENT
+              key: 'proxmox.datastore.verify.configured[{#DATASTORE.NAME}]'
+              delay: 1h
+              history: 7d
+              value_type: TEXT
+              description: 'Whether any verify job is configured for this datastore. A datastore without a verify job has no integrity checking, and its "Verify Last Run State" item never receives a value - so the absence of verification is otherwise indistinguishable from a healthy datastore.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var parsed = JSON.parse(value).data;
+                          if (Array.isArray(parsed) && parsed.length === 0) {
+                              return "not found";
+                          } else {
+                              return "found";
+                          }
+                      } catch (e) {
+                          return value;
+                      }
+              timeout: '{$PBS.API.TIMEOUT}'
+              url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/verify'
+              verify_peer: 'YES'
+              verify_host: 'YES'
+              query_fields:
+                - name: store
+                  value: '{#DATASTORE.NAME}'
+              headers:
+                - name: Authorization
+                  value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: datastore
+                - tag: datastore
+                  value: '{#DATASTORE.NAME}'
+              trigger_prototypes:
+                - uuid: bb3eac8ac6804b26a9387dd71130602e
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.verify.configured[{#DATASTORE.NAME}])="not found" and {$PBS.VERIFY.JOB.EXPECTED:"{#DATASTORE.NAME}"}=1'
+                  name: 'Proxmox Backup Server: No verify job configured on {#DATASTORE.NAME}'
+                  priority: WARNING
+                  description: 'No verify job is configured for this datastore, so its backups are never checked for corruption. Set {$PBS.VERIFY.JOB.EXPECTED:"{#DATASTORE.NAME}"} to 0 to suppress this for datastores that are intentionally unverified.'
+                  tags:
+                    - tag: scope
+                      value: notice
           trigger_prototypes:
             - uuid: 63b6a17614ca473aa15699a3b2b93c35
               expression: 'min(/Proxmox Backup Server by HTTP/proxmox.datastore.used[{#DATASTORE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.datastore.total[{#DATASTORE.NAME}]) * 100 >{$PBS.DATASTORE.PUSE.CRIT:"{#DATASTORE.NAME}"}'
               name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage'
-              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage (over {$PBS.DATASTORE.PUSE.CRIT}:"{#DATASTORE.NAME}"% used)'
+              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] critical filesystem space usage (over {$PBS.DATASTORE.PUSE.CRIT:"{#DATASTORE.NAME}"}% used)'
               opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
               priority: AVERAGE
               description: 'Datastore space usage.'
@@ -994,7 +1367,7 @@ zabbix_export:
             - uuid: b51f9e5ec93a47f783350d8807d9b8bf
               expression: 'min(/Proxmox Backup Server by HTTP/proxmox.datastore.used[{#DATASTORE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.datastore.total[{#DATASTORE.NAME}]) * 100 >{$PBS.DATASTORE.PUSE.WARN:"{#DATASTORE.NAME}"}'
               name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] high filesystem space usage'
-              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] high filesystem space usage (over {$PBS.DATASTORE.PUSE.WARN}:"{#DATASTORE.NAME}"% used)'
+              event_name: 'Proxmox Backup Server: Datastore [{#DATASTORE.NAME}] high filesystem space usage (over {$PBS.DATASTORE.PUSE.WARN:"{#DATASTORE.NAME}"}% used)'
               opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
               priority: WARNING
               description: 'Datastore space usage.'
@@ -1080,7 +1453,7 @@ zabbix_export:
                   value: '{#DATASTORE.NAME}'
               trigger_prototypes:
                 - uuid: cd7578d13b114f6a85337a762acbde60
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","error")=1'
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","^WARNINGS: ")=0'
                   name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Error'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
@@ -1088,24 +1461,13 @@ zabbix_export:
                     - tag: scope
                       value: notice
                 - uuid: caa7a0b507c14f05bd9dcd50f1bab73f
-                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","warning")=1'
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","^WARNINGS: ")=1'
                   name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Warning'
                   opdata: 'Last state: {ITEM.LASTVALUE1}'
                   priority: WARNING
                   dependencies:
                     - name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Error'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","error")=1'
-                  tags:
-                    - tag: scope
-                      value: notice
-                - uuid: c79a9a09a86e45f986cc1ca9f3dea6e6
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"OK"'
-                  name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} is not OK'
-                  opdata: 'Last state: {ITEM.LASTVALUE1}'
-                  priority: WARNING
-                  dependencies:
-                    - name: 'Proxmox Backup Server: Last sync on {#DATASTORE.NAME} finished with Warning'
-                      expression: 'find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","warning")=1'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"OK" and last(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}])<>"" and find(/Proxmox Backup Server by HTTP/proxmox.datastore.sync.last-run-state[{#DATASTORE.NAME},{#SINGLETON}],1,"iregexp","^WARNINGS: ")=0'
                   tags:
                     - tag: scope
                       value: notice
@@ -1115,11 +1477,49 @@ zabbix_export:
               key: 'proxmox.datastore.sync[{#DATASTORE.NAME},{#SINGLETON}]'
               value_type: TEXT
               preprocessing:
-                - type: JSONPATH
+                - type: JAVASCRIPT
                   parameters:
-                    - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
+                    - |
+                      try {
+                          var data = JSON.parse(value).data || [];
+                          var rank = function (job) {
+                              // PBS renders the last run as "OK", as "WARNINGS: <count>",
+                              // or as the bare error message. Anything that is neither OK
+                              // nor a warning is therefore a failure.
+                              var state = String(job['last-run-state'] || '');
+                              if (state === '') {
+                                  return 0;
+                              }
+                              if (state === 'OK') {
+                                  return 1;
+                              }
+                              if (state.indexOf('WARNINGS:') === 0) {
+                                  return 2;
+                              }
+                              return 3;
+                          };
+                          // A datastore may have several sync jobs. Report the worst
+                          // last-run-state of them, so a failing job is not hidden behind
+                          // a healthy one that happens to be listed first.
+                          var worst = null;
+                          data.forEach(function (job) {
+                              if (job.store !== '{#DATASTORE.NAME}') {
+                                  return;
+                              }
+                              if (worst === null || rank(job) > rank(worst)) {
+                                  worst = job;
+                              }
+                          });
+                          return JSON.stringify(worst === null ? {} : worst);
+                      } catch (e) {
+                          return value;
+                      }
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
+                - name: sync-direction
+                  value: '{$PBS.SYNC.DIRECTION}'
                 - name: store
                   value: '{#DATASTORE.NAME}'
               headers:
@@ -1303,6 +1703,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#DISK.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1389,6 +1791,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#DISK.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1441,7 +1845,7 @@ zabbix_export:
                 - uuid: eaa6c27523fd46339a597afc5df78b8e
                   expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.cpu[{#NODE.NAME}],5m) > {$PBS.CPU.PUSE.CRIT:"{#NODE.NAME}"}'
                   name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage'
-                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage (over {$PVE.CPU.PUSE.CRIT}% used)'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage (over {$PBS.CPU.PUSE.CRIT}% used)'
                   opdata: 'Current use: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
                   description: 'CPU usage.'
@@ -1458,6 +1862,8 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1705,6 +2111,8 @@ zabbix_export:
                       return JSON.stringify(rrd_data[rrd_data.length - 2])
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/rrd'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               query_fields:
                 - name: timeframe
                   value: hour
@@ -1728,6 +2136,8 @@ zabbix_export:
               description: 'Read node subscription.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1746,6 +2156,8 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/status'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1797,11 +2209,21 @@ zabbix_export:
                   value: '{#NODE.NAME}'
               trigger_prototypes:
                 - uuid: ed8382d8e91f43579071fab40c6818bb
-                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.subscription.status[{#NODE.NAME}])<>{$PBS.SUBSCRIPTION.STATE.ACTIVE:"{#NODE.NAME}"}'
-                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] has no active subscription'
-                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] has no active subscription (state <> active)'
+                  expression: 'find(/Proxmox Backup Server by HTTP/proxmox.node.subscription.status[{#NODE.NAME}],1,"iregexp",{$PBS.SUBSCRIPTION.STATE.ACTIVE:"{#NODE.NAME}"})=0'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] subscription is not in an acceptable state'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] subscription state does not match {$PBS.SUBSCRIPTION.STATE.ACTIVE:"{#NODE.NAME}"}'
+                  opdata: 'Subscription state: {ITEM.LASTVALUE1}'
                   priority: WARNING
-                  description: 'No active subscription available.'
+                  description: |
+                    The node's subscription state does not match {$PBS.SUBSCRIPTION.STATE.ACTIVE}, a regular
+                    expression listing the states considered acceptable (default: active).
+
+                    Proxmox Backup Server is free software and the subscription is optional paid support,
+                    so running without one is a normal, supported deployment - and a Dockerised PBS cannot
+                    hold a subscription at all. Such a node reports notfound indefinitely. If that is your
+                    setup, set {$PBS.SUBSCRIPTION.STATE.ACTIVE} to "active|notfound" rather than disabling this
+                    trigger: notfound then stops alerting, while invalid, expired and suspended - which are
+                    genuinely wrong even on a free install - still do.
                   manual_close: 'YES'
                   tags:
                     - tag: scope
@@ -1816,6 +2238,8 @@ zabbix_export:
               description: 'Read node subscription.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/subscription'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1895,6 +2319,8 @@ zabbix_export:
               description: 'Read server time and time zone settings.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/time'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1931,6 +2357,8 @@ zabbix_export:
                       return matches ? matches.length : 0;
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/apt/update'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2004,6 +2432,8 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2016,7 +2446,7 @@ zabbix_export:
             - uuid: 4b1ec48b1e3e441e975935b3b40928c5
               expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.memused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.memtotal[{#NODE.NAME}]) * 100 >{$PBS.MEMORY.PUSE.CRIT:"{#NODE.NAME}"}'
               name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high memory usage'
-              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high memory usage (over {$PVE.MEMORY.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high memory usage (over {$PBS.MEMORY.PUSE.CRIT:"{#NODE.NAME}"}% use)'
               opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
               priority: AVERAGE
               description: 'Memory usage.'
@@ -2026,7 +2456,7 @@ zabbix_export:
             - uuid: 1bcff83f91ba40b2ad5fe54eb0ec0431
               expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.rootused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.roottotal[{#NODE.NAME}]) * 100 >{$PBS.ROOT.PUSE.CRIT:"{#NODE.NAME}"}'
               name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high root filesystem space usage'
-              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high root filesystem space usage (over {$PVE.ROOT.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high root filesystem space usage (over {$PBS.ROOT.PUSE.CRIT:"{#NODE.NAME}"}% use)'
               opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
               priority: AVERAGE
               description: 'Root filesystem space usage.'
@@ -2036,7 +2466,7 @@ zabbix_export:
             - uuid: 3fa317184ec24e478714a0b7c9d5b9d3
               expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.swapused[{#NODE.NAME}],5m) / last(/Proxmox Backup Server by HTTP/proxmox.node.swaptotal[{#NODE.NAME}]) * 100 > {$PBS.SWAP.PUSE.CRIT:"{#NODE.NAME}"} and last(/Proxmox Backup Server by HTTP/proxmox.node.swaptotal[{#NODE.NAME}]) > 0'
               name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high swap space usage'
-              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high swap space usage (over {$PVE.SWAP.PUSE.CRIT:"{#NODE.NAME}"}% use)'
+              event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high swap space usage (over {$PBS.SWAP.PUSE.CRIT:"{#NODE.NAME}"}% use)'
               opdata: 'Current use: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
               priority: AVERAGE
               description: 'If there is no swap configured, this trigger is ignored.'
@@ -2199,6 +2629,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#SERVICE.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2420,6 +2852,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#ZFS.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
+              verify_peer: 'YES'
+              verify_host: 'YES'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2651,12 +3085,18 @@ zabbix_export:
         - macro: '{$PBS.SNAPSHOT.INTERVAL}'
           value: 15m
           description: 'Polling interval of the backup group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces (one namespace-list call plus one groups call per namespace per datastore), so keep this interval moderate.'
+        - macro: '{$PBS.SNAPSHOT.UNVERIFIED.WARN}'
+          value: '0'
+          description: 'Number of missed snapshots tolerated per datastore before the "Snapshots missed by verification" trigger fires. Can be set with a datastore context.'
         - macro: '{$PBS.SUBSCRIPTION.STATE.ACTIVE}'
           value: active
-          description: 'The active status of the subscription for the trigger expression.'
+          description: 'Regular expression listing the subscription states treated as acceptable. PBS reports one of: new, notfound, active, invalid, expired, suspended. PBS is free software and the subscription is optional paid support, so an unsubscribed node - including any Dockerised PBS, which cannot hold a subscription at all - reports "notfound" forever. On such an install set this to "active|notfound", which silences that steady state while still alerting on "invalid", "expired" and "suspended". Matching is a regular expression rather than equality, so an existing override of a single state (e.g. "notfound") keeps working. Supports a node context.'
         - macro: '{$PBS.SWAP.PUSE.CRIT}'
           value: '90'
           description: 'Critical threshold of swap usage expressed in %.'
+        - macro: '{$PBS.SYNC.DIRECTION}'
+          value: all
+          description: 'Which sync jobs to list. /admin/sync defaults to "pull" when this is omitted, so a server whose sync jobs are all PUSH jobs reports no sync jobs at all and its sync monitoring silently does nothing. "all" covers both directions. Only change this if your Proxmox Backup Server predates push sync and rejects the parameter.'
         - macro: '{$PBS.TASKS.DAYS}'
           value: '2'
           description: 'Age of tasks to consider when looking for failed tasks (days).'
@@ -2664,6 +3104,7 @@ zabbix_export:
           value: USER@REALM!TOKENID
           description: 'API tokens allow stateless access to most parts of the REST API by another system, software or API client.'
         - macro: '{$PBS.TOKEN.SECRET}'
+          type: SECRET_TEXT
           value: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
           description: 'Secret key.'
         - macro: '{$PBS.URL.HOST}'
@@ -2672,6 +3113,12 @@ zabbix_export:
         - macro: '{$PBS.URL.PORT}'
           value: '8007'
           description: 'The API uses the HTTPS protocol and the server listens to port 8007 by default.'
+        - macro: '{$PBS.VERIFY.INTERVAL}'
+          value: 1h
+          description: 'Polling interval of the snapshot verification state. Each poll lists every snapshot of every datastore across all namespaces (one namespace-list call plus one snapshot-list call per namespace per datastore), which is markedly more expensive than the other items, so keep this interval long.'
+        - macro: '{$PBS.VERIFY.JOB.EXPECTED}'
+          value: '1'
+          description: 'Whether a verify job is expected to exist for a datastore. Set to 0, optionally with a datastore context, to suppress the "No verify job configured" trigger for datastores that are intentionally left unverified.'
         - macro: '{$PBS.ZFS.FRAG.CRIT}'
           value: '70'
           description: 'Critical threshold of zfs pool fragmentation expressed in %.'
