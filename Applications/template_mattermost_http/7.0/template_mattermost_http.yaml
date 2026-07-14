@@ -1,0 +1,1351 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a1b2c3d4e5f6478899aabbccddeeff00
+      name: Templates/Applications
+  templates:
+    - uuid: 1122334455664a889900aabbccddeeff
+      template: 'Mattermost by HTTP'
+      name: 'Mattermost by HTTP'
+      description: |
+        Mattermost monitoring via REST API.
+        
+        Features:
+                - API availability monitoring
+                - Analytics monitoring
+                - Users/channels/posts metrics
+                - Optimized dependent items
+                - Low API overhead
+                - Bearer token authentication
+        
+        Author: Soroush Mehmandoust
+        Version: 1.0
+        Zabbix Version: 7.0+
+        Mattermost Version: 11.x+
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 5b5bff4b6aa44ecc8b2b2d7c2841b131
+          name: 'Mattermost Analytics Raw Data'
+          type: HTTP_AGENT
+          key: mattermost.analytics.raw
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/api/v4/analytics/old?type=standard'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: analytics
+        - uuid: d579a21dabab418c8da2cc53f4f081a0
+          name: 'Mattermost API Status'
+          type: HTTP_AGENT
+          key: mattermost.api.status
+          history: 7d
+          trends: '0'
+          valuemap:
+            name: 'Mattermost Health'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var obj = JSON.parse(value);
+                    return (obj.status && String(obj.status).trim() === "OK") ? 1 : 0;
+                  } catch (e) {
+                    return (String(value).trim() === "OK") ? 1 : 0;
+                  }
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/api/v4/system/ping'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: api
+        - uuid: f0d72f19d9b24aa8b63b74c0e9022cd4
+          name: 'Private Channels'
+          type: DEPENDENT
+          key: mattermost.channels.private
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''channel_private_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: channels
+        - uuid: d2cfd2b7395e458d8401778992882b7d
+          name: 'Public Channels'
+          type: DEPENDENT
+          key: mattermost.channels.public
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''channel_open_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: channels
+        - uuid: 5289dfad5dae4392b9246f60f87871ad
+          name: 'Master DB Connections'
+          type: DEPENDENT
+          key: mattermost.db.master.connections
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''total_master_db_connections'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: database
+          triggers:
+            - uuid: fbebd53276434e43971ba30f7c131e2e
+              expression: 'avg(/Mattermost by HTTP/mattermost.db.master.connections,5m)>{$MM.DB.CONNECTIONS.CRIT}'
+              name: 'High number of Mattermost DB connections'
+              priority: HIGH
+              tags:
+                - tag: application
+                  value: mattermost
+                - tag: class
+                  value: software
+                - tag: component
+                  value: database
+        - uuid: 13201989a1024d3a9baef6ddff5370c3
+          name: 'Playbooks Active Runs'
+          type: DEPENDENT
+          key: mattermost.playbooks.active.runs
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                       var activeRuns = 0;
+                       if (data && Array.isArray(data.items)) {
+                           for (var i = 0; i < data.items.length; i++) {
+                               activeRuns += data.items[i].active_runs || 0;
+                           }
+                       }
+                       return activeRuns;
+          master_item:
+            key: mattermost.playbooks.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: playbooks
+          triggers:
+            - uuid: 70cfe4d32a50476a95aa8231aa10f638
+              expression: 'last(/Mattermost by HTTP/mattermost.playbooks.active.runs)>{$MM.PLAYBOOKS.ACTIVE.WARN}'
+              name: 'High number of active playbook runs'
+              priority: WARNING
+              tags:
+                - tag: application
+                  value: mattermost
+                - tag: class
+                  value: software
+                - tag: component
+                  value: playbooks
+        - uuid: ea87555621c8484eb4d6d5dc58b369d4
+          name: 'Playbooks Count'
+          type: DEPENDENT
+          key: mattermost.playbooks.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total_count
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.playbooks.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: playbooks
+        - uuid: 6cf4e531bcc447cdb065e6e7641cee16
+          name: 'Mattermost Playbooks Raw Data'
+          type: HTTP_AGENT
+          key: mattermost.playbooks.raw
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/plugins/playbooks/api/v0/playbooks'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: playbooks
+        - uuid: 61c8c44bc76a4842931d97343ab63b04
+          name: 'Active Plugins Count'
+          type: DEPENDENT
+          key: mattermost.plugins.active.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                       return (data && Array.isArray(data.active)) ? data.active.length : 0;
+          master_item:
+            key: mattermost.plugins.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: plugins
+        - uuid: 2d9fb33d04424204976facd23c80e0e2
+          name: 'Inactive Plugins Count'
+          type: DEPENDENT
+          key: mattermost.plugins.inactive.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return (data && Array.isArray(data.inactive)) ? data.inactive.length : 0;
+          master_item:
+            key: mattermost.plugins.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: plugins
+        - uuid: a064bb6e2a2344d98b2a0dead13fd926
+          name: 'Mattermost Plugins Raw Data'
+          type: HTTP_AGENT
+          key: mattermost.plugins.raw
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/api/v4/plugins'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: plugins
+        - uuid: bc2b4faeecb2427684fca84fe7f2e389
+          name: 'Total Plugins Count'
+          type: DEPENDENT
+          key: mattermost.plugins.total.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var active = (data && Array.isArray(data.active)) ? data.active.length : 0;
+                  var inactive = (data && Array.isArray(data.inactive)) ? data.inactive.length : 0;
+                  return active + inactive;
+          master_item:
+            key: mattermost.plugins.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: plugins
+        - uuid: 2dd9e676764944a4a4aefae774ed4eaa
+          name: 'Total Posts'
+          type: DEPENDENT
+          key: mattermost.posts.total
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''post_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: posts
+        - uuid: 564c3729d64747ff861c4b6f027a074e
+          name: 'Total Teams'
+          type: DEPENDENT
+          key: mattermost.teams.total
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''team_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: teams
+        - uuid: 12821181b4854373bef9a76a9660ccad
+          name: 'Daily Active Users'
+          type: DEPENDENT
+          key: mattermost.users.daily.active
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''daily_active_users'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: users
+        - uuid: ce4708aa58cb45669a00973d9753b683
+          name: 'Deactivated Users'
+          type: DEPENDENT
+          key: mattermost.users.deactivated
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''inactive_user_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: users
+        - uuid: 2eec8e626c554784905fa75336ae6393
+          name: 'Monthly Active Users'
+          type: DEPENDENT
+          key: mattermost.users.monthly.active
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''monthly_active_users'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: users
+        - uuid: cc36c6fdc6dc4404b5ead0841c3d3077
+          name: 'Total Users'
+          type: DEPENDENT
+          key: mattermost.users.total
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''unique_user_count'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: users
+        - uuid: 2271a30d62974c1cb079778317d3df98
+          name: 'Incoming Webhooks Count'
+          type: DEPENDENT
+          key: mattermost.webhooks.incoming.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return Array.isArray(data) ? data.length : 0;
+          master_item:
+            key: mattermost.webhooks.incoming.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: webhooks
+        - uuid: f8865db2837e489da89ad92f4aef471d
+          name: 'Mattermost Incoming Webhooks Raw Data'
+          type: HTTP_AGENT
+          key: mattermost.webhooks.incoming.raw
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/api/v4/hooks/incoming'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: webhooks
+        - uuid: ef47c270150d419fa1491d41e2b5c9a8
+          name: 'Outgoing Webhooks Count'
+          type: DEPENDENT
+          key: mattermost.webhooks.outgoing.count
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                             var data = JSON.parse(value);
+                             return Array.isArray(data) ? data.length : 0;
+                         } catch (e) {
+                             return 0;
+                         }
+          master_item:
+            key: mattermost.webhooks.outgoing.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: webhooks
+        - uuid: c5aa01e829234878aa4ac30dad6653ef
+          name: 'Mattermost Outgoing Webhooks Raw Data'
+          type: HTTP_AGENT
+          key: mattermost.webhooks.outgoing.raw
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          timeout: '{$MM.TIMEOUT}'
+          url: '{$MM.URL}/api/v4/hooks/outgoing'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$MM.TOKEN}'
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: webhooks
+        - uuid: 52d52779c55c45aebdad41b809e2b2de
+          name: 'Websocket Connections'
+          type: DEPENDENT
+          key: mattermost.websocket.connections
+          delay: '0'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name==''total_websocket_connections'')].value.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: mattermost.analytics.raw
+          tags:
+            - tag: application
+              value: mattermost
+            - tag: component
+              value: websocket
+      httptests:
+        - uuid: 2067982b33644e9abdc87b4b2247ab13
+          name: 'Mattermost API Response Time'
+          steps:
+            - name: 'Ping API'
+              url: '{$MM.URL}/api/v4/system/ping'
+              headers:
+                - name: Authorization
+                  value: 'Bearer {$MM.TOKEN}'
+              follow_redirects: 'NO'
+              required: OK
+          tags:
+            - tag: application
+              value: mattermost
+        - uuid: d6df7a8ba37d4eec80257a343b76f25a
+          name: 'Mattermost Site Availability'
+          steps:
+            - name: Mattermost_Site_Web_Check
+              url: '{$MM.URL}'
+              follow_redirects: 'NO'
+              status_codes: '200'
+          tags:
+            - tag: application
+              value: mattermost
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: mattermost
+        - tag: target_type
+          value: api
+      macros:
+        - macro: '{$MM.API.RESPONSE.CRIT}'
+          value: '3'
+          description: 'Critical threshold for Mattermost API response time (seconds)'
+        - macro: '{$MM.DB.CONNECTIONS.CRIT}'
+          value: '100'
+          description: 'Critical threshold for active database connections'
+        - macro: '{$MM.PLAYBOOKS.ACTIVE.WARN}'
+          value: '5'
+          description: 'Warning threshold for active playbook runs'
+        - macro: '{$MM.TIMEOUT}'
+          value: 10s
+          description: 'HTTP request timeout'
+        - macro: '{$MM.TOKEN}'
+          description: 'Mattermost Personal Access Token'
+        - macro: '{$MM.URL}'
+          value: 'https://mattermost.example.com'
+          description: 'Mattermost base URL'
+        - macro: '{$MM.WEB.RESPONSE.WARN}'
+          value: '3'
+          description: 'Warning threshold for website response time (seconds)'
+      dashboards:
+        - uuid: c7a4324cccf14aa4a422f05b62b7abb0
+          name: 'Mattermost Overview'
+          pages:
+            - name: Overall
+              widgets:
+                - type: svggraph
+                  name: 'Users Overview'
+                  'y': '3'
+                  width: '24'
+                  height: '4'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.aggregate_function
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.aggregate_interval
+                      value: 5m
+                    - type: STRING
+                      name: ds.0.color
+                      value: 33691E
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Total Users'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.1.aggregate_function
+                      value: '3'
+                    - type: STRING
+                      name: ds.1.aggregate_interval
+                      value: 5m
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFEB3B
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Deactivated Users'
+                    - type: INTEGER
+                      name: ds.1.missingdatafunc
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '3'
+                    - type: STRING
+                      name: reference
+                      value: INXQU
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'Total Teams'
+                  'y': '7'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.teams.total
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Playbooks Active Runs'
+                  'y': '9'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.playbooks.active.runs
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Active Plugins Count'
+                  'y': '11'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.plugins.active.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: honeycomb
+                  name: 'API Status'
+                  x: '1'
+                  width: '14'
+                  height: '3'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Mattermost API Status'
+                    - type: STRING
+                      name: reference
+                      value: MSTZU
+                    - type: INTEGER
+                      name: secondary_label_decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: secondary_label_units_pos
+                      value: '0'
+                    - type: INTEGER
+                      name: secondary_label_units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 388E3C
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Public Channels'
+                  x: '9'
+                  'y': '7'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.channels.public
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Playbooks Count'
+                  x: '9'
+                  'y': '9'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.playbooks.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Inactive Plugins Count'
+                  x: '9'
+                  'y': '11'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.plugins.inactive.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: gauge
+                  name: 'API Response Time'
+                  x: '15'
+                  width: '14'
+                  height: '3'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: 'web.test.time[Mattermost API Response Time,Ping API,resp]'
+                    - type: STRING
+                      name: max
+                      value: '5'
+                    - type: STRING
+                      name: min
+                      value: '0'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '4'
+                    - type: INTEGER
+                      name: show.2
+                      value: '5'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 0EC9AC
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '4'
+                    - type: STRING
+                      name: value_arc_color
+                      value: 2E7D32
+                - type: item
+                  name: 'Private Channels'
+                  x: '18'
+                  'y': '7'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.channels.private
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Outgoing  Webhook Count'
+                  x: '18'
+                  'y': '9'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.webhooks.outgoing.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Total Plugins Count'
+                  x: '18'
+                  'y': '11'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.plugins.total.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: svggraph
+                  name: 'Users Activity Trend'
+                  x: '24'
+                  'y': '3'
+                  width: '24'
+                  height: '4'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.aggregate_function
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.aggregate_interval
+                      value: 15m
+                    - type: STRING
+                      name: ds.0.color
+                      value: 0040FF
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Daily Active Users'
+                    - type: INTEGER
+                      name: ds.0.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.1.aggregate_function
+                      value: '3'
+                    - type: STRING
+                      name: ds.1.aggregate_interval
+                      value: 15m
+                    - type: STRING
+                      name: ds.1.color
+                      value: E65100
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Monthly Active Users'
+                    - type: INTEGER
+                      name: ds.1.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.1.type
+                      value: '3'
+                    - type: STRING
+                      name: reference
+                      value: AFPTI
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'Total Users'
+                  x: '27'
+                  'y': '7'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.users.total
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: item
+                  name: 'Incoming Webhook Count'
+                  x: '27'
+                  'y': '9'
+                  width: '9'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: ECEFF1
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.webhooks.incoming.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: STRING
+                      name: value_color
+                      value: 1C58D9
+                - type: gauge
+                  name: 'Websocket Connections'
+                  x: '29'
+                  width: '14'
+                  height: '3'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.websocket.connections
+                    - type: STRING
+                      name: max
+                      value: '100'
+                    - type: STRING
+                      name: min
+                      value: '0'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '4'
+                    - type: INTEGER
+                      name: show.2
+                      value: '5'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                    - type: STRING
+                      name: value_arc_color
+                      value: 2E7D32
+                - type: problems
+                  name: 'Mattermost Problems'
+                  x: '36'
+                  'y': '7'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: RQVKN
+                    - type: INTEGER
+                      name: severities.0
+                      value: '0'
+                    - type: INTEGER
+                      name: severities.1
+                      value: '1'
+                    - type: INTEGER
+                      name: severities.2
+                      value: '2'
+                    - type: INTEGER
+                      name: severities.3
+                      value: '3'
+                    - type: INTEGER
+                      name: severities.4
+                      value: '4'
+                    - type: INTEGER
+                      name: severities.5
+                      value: '5'
+                    - type: INTEGER
+                      name: show_tags
+                      value: '2'
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: application
+                    - type: STRING
+                      name: tags.0.value
+                      value: mattermost
+                - type: gauge
+                  name: 'Site Response Time'
+                  x: '43'
+                  width: '14'
+                  height: '3'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: 'web.test.time[Mattermost Site Availability,Mattermost_Site_Web_Check,resp]'
+                    - type: STRING
+                      name: max
+                      value: '5'
+                    - type: STRING
+                      name: min
+                      value: '0'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '4'
+                    - type: INTEGER
+                      name: show.2
+                      value: '5'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 0EC9AC
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '4'
+                    - type: STRING
+                      name: value_arc_color
+                      value: 2E7D32
+                - type: svggraph
+                  name: 'Total Posts'
+                  x: '48'
+                  'y': '3'
+                  width: '24'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: FF465C
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Total Posts'
+                    - type: INTEGER
+                      name: ds.0.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '3'
+                    - type: STRING
+                      name: reference
+                      value: ZWWYL
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: gauge
+                  name: 'Master DB Connections'
+                  x: '57'
+                  width: '14'
+                  height: '3'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Mattermost by HTTP'
+                        key: mattermost.db.master.connections
+                    - type: STRING
+                      name: max
+                      value: '100'
+                    - type: STRING
+                      name: min
+                      value: '0'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: show.1
+                      value: '4'
+                    - type: INTEGER
+                      name: show.2
+                      value: '5'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                    - type: STRING
+                      name: value_arc_color
+                      value: 2E7D32
+      valuemaps:
+        - uuid: c12b6a8af0fa4371a78151a99d781774
+          name: 'Mattermost Health'
+          mappings:
+            - value: '1'
+              newvalue: Healthy
+            - value: '0'
+              newvalue: Unhealthy
+  triggers:
+    - uuid: 5beac572f3e0473396433f7091a22c96
+      expression: |
+        max(/Mattermost by HTTP/mattermost.api.status,3m)=0
+        and
+        last(/Mattermost by HTTP/web.test.fail[Mattermost Site Availability])=0
+      name: 'Mattermost API is unavailable'
+      priority: HIGH
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: api
+    - uuid: e29516235fa34f27887e6b7dd7afb621
+      expression: 'avg(/Mattermost by HTTP/web.test.time[Mattermost API Response Time,Ping API,resp],5m)>{$MM.API.RESPONSE.CRIT}'
+      name: 'Mattermost API response time is high'
+      priority: HIGH
+      dependencies:
+        - name: 'Mattermost API is unavailable'
+          expression: |
+            max(/Mattermost by HTTP/mattermost.api.status,3m)=0
+            and
+            last(/Mattermost by HTTP/web.test.fail[Mattermost Site Availability])=0
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: api
+    - uuid: 156f799536274324bee42e8c4cca1caf
+      expression: 'min(/Mattermost by HTTP/web.test.fail[Mattermost Site Availability],3m)<>0'
+      name: 'Mattermost website is unavailable'
+      priority: HIGH
+      manual_close: 'YES'
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: website
+    - uuid: 88ebebf5ca33406fbf013f660c868246
+      expression: 'avg(/Mattermost by HTTP/web.test.time[Mattermost Site Availability,Mattermost_Site_Web_Check,resp],5m)>{$MM.WEB.RESPONSE.WARN}'
+      name: 'Mattermost website response time is high'
+      priority: AVERAGE
+      dependencies:
+        - name: 'Mattermost website is unavailable'
+          expression: 'min(/Mattermost by HTTP/web.test.fail[Mattermost Site Availability],3m)<>0'
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: website
+    - uuid: 3f5fc69821ed4db583be3b8b941757aa
+      expression: 'last(/Mattermost by HTTP/web.test.rspcode[Mattermost Site Availability,Mattermost_Site_Web_Check])<>200'
+      name: 'Mattermost website returned invalid HTTP code'
+      priority: HIGH
+      dependencies:
+        - name: 'Mattermost website is unavailable'
+          expression: 'min(/Mattermost by HTTP/web.test.fail[Mattermost Site Availability],3m)<>0'
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: website
+    - uuid: 317bd0374ae544fb8fcf1c850a011d39
+      expression: |
+        max(/Mattermost by HTTP/mattermost.websocket.connections,15m)=0
+        and
+        last(/Mattermost by HTTP/mattermost.api.status)=1
+      name: 'Mattermost websocket connections are zero'
+      priority: WARNING
+      tags:
+        - tag: application
+          value: mattermost
+        - tag: class
+          value: software
+        - tag: component
+          value: websocket
+  graphs:
+    - uuid: bcb2a1b21329474c9616972664a001b3
+      name: Channels
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Mattermost by HTTP'
+            key: mattermost.channels.private
+        - sortorder: '1'
+          color: '274482'
+          calc_fnc: ALL
+          item:
+            host: 'Mattermost by HTTP'
+            key: mattermost.channels.public
+    - uuid: 97bed43849884d8ab23158a7b353c987
+      name: Posts
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Mattermost by HTTP'
+            key: mattermost.posts.total
+    - uuid: 50cd03c7e84847f3ba21de7b6784f851
+      name: Users
+      graph_items:
+        - sortorder: '1'
+          color: '274482'
+          calc_fnc: ALL
+          item:
+            host: 'Mattermost by HTTP'
+            key: mattermost.users.total
+        - sortorder: '2'
+          color: F63100
+          calc_fnc: ALL
+          item:
+            host: 'Mattermost by HTTP'
+            key: mattermost.users.deactivated
