@@ -20,7 +20,7 @@ No external scripts are required.
 |---|---|
 | Author | [TyranR](https://github.com/TyranR) |
 | Zabbix version | 7.4 |
-| Template file | `zabbix_3x_ui_panel_by_agent2.yaml` |
+| Template file | `template_3x_ui_panel_by_zabbix_agent_2.yaml` |
 | Template name | `3X-UI Panel by Zabbix agent 2` |
 | Tested application | 3X-UI Panel with Xray-core |
 | Collection methods | Zabbix agent 2 and HTTP agent |
@@ -36,7 +36,7 @@ No external scripts are required.
 
 ## Installation
 
-1. Import `zabbix_3x_ui_panel_by_agent2.yaml`.
+1. Import `template_3x_ui_panel_by_zabbix_agent_2.yaml`.
 2. Link the template to the Linux host running 3X-UI.
 3. Configure the required host macros.
 4. Confirm that active Zabbix agent 2 checks are working.
@@ -140,3 +140,4 @@ The community edition does not include the optional Zabbix Web scenario from the
 The full upstream project, including extended documentation and the optional Web UI scenario, is available at:
 
 [github.com/TyranR/zabbix-3x-ui-monitoring](https://github.com/TyranR/zabbix-3x-ui-monitoring)
+
