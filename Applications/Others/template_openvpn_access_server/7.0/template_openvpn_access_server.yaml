@@ -1,0 +1,92 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 314d0821318c4e719177c204332dd3e2
+      template: 'OpenVPN Access Server'
+      name: 'OpenVPN Access Server'
+      groups:
+        - name: Templates
+      items:
+        - uuid: 8e37bdf1fb56438195950b31a5795846
+          name: 'OpenVPN – Active Clients'
+          key: openvpn.n_clients
+          units: clients
+          tags:
+            - tag: component
+              value: OpenVPN
+          triggers:
+            - uuid: 428dd44ecdf340d1b34f3d3bc4d3533e
+              expression: 'last(/OpenVPN Access Server/openvpn.n_clients)>{$OVPN_CLIENTS}'
+              name: 'OpenVPN – Active Clients'
+              priority: WARNING
+              description: 'Too many concurrent VPN OpenVPN Access Clients'
+        - uuid: 2eab5bb8f3c24ac589a1fa14ada757f0
+          name: 'OpenVPN – Service status data'
+          key: openvpn.status
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Raw OpenVPN Access Server service_status JSON used as the master item for service discovery and status items.'
+          tags:
+            - tag: component
+              value: OpenVPN
+      discovery_rules:
+        - uuid: 598cedf425e24559875e83e397628f28
+          name: 'OpenVPN service discovery'
+          type: DEPENDENT
+          key: openvpn.service.discovery
+          delay: '0'
+          description: 'Discovers all services returned in the OpenVPN Access Server service_status object.'
+          lifetime_type: DELETE_AFTER
+          lifetime: 7d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var services = JSON.parse(value);
+                  return JSON.stringify(Object.keys(services).map(function (name) {
+                      return {'{#SERVICE.NAME}': name};
+                  }));
+          master_item:
+            key: openvpn.status
+          item_prototypes:
+            - uuid: fa974769d69b44d79837cace04850e73
+              name: 'OpenVPN service {#SERVICE.NAME}: Status'
+              type: DEPENDENT
+              key: 'openvpn.service.status[{#SERVICE.NAME}]'
+              delay: '0'
+              history: 30d
+              value_type: CHAR
+              trends: '0'
+              description: 'Current internal OpenVPN Access Server service status. The expected value is on.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$["{#SERVICE.NAME}"]'
+              master_item:
+                key: openvpn.status
+              tags:
+                - tag: component
+                  value: OpenVPN
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+              trigger_prototypes:
+                - uuid: 8dee4c474e00438aac076cff0ae580ab
+                  expression: 'last(/OpenVPN Access Server/openvpn.service.status[{#SERVICE.NAME}])<>"on"'
+                  name: 'OpenVPN service {#SERVICE.NAME} is not on'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The internal OpenVPN Access Server service is not on.'
+                  tags:
+                    - tag: component
+                      value: OpenVPN
+                    - tag: service
+                      value: '{#SERVICE.NAME}'
+      macros:
+        - macro: '{$OVPN_CLIENTS}'
+          value: '28'
+          description: 'Max concurrent Clients connected to Open VPN Access Server'
