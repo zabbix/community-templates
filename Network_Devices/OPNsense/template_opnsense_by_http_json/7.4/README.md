@@ -13,7 +13,7 @@ on the firewall.
 ## Requirements
 
 - **Zabbix version**: 7.4 or higher
-- **OPNsense version**: Tested with OPNsense 24.x+ (any version providing the used API endpoints)
+- **OPNsense version**: Tested with OPNsense 26.x+ (any version providing the used API endpoints)
 - An **API key and secret** created on the OPNsense appliance
   (System → Access → Users → API keys)
 - The Zabbix server/proxy must have **HTTPS access** to the OPNsense web interface
@@ -25,7 +25,23 @@ on the firewall.
   - `diagnostics/traffic`
   - `routes/gateway`
   - `core/firmware`
-  - `nut/diagnostics` *(optional – only required if a UPS is connected)*
+  - `nut/diagnostics`
+  - `ipsec/sessions/searchPhase(1|2)` 
+  
+### Permissions
+
+| Privilege ID                            | UI Name                                   |
+| -------------------------------------- | ----------------------------------------- |
+| page-diagnostics-logs-firewall-summary | Diagnostics: Logs: Firewall: Summary View |
+| page-diagnostics-pf-info               | Diagnostics: Firewall statistics          |
+| page-status-carp                       | Interfaces: Virtual IPs: Status           |
+| page-status-trafficgraph               | Reporting: Traffic                        |
+| page-system-firmware-manualupdate      | System: Firmware                          |
+| page-system-gateways                   | System: Gateways                          |
+| page-system-login-logout               | Lobby: Dashboard                          |
+| page-status-ipsec | Status: IPsec |
+
+
 
 ## Setup
 
@@ -46,11 +62,11 @@ on the firewall.
    - `{$OPNS.SECRET}` – Your OPNsense API secret
 
 5. **Verify connectivity**:
-   - After a few minutes check that the item `Meta Gatewaystatus` is receiving data
+   - After a few minutes check that the item `RAW Gatewaystatus` is receiving data
 
 6. **UPS Monitoring (optional)**:
-   - The UPS items are **disabled by default** (`Meta UPS` item has status `DISABLED`)
-   - Enable the item `Meta UPS` on the host if a UPS is connected and managed by NUT on OPNsense
+   - The UPS items are **disabled by default** (`RAW UPS` item has status `DISABLED`)
+   - Enable the item `RAW UPS` on the host if a UPS is connected and managed by NUT on OPNsense
    - See the [UPS Monitoring](#ups-monitoring-nut) section below for details
 
 > **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be
@@ -102,7 +118,7 @@ on the firewall.
 
 ### UPS Items (NUT)
 
-> These items are only active when `Meta UPS` is enabled on the host.
+> These items are only active when `RAW UPS` is enabled on the host.
 
 | Name | Key | Unit | Description |
 |------|-----|------|-------------|
@@ -136,24 +152,24 @@ on the firewall.
 | `TEST` | Self-Test | UPS is performing an automatic self-test. |
 | `SYNC` | Synchronizing | UPS is synchronizing with the mains frequency (rare). |
 
-### Meta (Raw Data) Items
+### Raw Data Items
 
 These items fetch raw JSON from the OPNsense API and serve as master items for dependent
 items and discovery rules.
 
 | Name | Key | Update Interval | API Endpoint |
 |------|-----|-----------------|--------------|
-| Meta Load | `opns.meta.load` | 5m | `/api/diagnostics/system/system_time` |
-| Meta Memorystatus | `opns.meta.memory.status` | 5m | `/api/diagnostics/system/systemResources` |
-| Meta Disk | `opns.meta.disk` | 5m | `/api/diagnostics/system/system_disk` |
-| Meta Gatewaystatus | `opns.meta.gateway.status` | 1m | `/api/routes/gateway/status` |
-| Meta Firewall States | `opns.meta.fw.states` | 1m | `/api/diagnostics/firewall/pfStates` |
-| Meta Firewallaction | `opns.meta.fw.action` | 1m | `/api/diagnostics/firewall/stats?group_by=action` |
-| Meta Firewall Interfaces | `opns.meta.fw.interface.stat` | 1m | `/api/diagnostics/firewall/pf_statistics/interfaces` |
-| Meta Interfaces | `opns.meta.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
-| Meta Carp Interfaces | `opns.meta.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
-| Meta Product Info | `opns.meta.product.info` | 30m | `/api/core/firmware/info` |
-| Meta UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
+| RAW Load | `opns.raw.load` | 5m | `/api/diagnostics/system/system_time` |
+| RAW Memorystatus | `opns.raw.memory.status` | 5m | `/api/diagnostics/system/systemResources` |
+| RAW Disk | `opns.raw.disk` | 5m | `/api/diagnostics/system/system_disk` |
+| RAW Gatewaystatus | `opns.raw.gateway.status` | 1m | `/api/routes/gateway/status` |
+| RAW Firewall States | `opns.raw.fw.states` | 1m | `/api/diagnostics/firewall/pfStates` |
+| RAW Firewallaction | `opns.raw.fw.action` | 1m | `/api/diagnostics/firewall/stats?group_by=action` |
+| RAW Firewall Interfaces | `opns.raw.fw.interface.stat` | 1m | `/api/diagnostics/firewall/pf_statistics/interfaces` |
+| RAW Interfaces | `opns.raw.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
+| RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
+| RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
+| RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
 
 ## Triggers
 
@@ -161,7 +177,7 @@ items and discovery rules.
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| No data from OPNsense | **High** | No data received from `opns.meta.gateway.status` for 5 minutes – API is unreachable. |
+| No data from OPNsense | **High** | No data received from `opns.raw.gateway.status` for 5 minutes – API is unreachable. |
 | CPU load is high | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes. |
 | Memory utilization is high | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes. |
 | OPNSense Business License expires soon | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
@@ -185,7 +201,7 @@ items and discovery rules.
 | Property | Value |
 |----------|-------|
 | Key | `opns.disk.discovery` |
-| Type | Dependent (master: `opns.meta.disk`) |
+| Type | Dependent (master: `opns.raw.disk`) |
 | Filters | `{#FSNAME}` and `{#FSTYPE}` configurable via macros |
 | Keep lost resources | 1h |
 
@@ -213,7 +229,7 @@ items and discovery rules.
 | Property | Value |
 |----------|-------|
 | Key | `opns.gateway.discovery` |
-| Type | Dependent (master: `opns.meta.gateway.status`) |
+| Type | Dependent (master: `opns.raw.gateway.status`) |
 | LLD Macro | `{#GWSTATUSNAME}` → `$.name` |
 | Keep lost resources | 1h |
 
@@ -243,7 +259,7 @@ items and discovery rules.
 | Property | Value |
 |----------|-------|
 | Key | `opns.fw.action.discovery` |
-| Type | Dependent (master: `opns.meta.fw.action`) |
+| Type | Dependent (master: `opns.raw.fw.action`) |
 | LLD Macro | `{#FWACTION}` → `$.label` |
 | Keep lost resources | 1h |
 
@@ -266,7 +282,7 @@ items and discovery rules.
 | Property | Value |
 |----------|-------|
 | Key | `opns.interface.carp.discovery` |
-| Type | Dependent (master: `opns.meta.interfaces.carp`) |
+| Type | Dependent (master: `opns.raw.interfaces.carp`) |
 | LLD Macro | `{#OPNS.INTERFACE.NAME}` → `$.interface` |
 | Keep lost resources | 1d |
 
@@ -292,7 +308,7 @@ items and discovery rules.
 | Property | Value |
 |----------|-------|
 | Key | `opns.interface.stats.discovery` |
-| Type | Dependent (master: `opns.meta.interfaces.stat`) |
+| Type | Dependent (master: `opns.raw.interfaces.stat`) |
 | LLD Macros | `{#OPNS.INTERFACE.DEVICE}` → `$.device`, `{#OPNS.INTERFACE.NAME}` → `$.name` |
 
 **Item Prototypes – Traffic:**
@@ -334,7 +350,7 @@ REST API. This template can optionally monitor a connected UPS using this integr
 
 ### How it works
 
-The `Meta UPS` item fetches the raw NUT status string from the OPNsense API endpoint
+The `RAW UPS` item fetches the raw NUT status string from the OPNsense API endpoint
 `/api/nut/diagnostics/upsstatus`. A JavaScript preprocessing step parses the newline-separated
 `key: value` response into clean JSON. All UPS dependent items then extract their values
 from this JSON using standard JSONPath preprocessing – no external scripts required.
@@ -344,7 +360,7 @@ from this JSON using standard JSONPath preprocessing – no external scripts req
 1. Install and configure the **NUT plugin** on OPNsense
    (Services → Network UPS Tools)
 2. Connect a supported UPS via USB or network
-3. In Zabbix, navigate to the host and **enable the item** `Meta UPS` (`opns.ups.raw`)
+3. In Zabbix, navigate to the host and **enable the item** `RAW UPS` (`opns.ups.raw`)
 4. All dependent UPS items and triggers will start collecting data automatically
 
 

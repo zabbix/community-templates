@@ -1,0 +1,111 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 6ebfd550e4f648869fc3cf8b1cba5e8d
+      template: 'DNS Name Resolution'
+      name: 'DNS Name Resolution'
+      description: |
+        This templates monitors the DNS name resolution success of a list of A records against a DNS server.
+        
+        A records and DNS server must be specified in macros.
+        {$A_RECORD_LIST}
+        {$DNS_SERVER}
+      groups:
+        - name: Templates/Applications
+      discovery_rules:
+        - uuid: 0eb3e31266e847339cf47f26686f75fa
+          name: 'DNS Host Discovery'
+          type: EXTERNAL
+          key: 'dns-resolver.py["discover","{$A_RECORD_LIST}"]'
+          delay: 1h
+          lifetime_type: DELETE_IMMEDIATELY
+          lifetime: '0'
+          description: 'Hostname Discovery'
+          item_prototypes:
+            - uuid: 9b5cdd91feab43a2816ef4cba48cc440
+              name: 'DNS Name Resolution Data'
+              type: EXTERNAL
+              key: 'dns-resolver.py["check","{#HOSTNAME}","{$DNS_SERVER}"]'
+              value_type: TEXT
+              trends: '0'
+              description: 'Gets DNS Name Resolution Success.'
+            - uuid: c4945fad2d0347ea8a2b753510d37a8e
+              name: 'DNS Name Resolution Error "{#HOSTNAME}"'
+              type: DEPENDENT
+              key: 'dns.resolution.error.[{#HOSTNAME}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Gets DNS Name Resolution IP.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.error
+              master_item:
+                key: 'dns-resolver.py["check","{#HOSTNAME}","{$DNS_SERVER}"]'
+            - uuid: adeec75aa87543ebbf902a88275c3581
+              name: 'DNS Name Resolution IP "{#HOSTNAME}"'
+              type: DEPENDENT
+              key: 'dns.resolution.ip.[{#HOSTNAME}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Gets DNS Name Resolution IP.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ip
+              master_item:
+                key: 'dns-resolver.py["check","{#HOSTNAME}","{$DNS_SERVER}"]'
+            - uuid: 02ca0983cd8b4440b347887ceb794dd3
+              name: 'DNS Name Resolution Response Time "{#HOSTNAME}"'
+              type: DEPENDENT
+              key: 'dns.resolution.responsetime.[{#HOSTNAME}]'
+              delay: '0'
+              value_type: FLOAT
+              units: ms
+              description: 'Gets DNS Name Resolution Response Time.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.response_time_ms
+              master_item:
+                key: 'dns-resolver.py["check","{#HOSTNAME}","{$DNS_SERVER}"]'
+              trigger_prototypes:
+                - uuid: e350a02e980c4f8786e17914acec3280
+                  expression: 'min(/DNS Name Resolution/dns.resolution.responsetime.[{#HOSTNAME}],3m)>{$DNS_RTT_THRESHOLD}'
+                  name: 'DNS response time is high for "{#HOSTNAME}"'
+                  priority: HIGH
+                  manual_close: 'YES'
+            - uuid: 40238da75f834304b5ed876cd75161c5
+              name: 'DNS Name Resolution Success "{#HOSTNAME}"'
+              type: DEPENDENT
+              key: 'dns.resolution.success.[{#HOSTNAME}]'
+              delay: '0'
+              description: 'Gets DNS Name Resolution Success.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.success
+                - type: BOOL_TO_DECIMAL
+                  parameters:
+                    - ''
+              master_item:
+                key: 'dns-resolver.py["check","{#HOSTNAME}","{$DNS_SERVER}"]'
+              trigger_prototypes:
+                - uuid: 38d2d09fa3d344eabb85b2308fa3a577
+                  expression: 'max(/DNS Name Resolution/dns.resolution.success.[{#HOSTNAME}],3m)=0'
+                  name: 'DNS Server "{$DNS_SERVER}" Failed to Resolve Record "{#HOSTNAME}"'
+                  priority: HIGH
+                  manual_close: 'YES'
+      macros:
+        - macro: '{$A_RECORD_LIST}'
+          description: 'comma separated values [google.com,microsoft.com]'
+        - macro: '{$DNS_RTT_THRESHOLD}'
+          value: '100'
+          description: 'default acceptable DNS latency used in trigger prototype'
+        - macro: '{$DNS_SERVER}'
+          description: 'DNS server address'
