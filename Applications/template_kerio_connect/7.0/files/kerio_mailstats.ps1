@@ -69,8 +69,10 @@ if (Test-Path $MailLog) { $LogFiles += $MailLog }
 
 foreach ($LogFile in $LogFiles) {
     $Reader = $null
+    $Stream = $null
     try {
-        $Reader = [System.IO.StreamReader]::new($LogFile, [System.Text.Encoding]::UTF8)
+        $Stream = [System.IO.File]::Open($LogFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $Reader = [System.IO.StreamReader]::new($Stream, [System.Text.Encoding]::UTF8)
         while ($null -ne ($Line = $Reader.ReadLine())) {
             if ($Line -notmatch $TsRegex) { continue }
 
@@ -116,12 +118,12 @@ foreach ($LogFile in $LogFiles) {
         Write-Error "Fehler beim Lesen von ${LogFile}: $_" 2>$null
     } finally {
         if ($null -ne $Reader) { $Reader.Dispose() }
+        if ($null -ne $Stream) { $Stream.Dispose() }
     }
 }
 
 # ============================================================================
 # Security-Log: Rejected
-# ============================================================================
 $SecFiles = @()
 if (Test-Path $SecLogPrev) { $SecFiles += $SecLogPrev }
 if (Test-Path $SecurityLog) { $SecFiles += $SecurityLog }
@@ -131,15 +133,15 @@ $RejectRegex = '(rejected|denied|spam score exceeded|blacklisted|blocked)'
 
 foreach ($LogFile in $SecFiles) {
     $Reader = $null
+    $Stream = $null
     try {
-        $Reader = [System.IO.StreamReader]::new($LogFile, [System.Text.Encoding]::UTF8)
+        $Stream = [System.IO.File]::Open($LogFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $Reader = [System.IO.StreamReader]::new($Stream, [System.Text.Encoding]::UTF8)
         while ($null -ne ($Line = $Reader.ReadLine())) {
             if ($Line -notmatch $TsRegex) { continue }
 
-            # FIX: Timestamp sofort sichern
             $TsString = $Matches[1]
 
-            # Jetzt erst auf Reject-Keywords prüfen
             if ($Line -notmatch $RejectRegex) { continue }
 
             $Timestamp = Parse-KerioTimestamp $TsString
@@ -152,6 +154,7 @@ foreach ($LogFile in $SecFiles) {
         Write-Error "Fehler beim Lesen von ${LogFile}: $_" 2>$null
     } finally {
         if ($null -ne $Reader) { $Reader.Dispose() }
+        if ($null -ne $Stream) { $Stream.Dispose() }
     }
 }
 
