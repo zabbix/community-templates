@@ -1,0 +1,80 @@
+[Unit]
+Description=Mailcow Monitoring Collector
+Documentation=https://github.com/linuser/Mailcow-Zabbix-Monitoring
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/mailcow-collector.py
+User=root
+# Group=zabbix: der Collector laeuft als root, legt seine Dateien aber mit der
+# Gruppe zabbix an. Zusammen mit RuntimeDirectoryMode=0750 und der 0640-JSON
+# (siehe Collector) kann so NUR der zabbix-Dienst mitlesen - kein anderer
+# lokaler Account. Voraussetzung: die Gruppe 'zabbix' existiert (Standard bei
+# installiertem zabbix-agent2). Heisst deine Gruppe anders, hier anpassen.
+Group=zabbix
+Nice=10
+TimeoutStartSec=120
+# Neu angelegte Dateien hoechstens rw-r----- (belt-and-suspenders zum umask im
+# Collector; greift auch, falls der Collector-umask je entfernt wird).
+UMask=0027
+
+# Zustandsverzeichnis. Frueher lag alles in /var/tmp - weltschreibbar, sticky.
+# Root schrieb dort hin und las die Caches wieder ein; gegen den klassischen
+# Symlink-Angriff schuetzten nur die Kernel-Sysctls protected_symlinks und
+# protected_regular. Das ist Glueck, keine Verteidigung.
+#
+# RuntimeDirectoryPreserve=yes ist PFLICHT und keine Feinheit: systemd loescht
+# ein RuntimeDirectory, sobald die Unit stoppt. Bei Type=oneshot ist das nach
+# JEDEM Lauf - die JSON waere weg, bevor der Zabbix-Agent sie liest, und zwar
+# ohne jede Fehlermeldung.
+RuntimeDirectory=mailcow-monitor
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+
+# WICHTIG - ehrliche Einordnung: Der Collector spricht als root mit dem
+# Docker-Socket (docker exec/ps/stats). Wer den Docker-Socket als root
+# erreicht, ist de facto Host-root ('docker run -v /:/host ...' umgeht JEDE
+# der folgenden Namespace-/Protect-Optionen). Die Direktiven unten sind also
+# echte Verteidigung in der Tiefe gegen viele Fehlerklassen - aber KEIN Schutz
+# gegen eine Codeausfuehrung im Collector selbst, solange der Docker-Zugriff
+# besteht. Der wirksamste naechste Schritt waere ein Docker-Socket-Proxy mit
+# Read-Only/Whitelist statt direktem Socket-Zugriff.
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+# Privates /dev (nur null/zero/full/random/urandom/tty). Der Collector braucht
+# keine Geraete; openssl nutzt /dev/urandom, das bleibt vorhanden.
+PrivateDevices=yes
+# Nur die tatsaechlich benoetigten Socket-Familien: UNIX (Docker-Socket),
+# INET/INET6 (DNS/HTTPS/git) und NETLINK (Namensaufloesung via getaddrinfo).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Syscall-Whitelist: der wirksamste zusaetzliche Riegel. Bewusst auskommentiert,
+# weil der Collector viele Subprozesse startet (docker, git, sh, awk, dig,
+# openssl, curl, nc, pflogsumm) - vor dem Aktivieren einmal
+# 'systemctl start mailcow-monitor.service' testen und pruefen, dass die JSON
+# ~247 Keys enthaelt und mailcow.collector.errors=0 ist.
+#SystemCallFilter=@system-service
+#SystemCallErrorNumber=EPERM
+
+# Erst durch den Umzug nach /run ist PrivateTmp gefahrlos: es isoliert /tmp und
+# /var/tmp - haette also die alte Ablage unsichtbar gemacht.
+PrivateTmp=yes
+
+# ProtectSystem=full statt strict: /usr, /boot und /etc werden read-only, /opt
+# bleibt beschreibbar. Mailcows update.sh --check-tags macht dort
+# Git-Operationen; mit strict wuerde der Update-Check scheitern - und der
+# Collector dafuer stillschweigend 0 schreiben.
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
