@@ -4198,7 +4198,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'proxmox.zfs.free[{#NODE.NAME},{#ZFS.NAME}]'
               units: B
-              description: 'Allocated size in bytes.'
+              description: 'Free pool space in bytes.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -4220,7 +4220,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'proxmox.zfs.health[{#NODE.NAME},{#ZFS.NAME}]'
               value_type: TEXT
-              description: 'Allocated size in bytes.'
+              description: 'ZFS pool health state.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -4290,6 +4290,58 @@ zabbix_export:
                   value: '{#NODE.NAME}'
                 - tag: zfs
                   value: '{#ZFS.NAME}'
+            - uuid: b72029d6ed584be88423aecf3e3afa64
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization'
+              type: DEPENDENT
+              key: 'proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'ZFS pool space utilization in percent.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var pool = JSON.parse(value);
+                      var size = Number(pool.size);
+                      var alloc = Number(pool.alloc);
+                      if (!isFinite(size) || size <= 0 || !isFinite(alloc)) {
+                          return null;
+                      }
+                      return alloc / size * 100;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+              trigger_prototypes:
+                - uuid: 3cc322a2801346d28d605aeea6e98cb6
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical'
+                  event_name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical (over {$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}% used)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: capacity
+                - uuid: 3646943b0f654e85b9003161f371effe
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.WARN:"{#ZFS.NAME}"}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is high'
+                  event_name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is high (over {$PBS.ZFS.PUSE.WARN:"{#ZFS.NAME}"}% used)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}'
+                  tags:
+                    - tag: scope
+                      value: capacity
             - uuid: 41e4565f98834382ab58d28cf9caa31f
               name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Get ZFS'
               type: HTTP_AGENT
@@ -4320,6 +4372,15 @@ zabbix_export:
                 - tag: zfs
                   value: '{#ZFS.NAME}'
           graph_prototypes:
+            - uuid: 3b6482fdc4f14593a9ec298bdcba8772
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization'
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}]'
             - uuid: c2d46c3ef5d543fba6ef41b4a4a43c61
               name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization chart (relative to total)'
               width: '600'
@@ -4622,6 +4683,12 @@ zabbix_export:
         - macro: '{$PBS.ZFS.HEALTH.ONLINE}'
           value: ONLINE
           description: 'The online status of the zfs pool for the trigger expression.'
+        - macro: '{$PBS.ZFS.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of ZFS pool space utilization expressed in %. Supports a ZFS pool name context.'
+        - macro: '{$PBS.ZFS.PUSE.WARN}'
+          value: '80'
+          description: 'Warning threshold of ZFS pool space utilization expressed in %. Supports a ZFS pool name context.'
         - macro: '{$PBS.ZFS.NAME.MATCHES}'
           value: '^.*$'
           description: 'Used in ZFS discovery. Can be overridden on the host or linked template level.'

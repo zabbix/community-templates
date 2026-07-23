@@ -165,6 +165,11 @@ These have sensible defaults and only need changing to override behaviour. The s
 | `{$PBS.DISK.SMART.OFFLINE_UNCORRECTABLE.MAX}` | `0` | Maximum accepted SMART offline uncorrectable sectors before an AVERAGE trigger fires. Supports a disk name context. |
 | `{$PBS.DISK.SMART.UDMA_CRC.MAX}` | `0`              | Maximum accepted SMART UDMA CRC errors before a WARNING trigger fires. Supports a disk name context. |
 | `{$PBS.DISK.SMART.MEDIA_ERRORS.MAX}` | `0`          | Maximum accepted SMART/NVMe media or data integrity errors before an AVERAGE trigger fires. Supports a disk name context. |
+| `{$PBS.ZFS.PUSE.WARN}`           | `80`             | ZFS pool space utilization above which a WARNING trigger fires. Supports a ZFS pool name context. |
+| `{$PBS.ZFS.PUSE.CRIT}`           | `90`             | ZFS pool space utilization above which a HIGH trigger fires. Supports a ZFS pool name context. |
+| `{$PBS.ZFS.FRAG.WARN}`           | `50`             | ZFS pool fragmentation above which a WARNING trigger fires. |
+| `{$PBS.ZFS.FRAG.CRIT}`           | `70`             | ZFS pool fragmentation above which an AVERAGE trigger fires. |
+| `{$PBS.ZFS.HEALTH.ONLINE}`       | `ONLINE`         | ZFS health state treated as healthy. |
 | `{$PBS.SNAPSHOT.AGE.WARN}`       | `30h`            | Age of a backup group's most recent snapshot above which a WARNING trigger fires (suits a daily schedule). |
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
 | `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
@@ -190,13 +195,13 @@ These have sensible defaults and only need changing to override behaviour. The s
 | **proxmox.disk.ssd.discovery**   | Detect if disk is SSD                                       |
 | **proxmox.certificate.discovery**| Detection of PBS certificates                               |
 | **proxmox.service.discovery**    | Detection of all running services                           |
-| **proxmox.zfs.discovery**        | Detection of all zfs pools                                  |
+| **proxmox.zfs.discovery**        | Detection and monitoring of all zfs pools                   |
 | **proxmox.backupgroup.discovery**| Detection of backup groups (backup-type/backup-id) that have at least one snapshot, in any datastore and namespace |
 
 ### 2. Trigger Prototypes
 
 - Low space on datastore
-- ZFS health
+- ZFS health, space utilization and fragmentation
 - Disk SMART status, temperature, wearout and error counters
 - Service failure
 - Node performance issues
@@ -275,6 +280,20 @@ Two WARNING triggers are generated:
 The warning count is collected but does not alert by default because PBS can report advisory repository messages that are useful context but not universally actionable. It also counts enabled Proxmox standard repositories that are not recommended for production use, for example `pbs-no-subscription` and `pbstest`.
 
 If the repository endpoint itself cannot be queried, the diagnostics item includes the HTTP status and the beginning of the response body so permission problems, missing endpoints and API errors can be distinguished.
+
+## ZFS Pool Monitoring
+
+The template reads `/nodes/{node}/disks/zfs` and discovers every reported ZFS pool.
+
+Per pool it monitors:
+
+- health state
+- allocated, free and total space
+- space utilization percentage
+- fragmentation
+- deduplication ratio
+
+Triggers are generated when a pool is not `{$PBS.ZFS.HEALTH.ONLINE}`, when fragmentation exceeds `{$PBS.ZFS.FRAG.WARN}` / `{$PBS.ZFS.FRAG.CRIT}`, and when pool utilization exceeds `{$PBS.ZFS.PUSE.WARN}` / `{$PBS.ZFS.PUSE.CRIT}`. The space utilization thresholds support per-pool overrides via the `{#ZFS.NAME}` macro context.
 
 ## SMART Disk Monitoring
 
