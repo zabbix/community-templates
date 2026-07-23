@@ -156,6 +156,11 @@ These have sensible defaults and only need changing to override behaviour. The s
 | `{$PBS.CERT.FILENAME.MATCHES}`   | `^.*$`           | Regex of certificate filenames included by certificate discovery. |
 | `{$PBS.CERT.FILENAME.NOT_MATCHES}` | `CHANGE_THIS`   | Regex of certificate filenames excluded from certificate discovery. |
 | `{$PBS.CERT.MONITORING.REQUIRED}` | `0`             | Set to `1`, optionally with a node context, to alert when the certificate endpoint cannot be queried. |
+| `{$PBS.CPU.PUSE.CRIT}`           | `90`             | CPU utilization percentage above which an AVERAGE trigger fires. Supports a node context. |
+| `{$PBS.CPU.IOWAIT.WARN}`         | `20`             | CPU iowait percentage above which a WARNING trigger fires. Supports a node context. |
+| `{$PBS.CPU.IOWAIT.CRIT}`         | `40`             | CPU iowait percentage above which an AVERAGE trigger fires. Supports a node context. |
+| `{$PBS.CPU.LOADAVG.PERCPU.WARN}` | `1.5`            | 1-minute load average per logical CPU core above which a WARNING trigger fires. Supports a node context. |
+| `{$PBS.CPU.LOADAVG.PERCPU.CRIT}` | `2`              | 1-minute load average per logical CPU core above which an AVERAGE trigger fires. Supports a node context. |
 | `{$PBS.DISK.WEAROUT.WARN}`       | `70`             | SMART/SSD wearout percentage below which a WARNING trigger fires. Supports a disk name context for detailed SMART wearout. |
 | `{$PBS.DISK.WEAROUT.CRIT}`       | `30`             | SMART/SSD wearout percentage below which an AVERAGE trigger fires. Supports a disk name context for detailed SMART wearout. |
 | `{$PBS.DISK.SMART.TEMPERATURE.WARN}` | `60`         | Disk temperature in Celsius above which a WARNING trigger fires. Supports a disk name context. |
@@ -204,7 +209,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 - ZFS health, space utilization and fragmentation
 - Disk SMART status, temperature, wearout and error counters
 - Service failure
-- Node performance issues
+- Node CPU usage, iowait and load average
 - Subscription check
 - Update check
 - APT repository check
