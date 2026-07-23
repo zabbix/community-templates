@@ -27,7 +27,9 @@ zabbix_export:
         
         2. Copy the resulting Token ID and Secret into the host macros '{$PBS.TOKEN.ID}' and '{$PBS.TOKEN.SECRET}'.
         
-        3. Set the hostname or IP address of the Proxmox Backup Server API host in the '{$PBS.URL.HOST}' macro. You can also change the API port in the '{$PBS.URL.PORT}' macro if necessary.
+        3. Set the DNS name or IP address of the Proxmox Backup Server API host in the '{$PBS.URL.HOST}' macro. You can also change the API port in the '{$PBS.URL.PORT}' macro if necessary.
+
+        TLS certificate verification is disabled for API requests. Use this template only on a trusted management network.
       vendor:
         name: community-templates
         version: 7.4.6
@@ -42,7 +44,7 @@ zabbix_export:
           params: |
             try {
               var params = JSON.parse(value);
-              var req = new HttpRequest();
+              var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
               req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
               req.get(encodeURI('https://' + params.url + ':' + params.port + '/api2/json/version'));
             } catch (error) {
@@ -97,8 +99,8 @@ zabbix_export:
               error_handler_params: 'Error getting data'
           timeout: '{$PBS.API.TIMEOUT}'
           url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/datastore'
-          verify_peer: 'YES'
-          verify_host: 'YES'
+          verify_peer: 'NO'
+          verify_host: 'NO'
           headers:
             - name: Authorization
               value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -117,6 +119,248 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: c5640476614940aaad40ebfcf4535b90
+          name: 'Get users and API tokens'
+          type: SCRIPT
+          key: proxmox.access.users
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var url = 'https://' + params.url + ':' + params.port + '/api2/json/access/users?include_tokens=1';
+            var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+            var response;
+            var status;
+            var parsed;
+
+            req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+            function fallback(message) {
+                return JSON.stringify({
+                    data: [],
+                    error: message
+                });
+            }
+
+            try {
+                response = req.get(encodeURI(url));
+                status = req.getStatus();
+            } catch (error) {
+                Zabbix.log(3, 'PBS access users request failed: ' + error);
+                return fallback('Request failed: ' + error);
+            }
+
+            if (status !== 200) {
+                return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+            }
+
+            try {
+                parsed = JSON.parse(response);
+            } catch (error) {
+                return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+            }
+
+            if (!Array.isArray(parsed.data)) {
+                return fallback('Missing data array in response');
+            }
+
+            return JSON.stringify({
+                data: parsed.data,
+                error: ''
+            });
+          description: 'Read PBS users and API tokens from /access/users?include_tokens=1.'
+          timeout: '{$PBS.API.TIMEOUT}'
+          parameters:
+            - name: port
+              value: '{$PBS.URL.PORT}'
+            - name: secret
+              value: '{$PBS.TOKEN.SECRET}'
+            - name: token
+              value: '{$PBS.TOKEN.ID}'
+            - name: url
+              value: '{$PBS.URL.HOST}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: b1ab6e7f95db4314a0af524195d1679b
+          name: 'Access: User/API token diagnostics'
+          type: DEPENDENT
+          key: proxmox.access.diagnostics
+          value_type: TEXT
+          description: 'Access user and API token endpoint request diagnostics.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return data.error ? 'ERROR access/users: ' + data.error : 'none';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+          triggers:
+            - uuid: 0523f0bf6fcd4144b10f4840b7c91bdc
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.diagnostics)<>"none" and {$PBS.ACCESS.MONITORING.REQUIRED}=1'
+              name: 'Proxmox Backup Server: Access user/API token endpoint is not available'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The PBS access users endpoint could not be queried. Full user/API token inventory requires Sys.Audit on /access/users.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 2013d1cd82794b09aa4cd32673e2f9e8
+          name: 'Access: User count'
+          type: DEPENDENT
+          key: proxmox.access.users.count
+          description: 'Number of visible PBS users.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return (data.data || []).length;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: b07d5fe3c7594595895620735bbb5f79
+          name: 'Access: Disabled user count'
+          type: DEPENDENT
+          key: proxmox.access.users.disabled
+          description: 'Number of visible PBS users with enable=false.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      if (user.enable === false) {
+                          count++;
+                      }
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 9f251f0854954c4184bdc3caa23cb67f
+          name: 'Access: Expired user count'
+          type: DEPENDENT
+          key: proxmox.access.users.expired
+          description: 'Number of visible PBS users whose expiration timestamp is in the past.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var now = Math.floor(Date.now() / 1000);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      if (user.expire && user.expire > 0 && user.expire < now) {
+                          count++;
+                      }
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 6fd2bf04ba3747c8a0a8ba32e0faefd8
+          name: 'Access: API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.count
+          description: 'Number of visible PBS API tokens.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      count += (user.tokens || []).length;
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: f918c78fe7a641f99fa49bc6ec5bdd55
+          name: 'Access: Disabled API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.disabled
+          description: 'Number of visible PBS API tokens with enable=false.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      (user.tokens || []).forEach(function (token) {
+                          if (token.enable === false) {
+                              count++;
+                          }
+                      });
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 626dbac2e8e14855a568900b3f7d2cdd
+          name: 'Access: Expired API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.expired
+          description: 'Number of visible PBS API tokens whose expiration timestamp is in the past.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var now = Math.floor(Date.now() / 1000);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      (user.tokens || []).forEach(function (token) {
+                          if (token.expire && token.expire > 0 && token.expire < now) {
+                              count++;
+                          }
+                      });
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
         - uuid: 430dbc8869df4f5a9083055812c4c85a
           name: 'Get backup groups'
           type: SCRIPT
@@ -127,7 +371,7 @@ zabbix_export:
           params: |
             var params = JSON.parse(value);
             var base = 'https://' + params.url + ':' + params.port + '/api2/json';
-            var req = new HttpRequest();
+            var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
             req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
 
             var resp = req.get(encodeURI(base + '/status/datastore-usage'));
@@ -227,7 +471,7 @@ zabbix_export:
             var params = JSON.parse(value);
             var base = 'https://' + params.url + ':' + params.port + '/api2/json';
 
-            var req = new HttpRequest();
+            var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
             req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
 
             var resp = req.get(encodeURI(base + '/status/datastore-usage'));
@@ -394,8 +638,8 @@ zabbix_export:
                   return JSON.stringify(result);
           timeout: '{$PBS.API.TIMEOUT}'
           url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/localhost/tasks'
-          verify_peer: 'YES'
-          verify_host: 'YES'
+          verify_peer: 'NO'
+          verify_host: 'NO'
           query_fields:
             - name: errors
               value: 'true'
@@ -545,6 +789,410 @@ zabbix_export:
                 - tag: scope
                   value: notice
       discovery_rules:
+        - uuid: db330511a9b44a6f8b0eacbe92b44b5a
+          name: 'Access user discovery'
+          type: DEPENDENT
+          key: proxmox.access.user.discovery
+          lifetime: '{$PBS.LLD.KEEP.LOST}'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
+          description: 'Discovers visible PBS users from /access/users?include_tokens=1.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  if (data.error) {
+                      throw data.error;
+                  }
+                  return JSON.stringify((data.data || []).map(function (user) {
+                      return {
+                          userid: String(user.userid || '')
+                      };
+                  }));
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#USER.ID}'
+                value: '{$PBS.ACCESS.USER.ID.MATCHES}'
+              - macro: '{#USER.ID}'
+                value: '{$PBS.ACCESS.USER.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 8f888d5e47b642f8b7a85c76a513f8a3
+              name: 'User [{#USER.ID}]: Get user'
+              type: DEPENDENT
+              key: 'proxmox.access.user[{#USER.ID}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Raw PBS user object from /access/users?include_tokens=1.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var users = data.data || [];
+                      for (var i = 0; i < users.length; i++) {
+                          if (String(users[i].userid || '') === '{#USER.ID}') {
+                              return JSON.stringify(users[i]);
+                          }
+                      }
+                      throw 'user not found';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.access.users
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 22027fb7b52541838c8de8f9c01abdc7
+              name: 'User [{#USER.ID}]: Enabled'
+              type: DEPENDENT
+              key: 'proxmox.access.user.enabled[{#USER.ID}]'
+              description: 'User enabled state. Returns 1 when enabled, 0 when disabled.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.enable === false ? 0 : 1;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: d2f7f881a5794033a5daa6130e86464d
+              name: 'User [{#USER.ID}]: Expiration'
+              type: DEPENDENT
+              key: 'proxmox.access.user.expire[{#USER.ID}]'
+              trends: '0'
+              units: unixtime
+              description: 'User expiration time as UNIX timestamp. Returns 0 when the user does not expire.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.expire && user.expire > 0 ? user.expire : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: 657ca17450fa46449a057eefbb2410e1
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])<now()'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] is expired'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 840b62f9473a454684aafde93dda8b8e
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>=now() and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])-now()<{$PBS.ACCESS.USER.EXPIRES.WARN:"{#USER.ID}"}'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] expires soon'
+                  event_name: 'Proxmox Backup Server: User [{#USER.ID}] expires within {$PBS.ACCESS.USER.EXPIRES.WARN:"{#USER.ID}"}'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: User [{#USER.ID}] is expired'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])<now()'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: f7b468e7bfa347d98a75c4aeaae0339b
+              name: 'User [{#USER.ID}]: TFA locked'
+              type: DEPENDENT
+              key: 'proxmox.access.user.tfa.locked[{#USER.ID}]'
+              description: 'User TFA lock state. Returns 1 when TFA is currently locked, 0 otherwise.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      var now = Math.floor(Date.now() / 1000);
+                      var tfaLockedUntil = user['tfa-locked-until'] || user.tfa_locked_until;
+                      return user['totp-locked'] === true || user.totp_locked === true || (tfaLockedUntil && tfaLockedUntil > now) ? 1 : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: 21d5f2b56c9a4377be94cee5366e731a
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.tfa.locked[{#USER.ID}])=1'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] TFA is locked'
+                  opdata: 'Current value: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 4b2518ef04904053a24f1e60232fb35a
+              name: 'User [{#USER.ID}]: Email'
+              type: DEPENDENT
+              key: 'proxmox.access.user.email[{#USER.ID}]'
+              value_type: TEXT
+              description: 'Configured user email address.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.email || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 3b5c8962419244e68a0c2cc6096776cf
+              name: 'User [{#USER.ID}]: Comment'
+              type: DEPENDENT
+              key: 'proxmox.access.user.comment[{#USER.ID}]'
+              value_type: TEXT
+              description: 'Configured user comment.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.comment || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+          master_item:
+            key: proxmox.access.users
+          lld_macro_paths:
+            - lld_macro: '{#USER.ID}'
+              path: $.userid
+        - uuid: 8d9f437881064708bdeed260de2f31f8
+          name: 'API token discovery'
+          type: DEPENDENT
+          key: proxmox.access.token.discovery
+          lifetime: '{$PBS.LLD.KEEP.LOST}'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
+          description: 'Discovers visible PBS API tokens from /access/users?include_tokens=1.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var result = [];
+
+                  if (data.error) {
+                      throw data.error;
+                  }
+
+                  (data.data || []).forEach(function (user) {
+                      var userid = String(user.userid || '');
+                      (user.tokens || []).forEach(function (token) {
+                          var tokenid = String(token.tokenid || '');
+                          var separator = tokenid.indexOf('!');
+                          result.push({
+                              tokenid: tokenid,
+                              token_name: separator === -1 ? tokenid : tokenid.substring(separator + 1),
+                              userid: userid
+                          });
+                      });
+                  });
+
+                  return JSON.stringify(result);
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#TOKEN.ID}'
+                value: '{$PBS.ACCESS.TOKEN.ID.MATCHES}'
+              - macro: '{#TOKEN.ID}'
+                value: '{$PBS.ACCESS.TOKEN.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: d38a54a6151040d1b27d7d628269c632
+              name: 'API token [{#TOKEN.ID}]: Get token'
+              type: DEPENDENT
+              key: 'proxmox.access.token[{#TOKEN.ID}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Raw PBS API token object from /access/users?include_tokens=1. Token secrets are not returned by the PBS API.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var users = data.data || [];
+                      for (var i = 0; i < users.length; i++) {
+                          var tokens = users[i].tokens || [];
+                          for (var j = 0; j < tokens.length; j++) {
+                              if (String(tokens[j].tokenid || '') === '{#TOKEN.ID}') {
+                                  tokens[j].userid = String(users[i].userid || '');
+                                  return JSON.stringify(tokens[j]);
+                              }
+                          }
+                      }
+                      throw 'token not found';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.access.users
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: a91f2582f0454645be31e212a6f41f5a
+              name: 'API token [{#TOKEN.ID}]: Enabled'
+              type: DEPENDENT
+              key: 'proxmox.access.token.enabled[{#TOKEN.ID}]'
+              description: 'API token enabled state. Returns 1 when enabled, 0 when disabled.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.enable === false ? 0 : 1;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 7d7dc2fe95284d33a3d2fc598b2fa3e2
+              name: 'API token [{#TOKEN.ID}]: Expiration'
+              type: DEPENDENT
+              key: 'proxmox.access.token.expire[{#TOKEN.ID}]'
+              trends: '0'
+              units: unixtime
+              description: 'API token expiration time as UNIX timestamp. Returns 0 when the token does not expire.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.expire && token.expire > 0 ? token.expire : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: a731690a29b34de8bd9cbc42ad7afc3c
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])<now()'
+                  name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] is expired'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: adf7eee4cc394ea79f2fc841e6ca9b9c
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>=now() and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])-now()<{$PBS.ACCESS.TOKEN.EXPIRES.WARN:"{#TOKEN.ID}"}'
+                  name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] expires soon'
+                  event_name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] expires within {$PBS.ACCESS.TOKEN.EXPIRES.WARN:"{#TOKEN.ID}"}'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] is expired'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])<now()'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: ca86c6fcfc3447f29e6cec659e64f299
+              name: 'API token [{#TOKEN.ID}]: User'
+              type: DEPENDENT
+              key: 'proxmox.access.token.user[{#TOKEN.ID}]'
+              value_type: TEXT
+              description: 'User that owns this API token.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.userid
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 86140ec2c16f47939bb4487dd955f311
+              name: 'API token [{#TOKEN.ID}]: Comment'
+              type: DEPENDENT
+              key: 'proxmox.access.token.comment[{#TOKEN.ID}]'
+              value_type: TEXT
+              description: 'Configured API token comment.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.comment || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+          master_item:
+            key: proxmox.access.users
+          lld_macro_paths:
+            - lld_macro: '{#TOKEN.ID}'
+              path: $.tokenid
+            - lld_macro: '{#TOKEN.NAME}'
+              path: $.token_name
+            - lld_macro: '{#USER.ID}'
+              path: $.userid
         - uuid: 1e239eda8de84d12a060f817463cdaaa
           name: 'Datastore discovery'
           type: DEPENDENT
@@ -919,8 +1567,8 @@ zabbix_export:
                     - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/gc'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -1020,8 +1668,8 @@ zabbix_export:
                       }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/prune'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -1049,8 +1697,8 @@ zabbix_export:
                     - '$.data[?(@.store == "{#DATASTORE.NAME}")].first()'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/status/datastore-usage'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1080,8 +1728,8 @@ zabbix_export:
                       }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: sync-direction
                   value: '{$PBS.SYNC.DIRECTION}'
@@ -1224,8 +1872,8 @@ zabbix_export:
                       }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/verify'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -1321,8 +1969,8 @@ zabbix_export:
                       }
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/verify'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: store
                   value: '{#DATASTORE.NAME}'
@@ -1515,8 +2163,8 @@ zabbix_export:
                           return value;
                       }
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/admin/sync'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: sync-direction
                   value: '{$PBS.SYNC.DIRECTION}'
@@ -1665,6 +2313,720 @@ zabbix_export:
                   tags:
                     - tag: scope
                       value: availability
+            - uuid: ddb5b8d8b29f4341b7e9d2ae26291a84
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Get SMART details'
+              type: SCRIPT
+              key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/disks/smart?disk=' + encodeURIComponent(params.disk);
+                var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+                var response;
+                var status;
+                var parsed;
+                var data;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        status: 'unknown',
+                        attributes: [],
+                        error: message
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS SMART request failed for node ' + params.node + ' disk ' + params.disk + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    parsed = JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                data = parsed.data || {};
+                if (!Array.isArray(data.attributes)) {
+                    data.attributes = [];
+                }
+                data.status = data.status || 'unknown';
+                data.error = '';
+
+                return JSON.stringify(data);
+              description: 'Read detailed SMART data from the PBS disk SMART endpoint.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: disk
+                  value: '{#DISK.NAME}'
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 42d0a5f6d65249ec99b5e28b0fc2f184
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART diagnostics'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.diagnostics[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              description: 'SMART endpoint request and parser diagnostics.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      return data.error ? 'ERROR smart: ' + data.error : 'none';
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 9bcb4f99221346b6b64595875b0372e8
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART attributes'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.attributes[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: TEXT
+              description: 'All SMART attributes returned by PBS, formatted as text.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var result = [];
+
+                      (data.attributes || []).forEach(function (attribute) {
+                          var parts = [];
+                          if (attribute.id !== undefined) {
+                              parts.push('id=' + attribute.id);
+                          }
+                          parts.push('name=' + attribute.name);
+                          parts.push('raw=' + attribute.raw);
+                          if (attribute.normalized !== undefined) {
+                              parts.push('normalized=' + attribute.normalized);
+                          }
+                          if (attribute.worst !== undefined) {
+                              parts.push('worst=' + attribute.worst);
+                          }
+                          if (attribute.threshold !== undefined) {
+                              parts.push('threshold=' + attribute.threshold);
+                          }
+                          result.push(parts.join(' '));
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 65ce2fbfb8af48368ba65afa60f27f3c
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART wearout'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.wearout[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'SMART wearout level reported by PBS, if available.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      if (data.wearout === undefined || data.wearout === null) {
+                          return null;
+                      }
+                      return data.wearout;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 37c14a91886745e8a09e0e5ea00dec4e
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.wearout[{#NODE.NAME},{#DISK.NAME}])<{$PBS.DISK.WEAROUT.CRIT:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART wearout critical'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: d7744fbcfe074aa28aba2faefb23e3fd
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.wearout[{#NODE.NAME},{#DISK.NAME}])<{$PBS.DISK.WEAROUT.WARN:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART wearout warning'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART wearout critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.wearout[{#NODE.NAME},{#DISK.NAME}])<{$PBS.DISK.WEAROUT.CRIT:"{#DISK.NAME}"}'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 9f1bcf62e5b346a4824820e93b68d6b4
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART temperature'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.temperature[{#NODE.NAME},{#DISK.NAME}]'
+              value_type: FLOAT
+              units: C
+              description: 'Disk temperature from common SMART temperature attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([190, 194], [
+                          'Temperature_Celsius',
+                          'Airflow_Temperature_Cel',
+                          'Temperature_Internal',
+                          'Drive_Temperature',
+                          'Composite_Temperature',
+                          'Temperature Sensor 1',
+                          'temperature'
+                      ]);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 56cbb7d2bc7c4797aee5fba2a4e7ba94
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.temperature[{#NODE.NAME},{#DISK.NAME}])>={$PBS.DISK.SMART.TEMPERATURE.CRIT:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART temperature critical'
+                  opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 63aedc86504f4413958d2c2f65b40bbb
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.temperature[{#NODE.NAME},{#DISK.NAME}])>={$PBS.DISK.SMART.TEMPERATURE.WARN:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART temperature high'
+                  opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART temperature critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.temperature[{#NODE.NAME},{#DISK.NAME}])>={$PBS.DISK.SMART.TEMPERATURE.CRIT:"{#DISK.NAME}"}'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 5dc53ecf24214b8c8fe99791fe43ce30
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART power-on hours'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.power_on_hours[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              units: h
+              description: 'Power-on hours from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([9], ['Power_On_Hours', 'Power On Hours', 'power_on_hours']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 283e3bf50a29472ea1eeb927facc72dd
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART power cycles'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.power_cycles[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'Power cycle count from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([12], ['Power_Cycle_Count', 'Power Cycles', 'power_cycles']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: b79e826b02b545b48c4a297e581977a6
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART reallocated sectors'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.reallocated_sectors[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'Reallocated sector count from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([5], ['Reallocated_Sector_Ct', 'Reallocated Sector Count', 'reallocated_sectors']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: daf7a44ad1334cc78b4262e4b1136838
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.reallocated_sectors[{#NODE.NAME},{#DISK.NAME}])>{$PBS.DISK.SMART.REALLOCATED.MAX:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART reallocated sectors above threshold'
+                  opdata: 'Reallocated sectors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: f705cdca537c410b959a2f417241e44d
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART current pending sectors'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.pending_sectors[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'Current pending sector count from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([197], ['Current_Pending_Sector', 'Current Pending Sector Count', 'pending_sectors']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: f26e5a2729444bc995625228b7fa2354
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.pending_sectors[{#NODE.NAME},{#DISK.NAME}])>{$PBS.DISK.SMART.PENDING.MAX:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART pending sectors above threshold'
+                  opdata: 'Pending sectors: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: adf87269623546f8ad6ecc87f3991756
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART offline uncorrectable sectors'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.offline_uncorrectable[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'Offline uncorrectable sector count from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([198], ['Offline_Uncorrectable', 'Offline Uncorrectable', 'uncorrectable_sectors']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: af089c8341414642b78816f0b06c36e4
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.offline_uncorrectable[{#NODE.NAME},{#DISK.NAME}])>{$PBS.DISK.SMART.OFFLINE_UNCORRECTABLE.MAX:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART offline uncorrectable sectors above threshold'
+                  opdata: 'Offline uncorrectable sectors: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 537768d8ce6c4437980e158609084d8d
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART UDMA CRC errors'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.udma_crc_errors[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'UDMA CRC error count from SMART attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([199], ['UDMA_CRC_Error_Count', 'CRC_Error_Count', 'udma_crc_errors']);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 826d907b4cf34de08947b223937eab17
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.udma_crc_errors[{#NODE.NAME},{#DISK.NAME}])>{$PBS.DISK.SMART.UDMA_CRC.MAX:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART UDMA CRC errors above threshold'
+                  opdata: 'UDMA CRC errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 054904687ed942be93e33010d7acd357
+              name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: SMART media errors'
+              type: DEPENDENT
+              key: 'proxmox.disk.smart.media_errors[{#NODE.NAME},{#DISK.NAME}]'
+              trends: '0'
+              description: 'Media and data integrity error count from SMART/NVMe attributes.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+
+                      function normalize(name) {
+                          return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                      }
+
+                      function rawNumber(attribute) {
+                          var raw = attribute.raw !== undefined ? attribute.raw : attribute.value;
+                          var match = String(raw).match(/-?\d+(\.\d+)?/);
+                          return match ? Number(match[0]) : null;
+                      }
+
+                      function findAttribute(ids, names) {
+                          var wanted = {};
+                          names.forEach(function (name) {
+                              wanted[normalize(name)] = true;
+                          });
+                          for (var i = 0; i < (data.attributes || []).length; i++) {
+                              var attribute = data.attributes[i];
+                              if (attribute.id !== undefined && ids.indexOf(attribute.id) !== -1) {
+                                  return attribute;
+                              }
+                              if (wanted[normalize(attribute.name)]) {
+                                  return attribute;
+                              }
+                          }
+                          return null;
+                      }
+
+                      var attribute = findAttribute([], [
+                          'Media and Data Integrity Errors',
+                          'Media_Data_Integrity_Errors',
+                          'media_errors',
+                          'media_and_data_integrity_errors'
+                      ]);
+                      var value = attribute ? rawNumber(attribute) : null;
+                      return value;
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.disk.smart.data[{#NODE.NAME},{#DISK.NAME}]'
+              tags:
+                - tag: component
+                  value: disk
+                - tag: disk
+                  value: '{#DISK.NAME}'
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: d9c70f5511844688bcbdad175c3d7dc8
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.disk.smart.media_errors[{#NODE.NAME},{#DISK.NAME}])>{$PBS.DISK.SMART.MEDIA_ERRORS.MAX:"{#DISK.NAME}"}'
+                  name: 'Proxmox Backup Server: Disk [{#NODE.NAME},{#DISK.NAME}]: SMART media errors above threshold'
+                  opdata: 'Media errors: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
             - uuid: 3dcc7c6c7b5e4332a9dddb07a58da95b
               name: 'Disk [{#NODE.NAME},{#DISK.NAME}]: Media Type'
               type: DEPENDENT
@@ -1703,8 +3065,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#DISK.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1791,8 +3153,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#DISK.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1827,7 +3189,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.cpu
+                    - $.data.cpu
                 - type: MULTIPLIER
                   parameters:
                     - '100'
@@ -1835,7 +3197,7 @@ zabbix_export:
                   parameters:
                     - 10m
               master_item:
-                key: 'proxmox.node.rrd[{#NODE.NAME}]'
+                key: 'proxmox.node.status[{#NODE.NAME}]'
               tags:
                 - tag: component
                   value: cpu
@@ -1845,13 +3207,33 @@ zabbix_export:
                 - uuid: eaa6c27523fd46339a597afc5df78b8e
                   expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.cpu[{#NODE.NAME}],5m) > {$PBS.CPU.PUSE.CRIT:"{#NODE.NAME}"}'
                   name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage'
-                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage (over {$PBS.CPU.PUSE.CRIT}% used)'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] high CPU usage (over {$PBS.CPU.PUSE.CRIT:"{#NODE.NAME}"}% used)'
                   opdata: 'Current use: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
                   description: 'CPU usage.'
                   tags:
                     - tag: scope
                       value: performance
+            - uuid: 5afbceed2d7245d9988bc4244fa78606
+              name: 'Node [{#NODE.NAME}]: CPU cores'
+              type: DEPENDENT
+              key: 'proxmox.node.cpu.count[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of logical CPU cores.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.cpuinfo.cpus
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.node.status[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: cpu
+                - tag: node
+                  value: '{#NODE.NAME}'
             - uuid: 2c0dd581f11b4c7c89b9db8779d3999a
               name: 'Node [{#NODE.NAME}]: Get disks'
               type: HTTP_AGENT
@@ -1862,8 +3244,8 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/list'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -1896,6 +3278,30 @@ zabbix_export:
                   value: cpu
                 - tag: node
                   value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 28b64bc6f8994a5398596eb0f0c58b3e
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.iowait[{#NODE.NAME}],5m)>{$PBS.CPU.IOWAIT.CRIT:"{#NODE.NAME}"}'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] CPU iowait is critical'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] CPU iowait is critical (over {$PBS.CPU.IOWAIT.CRIT:"{#NODE.NAME}"}%)'
+                  opdata: 'Current iowait: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'CPU iowait is above the critical threshold.'
+                  tags:
+                    - tag: scope
+                      value: performance
+                - uuid: c6d2d03fce574f8fbd445c992759e7c0
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.iowait[{#NODE.NAME}],5m)>{$PBS.CPU.IOWAIT.WARN:"{#NODE.NAME}"}'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] CPU iowait is high'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] CPU iowait is high (over {$PBS.CPU.IOWAIT.WARN:"{#NODE.NAME}"}%)'
+                  opdata: 'Current iowait: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'CPU iowait is above the warning threshold.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Node [{#NODE.NAME}] CPU iowait is critical'
+                      expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.iowait[{#NODE.NAME}],5m)>{$PBS.CPU.IOWAIT.CRIT:"{#NODE.NAME}"}'
+                  tags:
+                    - tag: scope
+                      value: performance
             - uuid: 900b461f6fe44fffb719496925a2cb30
               name: 'Node [{#NODE.NAME}]: Kernel version'
               type: DEPENDENT
@@ -1947,6 +3353,30 @@ zabbix_export:
                   value: cpu
                 - tag: node
                   value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 1ddc4d9d9e874af0bd2912be67266918
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.loadavg[{#NODE.NAME}],5m)>{$PBS.CPU.LOADAVG.PERCPU.CRIT:"{#NODE.NAME}"}*last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}]) and last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] load average is critical'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] load average is critical (over {$PBS.CPU.LOADAVG.PERCPU.CRIT:"{#NODE.NAME}"} per CPU)'
+                  opdata: 'Load average: {ITEM.LASTVALUE1}; CPU cores: {ITEM.LASTVALUE2}'
+                  priority: AVERAGE
+                  description: 'The 1-minute load average is above the critical per-CPU threshold.'
+                  tags:
+                    - tag: scope
+                      value: performance
+                - uuid: d758e239bbd94a33b6a921bb0ed0abec
+                  expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.loadavg[{#NODE.NAME}],5m)>{$PBS.CPU.LOADAVG.PERCPU.WARN:"{#NODE.NAME}"}*last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}]) and last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}] load average is high'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}] load average is high (over {$PBS.CPU.LOADAVG.PERCPU.WARN:"{#NODE.NAME}"} per CPU)'
+                  opdata: 'Load average: {ITEM.LASTVALUE1}; CPU cores: {ITEM.LASTVALUE2}'
+                  priority: WARNING
+                  description: 'The 1-minute load average is above the warning per-CPU threshold.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Node [{#NODE.NAME}] load average is critical'
+                      expression: 'min(/Proxmox Backup Server by HTTP/proxmox.node.loadavg[{#NODE.NAME}],5m)>{$PBS.CPU.LOADAVG.PERCPU.CRIT:"{#NODE.NAME}"}*last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}]) and last(/Proxmox Backup Server by HTTP/proxmox.node.cpu.count[{#NODE.NAME}])>0'
+                  tags:
+                    - tag: scope
+                      value: performance
             - uuid: 54ba3a28a0584d4896e223bd90ff9176
               name: 'Node [{#NODE.NAME}]: Localtime'
               type: DEPENDENT
@@ -2111,8 +3541,8 @@ zabbix_export:
                       return JSON.stringify(rrd_data[rrd_data.length - 2])
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/rrd'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               query_fields:
                 - name: timeframe
                   value: hour
@@ -2136,8 +3566,8 @@ zabbix_export:
               description: 'Read node subscription.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2156,11 +3586,165 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/status'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 1315b5d47c3847c8ae72662e4332b99a
+              name: 'Node [{#NODE.NAME}]: Certificate API errors'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.errors[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of errors reported while reading certificate information.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      return (data.errors || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 5eab7d4b2adc42ce996fc749d2cdf85f
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.certificates.errors[{#NODE.NAME}])>0 and {$PBS.CERT.MONITORING.REQUIRED:"{#NODE.NAME}"}=1'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: Certificate information unavailable'
+                  opdata: 'Errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The PBS certificate information endpoint could not be queried. This endpoint requires Sys.Modify on /system/certificates. Check the "Certificate diagnostics" item for the HTTP status or parser message.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: c97fe3d3dda34579a9f20ec4f81880c3
+              name: 'Node [{#NODE.NAME}]: Certificate diagnostics'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.diagnostics[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'Certificate endpoint request and parser diagnostics.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var result = [];
+
+                      (data.errors || []).forEach(function (error) {
+                          result.push('ERROR ' + (error.path || 'certificates/info') + ': ' + (error.error || 'unknown error'));
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: fada7dd7db3a4c9a9565e8cb3900df53
+              name: 'Node [{#NODE.NAME}]: Certificates discovered'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.count[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of certificates returned by the PBS certificate information endpoint.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      return (data.data || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 2cbb5a3ae1294e6a8844a658fd852e29
+              name: 'Node [{#NODE.NAME}]: Get certificates'
+              type: SCRIPT
+              key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              delay: 12h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/certificates/info';
+                var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+                var response;
+                var status;
+                var parsed;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        data: [],
+                        errors: [{
+                            path: 'certificates/info',
+                            error: message
+                        }]
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS certificate request failed for node ' + params.node + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    parsed = JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                if (!Array.isArray(parsed.data)) {
+                    return fallback('Unexpected JSON response: missing data array');
+                }
+
+                parsed.data.forEach(function (certificate) {
+                    delete certificate.pem;
+                });
+
+                return JSON.stringify({
+                    data: parsed.data,
+                    errors: []
+                });
+              description: 'Read PBS certificate metadata. The PEM body is removed before storing the value.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
               tags:
                 - tag: component
                   value: raw
@@ -2238,8 +3822,8 @@ zabbix_export:
               description: 'Read node subscription.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/subscription'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2319,11 +3903,263 @@ zabbix_export:
               description: 'Read server time and time zone settings.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/time'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: c6e81ae736a24ded82ba2aa5e74de2f9
+              name: 'Node [{#NODE.NAME}]: APT enabled repositories'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.enabled[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of enabled APT repositories across all parsed repository files.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var files = data.files || [];
+                      var enabled = 0;
+
+                      files.forEach(function (file) {
+                          (file.repositories || []).forEach(function (repo) {
+                              if (repo.Enabled === true) {
+                                  enabled++;
+                              }
+                          });
+                      });
+
+                      return enabled;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: dcd3c005cce74b74a6a7fe7718c36ff2
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.enabled[{#NODE.NAME}])<{$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"}'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: No enabled APT repositories'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: Enabled APT repositories below {$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"}'
+                  opdata: 'Enabled repositories: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'No enabled APT repository was found. Package updates and security fixes may not be available. Set {$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"} to 0 if this node intentionally has no enabled repositories.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: APT repository parsing errors'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.errors[{#NODE.NAME}])>0'
+                  tags:
+                    - tag: scope
+                      value: update
+            - uuid: bdfe68ed2ef2429c8040bcdd7cb7c27c
+              name: 'Node [{#NODE.NAME}]: APT repository diagnostics'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.diagnostics[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'APT repository parser errors, request fallback messages and informational messages.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var result = [];
+
+                      (data.errors || []).forEach(function (error) {
+                          result.push('ERROR ' + (error.path || '<unknown>') + ': ' + (error.error || 'unknown error'));
+                      });
+
+                      (data.infos || []).forEach(function (info) {
+                          var location = info.path || '<unknown>';
+                          if (info.index !== undefined) {
+                              location += '[' + info.index + ']';
+                          }
+                          result.push(String(info.kind || 'info').toUpperCase() + ' ' + location + ': ' + (info.message || ''));
+                      });
+
+                      (data['standard-repos'] || []).forEach(function (repo) {
+                          var name = repo.name || repo.handle || 'unknown';
+                          var text = [repo.handle, repo.name, repo.description].join(' ').toLowerCase();
+                          if (repo.status === true && /(^|[\s_-])(no-subscription|test|pbstest)([\s_-]|$)/.test(text)) {
+                              result.push('WARNING standard repository ' + name + ': enabled repository is not recommended for production use');
+                          }
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 15a7eee0493f461eb53e7e6cedeb344c
+              name: 'Node [{#NODE.NAME}]: APT repository parsing errors'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.errors[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of APT repository files that the PBS API reports as problematic, or one if the repository endpoint could not be queried.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      return (data.errors || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: c97975e12a334e0a8401a51648974509
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.errors[{#NODE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: APT repository parsing errors'
+                  opdata: 'Errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The PBS API reports one or more problematic APT repository files, or the repository endpoint could not be queried. Check the "APT repository diagnostics" item for the affected file and parser message.'
+                  tags:
+                    - tag: scope
+                      value: update
+            - uuid: 431639c758c94d03bf6563eb118f605e
+              name: 'Node [{#NODE.NAME}]: APT repository warnings'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.warnings[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of APT repository warning messages reported by the PBS API plus enabled non-production standard repositories.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var warnings = 0;
+
+                      (data.infos || []).forEach(function (info) {
+                          if (String(info.kind || '').toLowerCase() === 'warning') {
+                              warnings++;
+                          }
+                      });
+
+                      (data['standard-repos'] || []).forEach(function (repo) {
+                          var text = [repo.handle, repo.name, repo.description].join(' ').toLowerCase();
+                          if (repo.status === true && /(^|[\s_-])(no-subscription|test|pbstest)([\s_-]|$)/.test(text)) {
+                              warnings++;
+                          }
+                      });
+
+                      return warnings;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 20d1f30ece3f408082515cfd3ebc4332
+              name: 'Node [{#NODE.NAME}]: APT standard repository states'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.standard[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'Configuration state of PBS standard repositories.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var repos = data['standard-repos'] || [];
+                      var result = [];
+
+                      repos.forEach(function (repo) {
+                          var state = 'not configured';
+                          if (repo.status === true) {
+                              state = 'enabled';
+                          } else if (repo.status === false) {
+                              state = 'disabled';
+                          }
+                          result.push((repo.name || repo.handle || 'unknown') + ': ' + state);
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: b4e394091d5749c091822d92d1d1412f
+              name: 'Node [{#NODE.NAME}]: Get APT repositories'
+              type: SCRIPT
+              key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/apt/repositories';
+                var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+                var response;
+                var status;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        data: {
+                            errors: [{
+                                path: 'apt/repositories',
+                                error: message
+                            }],
+                            files: [],
+                            infos: [],
+                            'standard-repos': []
+                        }
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS APT repository request failed for node ' + params.node + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                return response;
+              description: 'Read APT repository configuration, standard repository states and parser diagnostics.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
               tags:
                 - tag: component
                   value: raw
@@ -2357,8 +4193,8 @@ zabbix_export:
                       return matches ? matches.length : 0;
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/apt/update'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2432,8 +4268,8 @@ zabbix_export:
               description: 'Read node status.'
               timeout: '{$PBS.API.TIMEOUT}'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2555,6 +4391,339 @@ zabbix_export:
           lld_macro_paths:
             - lld_macro: '{#NODE.NAME}'
               path: $.node
+        - uuid: a0e66386faf74a868dc045f47c1b9455
+          name: 'Certificate discovery'
+          type: DEPENDENT
+          key: 'proxmox.certificate.discovery[{#NODE.NAME}]'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#CERT.FILENAME}'
+                value: '{$PBS.CERT.FILENAME.MATCHES}'
+              - macro: '{#CERT.FILENAME}'
+                value: '{$PBS.CERT.FILENAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 1c3eadf769b3446392601b722c6a0ab5
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Get certificate'
+              type: SCRIPT
+              key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              delay: 12h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/certificates/info';
+                var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+                var response;
+                var status;
+                var parsed;
+                var certificate = null;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        filename: params.filename,
+                        error: message
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS certificate request failed for node ' + params.node + ' certificate ' + params.filename + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    parsed = JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                (parsed.data || []).forEach(function (item) {
+                    if (item.filename === params.filename) {
+                        certificate = item;
+                    }
+                });
+
+                if (!certificate) {
+                    return fallback('Certificate not found');
+                }
+
+                delete certificate.pem;
+                return JSON.stringify(certificate);
+              description: 'Single certificate metadata object.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: filename
+                  value: '{#CERT.FILENAME}'
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 2b8d9d35c15c4da99286f87247c3a81d
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Expires'
+              type: DEPENDENT
+              key: 'proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              units: unixtime
+              description: 'Certificate notAfter timestamp.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.notafter
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 12h
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 36eabb075cd6465db10e90062a01613f
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"}'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within critical threshold'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'The certificate expires in less than {$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"} or has already expired.'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 3f40873fdac7439e967d9e8c589615fa
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.WARN:"{#CERT.FILENAME}"}'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within warning threshold'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The certificate expires in less than {$PBS.CERT.EXPIRES.WARN:"{#CERT.FILENAME}"}.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within critical threshold'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"}'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 19f035b1edc24551be911f8fb1fa623c
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Valid from'
+              type: DEPENDENT
+              key: 'proxmox.certificate.notbefore[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              units: unixtime
+              description: 'Certificate notBefore timestamp.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.notbefore
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 12h
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 43c625a77db04eca9d9cfcd74e310ac0
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notbefore[{#NODE.NAME},{#CERT.FILENAME}])>now()'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] is not valid yet'
+                  opdata: 'Valid from: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The certificate notBefore timestamp is in the future.'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 0e610ebf920d4cc59833f8741832ea39
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Fingerprint'
+              type: DEPENDENT
+              key: 'proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: CHAR
+              description: 'Certificate fingerprint.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.fingerprint
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 3d968a338d374d9f82f19161e9568317
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}],#1)<>last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}],#2) and length(last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}]))>0'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] fingerprint has changed'
+                  opdata: 'Fingerprint: {ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'Certificate fingerprint has changed. This is expected after certificate renewal, but should be acknowledged deliberately.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: cb60b3b022594a65921976990ec85038
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Issuer'
+              type: DEPENDENT
+              key: 'proxmox.certificate.issuer[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate issuer.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.issuer
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: da7bab3021714f599a463426d2b79b03
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Subject'
+              type: DEPENDENT
+              key: 'proxmox.certificate.subject[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate subject.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.subject
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7a4e08903bb446f1b15a7b466c448b4a
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Subject alternative names'
+              type: DEPENDENT
+              key: 'proxmox.certificate.san[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate Subject Alternative Name entries.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificate = JSON.parse(value);
+                      return (certificate.san || []).join('\n') || 'none';
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: a8a51e816eb147ff9572ae2ca300159c
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Public key type'
+              type: DEPENDENT
+              key: 'proxmox.certificate.public_key_type[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: CHAR
+              description: 'Certificate public key algorithm.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''public-key-type'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7d37a542a3ba40d9bc3e5e70f3dd3d71
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Public key bits'
+              type: DEPENDENT
+              key: 'proxmox.certificate.public_key_bits[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              description: 'Certificate public key size in bits, if available.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''public-key-bits'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+          parent_discovery_rule:
+            key: proxmox.node.discovery
+          master_item:
+            key: 'proxmox.node.certificates[{#NODE.NAME}]'
+          lld_macro_paths:
+            - lld_macro: '{#CERT.FILENAME}'
+              path: $.filename
         - uuid: 1728ee93671e4733bc29f86b5036af50
           name: 'Service discovery'
           type: DEPENDENT
@@ -2629,8 +4798,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#SERVICE.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/services'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2743,7 +4912,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'proxmox.zfs.free[{#NODE.NAME},{#ZFS.NAME}]'
               units: B
-              description: 'Allocated size in bytes.'
+              description: 'Free pool space in bytes.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2765,7 +4934,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'proxmox.zfs.health[{#NODE.NAME},{#ZFS.NAME}]'
               value_type: TEXT
-              description: 'Allocated size in bytes.'
+              description: 'ZFS pool health state.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2835,6 +5004,58 @@ zabbix_export:
                   value: '{#NODE.NAME}'
                 - tag: zfs
                   value: '{#ZFS.NAME}'
+            - uuid: b72029d6ed584be88423aecf3e3afa64
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization'
+              type: DEPENDENT
+              key: 'proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}]'
+              value_type: FLOAT
+              units: '%'
+              description: 'ZFS pool space utilization in percent.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var pool = JSON.parse(value);
+                      var size = Number(pool.size);
+                      var alloc = Number(pool.alloc);
+                      if (!isFinite(size) || size <= 0 || !isFinite(alloc)) {
+                          return null;
+                      }
+                      return alloc / size * 100;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.zfs[{#NODE.NAME},{#ZFS.NAME}]'
+              tags:
+                - tag: component
+                  value: zfs
+                - tag: node
+                  value: '{#NODE.NAME}'
+                - tag: zfs
+                  value: '{#ZFS.NAME}'
+              trigger_prototypes:
+                - uuid: 3cc322a2801346d28d605aeea6e98cb6
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical'
+                  event_name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical (over {$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}% used)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: capacity
+                - uuid: 3646943b0f654e85b9003161f371effe
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.WARN:"{#ZFS.NAME}"}'
+                  name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is high'
+                  event_name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is high (over {$PBS.ZFS.PUSE.WARN:"{#ZFS.NAME}"}% used)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space usage is critical'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}])>={$PBS.ZFS.PUSE.CRIT:"{#ZFS.NAME}"}'
+                  tags:
+                    - tag: scope
+                      value: capacity
             - uuid: 41e4565f98834382ab58d28cf9caa31f
               name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Get ZFS'
               type: HTTP_AGENT
@@ -2852,8 +5073,8 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.name == "{#ZFS.NAME}")].first()'
               url: 'https://{$PBS.URL.HOST}:{$PBS.URL.PORT}/api2/json/nodes/{#NODE.NAME}/disks/zfs'
-              verify_peer: 'YES'
-              verify_host: 'YES'
+              verify_peer: 'NO'
+              verify_host: 'NO'
               headers:
                 - name: Authorization
                   value: 'PBSAPIToken={$PBS.TOKEN.ID}:{$PBS.TOKEN.SECRET}'
@@ -2865,6 +5086,15 @@ zabbix_export:
                 - tag: zfs
                   value: '{#ZFS.NAME}'
           graph_prototypes:
+            - uuid: 3b6482fdc4f14593a9ec298bdcba8772
+              name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization'
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - color: F63100
+                  item:
+                    host: 'Proxmox Backup Server by HTTP'
+                    key: 'proxmox.zfs.pused[{#NODE.NAME},{#ZFS.NAME}]'
             - uuid: c2d46c3ef5d543fba6ef41b4a4a43c61
               name: 'ZFS [{#NODE.NAME},{#ZFS.NAME}]: Space utilization chart (relative to total)'
               width: '600'
@@ -3013,9 +5243,60 @@ zabbix_export:
         - macro: '{$PBS.API.TIMEOUT}'
           value: 10s
           description: 'PBS API Timeout.'
+        - macro: '{$PBS.ACCESS.MONITORING.REQUIRED}'
+          value: '1'
+          description: 'Whether the access user/API token endpoint is expected to be queryable. Set to 0 to suppress endpoint diagnostics when access inventory is not required.'
+        - macro: '{$PBS.ACCESS.TOKEN.EXPIRES.WARN}'
+          value: 7d
+          description: 'API token lifetime below which a WARNING severity trigger fires. Supports an API token ID context.'
+        - macro: '{$PBS.ACCESS.TOKEN.ID.MATCHES}'
+          value: '^.*$'
+          description: 'Used in API token discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.TOKEN.ID.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in API token discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.USER.EXPIRES.WARN}'
+          value: 7d
+          description: 'User lifetime below which a WARNING severity trigger fires. Supports a user ID context.'
+        - macro: '{$PBS.ACCESS.USER.ID.MATCHES}'
+          value: '^.*$'
+          description: 'Used in access user discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.USER.ID.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in access user discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.APT.REPOSITORIES.ENABLED.MIN}'
+          value: '1'
+          description: 'Minimum number of enabled APT repositories expected on a node. Supports a node context.'
+        - macro: '{$PBS.CERT.EXPIRES.CRIT}'
+          value: 7d
+          description: 'Certificate lifetime below which a HIGH severity trigger fires. Supports a certificate filename context.'
+        - macro: '{$PBS.CERT.EXPIRES.WARN}'
+          value: 30d
+          description: 'Certificate lifetime below which a WARNING severity trigger fires. Supports a certificate filename context.'
+        - macro: '{$PBS.CERT.FILENAME.MATCHES}'
+          value: '^.*$'
+          description: 'Used in Certificate discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.CERT.FILENAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in Certificate discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.CERT.MONITORING.REQUIRED}'
+          value: '0'
+          description: 'Whether this node is expected to expose certificate information. Set to 1 after granting the required PBS permission to alert when the certificate endpoint cannot be queried. Supports a node context.'
         - macro: '{$PBS.CPU.PUSE.CRIT}'
           value: '90'
-          description: 'Critical threshold of CPU utilization expressed in %.'
+          description: 'Critical threshold of CPU utilization expressed in %. Supports a node context.'
+        - macro: '{$PBS.CPU.IOWAIT.CRIT}'
+          value: '40'
+          description: 'Critical threshold of CPU iowait expressed in %. Supports a node context.'
+        - macro: '{$PBS.CPU.IOWAIT.WARN}'
+          value: '20'
+          description: 'Warning threshold of CPU iowait expressed in %. Supports a node context.'
+        - macro: '{$PBS.CPU.LOADAVG.PERCPU.CRIT}'
+          value: '2'
+          description: 'Critical threshold of 1-minute load average per logical CPU core. Supports a node context.'
+        - macro: '{$PBS.CPU.LOADAVG.PERCPU.WARN}'
+          value: '1.5'
+          description: 'Warning threshold of 1-minute load average per logical CPU core. Supports a node context.'
         - macro: '{$PBS.DATASTORE.AVAILABLE.CRIT}'
           value: 14d
           description: 'Datastore Estimated Full critical'
@@ -3040,6 +5321,27 @@ zabbix_export:
         - macro: '{$PBS.DISK.SMART.STATUS.UNKNOWN}'
           value: unknown
           description: 'The unknown S.M.A.R.T status of the disk for the trigger expression.'
+        - macro: '{$PBS.DISK.SMART.MEDIA_ERRORS.MAX}'
+          value: '0'
+          description: 'Maximum accepted SMART media/data integrity errors before a trigger fires. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.OFFLINE_UNCORRECTABLE.MAX}'
+          value: '0'
+          description: 'Maximum accepted SMART offline uncorrectable sectors before a trigger fires. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.PENDING.MAX}'
+          value: '0'
+          description: 'Maximum accepted SMART pending sectors before a trigger fires. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.REALLOCATED.MAX}'
+          value: '0'
+          description: 'Maximum accepted SMART reallocated sectors before a trigger fires. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.TEMPERATURE.CRIT}'
+          value: '70'
+          description: 'Critical SMART disk temperature threshold in degrees Celsius. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.TEMPERATURE.WARN}'
+          value: '60'
+          description: 'Warning SMART disk temperature threshold in degrees Celsius. Supports a disk name context.'
+        - macro: '{$PBS.DISK.SMART.UDMA_CRC.MAX}'
+          value: '0'
+          description: 'Maximum accepted SMART UDMA CRC errors before a trigger fires. Supports a disk name context.'
         - macro: '{$PBS.DISK.WEAROUT.CRIT}'
           value: '30'
           description: 'Critical threshold of disk wearout expressed in %.'
@@ -3109,7 +5411,7 @@ zabbix_export:
           description: 'Secret key.'
         - macro: '{$PBS.URL.HOST}'
           value: '<SET PBS HOST>'
-          description: 'The hostname or IP address of the Proxmox Backup Server API host.'
+          description: 'The DNS name or IP address of the Proxmox Backup Server API host.'
         - macro: '{$PBS.URL.PORT}'
           value: '8007'
           description: 'The API uses the HTTPS protocol and the server listens to port 8007 by default.'
@@ -3128,6 +5430,12 @@ zabbix_export:
         - macro: '{$PBS.ZFS.HEALTH.ONLINE}'
           value: ONLINE
           description: 'The online status of the zfs pool for the trigger expression.'
+        - macro: '{$PBS.ZFS.PUSE.CRIT}'
+          value: '90'
+          description: 'Critical threshold of ZFS pool space utilization expressed in %. Supports a ZFS pool name context.'
+        - macro: '{$PBS.ZFS.PUSE.WARN}'
+          value: '80'
+          description: 'Warning threshold of ZFS pool space utilization expressed in %. Supports a ZFS pool name context.'
         - macro: '{$PBS.ZFS.NAME.MATCHES}'
           value: '^.*$'
           description: 'Used in ZFS discovery. Can be overridden on the host or linked template level.'
