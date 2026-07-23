@@ -139,6 +139,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
+| `{$PBS.APT.REPOSITORIES.ENABLED.MIN}` | `1`        | Minimum number of enabled APT repositories expected on a node. Set to `0` with a node context if a node intentionally has no enabled repositories. |
 | `{$PBS.SNAPSHOT.AGE.WARN}`       | `30h`            | Age of a backup group's most recent snapshot above which a WARNING trigger fires (suits a daily schedule). |
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
 | `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
@@ -175,6 +176,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 - Node performance issues
 - Subscription check
 - Update check
+- APT repository check
 - Backup group snapshot too old (warning / high)
 - Failed backup tasks
 - Failed other tasks
@@ -225,6 +227,27 @@ PBS reports exactly one of: `new`, `notfound`, `active`, `invalid`, `expired`, `
 ```
 
 Do this **instead of disabling the trigger.** `notfound` then stops alerting, while `invalid`, `expired` and `suspended` still do — and those are genuinely worth knowing about even on a free install. Disabling the trigger outright throws that away. The macro supports a node context, so you can set it per node.
+
+## APT Repository Monitoring
+
+The template reads `/nodes/{node}/apt/repositories` once per hour and stores the parsed repository state.
+
+It creates node-level items for:
+
+- enabled APT repository count
+- repository parser error count
+- repository warning count (PBS API warnings plus enabled non-production standard repositories such as `pbs-no-subscription` or `pbstest`)
+- standard repository states
+- repository diagnostics text
+
+Two WARNING triggers are generated:
+
+- **APT repository parsing errors** — fires when PBS reports one or more problematic repository files, or when the repository endpoint cannot be queried.
+- **No enabled APT repositories** — fires when the enabled repository count is below `{$PBS.APT.REPOSITORIES.ENABLED.MIN}` (default `1`).
+
+The warning count is collected but does not alert by default because PBS can report advisory repository messages that are useful context but not universally actionable. It also counts enabled Proxmox standard repositories that are not recommended for production use, for example `pbs-no-subscription` and `pbstest`.
+
+If the repository endpoint itself cannot be queried, the diagnostics item includes the HTTP status and the beginning of the response body so permission problems, missing endpoints and API errors can be distinguished.
 
 ## Verification Monitoring
 

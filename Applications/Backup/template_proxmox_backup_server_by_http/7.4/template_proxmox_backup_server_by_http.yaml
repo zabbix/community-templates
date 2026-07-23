@@ -2329,6 +2329,258 @@ zabbix_export:
                   value: raw
                 - tag: node
                   value: '{#NODE.NAME}'
+            - uuid: c6e81ae736a24ded82ba2aa5e74de2f9
+              name: 'Node [{#NODE.NAME}]: APT enabled repositories'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.enabled[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of enabled APT repositories across all parsed repository files.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var files = data.files || [];
+                      var enabled = 0;
+
+                      files.forEach(function (file) {
+                          (file.repositories || []).forEach(function (repo) {
+                              if (repo.Enabled === true) {
+                                  enabled++;
+                              }
+                          });
+                      });
+
+                      return enabled;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: dcd3c005cce74b74a6a7fe7718c36ff2
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.enabled[{#NODE.NAME}])<{$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"}'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: No enabled APT repositories'
+                  event_name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: Enabled APT repositories below {$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"}'
+                  opdata: 'Enabled repositories: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'No enabled APT repository was found. Package updates and security fixes may not be available. Set {$PBS.APT.REPOSITORIES.ENABLED.MIN:"{#NODE.NAME}"} to 0 if this node intentionally has no enabled repositories.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: APT repository parsing errors'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.errors[{#NODE.NAME}])>0'
+                  tags:
+                    - tag: scope
+                      value: update
+            - uuid: bdfe68ed2ef2429c8040bcdd7cb7c27c
+              name: 'Node [{#NODE.NAME}]: APT repository diagnostics'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.diagnostics[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'APT repository parser errors, request fallback messages and informational messages.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var result = [];
+
+                      (data.errors || []).forEach(function (error) {
+                          result.push('ERROR ' + (error.path || '<unknown>') + ': ' + (error.error || 'unknown error'));
+                      });
+
+                      (data.infos || []).forEach(function (info) {
+                          var location = info.path || '<unknown>';
+                          if (info.index !== undefined) {
+                              location += '[' + info.index + ']';
+                          }
+                          result.push(String(info.kind || 'info').toUpperCase() + ' ' + location + ': ' + (info.message || ''));
+                      });
+
+                      (data['standard-repos'] || []).forEach(function (repo) {
+                          var name = repo.name || repo.handle || 'unknown';
+                          var text = [repo.handle, repo.name, repo.description].join(' ').toLowerCase();
+                          if (repo.status === true && /(^|[\s_-])(no-subscription|test|pbstest)([\s_-]|$)/.test(text)) {
+                              result.push('WARNING standard repository ' + name + ': enabled repository is not recommended for production use');
+                          }
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 15a7eee0493f461eb53e7e6cedeb344c
+              name: 'Node [{#NODE.NAME}]: APT repository parsing errors'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.errors[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of APT repository files that the PBS API reports as problematic, or one if the repository endpoint could not be queried.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      return (data.errors || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: c97975e12a334e0a8401a51648974509
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.apt.repositories.errors[{#NODE.NAME}])>0'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: APT repository parsing errors'
+                  opdata: 'Errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The PBS API reports one or more problematic APT repository files, or the repository endpoint could not be queried. Check the "APT repository diagnostics" item for the affected file and parser message.'
+                  tags:
+                    - tag: scope
+                      value: update
+            - uuid: 431639c758c94d03bf6563eb118f605e
+              name: 'Node [{#NODE.NAME}]: APT repository warnings'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.warnings[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of APT repository warning messages reported by the PBS API plus enabled non-production standard repositories.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var warnings = 0;
+
+                      (data.infos || []).forEach(function (info) {
+                          if (String(info.kind || '').toLowerCase() === 'warning') {
+                              warnings++;
+                          }
+                      });
+
+                      (data['standard-repos'] || []).forEach(function (repo) {
+                          var text = [repo.handle, repo.name, repo.description].join(' ').toLowerCase();
+                          if (repo.status === true && /(^|[\s_-])(no-subscription|test|pbstest)([\s_-]|$)/.test(text)) {
+                              warnings++;
+                          }
+                      });
+
+                      return warnings;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 20d1f30ece3f408082515cfd3ebc4332
+              name: 'Node [{#NODE.NAME}]: APT standard repository states'
+              type: DEPENDENT
+              key: 'proxmox.node.apt.repositories.standard[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'Configuration state of PBS standard repositories.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value).data || {};
+                      var repos = data['standard-repos'] || [];
+                      var result = [];
+
+                      repos.forEach(function (repo) {
+                          var state = 'not configured';
+                          if (repo.status === true) {
+                              state = 'enabled';
+                          } else if (repo.status === false) {
+                              state = 'disabled';
+                          }
+                          result.push((repo.name || repo.handle || 'unknown') + ': ' + state);
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: update
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: b4e394091d5749c091822d92d1d1412f
+              name: 'Node [{#NODE.NAME}]: Get APT repositories'
+              type: SCRIPT
+              key: 'proxmox.node.apt.repositories[{#NODE.NAME}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/apt/repositories';
+                var req = new HttpRequest();
+                var response;
+                var status;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        data: {
+                            errors: [{
+                                path: 'apt/repositories',
+                                error: message
+                            }],
+                            files: [],
+                            infos: [],
+                            'standard-repos': []
+                        }
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS APT repository request failed for node ' + params.node + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                return response;
+              description: 'Read APT repository configuration, standard repository states and parser diagnostics.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
             - uuid: d363be17f09f4e7ea759bede905cd348
               name: 'Node [{#NODE.NAME}]: Get update'
               type: HTTP_AGENT
@@ -3013,6 +3265,9 @@ zabbix_export:
         - macro: '{$PBS.API.TIMEOUT}'
           value: 10s
           description: 'PBS API Timeout.'
+        - macro: '{$PBS.APT.REPOSITORIES.ENABLED.MIN}'
+          value: '1'
+          description: 'Minimum number of enabled APT repositories expected on a node. Supports a node context.'
         - macro: '{$PBS.CPU.PUSE.CRIT}'
           value: '90'
           description: 'Critical threshold of CPU utilization expressed in %.'
