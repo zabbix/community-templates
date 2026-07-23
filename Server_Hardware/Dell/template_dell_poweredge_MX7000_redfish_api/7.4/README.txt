@@ -47,3 +47,41 @@ https://OME-M/redfish/v1/Chassis
 https://OME-M/redfish/v1/Chassis/Members('xxxxx')
 
 Buscar:
+
+Elementos monitoreados
+- PSU
+Estado
+Voltaje
+Corriente
+Capacidad
+- FAN
+Estado
+RPM
+- Temperatura
+Chassis Inlet Temperature
+Sled Inlet Temperature
+- Chassis
+Estado de Power
+Estado de Fan
+Estado de Temperature
+Consumo total del chassis
+Limitaciones conocidas
+Dell OME-M no expone el consumo individual de cada PSU mediante los endpoints utilizados por esta plantilla.
+Actualmente solo se obtiene:
+
+Estado PSU
+Voltaje PSU
+Corriente PSU
+Capacidad PSU
+El consumo disponible corresponde al chassis completo.
+
+Versiones
+v1.3
+
+Soporte para macros {$MX7000.ID}
+Descubrimiento correcto de PSU
+Descubrimiento correcto de FAN
+Descubrimiento correcto de sensores de temperatura
+Compatibilidad con OME-M validada
+Autor
+Andres Rivera
