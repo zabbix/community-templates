@@ -93,4 +93,4 @@ v1.3
 
 ## Autor
 
-Andres Rivera Quintero
+Andres Rivera
