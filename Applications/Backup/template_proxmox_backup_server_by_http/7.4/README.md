@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, subscription information and certificate metadata, and automatically generates discovery rules for datastores disks, zfs pools, certificates and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
+This Zabbix template enables full monitoring of a Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, detailed SMART values, services, subscription information and certificate metadata, and automatically generates discovery rules for datastores disks, zfs pools, certificates and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
 
 ---
 
@@ -12,15 +12,12 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 - **HTTP Agent** module enabled on the Zabbix server  
 - Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below). Certificate monitoring additionally requires `Sys.Modify` on `/system/certificates` because of the PBS API permission model.
 - Host macros defined on the Zabbix host object (see “Macros” section)
-- A Proxmox Backup Server certificate that the Zabbix server trusts (see “TLS certificate validation”)
 
-### TLS certificate validation
+### TLS certificate verification
 
-The template validates the Proxmox Backup Server's TLS certificate on every request, because each request carries the API token in an `Authorization` header and an unvalidated connection would expose that token to interception.
+The template communicates with the Proxmox Backup Server API over HTTPS, but certificate verification is disabled for the API requests. HTTP agent items use `verify_peer: NO` and `verify_host: NO`; JavaScript `HttpRequest` items are created with `SSLVerifyPeer: false` and `SSLVerifyHost: false`.
 
-A default PBS installation uses a **self-signed** certificate, which the Zabbix server will not trust out of the box. Either install a certificate from a CA the Zabbix server already trusts, or add the PBS CA certificate to the trust store of the machine running the Zabbix server (on Debian/Ubuntu: drop the CA into `/usr/local/share/ca-certificates/` and run `update-ca-certificates`, then restart `zabbix-server`).
-
-If the certificate is not trusted, the items fail and the **API service not available** trigger fires — the template will not fall back to an unverified connection.
+This allows default self-signed PBS certificates and IP-based access without importing a CA certificate into the Zabbix server. It also means Zabbix will not verify that it is talking to the intended PBS endpoint, so use this template only on a trusted management network.
 
 ## 1. Create the Zabbix API User
 
@@ -149,7 +146,7 @@ If the certificate is not trusted, the items fail and the **API service not avai
 
 ### Optional Macros
 
-These have sensible defaults and only need changing to override behaviour. The snapshot-age macros support per-backup-group overrides via the `{#BACKUP.GROUP}` macro context (e.g. set `{$PBS.SNAPSHOT.AGE.WARN:"vm/100"}` on the host to relax the threshold for a single group). The context matches by group name only, so the same group name in different namespaces shares one threshold.
+These have sensible defaults and only need changing to override behaviour. The snapshot-age macros support per-backup-group overrides via the `{#BACKUP.GROUP}` macro context (e.g. set `{$PBS.SNAPSHOT.AGE.WARN:"vm/100"}` on the host to relax the threshold for a single group). The context matches by group name only, so the same group name in different namespaces shares one threshold. SMART and wearout thresholds support per-disk overrides via the `{#DISK.NAME}` macro context.
 
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
@@ -159,6 +156,15 @@ These have sensible defaults and only need changing to override behaviour. The s
 | `{$PBS.CERT.FILENAME.MATCHES}`   | `^.*$`           | Regex of certificate filenames included by certificate discovery. |
 | `{$PBS.CERT.FILENAME.NOT_MATCHES}` | `CHANGE_THIS`   | Regex of certificate filenames excluded from certificate discovery. |
 | `{$PBS.CERT.MONITORING.REQUIRED}` | `0`             | Set to `1`, optionally with a node context, to alert when the certificate endpoint cannot be queried. |
+| `{$PBS.DISK.WEAROUT.WARN}`       | `70`             | SMART/SSD wearout percentage below which a WARNING trigger fires. Supports a disk name context for detailed SMART wearout. |
+| `{$PBS.DISK.WEAROUT.CRIT}`       | `30`             | SMART/SSD wearout percentage below which an AVERAGE trigger fires. Supports a disk name context for detailed SMART wearout. |
+| `{$PBS.DISK.SMART.TEMPERATURE.WARN}` | `60`         | Disk temperature in Celsius above which a WARNING trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.TEMPERATURE.CRIT}` | `70`         | Disk temperature in Celsius above which an AVERAGE trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.REALLOCATED.MAX}` | `0`          | Maximum accepted SMART reallocated sectors before a WARNING trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.PENDING.MAX}`  | `0`              | Maximum accepted SMART pending sectors before an AVERAGE trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.OFFLINE_UNCORRECTABLE.MAX}` | `0` | Maximum accepted SMART offline uncorrectable sectors before an AVERAGE trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.UDMA_CRC.MAX}` | `0`              | Maximum accepted SMART UDMA CRC errors before a WARNING trigger fires. Supports a disk name context. |
+| `{$PBS.DISK.SMART.MEDIA_ERRORS.MAX}` | `0`          | Maximum accepted SMART/NVMe media or data integrity errors before an AVERAGE trigger fires. Supports a disk name context. |
 | `{$PBS.SNAPSHOT.AGE.WARN}`       | `30h`            | Age of a backup group's most recent snapshot above which a WARNING trigger fires (suits a daily schedule). |
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
 | `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
@@ -191,7 +197,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 - Low space on datastore
 - ZFS health
-- SSD wearout
+- Disk SMART status, temperature, wearout and error counters
 - Service failure
 - Node performance issues
 - Subscription check
@@ -269,6 +275,24 @@ Two WARNING triggers are generated:
 The warning count is collected but does not alert by default because PBS can report advisory repository messages that are useful context but not universally actionable. It also counts enabled Proxmox standard repositories that are not recommended for production use, for example `pbs-no-subscription` and `pbstest`.
 
 If the repository endpoint itself cannot be queried, the diagnostics item includes the HTTP status and the beginning of the response body so permission problems, missing endpoints and API errors can be distinguished.
+
+## SMART Disk Monitoring
+
+The template reads `/nodes/{node}/disks/smart` once per hour for every discovered disk and stores the raw SMART attribute list as text. It also extracts normalized items for common health values:
+
+- SMART wearout
+- temperature
+- power-on hours
+- power cycles
+- reallocated sectors
+- current pending sectors
+- offline uncorrectable sectors
+- UDMA CRC errors
+- NVMe media and data integrity errors
+
+Triggers are generated for SMART status failures, high disk temperature, low wearout percentage and non-zero error counters. The thresholds can be changed globally or per disk with the `{#DISK.NAME}` macro context.
+
+SMART attribute availability and naming differs between ATA, SAS and NVMe devices. When a disk does not expose one of the normalized attributes, the corresponding item value is discarded without a preprocessing error instead of creating a false alarm. The full SMART attribute text item remains available for inspection.
 
 ## Certificate Monitoring
 
