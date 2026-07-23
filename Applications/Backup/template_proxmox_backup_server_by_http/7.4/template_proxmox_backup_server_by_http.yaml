@@ -2166,6 +2166,160 @@ zabbix_export:
                   value: raw
                 - tag: node
                   value: '{#NODE.NAME}'
+            - uuid: 1315b5d47c3847c8ae72662e4332b99a
+              name: 'Node [{#NODE.NAME}]: Certificate API errors'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.errors[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of errors reported while reading certificate information.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      return (data.errors || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 5eab7d4b2adc42ce996fc749d2cdf85f
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.node.certificates.errors[{#NODE.NAME}])>0 and {$PBS.CERT.MONITORING.REQUIRED:"{#NODE.NAME}"}=1'
+                  name: 'Proxmox Backup Server: Node [{#NODE.NAME}]: Certificate information unavailable'
+                  opdata: 'Errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The PBS certificate information endpoint could not be queried. This endpoint requires Sys.Modify on /system/certificates. Check the "Certificate diagnostics" item for the HTTP status or parser message.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API service not available'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.api.available) <> 200'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: c97fe3d3dda34579a9f20ec4f81880c3
+              name: 'Node [{#NODE.NAME}]: Certificate diagnostics'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.diagnostics[{#NODE.NAME}]'
+              value_type: TEXT
+              description: 'Certificate endpoint request and parser diagnostics.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var result = [];
+
+                      (data.errors || []).forEach(function (error) {
+                          result.push('ERROR ' + (error.path || 'certificates/info') + ': ' + (error.error || 'unknown error'));
+                      });
+
+                      return result.length ? result.join('\n') : 'none';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: fada7dd7db3a4c9a9565e8cb3900df53
+              name: 'Node [{#NODE.NAME}]: Certificates discovered'
+              type: DEPENDENT
+              key: 'proxmox.node.certificates.count[{#NODE.NAME}]'
+              trends: '0'
+              description: 'Number of certificates returned by the PBS certificate information endpoint.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      return (data.data || []).length;
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              tags:
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 2cbb5a3ae1294e6a8844a658fd852e29
+              name: 'Node [{#NODE.NAME}]: Get certificates'
+              type: SCRIPT
+              key: 'proxmox.node.certificates[{#NODE.NAME}]'
+              delay: 12h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/certificates/info';
+                var req = new HttpRequest();
+                var response;
+                var status;
+                var parsed;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        data: [],
+                        errors: [{
+                            path: 'certificates/info',
+                            error: message
+                        }]
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS certificate request failed for node ' + params.node + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    parsed = JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                if (!Array.isArray(parsed.data)) {
+                    return fallback('Unexpected JSON response: missing data array');
+                }
+
+                parsed.data.forEach(function (certificate) {
+                    delete certificate.pem;
+                });
+
+                return JSON.stringify({
+                    data: parsed.data,
+                    errors: []
+                });
+              description: 'Read PBS certificate metadata. The PEM body is removed before storing the value.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: node
+                  value: '{#NODE.NAME}'
             - uuid: 3ec657a77976471b90fbbce51a37629d
               name: 'Node [{#NODE.NAME}]: Subscription product name'
               type: DEPENDENT
@@ -2807,6 +2961,339 @@ zabbix_export:
           lld_macro_paths:
             - lld_macro: '{#NODE.NAME}'
               path: $.node
+        - uuid: a0e66386faf74a868dc045f47c1b9455
+          name: 'Certificate discovery'
+          type: DEPENDENT
+          key: 'proxmox.certificate.discovery[{#NODE.NAME}]'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#CERT.FILENAME}'
+                value: '{$PBS.CERT.FILENAME.MATCHES}'
+              - macro: '{#CERT.FILENAME}'
+                value: '{$PBS.CERT.FILENAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 1c3eadf769b3446392601b722c6a0ab5
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Get certificate'
+              type: SCRIPT
+              key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              delay: 12h
+              history: '0'
+              value_type: TEXT
+              params: |
+                var params = JSON.parse(value);
+                var url = 'https://' + params.url + ':' + params.port + '/api2/json/nodes/' + params.node + '/certificates/info';
+                var req = new HttpRequest();
+                var response;
+                var status;
+                var parsed;
+                var certificate = null;
+
+                req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+                function fallback(message) {
+                    return JSON.stringify({
+                        filename: params.filename,
+                        error: message
+                    });
+                }
+
+                try {
+                    response = req.get(encodeURI(url));
+                    status = req.getStatus();
+                } catch (error) {
+                    Zabbix.log(3, 'PBS certificate request failed for node ' + params.node + ' certificate ' + params.filename + ': ' + error);
+                    return fallback('Request failed: ' + error);
+                }
+
+                if (status !== 200) {
+                    return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+                }
+
+                try {
+                    parsed = JSON.parse(response);
+                } catch (error) {
+                    return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+                }
+
+                (parsed.data || []).forEach(function (item) {
+                    if (item.filename === params.filename) {
+                        certificate = item;
+                    }
+                });
+
+                if (!certificate) {
+                    return fallback('Certificate not found');
+                }
+
+                delete certificate.pem;
+                return JSON.stringify(certificate);
+              description: 'Single certificate metadata object.'
+              timeout: '{$PBS.API.TIMEOUT}'
+              parameters:
+                - name: filename
+                  value: '{#CERT.FILENAME}'
+                - name: node
+                  value: '{#NODE.NAME}'
+                - name: port
+                  value: '{$PBS.URL.PORT}'
+                - name: secret
+                  value: '{$PBS.TOKEN.SECRET}'
+                - name: token
+                  value: '{$PBS.TOKEN.ID}'
+                - name: url
+                  value: '{$PBS.URL.HOST}'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 2b8d9d35c15c4da99286f87247c3a81d
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Expires'
+              type: DEPENDENT
+              key: 'proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              units: unixtime
+              description: 'Certificate notAfter timestamp.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.notafter
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 12h
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 36eabb075cd6465db10e90062a01613f
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"}'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within critical threshold'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'The certificate expires in less than {$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"} or has already expired.'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 3f40873fdac7439e967d9e8c589615fa
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.WARN:"{#CERT.FILENAME}"}'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within warning threshold'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The certificate expires in less than {$PBS.CERT.EXPIRES.WARN:"{#CERT.FILENAME}"}.'
+                  dependencies:
+                    - name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] expires within critical threshold'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.certificate.notafter[{#NODE.NAME},{#CERT.FILENAME}])-now()<{$PBS.CERT.EXPIRES.CRIT:"{#CERT.FILENAME}"}'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 19f035b1edc24551be911f8fb1fa623c
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Valid from'
+              type: DEPENDENT
+              key: 'proxmox.certificate.notbefore[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              units: unixtime
+              description: 'Certificate notBefore timestamp.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.notbefore
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 12h
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 43c625a77db04eca9d9cfcd74e310ac0
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.notbefore[{#NODE.NAME},{#CERT.FILENAME}])>now()'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] is not valid yet'
+                  opdata: 'Valid from: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The certificate notBefore timestamp is in the future.'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 0e610ebf920d4cc59833f8741832ea39
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Fingerprint'
+              type: DEPENDENT
+              key: 'proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: CHAR
+              description: 'Certificate fingerprint.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.fingerprint
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+              trigger_prototypes:
+                - uuid: 3d968a338d374d9f82f19161e9568317
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}],#1)<>last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}],#2) and length(last(/Proxmox Backup Server by HTTP/proxmox.certificate.fingerprint[{#NODE.NAME},{#CERT.FILENAME}]))>0'
+                  name: 'Proxmox Backup Server: Certificate [{#NODE.NAME},{#CERT.FILENAME}] fingerprint has changed'
+                  opdata: 'Fingerprint: {ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'Certificate fingerprint has changed. This is expected after certificate renewal, but should be acknowledged deliberately.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: cb60b3b022594a65921976990ec85038
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Issuer'
+              type: DEPENDENT
+              key: 'proxmox.certificate.issuer[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate issuer.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.issuer
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: da7bab3021714f599a463426d2b79b03
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Subject'
+              type: DEPENDENT
+              key: 'proxmox.certificate.subject[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate subject.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.subject
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7a4e08903bb446f1b15a7b466c448b4a
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Subject alternative names'
+              type: DEPENDENT
+              key: 'proxmox.certificate.san[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: TEXT
+              description: 'Certificate Subject Alternative Name entries.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var certificate = JSON.parse(value);
+                      return (certificate.san || []).join('\n') || 'none';
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: a8a51e816eb147ff9572ae2ca300159c
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Public key type'
+              type: DEPENDENT
+              key: 'proxmox.certificate.public_key_type[{#NODE.NAME},{#CERT.FILENAME}]'
+              value_type: CHAR
+              description: 'Certificate public key algorithm.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''public-key-type'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+            - uuid: 7d37a542a3ba40d9bc3e5e70f3dd3d71
+              name: 'Certificate [{#NODE.NAME},{#CERT.FILENAME}]: Public key bits'
+              type: DEPENDENT
+              key: 'proxmox.certificate.public_key_bits[{#NODE.NAME},{#CERT.FILENAME}]'
+              trends: '0'
+              description: 'Certificate public key size in bits, if available.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[''public-key-bits'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.certificate[{#NODE.NAME},{#CERT.FILENAME}]'
+              tags:
+                - tag: certificate
+                  value: '{#CERT.FILENAME}'
+                - tag: component
+                  value: certificate
+                - tag: node
+                  value: '{#NODE.NAME}'
+          parent_discovery_rule:
+            key: proxmox.node.discovery
+          master_item:
+            key: 'proxmox.node.certificates[{#NODE.NAME}]'
+          lld_macro_paths:
+            - lld_macro: '{#CERT.FILENAME}'
+              path: $.filename
         - uuid: 1728ee93671e4733bc29f86b5036af50
           name: 'Service discovery'
           type: DEPENDENT
@@ -3268,6 +3755,21 @@ zabbix_export:
         - macro: '{$PBS.APT.REPOSITORIES.ENABLED.MIN}'
           value: '1'
           description: 'Minimum number of enabled APT repositories expected on a node. Supports a node context.'
+        - macro: '{$PBS.CERT.EXPIRES.CRIT}'
+          value: 7d
+          description: 'Certificate lifetime below which a HIGH severity trigger fires. Supports a certificate filename context.'
+        - macro: '{$PBS.CERT.EXPIRES.WARN}'
+          value: 30d
+          description: 'Certificate lifetime below which a WARNING severity trigger fires. Supports a certificate filename context.'
+        - macro: '{$PBS.CERT.FILENAME.MATCHES}'
+          value: '^.*$'
+          description: 'Used in Certificate discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.CERT.FILENAME.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in Certificate discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.CERT.MONITORING.REQUIRED}'
+          value: '0'
+          description: 'Whether this node is expected to expose certificate information. Set to 1 after granting the required PBS permission to alert when the certificate endpoint cannot be queried. Supports a node context.'
         - macro: '{$PBS.CPU.PUSE.CRIT}'
           value: '90'
           description: 'Critical threshold of CPU utilization expressed in %.'

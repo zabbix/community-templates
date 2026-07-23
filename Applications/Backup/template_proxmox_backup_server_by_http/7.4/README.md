@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, and subscription information, and automatically generates discovery rules for datastores disks, zfs pools and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
+This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, services, subscription information and certificate metadata, and automatically generates discovery rules for datastores disks, zfs pools, certificates and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
 
 ---
 
@@ -10,7 +10,7 @@ This Zabbix template enables full monitoring of a Proxmox Proxmox Backup Server 
 
 - **Zabbix Server** version 7.4 or higher  
 - **HTTP Agent** module enabled on the Zabbix server  
-- Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below)
+- Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below). Certificate monitoring additionally requires `Sys.Modify` on `/system/certificates` because of the PBS API permission model.
 - Host macros defined on the Zabbix host object (see “Macros” section)
 - A Proxmox Backup Server certificate that the Zabbix server trusts (see “TLS certificate validation”)
 
@@ -55,6 +55,13 @@ If the certificate is not trusted, the items fail and the **API service not avai
      - **Role:** `RemoteAudit`
    - Click **Add**.
 
+6. **Optional: assign certificate metadata permission** *(needed for certificate monitoring)*
+   - Under **Access Control → Permissions**, click **Add → User Permission**
+     - **Path:** `/system/certificates`
+     - **User:** `zabbix@pbs`
+     - **Role:** a role containing `Sys.Modify` (use the narrowest role your PBS install allows)
+   - Click **Add**.
+
 ---
 
 ## 2. Create the API Token with Privilege Separation
@@ -86,6 +93,13 @@ If the certificate is not trusted, the items fail and the **API service not avai
      - **Role:** `RemoteAudit`
    - Click **Add**.
 
+5. **Optional: assign certificate metadata permission** — *required for certificate monitoring*
+   - Go to **Datacenter → Permissions** → **Add → API Token Permission**
+     - **Path:** `/system/certificates`
+     - **User/Group/API Token:** `zabbix@pbs!Zabbix`
+     - **Role:** a role containing `Sys.Modify` (use the narrowest role your PBS install allows)
+   - Click **Add**.
+
 > ### ⚠ Why `RemoteAudit` matters more than it looks
 >
 > Sync jobs are **remote-scoped**, and PBS **filters configuration listings by permission**: a token that
@@ -100,7 +114,7 @@ If the certificate is not trusted, the items fail and the **API service not avai
 > what privileges you grant. The template passes `sync-direction=all` to cover both — see
 > `{$PBS.SYNC.DIRECTION}`.
 
-`Audit` on `/`, `DatastoreAudit` on `/datastore` and `RemoteAudit` on `/remote` are sufficient for everything this template monitors — no write privileges are needed anywhere.
+`Audit` on `/`, `DatastoreAudit` on `/datastore` and `RemoteAudit` on `/remote` are sufficient for the audit-only parts of this template. Certificate metadata is the exception: the PBS API protects `/nodes/{node}/certificates/info` with `Sys.Modify` on `/system/certificates`. If you do not grant that permission, certificate discovery remains empty and the certificate diagnostics item reports the HTTP error. Set `{$PBS.CERT.MONITORING.REQUIRED}` to `1` only on nodes where certificate metadata is expected to be readable.
 
 ## Installation
 
@@ -140,6 +154,11 @@ These have sensible defaults and only need changing to override behaviour. The s
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
 | `{$PBS.APT.REPOSITORIES.ENABLED.MIN}` | `1`        | Minimum number of enabled APT repositories expected on a node. Set to `0` with a node context if a node intentionally has no enabled repositories. |
+| `{$PBS.CERT.EXPIRES.WARN}`       | `30d`            | Remaining certificate lifetime below which a WARNING trigger fires. Supports a certificate filename context. |
+| `{$PBS.CERT.EXPIRES.CRIT}`       | `7d`             | Remaining certificate lifetime below which a HIGH trigger fires. Supports a certificate filename context. |
+| `{$PBS.CERT.FILENAME.MATCHES}`   | `^.*$`           | Regex of certificate filenames included by certificate discovery. |
+| `{$PBS.CERT.FILENAME.NOT_MATCHES}` | `CHANGE_THIS`   | Regex of certificate filenames excluded from certificate discovery. |
+| `{$PBS.CERT.MONITORING.REQUIRED}` | `0`             | Set to `1`, optionally with a node context, to alert when the certificate endpoint cannot be queried. |
 | `{$PBS.SNAPSHOT.AGE.WARN}`       | `30h`            | Age of a backup group's most recent snapshot above which a WARNING trigger fires (suits a daily schedule). |
 | `{$PBS.SNAPSHOT.AGE.HIGH}`       | `50h`            | Age above which a HIGH trigger fires.                                                                    |
 | `{$PBS.SNAPSHOT.INTERVAL}`       | `15m`            | Polling interval of the backup-group list used for snapshot freshness. Each poll lists every backup group of each datastore across all namespaces, so keep this interval moderate. |
@@ -163,6 +182,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 | **proxmox.node.discovery**       | Detection of all nodes (currently only localhost)           |
 | **proxmox.disk.discovery**       | Detection of all disks                                      |
 | **proxmox.disk.ssd.discovery**   | Detect if disk is SSD                                       |
+| **proxmox.certificate.discovery**| Detection of PBS certificates                               |
 | **proxmox.service.discovery**    | Detection of all running services                           |
 | **proxmox.zfs.discovery**        | Detection of all zfs pools                                  |
 | **proxmox.backupgroup.discovery**| Detection of backup groups (backup-type/backup-id) that have at least one snapshot, in any datastore and namespace |
@@ -177,6 +197,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 - Subscription check
 - Update check
 - APT repository check
+- Certificate expiry and fingerprint check
 - Backup group snapshot too old (warning / high)
 - Failed backup tasks
 - Failed other tasks
@@ -248,6 +269,24 @@ Two WARNING triggers are generated:
 The warning count is collected but does not alert by default because PBS can report advisory repository messages that are useful context but not universally actionable. It also counts enabled Proxmox standard repositories that are not recommended for production use, for example `pbs-no-subscription` and `pbstest`.
 
 If the repository endpoint itself cannot be queried, the diagnostics item includes the HTTP status and the beginning of the response body so permission problems, missing endpoints and API errors can be distinguished.
+
+## Certificate Monitoring
+
+The template reads `/nodes/{node}/certificates/info` every 12 hours for discovery and diagnostics. Each discovered certificate then fetches its own metadata from the same endpoint; the PEM body is removed before any value is stored. Certificate discovery creates one entity per returned certificate filename.
+
+Per certificate it monitors:
+
+- expiration timestamp (`notafter`)
+- validity start timestamp (`notbefore`)
+- fingerprint
+- issuer
+- subject
+- Subject Alternative Names
+- public key type and key size
+
+Triggers are generated for certificates expiring within `{$PBS.CERT.EXPIRES.WARN}` / `{$PBS.CERT.EXPIRES.CRIT}`, certificates that are not valid yet, and fingerprint changes. Fingerprint changes are INFO and manual-close because they are expected after a legitimate renewal but should still be acknowledged.
+
+The certificate endpoint requires `Sys.Modify` on `/system/certificates`. This is a PBS API permission requirement for reading certificate metadata, not a template write operation. If you grant that permission and expect certificate monitoring to work, set `{$PBS.CERT.MONITORING.REQUIRED}` to `1` so an unreachable certificate endpoint raises a WARNING with details in the certificate diagnostics item.
 
 ## Verification Monitoring
 
