@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This Zabbix template enables full monitoring of a Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, detailed SMART values, services, subscription information and certificate metadata, and automatically generates discovery rules for datastores disks, zfs pools, certificates and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
+This Zabbix template enables full monitoring of a Proxmox Backup Server via the official REST API. It collects host metrics, datastore status, disk status, detailed SMART values, services, subscription information, certificate metadata and access user/API token inventory, and automatically generates discovery rules for datastores, disks, zfs pools, certificates, users, API tokens and running services. In addition to appliance and datastore health, it monitors per-backup-group **snapshot freshness** across all namespaces (alerting when a group's most recent backup becomes too old) and detects **failed backup and other tasks** from the node task log.
 
 ---
 
@@ -10,7 +10,7 @@ This Zabbix template enables full monitoring of a Proxmox Backup Server via the 
 
 - **Zabbix Server** version 7.4 or higher  
 - **HTTP Agent** module enabled on the Zabbix server  
-- Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below). Certificate monitoring additionally requires `Sys.Modify` on `/system/certificates` because of the PBS API permission model.
+- Proxmox Backup Server API token with read permissions for System, Datastores and **Remotes** (`RemoteAudit` is required to see sync jobs at all — see below). Full user/API token inventory requires `Sys.Audit` on `/access/users`; assigning `Audit` on `/` covers this. Certificate monitoring additionally requires `Sys.Modify` on `/system/certificates` because of the PBS API permission model.
 - Host macros defined on the Zabbix host object (see “Macros” section)
 
 ### TLS certificate verification
@@ -111,7 +111,7 @@ This allows default self-signed PBS certificates and IP-based access without imp
 > what privileges you grant. The template passes `sync-direction=all` to cover both — see
 > `{$PBS.SYNC.DIRECTION}`.
 
-`Audit` on `/`, `DatastoreAudit` on `/datastore` and `RemoteAudit` on `/remote` are sufficient for the audit-only parts of this template. Certificate metadata is the exception: the PBS API protects `/nodes/{node}/certificates/info` with `Sys.Modify` on `/system/certificates`. If you do not grant that permission, certificate discovery remains empty and the certificate diagnostics item reports the HTTP error. Set `{$PBS.CERT.MONITORING.REQUIRED}` to `1` only on nodes where certificate metadata is expected to be readable.
+`Audit` on `/`, `DatastoreAudit` on `/datastore` and `RemoteAudit` on `/remote` are sufficient for the audit-only parts of this template, including full user/API token inventory via `/access/users?include_tokens=1`. If you do not grant `Sys.Audit` on `/access/users`, PBS returns only the logged-in user/API token owner instead of the full access inventory. Certificate metadata is the exception: the PBS API protects `/nodes/{node}/certificates/info` with `Sys.Modify` on `/system/certificates`. If you do not grant that permission, certificate discovery remains empty and the certificate diagnostics item reports the HTTP error. Set `{$PBS.CERT.MONITORING.REQUIRED}` to `1` only on nodes where certificate metadata is expected to be readable.
 
 ## Installation
 
@@ -150,6 +150,13 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
+| `{$PBS.ACCESS.MONITORING.REQUIRED}` | `1`           | Set to `0` if user/API token inventory is intentionally not monitored and endpoint diagnostics should not alert. |
+| `{$PBS.ACCESS.USER.EXPIRES.WARN}` | `7d`            | Remaining user lifetime below which a WARNING trigger fires. Supports a user ID context. |
+| `{$PBS.ACCESS.USER.ID.MATCHES}`  | `^.*$`           | Regex of user IDs included by access user discovery. |
+| `{$PBS.ACCESS.USER.ID.NOT_MATCHES}` | `CHANGE_THIS` | Regex of user IDs excluded from access user discovery. |
+| `{$PBS.ACCESS.TOKEN.EXPIRES.WARN}` | `7d`          | Remaining API token lifetime below which a WARNING trigger fires. Supports an API token ID context. |
+| `{$PBS.ACCESS.TOKEN.ID.MATCHES}` | `^.*$`           | Regex of API token IDs included by API token discovery. |
+| `{$PBS.ACCESS.TOKEN.ID.NOT_MATCHES}` | `CHANGE_THIS` | Regex of API token IDs excluded from API token discovery. |
 | `{$PBS.APT.REPOSITORIES.ENABLED.MIN}` | `1`        | Minimum number of enabled APT repositories expected on a node. Set to `0` with a node context if a node intentionally has no enabled repositories. |
 | `{$PBS.CERT.EXPIRES.WARN}`       | `30d`            | Remaining certificate lifetime below which a WARNING trigger fires. Supports a certificate filename context. |
 | `{$PBS.CERT.EXPIRES.CRIT}`       | `7d`             | Remaining certificate lifetime below which a HIGH trigger fires. Supports a certificate filename context. |
@@ -194,6 +201,8 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 | Discovery Rule                   | Description                                                 |
 |----------------------------------|-------------------------------------------------------------|
+| **proxmox.access.user.discovery**| Detection of visible PBS users                              |
+| **proxmox.access.token.discovery**| Detection of visible PBS API tokens                         |
 | **proxmox.datastore.discovery**  | Detection of all datastores                                 |
 | **proxmox.node.discovery**       | Detection of all nodes (currently only localhost)           |
 | **proxmox.disk.discovery**       | Detection of all disks                                      |
@@ -213,6 +222,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 - Subscription check
 - Update check
 - APT repository check
+- User/API token expiry and TFA lockout
 - Certificate expiry and fingerprint check
 - Backup group snapshot too old (warning / high)
 - Failed backup tasks
@@ -264,6 +274,26 @@ PBS reports exactly one of: `new`, `notfound`, `active`, `invalid`, `expired`, `
 ```
 
 Do this **instead of disabling the trigger.** `notfound` then stops alerting, while `invalid`, `expired` and `suspended` still do — and those are genuinely worth knowing about even on a free install. Disabling the trigger outright throws that away. The macro supports a node context, so you can set it per node.
+
+## Access User/API Token Monitoring
+
+The template reads `/access/users?include_tokens=1` once per hour and stores a normalized access inventory.
+
+It creates summary items for:
+
+- visible user count
+- disabled user count
+- expired user count
+- visible API token count
+- disabled API token count
+- expired API token count
+- endpoint diagnostics text
+
+User discovery creates items for enabled state, expiration time, email, comment and TFA lock state. API token discovery creates items for enabled state, expiration time, owner user and comment. Token secrets are never stored because PBS does not return them through the API.
+
+Triggers are generated for expired users, users expiring within `{$PBS.ACCESS.USER.EXPIRES.WARN}`, locked user TFA, expired API tokens and API tokens expiring within `{$PBS.ACCESS.TOKEN.EXPIRES.WARN}`. The expiry thresholds support per-user or per-token macro contexts.
+
+Full inventory requires `Sys.Audit` on `/access/users`; assigning `Audit` on `/` covers this. Without that permission PBS returns only the logged-in user/API token owner. If access inventory is not required and endpoint errors are acceptable, set `{$PBS.ACCESS.MONITORING.REQUIRED}` to `0` to suppress the endpoint diagnostics trigger.
 
 ## APT Repository Monitoring
 

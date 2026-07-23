@@ -119,6 +119,248 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: c5640476614940aaad40ebfcf4535b90
+          name: 'Get users and API tokens'
+          type: SCRIPT
+          key: proxmox.access.users
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var url = 'https://' + params.url + ':' + params.port + '/api2/json/access/users?include_tokens=1';
+            var req = new HttpRequest({ SSLVerifyPeer: false, SSLVerifyHost: false });
+            var response;
+            var status;
+            var parsed;
+
+            req.addHeader('Authorization: PBSAPIToken=' + params.token + ':' + params.secret);
+
+            function fallback(message) {
+                return JSON.stringify({
+                    data: [],
+                    error: message
+                });
+            }
+
+            try {
+                response = req.get(encodeURI(url));
+                status = req.getStatus();
+            } catch (error) {
+                Zabbix.log(3, 'PBS access users request failed: ' + error);
+                return fallback('Request failed: ' + error);
+            }
+
+            if (status !== 200) {
+                return fallback('HTTP status ' + status + ': ' + String(response || '').substring(0, 500));
+            }
+
+            try {
+                parsed = JSON.parse(response);
+            } catch (error) {
+                return fallback('Invalid JSON response: ' + error + ': ' + String(response || '').substring(0, 500));
+            }
+
+            if (!Array.isArray(parsed.data)) {
+                return fallback('Missing data array in response');
+            }
+
+            return JSON.stringify({
+                data: parsed.data,
+                error: ''
+            });
+          description: 'Read PBS users and API tokens from /access/users?include_tokens=1.'
+          timeout: '{$PBS.API.TIMEOUT}'
+          parameters:
+            - name: port
+              value: '{$PBS.URL.PORT}'
+            - name: secret
+              value: '{$PBS.TOKEN.SECRET}'
+            - name: token
+              value: '{$PBS.TOKEN.ID}'
+            - name: url
+              value: '{$PBS.URL.HOST}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: b1ab6e7f95db4314a0af524195d1679b
+          name: 'Access: User/API token diagnostics'
+          type: DEPENDENT
+          key: proxmox.access.diagnostics
+          value_type: TEXT
+          description: 'Access user and API token endpoint request diagnostics.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return data.error ? 'ERROR access/users: ' + data.error : 'none';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+          triggers:
+            - uuid: 0523f0bf6fcd4144b10f4840b7c91bdc
+              expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.diagnostics)<>"none" and {$PBS.ACCESS.MONITORING.REQUIRED}=1'
+              name: 'Proxmox Backup Server: Access user/API token endpoint is not available'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The PBS access users endpoint could not be queried. Full user/API token inventory requires Sys.Audit on /access/users.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 2013d1cd82794b09aa4cd32673e2f9e8
+          name: 'Access: User count'
+          type: DEPENDENT
+          key: proxmox.access.users.count
+          description: 'Number of visible PBS users.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return (data.data || []).length;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: b07d5fe3c7594595895620735bbb5f79
+          name: 'Access: Disabled user count'
+          type: DEPENDENT
+          key: proxmox.access.users.disabled
+          description: 'Number of visible PBS users with enable=false.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      if (user.enable === false) {
+                          count++;
+                      }
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 9f251f0854954c4184bdc3caa23cb67f
+          name: 'Access: Expired user count'
+          type: DEPENDENT
+          key: proxmox.access.users.expired
+          description: 'Number of visible PBS users whose expiration timestamp is in the past.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var now = Math.floor(Date.now() / 1000);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      if (user.expire && user.expire > 0 && user.expire < now) {
+                          count++;
+                      }
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 6fd2bf04ba3747c8a0a8ba32e0faefd8
+          name: 'Access: API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.count
+          description: 'Number of visible PBS API tokens.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      count += (user.tokens || []).length;
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: f918c78fe7a641f99fa49bc6ec5bdd55
+          name: 'Access: Disabled API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.disabled
+          description: 'Number of visible PBS API tokens with enable=false.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      (user.tokens || []).forEach(function (token) {
+                          if (token.enable === false) {
+                              count++;
+                          }
+                      });
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
+        - uuid: 626dbac2e8e14855a568900b3f7d2cdd
+          name: 'Access: Expired API token count'
+          type: DEPENDENT
+          key: proxmox.access.tokens.expired
+          description: 'Number of visible PBS API tokens whose expiration timestamp is in the past.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var now = Math.floor(Date.now() / 1000);
+                  var count = 0;
+                  (data.data || []).forEach(function (user) {
+                      (user.tokens || []).forEach(function (token) {
+                          if (token.expire && token.expire > 0 && token.expire < now) {
+                              count++;
+                          }
+                      });
+                  });
+                  return count;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 4h
+          master_item:
+            key: proxmox.access.users
+          tags:
+            - tag: component
+              value: access
         - uuid: 430dbc8869df4f5a9083055812c4c85a
           name: 'Get backup groups'
           type: SCRIPT
@@ -547,6 +789,410 @@ zabbix_export:
                 - tag: scope
                   value: notice
       discovery_rules:
+        - uuid: db330511a9b44a6f8b0eacbe92b44b5a
+          name: 'Access user discovery'
+          type: DEPENDENT
+          key: proxmox.access.user.discovery
+          lifetime: '{$PBS.LLD.KEEP.LOST}'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
+          description: 'Discovers visible PBS users from /access/users?include_tokens=1.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  if (data.error) {
+                      throw data.error;
+                  }
+                  return JSON.stringify((data.data || []).map(function (user) {
+                      return {
+                          userid: String(user.userid || '')
+                      };
+                  }));
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#USER.ID}'
+                value: '{$PBS.ACCESS.USER.ID.MATCHES}'
+              - macro: '{#USER.ID}'
+                value: '{$PBS.ACCESS.USER.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: 8f888d5e47b642f8b7a85c76a513f8a3
+              name: 'User [{#USER.ID}]: Get user'
+              type: DEPENDENT
+              key: 'proxmox.access.user[{#USER.ID}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Raw PBS user object from /access/users?include_tokens=1.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var users = data.data || [];
+                      for (var i = 0; i < users.length; i++) {
+                          if (String(users[i].userid || '') === '{#USER.ID}') {
+                              return JSON.stringify(users[i]);
+                          }
+                      }
+                      throw 'user not found';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.access.users
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 22027fb7b52541838c8de8f9c01abdc7
+              name: 'User [{#USER.ID}]: Enabled'
+              type: DEPENDENT
+              key: 'proxmox.access.user.enabled[{#USER.ID}]'
+              description: 'User enabled state. Returns 1 when enabled, 0 when disabled.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.enable === false ? 0 : 1;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: d2f7f881a5794033a5daa6130e86464d
+              name: 'User [{#USER.ID}]: Expiration'
+              type: DEPENDENT
+              key: 'proxmox.access.user.expire[{#USER.ID}]'
+              trends: '0'
+              units: unixtime
+              description: 'User expiration time as UNIX timestamp. Returns 0 when the user does not expire.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.expire && user.expire > 0 ? user.expire : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: 657ca17450fa46449a057eefbb2410e1
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])<now()'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] is expired'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 840b62f9473a454684aafde93dda8b8e
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>=now() and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])-now()<{$PBS.ACCESS.USER.EXPIRES.WARN:"{#USER.ID}"}'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] expires soon'
+                  event_name: 'Proxmox Backup Server: User [{#USER.ID}] expires within {$PBS.ACCESS.USER.EXPIRES.WARN:"{#USER.ID}"}'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: User [{#USER.ID}] is expired'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.user.expire[{#USER.ID}])<now()'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: f7b468e7bfa347d98a75c4aeaae0339b
+              name: 'User [{#USER.ID}]: TFA locked'
+              type: DEPENDENT
+              key: 'proxmox.access.user.tfa.locked[{#USER.ID}]'
+              description: 'User TFA lock state. Returns 1 when TFA is currently locked, 0 otherwise.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      var now = Math.floor(Date.now() / 1000);
+                      var tfaLockedUntil = user['tfa-locked-until'] || user.tfa_locked_until;
+                      return user['totp-locked'] === true || user.totp_locked === true || (tfaLockedUntil && tfaLockedUntil > now) ? 1 : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: 21d5f2b56c9a4377be94cee5366e731a
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.user.tfa.locked[{#USER.ID}])=1'
+                  name: 'Proxmox Backup Server: User [{#USER.ID}] TFA is locked'
+                  opdata: 'Current value: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 4b2518ef04904053a24f1e60232fb35a
+              name: 'User [{#USER.ID}]: Email'
+              type: DEPENDENT
+              key: 'proxmox.access.user.email[{#USER.ID}]'
+              value_type: TEXT
+              description: 'Configured user email address.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.email || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 3b5c8962419244e68a0c2cc6096776cf
+              name: 'User [{#USER.ID}]: Comment'
+              type: DEPENDENT
+              key: 'proxmox.access.user.comment[{#USER.ID}]'
+              value_type: TEXT
+              description: 'Configured user comment.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var user = JSON.parse(value);
+                      return user.comment || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.user[{#USER.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: user
+                  value: '{#USER.ID}'
+          master_item:
+            key: proxmox.access.users
+          lld_macro_paths:
+            - lld_macro: '{#USER.ID}'
+              path: $.userid
+        - uuid: 8d9f437881064708bdeed260de2f31f8
+          name: 'API token discovery'
+          type: DEPENDENT
+          key: proxmox.access.token.discovery
+          lifetime: '{$PBS.LLD.KEEP.LOST}'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: '{$PBS.LLD.DISABLE.LOST}'
+          description: 'Discovers visible PBS API tokens from /access/users?include_tokens=1.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var result = [];
+
+                  if (data.error) {
+                      throw data.error;
+                  }
+
+                  (data.data || []).forEach(function (user) {
+                      var userid = String(user.userid || '');
+                      (user.tokens || []).forEach(function (token) {
+                          var tokenid = String(token.tokenid || '');
+                          var separator = tokenid.indexOf('!');
+                          result.push({
+                              tokenid: tokenid,
+                              token_name: separator === -1 ? tokenid : tokenid.substring(separator + 1),
+                              userid: userid
+                          });
+                      });
+                  });
+
+                  return JSON.stringify(result);
+              error_handler: DISCARD_VALUE
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#TOKEN.ID}'
+                value: '{$PBS.ACCESS.TOKEN.ID.MATCHES}'
+              - macro: '{#TOKEN.ID}'
+                value: '{$PBS.ACCESS.TOKEN.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          item_prototypes:
+            - uuid: d38a54a6151040d1b27d7d628269c632
+              name: 'API token [{#TOKEN.ID}]: Get token'
+              type: DEPENDENT
+              key: 'proxmox.access.token[{#TOKEN.ID}]'
+              history: '0'
+              value_type: TEXT
+              description: 'Raw PBS API token object from /access/users?include_tokens=1. Token secrets are not returned by the PBS API.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var users = data.data || [];
+                      for (var i = 0; i < users.length; i++) {
+                          var tokens = users[i].tokens || [];
+                          for (var j = 0; j < tokens.length; j++) {
+                              if (String(tokens[j].tokenid || '') === '{#TOKEN.ID}') {
+                                  tokens[j].userid = String(users[i].userid || '');
+                                  return JSON.stringify(tokens[j]);
+                              }
+                          }
+                      }
+                      throw 'token not found';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: proxmox.access.users
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: a91f2582f0454645be31e212a6f41f5a
+              name: 'API token [{#TOKEN.ID}]: Enabled'
+              type: DEPENDENT
+              key: 'proxmox.access.token.enabled[{#TOKEN.ID}]'
+              description: 'API token enabled state. Returns 1 when enabled, 0 when disabled.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.enable === false ? 0 : 1;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 7d7dc2fe95284d33a3d2fc598b2fa3e2
+              name: 'API token [{#TOKEN.ID}]: Expiration'
+              type: DEPENDENT
+              key: 'proxmox.access.token.expire[{#TOKEN.ID}]'
+              trends: '0'
+              units: unixtime
+              description: 'API token expiration time as UNIX timestamp. Returns 0 when the token does not expire.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.expire && token.expire > 0 ? token.expire : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+              trigger_prototypes:
+                - uuid: a731690a29b34de8bd9cbc42ad7afc3c
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])<now()'
+                  name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] is expired'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: adf7eee4cc394ea79f2fc841e6ca9b9c
+                  expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>=now() and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])-now()<{$PBS.ACCESS.TOKEN.EXPIRES.WARN:"{#TOKEN.ID}"}'
+                  name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] expires soon'
+                  event_name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] expires within {$PBS.ACCESS.TOKEN.EXPIRES.WARN:"{#TOKEN.ID}"}'
+                  opdata: 'Expiration: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Proxmox Backup Server: API token [{#TOKEN.ID}] is expired'
+                      expression: 'last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])>0 and last(/Proxmox Backup Server by HTTP/proxmox.access.token.expire[{#TOKEN.ID}])<now()'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: ca86c6fcfc3447f29e6cec659e64f299
+              name: 'API token [{#TOKEN.ID}]: User'
+              type: DEPENDENT
+              key: 'proxmox.access.token.user[{#TOKEN.ID}]'
+              value_type: TEXT
+              description: 'User that owns this API token.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.userid
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+            - uuid: 86140ec2c16f47939bb4487dd955f311
+              name: 'API token [{#TOKEN.ID}]: Comment'
+              type: DEPENDENT
+              key: 'proxmox.access.token.comment[{#TOKEN.ID}]'
+              value_type: TEXT
+              description: 'Configured API token comment.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var token = JSON.parse(value);
+                      return token.comment || 'none';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'proxmox.access.token[{#TOKEN.ID}]'
+              tags:
+                - tag: component
+                  value: access
+                - tag: token
+                  value: '{#TOKEN.ID}'
+                - tag: user
+                  value: '{#USER.ID}'
+          master_item:
+            key: proxmox.access.users
+          lld_macro_paths:
+            - lld_macro: '{#TOKEN.ID}'
+              path: $.tokenid
+            - lld_macro: '{#TOKEN.NAME}'
+              path: $.token_name
+            - lld_macro: '{#USER.ID}'
+              path: $.userid
         - uuid: 1e239eda8de84d12a060f817463cdaaa
           name: 'Datastore discovery'
           type: DEPENDENT
@@ -4597,6 +5243,27 @@ zabbix_export:
         - macro: '{$PBS.API.TIMEOUT}'
           value: 10s
           description: 'PBS API Timeout.'
+        - macro: '{$PBS.ACCESS.MONITORING.REQUIRED}'
+          value: '1'
+          description: 'Whether the access user/API token endpoint is expected to be queryable. Set to 0 to suppress endpoint diagnostics when access inventory is not required.'
+        - macro: '{$PBS.ACCESS.TOKEN.EXPIRES.WARN}'
+          value: 7d
+          description: 'API token lifetime below which a WARNING severity trigger fires. Supports an API token ID context.'
+        - macro: '{$PBS.ACCESS.TOKEN.ID.MATCHES}'
+          value: '^.*$'
+          description: 'Used in API token discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.TOKEN.ID.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in API token discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.USER.EXPIRES.WARN}'
+          value: 7d
+          description: 'User lifetime below which a WARNING severity trigger fires. Supports a user ID context.'
+        - macro: '{$PBS.ACCESS.USER.ID.MATCHES}'
+          value: '^.*$'
+          description: 'Used in access user discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$PBS.ACCESS.USER.ID.NOT_MATCHES}'
+          value: CHANGE_THIS
+          description: 'Used in access user discovery. Can be overridden on the host or linked template level.'
         - macro: '{$PBS.APT.REPOSITORIES.ENABLED.MIN}'
           value: '1'
           description: 'Minimum number of enabled APT repositories expected on a node. Supports a node context.'
