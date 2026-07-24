@@ -106,7 +106,7 @@ on the firewall.
 | Used Memory | `opns.memory.used` | Dependent | – | Used memory in bytes. |
 | ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. |
 | Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
-| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `no license` if not present. |
+| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
 
 ### Firewall Items
 
