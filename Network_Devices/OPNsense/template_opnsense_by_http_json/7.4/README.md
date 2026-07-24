@@ -247,9 +247,9 @@ items and discovery rules.
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. |
-| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. |
-| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. |
+| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
+| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
+| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
 | Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense. |
 
 ---
