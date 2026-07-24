@@ -1,0 +1,3101 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: cffad275b0054ed09a6252114135620c
+      name: Templates/Applications
+  templates:
+    - uuid: 0344f22644b04edf843c2745ad10c14c
+      template: 'Jellyfin by HTTP'
+      name: 'Jellyfin by HTTP'
+      description: |
+        Monitors a Jellyfin media server through the Jellyfin HTTP API.
+
+        The template uses script master items with HttpRequest and dependent items. No Zabbix
+        agent, external script, SSH or SNMP access is required.
+
+        Main API areas covered:
+        - System information and API availability.
+        - Pending restart, shutdown and update flags.
+        - Media item counts.
+        - Active sessions, playing streams and transcoding load.
+        - Users and security-relevant user policy counters.
+        - Libraries via low-level discovery.
+        - Plugins via low-level discovery.
+        - Scheduled tasks via low-level discovery.
+        - Recent warning/error activity log entries.
+        - Storage folders via /System/Info/Storage when the endpoint is available.
+
+        Setup:
+        1. Create a Jellyfin API key in Dashboard -> Advanced -> API Keys.
+        2. Assign this template to a host.
+        3. By default the template connects to http://{HOST.CONN}:8096.
+           Adjust {$JELLYFIN.SCHEME}, {$JELLYFIN.PORT} and {$JELLYFIN.BASEPATH} if needed.
+        4. Set {$JELLYFIN.API.TOKEN} to the API key. Store it as a secret macro.
+
+        API reference:
+        https://repo.jellyfin.org/releases/openapi/jellyfin-openapi-stable.json
+      vendor:
+        name: community-templates
+        version: '7.4'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 20ec9764575a4ddbb8464ac2e2706320
+          name: 'Jellyfin: Get system info'
+          type: SCRIPT
+          key: jellyfin.system.info.raw
+          delay: '{$JELLYFIN.SYSTEM.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /System/Info. This is the primary authenticated API health source.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /System/Info
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: system
+        - uuid: 502e0ca123554e83a90a854a833a1ad4
+          name: 'Jellyfin: API available'
+          type: DEPENDENT
+          key: jellyfin.api.available
+          history: 7d
+          description: 'Authenticated API availability derived from /System/Info.'
+          valuemap:
+            name: 'Jellyfin service state'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      return data.Version || data.ProductName ? 1 : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: 0ba88bc6fec143da9789858e50115ac4
+              expression: 'last(/Jellyfin by HTTP/jellyfin.api.available)=0 or nodata(/Jellyfin by HTTP/jellyfin.api.available,{$JELLYFIN.NODATA.TIME})=1'
+              name: 'Jellyfin: API is not available'
+              priority: HIGH
+              description: 'The Jellyfin API did not return valid authenticated system information. Check the service, URL, TLS trust and API token.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 6c589022e9b64e768188977c53a25ea4
+          name: 'Jellyfin: Version'
+          type: DEPENDENT
+          key: jellyfin.version
+          history: 30d
+          value_type: CHAR
+          description: 'Jellyfin server version.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+          triggers:
+            - uuid: e0009040e8d04949985a6d082c310a03
+              expression: 'last(/Jellyfin by HTTP/jellyfin.version,#1)<>last(/Jellyfin by HTTP/jellyfin.version,#2) and length(last(/Jellyfin by HTTP/jellyfin.version))>0'
+              name: 'Jellyfin: Version has changed'
+              event_name: 'Jellyfin: Version has changed (new version: {ITEM.VALUE})'
+              priority: INFO
+              description: 'The Jellyfin server version changed. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: d901a0601ea24114b92ae1391c5d066d
+          name: 'Jellyfin: Server name'
+          type: DEPENDENT
+          key: jellyfin.server.name
+          history: 30d
+          value_type: CHAR
+          description: 'Configured Jellyfin server name.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ServerName
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: 162bd74727fe4dcea53c463cb7cc9301
+          name: 'Jellyfin: Product name'
+          type: DEPENDENT
+          key: jellyfin.product.name
+          history: 30d
+          value_type: CHAR
+          description: 'Product name reported by Jellyfin.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ProductName
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: de61db9f8576408e88fe74b72f0fce23
+          name: 'Jellyfin: Operating system'
+          type: DEPENDENT
+          key: jellyfin.os.display
+          history: 30d
+          value_type: CHAR
+          description: 'Operating system display name reported by Jellyfin.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.OperatingSystemDisplayName
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: 514693f6efc24209980697ae05bae0eb
+          name: 'Jellyfin: System architecture'
+          type: DEPENDENT
+          key: jellyfin.system.architecture
+          history: 30d
+          value_type: CHAR
+          description: 'System architecture reported by Jellyfin.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.SystemArchitecture
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: 2732a9b2718b4521aaf53c72eb29d74b
+          name: 'Jellyfin: Local address'
+          type: DEPENDENT
+          key: jellyfin.local.address
+          history: 30d
+          value_type: CHAR
+          description: 'Local address reported by Jellyfin.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.LocalAddress
+              error_handler: CUSTOM_VALUE
+              error_handler_params: ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: 1b1b5a3678c24dd4b3dc2ac550d175c9
+          name: 'Jellyfin: Server ID'
+          type: DEPENDENT
+          key: jellyfin.server.id
+          history: 30d
+          value_type: CHAR
+          description: 'Unique Jellyfin server ID.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Id
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: inventory
+        - uuid: c2fa7948744d47d18d6d7120bf4c3756
+          name: 'Jellyfin: WebSocket port'
+          type: DEPENDENT
+          key: jellyfin.websocket.port
+          history: 30d
+          description: 'WebSocket port number reported by Jellyfin.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.WebSocketPortNumber
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: api
+        - uuid: c38909f3ca5e4b419641c27882f3c5af
+          name: 'Jellyfin: Pending restart'
+          type: DEPENDENT
+          key: jellyfin.pending_restart
+          history: 30d
+          description: 'Whether Jellyfin reports that a restart is pending.'
+          valuemap:
+            name: 'Jellyfin flag'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      return JSON.parse(value).HasPendingRestart ? 1 : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 574a57e999cd42cdbf98a9a6213873e1
+              expression: 'last(/Jellyfin by HTTP/jellyfin.pending_restart)=1'
+              name: 'Jellyfin: Restart is pending'
+              priority: WARNING
+              description: 'Jellyfin reports that a restart is pending, usually after updates or plugin changes.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: a70991cf254e4860ace42423655a934d
+          name: 'Jellyfin: Shutting down'
+          type: DEPENDENT
+          key: jellyfin.shutting_down
+          history: 30d
+          description: 'Whether Jellyfin reports that it is shutting down.'
+          valuemap:
+            name: 'Jellyfin flag'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      return JSON.parse(value).IsShuttingDown ? 1 : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 7548ceae5b3848f9918421e2f53391b8
+              expression: 'last(/Jellyfin by HTTP/jellyfin.shutting_down)=1'
+              name: 'Jellyfin: Server is shutting down'
+              priority: HIGH
+              description: 'Jellyfin reports that it is shutting down.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 94cc919d0e1b447895b6dc06d42a7854
+          name: 'Jellyfin: Update available'
+          type: DEPENDENT
+          key: jellyfin.update_available
+          history: 30d
+          description: 'Whether Jellyfin reports that an update is available.'
+          valuemap:
+            name: 'Jellyfin flag'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      return JSON.parse(value).HasUpdateAvailable ? 1 : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: e76fd680646b4ea5bb092c9f9a5580ea
+              expression: '{$JELLYFIN.UPDATE.TRIGGER}=1 and last(/Jellyfin by HTTP/jellyfin.update_available)=1'
+              name: 'Jellyfin: Update is available'
+              priority: INFO
+              description: 'Jellyfin reports that an update is available. Set {$JELLYFIN.UPDATE.TRIGGER}=0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: f979e30e9f454d83ae3b51f6a310b1dc
+          name: 'Jellyfin: Startup wizard completed'
+          type: DEPENDENT
+          key: jellyfin.startup_wizard_completed
+          history: 30d
+          description: 'Whether the initial Jellyfin setup wizard has been completed.'
+          valuemap:
+            name: 'Jellyfin flag'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      return JSON.parse(value).StartupWizardCompleted ? 1 : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.system.info.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 8fe8026c3fb341d6a5790360f413f354
+              expression: 'last(/Jellyfin by HTTP/jellyfin.startup_wizard_completed)=0'
+              name: 'Jellyfin: Startup wizard is not completed'
+              priority: WARNING
+              description: 'The Jellyfin initial setup wizard has not been completed.'
+              tags:
+                - tag: scope
+                  value: configuration
+        - uuid: e58839104e8b45a8b63ca0830d993539
+          name: 'Jellyfin: Get item counts'
+          type: SCRIPT
+          key: jellyfin.items.raw
+          delay: '{$JELLYFIN.INVENTORY.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /Items/Counts.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /Items/Counts
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: library
+            - tag: component
+              value: raw
+        - uuid: d2c8f55ff2f54ce7af35fc9e01feeb9b
+          name: 'Jellyfin: Items'
+          type: DEPENDENT
+          key: jellyfin.items.total
+          history: 365d
+          description: 'Total media items.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ItemCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: adf9813f86684877bbefe2155b043bf6
+          name: 'Jellyfin: Movies'
+          type: DEPENDENT
+          key: jellyfin.items.movies
+          history: 365d
+          description: 'Movie count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.MovieCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 0a841c43dc0949fc8bbc06a5057addff
+          name: 'Jellyfin: Series'
+          type: DEPENDENT
+          key: jellyfin.items.series
+          history: 365d
+          description: 'Series count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.SeriesCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: bc22865ca2f14c19a5421460cc31d24c
+          name: 'Jellyfin: Episodes'
+          type: DEPENDENT
+          key: jellyfin.items.episodes
+          history: 365d
+          description: 'Episode count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.EpisodeCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 4db7a556fb7547c0a2277609c5e13be8
+          name: 'Jellyfin: Songs'
+          type: DEPENDENT
+          key: jellyfin.items.songs
+          history: 365d
+          description: 'Song count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.SongCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 65f35f3b33e04932b43f25f2ae9fa748
+          name: 'Jellyfin: Albums'
+          type: DEPENDENT
+          key: jellyfin.items.albums
+          history: 365d
+          description: 'Album count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.AlbumCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 8114c99d3d3d4ea9836fb0be00847029
+          name: 'Jellyfin: Artists'
+          type: DEPENDENT
+          key: jellyfin.items.artists
+          history: 365d
+          description: 'Artist count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ArtistCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 57779d42f7fa4ef5a446bcb98cfc383d
+          name: 'Jellyfin: Music videos'
+          type: DEPENDENT
+          key: jellyfin.items.music_videos
+          history: 365d
+          description: 'Music video count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.MusicVideoCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 690076cb74014c59bb516032c864db1f
+          name: 'Jellyfin: Books'
+          type: DEPENDENT
+          key: jellyfin.items.books
+          history: 365d
+          description: 'Book count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.BookCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 39e610edd0714a548cb657702fe31d6a
+          name: 'Jellyfin: Box sets'
+          type: DEPENDENT
+          key: jellyfin.items.box_sets
+          history: 365d
+          description: 'Box set count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.BoxSetCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: 2f7e7705e6124a6fb97031674d862aad
+          name: 'Jellyfin: Trailers'
+          type: DEPENDENT
+          key: jellyfin.items.trailers
+          history: 365d
+          description: 'Trailer count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.TrailerCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: fe094b90ab7d47399882db99bef5ffe3
+          name: 'Jellyfin: Programs'
+          type: DEPENDENT
+          key: jellyfin.items.programs
+          history: 365d
+          description: 'Program count.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ProgramCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: jellyfin.items.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: f3ba2c5ed3b44ba6b26d4b38101214a9
+          name: 'Jellyfin: Get sessions'
+          type: SCRIPT
+          key: jellyfin.sessions.raw
+          delay: '{$JELLYFIN.SESSIONS.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /Sessions, filtered by activeWithinSeconds.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: '/Sessions?activeWithinSeconds={$JELLYFIN.SESSION.ACTIVE.SECONDS}'
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: sessions
+        - uuid: 61f487e85a8747f18291028eaae24337
+          name: 'Jellyfin: Active sessions'
+          type: DEPENDENT
+          key: jellyfin.sessions.active.count
+          history: 90d
+          description: 'Sessions active within {$JELLYFIN.SESSION.ACTIVE.SECONDS} seconds.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var sessions = JSON.parse(value);
+                      return Array.isArray(sessions) ? sessions.length : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: sessions
+          triggers:
+            - uuid: a3b030d32e034869aa0ff96d3457a000
+              expression: '{$JELLYFIN.SESSIONS.MAX}>0 and last(/Jellyfin by HTTP/jellyfin.sessions.active.count)>{$JELLYFIN.SESSIONS.MAX}'
+              name: 'Jellyfin: High number of active sessions'
+              opdata: 'Active sessions: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The number of active Jellyfin sessions is above {$JELLYFIN.SESSIONS.MAX}. Set the macro to 0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 45e7be1da97e417d8459527a89aad7a3
+          name: 'Jellyfin: Active users'
+          type: DEPENDENT
+          key: jellyfin.sessions.active.users.count
+          history: 90d
+          description: 'Unique users with active sessions.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var sessions = JSON.parse(value);
+                      var users = {};
+                      sessions.forEach(function (s) {
+                          var id = s.UserId || s.UserName || s.Id;
+                          if (id) {
+                              users[id] = true;
+                          }
+                      });
+                      return Object.keys(users).length;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: sessions
+        - uuid: 7eb35394e2604756aaeec285a04ab4b1
+          name: 'Jellyfin: Playing streams'
+          type: DEPENDENT
+          key: jellyfin.sessions.playing.count
+          history: 90d
+          description: 'Sessions that currently have a NowPlayingItem.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.NowPlayingItem) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: playback
+          triggers:
+            - uuid: ecfbeeb6b53e4761aefbb463f84ecf17
+              expression: '{$JELLYFIN.STREAMS.MAX}>0 and last(/Jellyfin by HTTP/jellyfin.sessions.playing.count)>{$JELLYFIN.STREAMS.MAX}'
+              name: 'Jellyfin: High number of playing streams'
+              opdata: 'Playing streams: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The number of concurrent playing streams is above {$JELLYFIN.STREAMS.MAX}. Set the macro to 0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: e8eb2cda721c4f8a82a8504e1ac3afcd
+          name: 'Jellyfin: Paused streams'
+          type: DEPENDENT
+          key: jellyfin.sessions.paused.count
+          history: 90d
+          description: 'Playing sessions that are currently paused.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.NowPlayingItem && s.PlayState && s.PlayState.IsPaused) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: playback
+        - uuid: fd9e92fbcf0c48ca85527caffb24adfb
+          name: 'Jellyfin: Transcoding streams'
+          type: DEPENDENT
+          key: jellyfin.sessions.transcoding.count
+          history: 90d
+          description: 'Playing sessions that report active transcoding information.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (s) {
+                          var t = s.TranscodingInfo;
+                          if (s.NowPlayingItem && t && (t.IsVideoDirect === false || t.IsAudioDirect === false || t.Bitrate || (t.TranscodeReasons || []).length > 0)) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: transcoding
+          triggers:
+            - uuid: 62ec35b9faa845848c392583db0451bb
+              expression: '{$JELLYFIN.TRANSCODING.MAX}>0 and last(/Jellyfin by HTTP/jellyfin.sessions.transcoding.count)>{$JELLYFIN.TRANSCODING.MAX}'
+              name: 'Jellyfin: High number of transcoding streams'
+              opdata: 'Transcoding streams: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The number of concurrent transcodes is above {$JELLYFIN.TRANSCODING.MAX}. Set the macro to 0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: ea489e9d44314004ad5aec9a81ad4701
+          name: 'Jellyfin: Direct streams'
+          type: DEPENDENT
+          key: jellyfin.sessions.direct.count
+          history: 90d
+          description: 'Playing sessions that do not report active transcoding.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (s) {
+                          var t = s.TranscodingInfo;
+                          if (s.NowPlayingItem && !(t && (t.IsVideoDirect === false || t.IsAudioDirect === false || t.Bitrate || (t.TranscodeReasons || []).length > 0))) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: playback
+        - uuid: ef723168a1f049a3ae3fbdf5bf7f3c80
+          name: 'Jellyfin: Transcoding bitrate'
+          type: DEPENDENT
+          key: jellyfin.sessions.transcoding.bitrate
+          history: 90d
+          units: bps
+          description: 'Sum of reported transcoding bitrates.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var bitrate = 0;
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.TranscodingInfo && s.TranscodingInfo.Bitrate) {
+                              bitrate += Number(s.TranscodingInfo.Bitrate) || 0;
+                          }
+                      });
+                      return bitrate;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: transcoding
+        - uuid: 655ec96e402f4a289fcccc8fa0889997
+          name: 'Jellyfin: Active session users'
+          type: DEPENDENT
+          key: jellyfin.sessions.active.users
+          history: 30d
+          value_type: TEXT
+          description: 'Comma-separated users with active sessions.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var users = {};
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.UserName) {
+                              users[s.UserName] = true;
+                          }
+                      });
+                      var list = Object.keys(users).sort();
+                      return list.length ? list.join(', ') : '-';
+                  }
+                  catch (e) {
+                      return '-';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: sessions
+        - uuid: 61095129229b4cc5b33e27ead3838758
+          name: 'Jellyfin: Now playing'
+          type: DEPENDENT
+          key: jellyfin.sessions.now_playing
+          history: 30d
+          value_type: TEXT
+          description: 'Current now-playing list formatted as user: title.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var list = [];
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.NowPlayingItem) {
+                              list.push((s.UserName || '-') + ': ' + (s.NowPlayingItem.Name || s.NowPlayingItem.SeriesName || s.NowPlayingItem.Id || '-'));
+                          }
+                      });
+                      return list.length ? list.join('; ') : '-';
+                  }
+                  catch (e) {
+                      return '-';
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: playback
+        - uuid: b52f7106c67f449ca53f47de87175b78
+          name: 'Jellyfin: Transcoding reasons'
+          type: DEPENDENT
+          key: jellyfin.sessions.transcoding.reasons
+          history: 30d
+          value_type: TEXT
+          description: 'Current transcoding reasons reported by active sessions.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var list = [];
+                      JSON.parse(value).forEach(function (s) {
+                          if (s.TranscodingInfo && s.TranscodingInfo.TranscodeReasons && s.TranscodingInfo.TranscodeReasons.length) {
+                              list.push((s.UserName || '-') + ': ' + s.TranscodingInfo.TranscodeReasons.join(','));
+                          }
+                      });
+                      return list.length ? list.join('; ') : '-';
+                  }
+                  catch (e) {
+                      return '-';
+                  }
+          master_item:
+            key: jellyfin.sessions.raw
+          tags:
+            - tag: component
+              value: transcoding
+        - uuid: d4c685687800442e917bf6119343c2d8
+          name: 'Jellyfin: Get users'
+          type: SCRIPT
+          key: jellyfin.users.raw
+          delay: '{$JELLYFIN.INVENTORY.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /Users.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /Users
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: users
+        - uuid: 5690082dc5d0445492c175fc6e1f978f
+          name: 'Jellyfin: Users'
+          type: DEPENDENT
+          key: jellyfin.users.total
+          history: 365d
+          description: 'Total Jellyfin users.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var users = JSON.parse(value);
+                      return Array.isArray(users) ? users.length : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+        - uuid: 8d9d371cc8d7470b96fcafff86f210da
+          name: 'Jellyfin: Administrator users'
+          type: DEPENDENT
+          key: jellyfin.users.admin.count
+          history: 365d
+          description: 'Users with administrative permissions.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          if (u.Policy && u.Policy.IsAdministrator) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+        - uuid: 1548729cd0a2468b806b1072c17dc565
+          name: 'Jellyfin: Disabled users'
+          type: DEPENDENT
+          key: jellyfin.users.disabled.count
+          history: 365d
+          description: 'Users disabled in Jellyfin.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          if (u.Policy && u.Policy.IsDisabled) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+        - uuid: 29b1e0894791498eaf3f8c9747ca6ebb
+          name: 'Jellyfin: Users without password'
+          type: DEPENDENT
+          key: jellyfin.users.no_password.count
+          history: 365d
+          description: 'Users that do not have a password configured.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          if (u.HasPassword === false) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+          triggers:
+            - uuid: 8d13fc5834964b5983b4393c7c383ad9
+              expression: '{$JELLYFIN.USERS.NO_PASSWORD.MAX}>=0 and last(/Jellyfin by HTTP/jellyfin.users.no_password.count)>{$JELLYFIN.USERS.NO_PASSWORD.MAX}'
+              name: 'Jellyfin: Users without password detected'
+              opdata: 'Users without password: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'One or more users do not have a password configured. Set {$JELLYFIN.USERS.NO_PASSWORD.MAX}=-1 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 48623c1308724e47a22aaa9979a4a3d3
+          name: 'Jellyfin: Users with remote access'
+          type: DEPENDENT
+          key: jellyfin.users.remote_access.count
+          history: 365d
+          description: 'Users allowed to access Jellyfin remotely.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          if (u.Policy && u.Policy.EnableRemoteAccess) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+        - uuid: 155f0730a5b3481d92c6e95c9da2a756
+          name: 'Jellyfin: Users with public sharing'
+          type: DEPENDENT
+          key: jellyfin.users.public_sharing.count
+          history: 365d
+          description: 'Users allowed to create public shares.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          if (u.Policy && u.Policy.EnablePublicSharing) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+        - uuid: 17cdc9f6778840358ccb289675c40097
+          name: 'Jellyfin: Locked out users'
+          type: DEPENDENT
+          key: jellyfin.users.locked_out.count
+          history: 365d
+          description: 'Users whose invalid login attempts reached the configured lockout threshold.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (u) {
+                          var p = u.Policy || {};
+                          var limit = Number(p.LoginAttemptsBeforeLockout) || 0;
+                          var attempts = Number(p.InvalidLoginAttemptCount) || 0;
+                          if (limit > 0 && attempts >= limit) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.users.raw
+          tags:
+            - tag: component
+              value: users
+          triggers:
+            - uuid: 69c187339bf44b8093f39ee40ee6a18d
+              expression: 'last(/Jellyfin by HTTP/jellyfin.users.locked_out.count)>0'
+              name: 'Jellyfin: Locked out users detected'
+              opdata: 'Locked users: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'One or more users have reached the configured invalid-login lockout threshold.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: b303f7345b6341a9b53725a47a3bf6d8
+          name: 'Jellyfin: Get libraries'
+          type: SCRIPT
+          key: jellyfin.libraries.raw
+          delay: '{$JELLYFIN.DISCOVERY.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /Library/MediaFolders.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /Library/MediaFolders
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: library
+            - tag: component
+              value: raw
+        - uuid: 65bcb77b0cb94b8897c7cecab38aaf11
+          name: 'Jellyfin: Libraries'
+          type: DEPENDENT
+          key: jellyfin.libraries.count
+          history: 365d
+          description: 'Number of Jellyfin media folders/libraries.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      return data.Items && Array.isArray(data.Items) ? data.Items.length : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.libraries.raw
+          tags:
+            - tag: component
+              value: library
+        - uuid: b094ff83366542aa9443075366b8435c
+          name: 'Jellyfin: Get plugins'
+          type: SCRIPT
+          key: jellyfin.plugins.raw
+          delay: '{$JELLYFIN.INVENTORY.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /Plugins.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /Plugins
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: plugins
+            - tag: component
+              value: raw
+        - uuid: 7ae004ba936c457bb5f3576bbfd52e62
+          name: 'Jellyfin: Plugins'
+          type: DEPENDENT
+          key: jellyfin.plugins.count
+          history: 365d
+          description: 'Number of installed plugins.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var plugins = JSON.parse(value);
+                      return Array.isArray(plugins) ? plugins.length : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.plugins.raw
+          tags:
+            - tag: component
+              value: plugins
+        - uuid: a129e531400340ff881f88edf6947bc5
+          name: 'Jellyfin: Plugins with problem status'
+          type: DEPENDENT
+          key: jellyfin.plugins.problem.count
+          history: 365d
+          description: 'Plugins whose status does not match {$JELLYFIN.PLUGIN.STATUS.OK}.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var ok = new RegExp('{$JELLYFIN.PLUGIN.STATUS.OK}');
+                      var count = 0;
+                      JSON.parse(value).forEach(function (p) {
+                          if (p.Status && !ok.test(String(p.Status))) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.plugins.raw
+          tags:
+            - tag: component
+              value: plugins
+        - uuid: f075ac08d2a645a0a46fee967c2c95c7
+          name: 'Jellyfin: Plugins requiring restart'
+          type: DEPENDENT
+          key: jellyfin.plugins.restart.count
+          history: 365d
+          description: 'Plugins in Restart status.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (p) {
+                          if (String(p.Status) === 'Restart') {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.plugins.raw
+          tags:
+            - tag: component
+              value: plugins
+        - uuid: e09b7a5cedcb4d52b3448c9ebcb6c62b
+          name: 'Jellyfin: Get scheduled tasks'
+          type: SCRIPT
+          key: jellyfin.tasks.raw
+          delay: '{$JELLYFIN.TASKS.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw response from /ScheduledTasks.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: /ScheduledTasks
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: tasks
+        - uuid: f46ffdac3d0f4fcbb7153f76ba685c51
+          name: 'Jellyfin: Scheduled tasks'
+          type: DEPENDENT
+          key: jellyfin.tasks.count
+          history: 365d
+          description: 'Number of scheduled tasks.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var tasks = JSON.parse(value);
+                      return Array.isArray(tasks) ? tasks.length : 0;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.tasks.raw
+          tags:
+            - tag: component
+              value: tasks
+        - uuid: ad5b0098d80540f995b431993e167544
+          name: 'Jellyfin: Running tasks'
+          type: DEPENDENT
+          key: jellyfin.tasks.running.count
+          history: 90d
+          description: 'Number of currently running scheduled tasks.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (t) {
+                          if (t.State === 'Running') {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.tasks.raw
+          tags:
+            - tag: component
+              value: tasks
+        - uuid: d21d5e7b188449ef9d8e3b358a41580c
+          name: 'Jellyfin: Tasks with failed last result'
+          type: DEPENDENT
+          key: jellyfin.tasks.failed.count
+          history: 365d
+          description: 'Scheduled tasks whose last result status is not Completed.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var count = 0;
+                      JSON.parse(value).forEach(function (t) {
+                          var status = t.LastExecutionResult ? t.LastExecutionResult.Status : '';
+                          if (status && status !== 'Completed') {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.tasks.raw
+          tags:
+            - tag: component
+              value: tasks
+        - uuid: 7ba1cda339fe44b7ab4710f99f90feb5
+          name: 'Jellyfin: Get activity log'
+          type: SCRIPT
+          key: jellyfin.activity.raw
+          delay: '{$JELLYFIN.ACTIVITY.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          description: 'Recent activity log entries from /System/ActivityLog/Entries.'
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function resolveHost(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+                return host;
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var url = String(params.scheme || 'http') + '://' + resolveHost(params) + ':' + String(params.port || '8096') + cleanBasePath(params.basepath) + params.endpoint;
+            var response = request.get(encodeURI(url));
+            if (request.getStatus() !== 200) {
+                throw 'Jellyfin API request failed: HTTP status ' + request.getStatus();
+            }
+            return response;
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: endpoint
+              value: '/System/ActivityLog/Entries?startIndex=0&limit={$JELLYFIN.ACTIVITY.LIMIT}&sortBy=Date&sortOrder=Descending'
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+          tags:
+            - tag: component
+              value: activity
+            - tag: component
+              value: raw
+        - uuid: 054386650f99458fa08e50ac6c9b8aa2
+          name: 'Jellyfin: Recent error activity entries'
+          type: DEPENDENT
+          key: jellyfin.activity.errors.count
+          history: 90d
+          description: 'Error and Critical activity log entries in the last {$JELLYFIN.ACTIVITY.WINDOW} seconds. The count is limited by {$JELLYFIN.ACTIVITY.LIMIT} fetched entries.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var items = data.Items || [];
+                      var windowSeconds = Number('{$JELLYFIN.ACTIVITY.WINDOW}');
+                      if (!isFinite(windowSeconds) || windowSeconds < 1) {
+                          windowSeconds = 3600;
+                      }
+                      var minTime = Date.now() - windowSeconds * 1000;
+                      var count = 0;
+                      items.forEach(function (entry) {
+                          var ts = Date.parse(entry.Date || '');
+                          if (ts >= minTime && (entry.Severity === 'Error' || entry.Severity === 'Critical')) {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.activity.raw
+          tags:
+            - tag: component
+              value: activity
+          triggers:
+            - uuid: 0011d82d723d4184a747326615dcda90
+              expression: 'last(/Jellyfin by HTTP/jellyfin.activity.errors.count)>{$JELLYFIN.ACTIVITY.ERROR.MAX}'
+              name: 'Jellyfin: Recent error activity entries detected'
+              opdata: 'Errors in window: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The Jellyfin activity log contains Error or Critical entries in the configured window.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: b5ecdb9db4e44fd7b6290fbe921aa4e6
+          name: 'Jellyfin: Recent warning activity entries'
+          type: DEPENDENT
+          key: jellyfin.activity.warnings.count
+          history: 90d
+          description: 'Warning activity log entries in the last {$JELLYFIN.ACTIVITY.WINDOW} seconds. The count is limited by {$JELLYFIN.ACTIVITY.LIMIT} fetched entries.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var items = data.Items || [];
+                      var windowSeconds = Number('{$JELLYFIN.ACTIVITY.WINDOW}');
+                      if (!isFinite(windowSeconds) || windowSeconds < 1) {
+                          windowSeconds = 3600;
+                      }
+                      var minTime = Date.now() - windowSeconds * 1000;
+                      var count = 0;
+                      items.forEach(function (entry) {
+                          var ts = Date.parse(entry.Date || '');
+                          if (ts >= minTime && entry.Severity === 'Warning') {
+                              count++;
+                          }
+                      });
+                      return count;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.activity.raw
+          tags:
+            - tag: component
+              value: activity
+          triggers:
+            - uuid: d8a4d687e89646a3b8a1fa012ff561d4
+              expression: 'last(/Jellyfin by HTTP/jellyfin.activity.warnings.count)>{$JELLYFIN.ACTIVITY.WARNING.MAX}'
+              name: 'Jellyfin: Many recent warning activity entries'
+              opdata: 'Warnings in window: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'The Jellyfin activity log contains more warnings than {$JELLYFIN.ACTIVITY.WARNING.MAX} in the configured window.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 3133d11195a34696ac87dad721c26080
+          name: 'Jellyfin: Latest problem activity'
+          type: DEPENDENT
+          key: jellyfin.activity.latest_problem
+          history: 30d
+          value_type: TEXT
+          description: 'Latest Warning, Error or Critical activity log entry in the configured window.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var items = data.Items || [];
+                      var windowSeconds = Number('{$JELLYFIN.ACTIVITY.WINDOW}');
+                      if (!isFinite(windowSeconds) || windowSeconds < 1) {
+                          windowSeconds = 3600;
+                      }
+                      var minTime = Date.now() - windowSeconds * 1000;
+                      for (var i = 0; i < items.length; i++) {
+                          var entry = items[i];
+                          var ts = Date.parse(entry.Date || '');
+                          if (ts >= minTime && /^(Warning|Error|Critical)$/.test(entry.Severity || '')) {
+                              var msg = [entry.Date, entry.Severity, entry.Name, entry.ShortOverview || entry.Overview].filter(function (v) { return v; }).join(' | ');
+                              return msg.length > 500 ? msg.substring(0, 500) : msg;
+                          }
+                      }
+                      return '-';
+                  }
+                  catch (e) {
+                      return '-';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.activity.raw
+          tags:
+            - tag: component
+              value: activity
+        - uuid: 3a11e2fc8358410fa4dc705cae831fa2
+          name: 'Jellyfin: Get storage'
+          type: SCRIPT
+          key: jellyfin.storage.raw
+          delay: '{$JELLYFIN.STORAGE.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+
+            function cleanBasePath(path) {
+                path = String(path || '').replace(/^\/+|\/+$/g, '');
+                return path ? '/' + path : '';
+            }
+
+            function makeBaseUrl(params) {
+                var host = String(params.host || '');
+                if (!host || host === '{HOST.CONN}') {
+                    host = String(params.host_conn || '');
+                }
+
+                return String(params.scheme || 'http') + '://' +
+                    host + ':' +
+                    String(params.port || '8096') +
+                    cleanBasePath(params.basepath);
+            }
+
+            function makeId(role, name, path, index) {
+                var raw = role + '_' + name + '_' + path + '_' + index;
+                var id = raw.replace(/[^A-Za-z0-9_.-]/g, '_');
+                return id.length > 180 ? id.substring(0, 180) : id;
+            }
+
+            function normalizeFolder(role, name, folder, index) {
+                if (!folder || !folder.Path) {
+                    return null;
+                }
+
+                var free = Number(folder.FreeSpace);
+                var used = Number(folder.UsedSpace);
+                if (!isFinite(free)) {
+                    free = 0;
+                }
+                if (!isFinite(used)) {
+                    used = 0;
+                }
+
+                var total = free + used;
+                return {
+                    id: makeId(role, name, folder.Path, index),
+                    role: role,
+                    name: name,
+                    path: folder.Path,
+                    free: free,
+                    used: used,
+                    pfree: total > 0 ? free / total * 100 : 0,
+                    storage_type: folder.StorageType || '',
+                    device_id: folder.DeviceId || ''
+                };
+            }
+
+            function addFolder(list, role, name, folder) {
+                var normalized = normalizeFolder(role, name, folder, list.length + 1);
+                if (normalized) {
+                    list.push(normalized);
+                }
+            }
+
+            var request = new HttpRequest();
+            request.addHeader('X-MediaBrowser-Token: ' + params.token);
+
+            var response = request.get(encodeURI(makeBaseUrl(params) + '/System/Info/Storage'));
+            var status = request.getStatus();
+
+            if (status === 404 || status === 405) {
+                return JSON.stringify({Supported: 0, ZabbixFolders: []});
+            }
+
+            if (status !== 200) {
+                throw 'Jellyfin storage endpoint failed: HTTP status ' + status;
+            }
+
+            var data = JSON.parse(response);
+            var folders = [];
+
+            addFolder(folders, 'program_data', 'Program data', data.ProgramDataFolder);
+            addFolder(folders, 'web', 'Web UI', data.WebFolder);
+            addFolder(folders, 'image_cache', 'Image cache', data.ImageCacheFolder);
+            addFolder(folders, 'cache', 'Cache', data.CacheFolder);
+            addFolder(folders, 'logs', 'Logs', data.LogFolder);
+            addFolder(folders, 'metadata', 'Internal metadata', data.InternalMetadataFolder);
+            addFolder(folders, 'transcoding', 'Transcoding temp', data.TranscodingTempFolder);
+
+            (data.Libraries || []).forEach(function (library) {
+                (library.Folders || []).forEach(function (folder, index) {
+                    addFolder(folders, 'library', (library.Name || library.Id || 'Library') + ' #' + (index + 1), folder);
+                });
+            });
+
+            data.Supported = 1;
+            data.ZabbixFolders = folders;
+            return JSON.stringify(data);
+          description: 'Normalized storage information from /System/Info/Storage. Older Jellyfin versions that return 404/405 are represented as Supported=0.'
+          timeout: '{$JELLYFIN.HTTP.TIMEOUT}'
+          parameters:
+            - name: token
+              value: '{$JELLYFIN.API.TOKEN}'
+            - name: basepath
+              value: '{$JELLYFIN.BASEPATH}'
+            - name: host
+              value: '{$JELLYFIN.HOST}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: port
+              value: '{$JELLYFIN.PORT}'
+            - name: scheme
+              value: '{$JELLYFIN.SCHEME}'
+          tags:
+            - tag: component
+              value: raw
+            - tag: component
+              value: storage
+        - uuid: 32a6fe9996494bd986384c03dda13ad5
+          name: 'Jellyfin: Storage endpoint supported'
+          type: DEPENDENT
+          key: jellyfin.storage.supported
+          history: 30d
+          description: '1 if /System/Info/Storage is available, 0 if the server returned 404/405.'
+          valuemap:
+            name: 'Jellyfin flag'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Supported
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: jellyfin.storage.raw
+          tags:
+            - tag: component
+              value: storage
+        - uuid: fedf337c2d174052b13b97e7248ee810
+          name: 'Jellyfin: Minimum storage free'
+          type: DEPENDENT
+          key: jellyfin.storage.free.min
+          history: 90d
+          units: B
+          description: 'Lowest free-space value among discovered Jellyfin storage folders.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var folders = JSON.parse(value).ZabbixFolders || [];
+                      if (!folders.length) {
+                          return 0;
+                      }
+                      var min = Number(folders[0].free) || 0;
+                      folders.forEach(function (f) {
+                          var free = Number(f.free) || 0;
+                          if (free < min) {
+                              min = free;
+                          }
+                      });
+                      return min;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.storage.raw
+          tags:
+            - tag: component
+              value: storage
+        - uuid: 9c155728037a4ac2bf9b3efabc09b4b3
+          name: 'Jellyfin: Minimum storage free percentage'
+          type: DEPENDENT
+          key: jellyfin.storage.pfree.min
+          history: 90d
+          value_type: FLOAT
+          units: '%'
+          description: 'Lowest free-space percentage among discovered Jellyfin storage folders.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var folders = JSON.parse(value).ZabbixFolders || [];
+                      if (!folders.length) {
+                          return 0;
+                      }
+                      var min = Number(folders[0].pfree) || 0;
+                      folders.forEach(function (f) {
+                          var pfree = Number(f.pfree) || 0;
+                          if (pfree < min) {
+                              min = pfree;
+                          }
+                      });
+                      return min;
+                  }
+                  catch (e) {
+                      return 0;
+                  }
+          master_item:
+            key: jellyfin.storage.raw
+          tags:
+            - tag: component
+              value: storage
+        - uuid: fdd0381a49ab4d4ea6245fe76ce3371e
+          name: 'Jellyfin: Lowest free storage path'
+          type: DEPENDENT
+          key: jellyfin.storage.lowest_free.path
+          history: 30d
+          value_type: TEXT
+          description: 'Folder with the lowest free-space percentage.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var folders = JSON.parse(value).ZabbixFolders || [];
+                      if (!folders.length) {
+                          return '-';
+                      }
+                      var lowest = folders[0];
+                      folders.forEach(function (f) {
+                          if ((Number(f.pfree) || 0) < (Number(lowest.pfree) || 0)) {
+                              lowest = f;
+                          }
+                      });
+                      return lowest.name + ' | ' + lowest.path;
+                  }
+                  catch (e) {
+                      return '-';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: jellyfin.storage.raw
+          tags:
+            - tag: component
+              value: storage
+      discovery_rules:
+        - uuid: 5174f453b63245c4a0547f324b8ce147
+          name: 'Jellyfin: Libraries discovery'
+          type: DEPENDENT
+          key: jellyfin.library.discovery
+          description: 'Discovers Jellyfin libraries from /Library/MediaFolders.'
+          item_prototypes:
+            - uuid: c05e6ae21ffc4e04b2adef1daf11c6aa
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Items'
+              type: DEPENDENT
+              key: 'jellyfin.library.items[{#LIBRARY.ID}]'
+              history: 365d
+              description: 'Recursive item count for library {#LIBRARY.NAME}.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].RecursiveItemCount || items[i].ChildCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+              trigger_prototypes:
+                - uuid: 61a0ce91418049a3af37325fe3e3f851
+                  expression: '{$JELLYFIN.LIBRARY.MIN_ITEMS:"{#LIBRARY.NAME}"}>0 and last(/Jellyfin by HTTP/jellyfin.library.items[{#LIBRARY.ID}])<{$JELLYFIN.LIBRARY.MIN_ITEMS:"{#LIBRARY.NAME}"}'
+                  name: 'Jellyfin: Library {#LIBRARY.NAME} has fewer items than expected'
+                  opdata: 'Items: {ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'The discovered library has fewer items than the context macro threshold. Default 0 disables this trigger.'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: ab6f4caf9b42414bb2069b93d0814fac
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Type'
+              type: DEPENDENT
+              key: 'jellyfin.library.type[{#LIBRARY.ID}]'
+              history: 30d
+              value_type: CHAR
+              description: 'Library collection type.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return items[i].CollectionType || items[i].Type || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: c767c9099ef7471583473fd40a5ad1a4
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Movies'
+              type: DEPENDENT
+              key: 'jellyfin.library.movies[{#LIBRARY.ID}]'
+              history: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].MovieCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 7f1aa380c2fa4f0c831698ba423711b4
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Series'
+              type: DEPENDENT
+              key: 'jellyfin.library.series[{#LIBRARY.ID}]'
+              history: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].SeriesCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 7413418ea4234041bd66ffac261e6ed0
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Episodes'
+              type: DEPENDENT
+              key: 'jellyfin.library.episodes[{#LIBRARY.ID}]'
+              history: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].EpisodeCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: e42f61ff74034ad19a78d5e4630c4307
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Songs'
+              type: DEPENDENT
+              key: 'jellyfin.library.songs[{#LIBRARY.ID}]'
+              history: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].SongCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: ab8567f2e9744147a926e203607b932e
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Albums'
+              type: DEPENDENT
+              key: 'jellyfin.library.albums[{#LIBRARY.ID}]'
+              history: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id) {
+                                  return Number(items[i].AlbumCount || 0);
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 7b0b7832fc4b42edbee429b0891a11ac
+              name: 'Jellyfin: Library {#LIBRARY.NAME}: Last media added age'
+              type: DEPENDENT
+              key: 'jellyfin.library.last_media_added.age[{#LIBRARY.ID}]'
+              history: 365d
+              units: s
+              description: 'Seconds since DateLastMediaAdded for this library. Returns 0 when Jellyfin does not report the field.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#LIBRARY.ID}';
+                          var items = JSON.parse(value).Items || [];
+                          for (var i = 0; i < items.length; i++) {
+                              if (String(items[i].Id) === id && items[i].DateLastMediaAdded) {
+                                  var ts = Date.parse(items[i].DateLastMediaAdded);
+                                  return isFinite(ts) ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.libraries.raw
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+          master_item:
+            key: jellyfin.libraries.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var result = [];
+                      (data.Items || []).forEach(function (library) {
+                          if (library.Id) {
+                              result.push({
+                                  '{#LIBRARY.ID}': String(library.Id),
+                                  '{#LIBRARY.NAME}': library.Name || library.Id,
+                                  '{#LIBRARY.TYPE}': library.CollectionType || library.Type || ''
+                              });
+                          }
+                      });
+                      return JSON.stringify(result);
+                  }
+                  catch (e) {
+                      return '[]';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 058b434b868b48478fbce8a14a99d0d6
+          name: 'Jellyfin: Plugins discovery'
+          type: DEPENDENT
+          key: jellyfin.plugin.discovery
+          description: 'Discovers installed Jellyfin plugins from /Plugins.'
+          item_prototypes:
+            - uuid: 98764663f9a44419947aa700846bffc3
+              name: 'Jellyfin: Plugin {#PLUGIN.NAME}: Status'
+              type: DEPENDENT
+              key: 'jellyfin.plugin.status[{#PLUGIN.ID}]'
+              history: 365d
+              value_type: CHAR
+              description: 'Plugin load status.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#PLUGIN.ID}';
+                          var plugins = JSON.parse(value);
+                          for (var i = 0; i < plugins.length; i++) {
+                              if (String(plugins[i].Id || plugins[i].Name) === id) {
+                                  return plugins[i].Status || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: jellyfin.plugins.raw
+              tags:
+                - tag: component
+                  value: plugins
+                - tag: plugin
+                  value: '{#PLUGIN.NAME}'
+              trigger_prototypes:
+                - uuid: ca35a7a6e4c2497eb4d46cf179b7ea67
+                  expression: 'length(last(/Jellyfin by HTTP/jellyfin.plugin.status[{#PLUGIN.ID}]))>0 and find(/Jellyfin by HTTP/jellyfin.plugin.status[{#PLUGIN.ID}],,"regexp","{$JELLYFIN.PLUGIN.STATUS.OK}")=0'
+                  name: 'Jellyfin: Plugin {#PLUGIN.NAME} status is not OK'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The plugin status does not match {$JELLYFIN.PLUGIN.STATUS.OK}.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 1492381f4d7f4c2d956439f9a0673ccd
+              name: 'Jellyfin: Plugin {#PLUGIN.NAME}: Version'
+              type: DEPENDENT
+              key: 'jellyfin.plugin.version[{#PLUGIN.ID}]'
+              history: 365d
+              value_type: CHAR
+              description: 'Plugin version.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#PLUGIN.ID}';
+                          var plugins = JSON.parse(value);
+                          for (var i = 0; i < plugins.length; i++) {
+                              if (String(plugins[i].Id || plugins[i].Name) === id) {
+                                  return plugins[i].Version || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: jellyfin.plugins.raw
+              tags:
+                - tag: component
+                  value: plugins
+                - tag: plugin
+                  value: '{#PLUGIN.NAME}'
+            - uuid: 5aca70b88a61454a81511bd69c9ecf4d
+              name: 'Jellyfin: Plugin {#PLUGIN.NAME}: Can uninstall'
+              type: DEPENDENT
+              key: 'jellyfin.plugin.can_uninstall[{#PLUGIN.ID}]'
+              history: 365d
+              valuemap:
+                name: 'Jellyfin flag'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#PLUGIN.ID}';
+                          var plugins = JSON.parse(value);
+                          for (var i = 0; i < plugins.length; i++) {
+                              if (String(plugins[i].Id || plugins[i].Name) === id) {
+                                  return plugins[i].CanUninstall ? 1 : 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: jellyfin.plugins.raw
+              tags:
+                - tag: component
+                  value: plugins
+                - tag: plugin
+                  value: '{#PLUGIN.NAME}'
+          master_item:
+            key: jellyfin.plugins.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var result = [];
+                      JSON.parse(value).forEach(function (plugin) {
+                          var id = String(plugin.Id || plugin.Name || '');
+                          if (id) {
+                              result.push({
+                                  '{#PLUGIN.ID}': id,
+                                  '{#PLUGIN.NAME}': plugin.Name || id,
+                                  '{#PLUGIN.STATUS}': plugin.Status || '',
+                                  '{#PLUGIN.VERSION}': plugin.Version || ''
+                              });
+                          }
+                      });
+                      return JSON.stringify(result);
+                  }
+                  catch (e) {
+                      return '[]';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 8c9892ff31a04e4c9ac411dc9a0aea2f
+          name: 'Jellyfin: Scheduled tasks discovery'
+          type: DEPENDENT
+          key: jellyfin.task.discovery
+          description: 'Discovers Jellyfin scheduled tasks from /ScheduledTasks.'
+          item_prototypes:
+            - uuid: 8842eb1c5d744d4288a72f05cbf36328
+              name: 'Jellyfin: Task {#TASK.NAME}: State'
+              type: DEPENDENT
+              key: 'jellyfin.task.state[{#TASK.KEY}]'
+              history: 90d
+              value_type: CHAR
+              description: 'Current task state.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  return tasks[i].State || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 30m
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+            - uuid: 30ea204d3759434bb872be3e9147de65
+              name: 'Jellyfin: Task {#TASK.NAME}: State code'
+              type: DEPENDENT
+              key: 'jellyfin.task.state.code[{#TASK.KEY}]'
+              history: 90d
+              description: 'Task state as a numeric value for triggers and graphs.'
+              valuemap:
+                name: 'Jellyfin task state'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  if (tasks[i].State === 'Running') {
+                                      return 1;
+                                  }
+                                  if (tasks[i].State === 'Cancelling') {
+                                      return 2;
+                                  }
+                                  return 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+              trigger_prototypes:
+                - uuid: f3fb3c281eb14ae3872e1209aa152522
+                  expression: 'min(/Jellyfin by HTTP/jellyfin.task.state.code[{#TASK.KEY}],{$JELLYFIN.TASK.RUNNING.WARN:"{#TASK.NAME}"})=1'
+                  name: 'Jellyfin: Task {#TASK.NAME} has been running for too long'
+                  priority: WARNING
+                  description: 'The scheduled task has been in Running state for at least {$JELLYFIN.TASK.RUNNING.WARN}. Override with context macro {$JELLYFIN.TASK.RUNNING.WARN:"{#TASK.NAME}"}.'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: d6b4ad7f2cd6499ab95d1ce2fb28743e
+              name: 'Jellyfin: Task {#TASK.NAME}: Progress'
+              type: DEPENDENT
+              key: 'jellyfin.task.progress[{#TASK.KEY}]'
+              history: 90d
+              value_type: FLOAT
+              units: '%'
+              description: 'Current task progress percentage.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  return Number(tasks[i].CurrentProgressPercentage) || 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+            - uuid: 649721a5c6a64adb96ec37186972ce86
+              name: 'Jellyfin: Task {#TASK.NAME}: Last result'
+              type: DEPENDENT
+              key: 'jellyfin.task.last_result[{#TASK.KEY}]'
+              history: 365d
+              value_type: CHAR
+              description: 'Last task execution status.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  return tasks[i].LastExecutionResult ? (tasks[i].LastExecutionResult.Status || '') : '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+              trigger_prototypes:
+                - uuid: 479253bb1de8441cb43e63f668234554
+                  expression: 'length(last(/Jellyfin by HTTP/jellyfin.task.last_result[{#TASK.KEY}]))>0 and find(/Jellyfin by HTTP/jellyfin.task.last_result[{#TASK.KEY}],,"regexp",{$JELLYFIN.TASK.STATUS.OK:"{#TASK.NAME}"})=0'
+                  name: 'Jellyfin: Task {#TASK.NAME} last result is not OK'
+                  opdata: 'Last result: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'The scheduled task last result does not match {$JELLYFIN.TASK.STATUS.OK}. Override with context macro {$JELLYFIN.TASK.STATUS.OK:"{#TASK.NAME}"}.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 5f3345b4512f40a99bf926de3ec2283b
+              name: 'Jellyfin: Task {#TASK.NAME}: Last completion age'
+              type: DEPENDENT
+              key: 'jellyfin.task.last_completion.age[{#TASK.KEY}]'
+              history: 365d
+              units: s
+              description: 'Seconds since the task last completed. Returns 0 when no completion time is available.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  var result = tasks[i].LastExecutionResult || {};
+                                  var date = result.EndTimeUtc || result.StartTimeUtc || '';
+                                  var ts = Date.parse(date);
+                                  return isFinite(ts) ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+            - uuid: d15f23c2a36d4d689214d4e3add05ff8
+              name: 'Jellyfin: Task {#TASK.NAME}: Last error'
+              type: DEPENDENT
+              key: 'jellyfin.task.last_error[{#TASK.KEY}]'
+              history: 365d
+              value_type: TEXT
+              description: 'Last task error message, if Jellyfin reports one.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var key = '{#TASK.KEY}';
+                          var tasks = JSON.parse(value);
+                          for (var i = 0; i < tasks.length; i++) {
+                              if (String(tasks[i].Key || tasks[i].Id || tasks[i].Name) === key) {
+                                  var result = tasks[i].LastExecutionResult || {};
+                                  return result.ErrorMessage || result.LongErrorMessage || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: jellyfin.tasks.raw
+              tags:
+                - tag: component
+                  value: tasks
+                - tag: task
+                  value: '{#TASK.NAME}'
+          master_item:
+            key: jellyfin.tasks.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var result = [];
+                      JSON.parse(value).forEach(function (task) {
+                          var key = String(task.Key || task.Id || task.Name || '');
+                          if (key) {
+                              result.push({
+                                  '{#TASK.KEY}': key,
+                                  '{#TASK.ID}': task.Id || key,
+                                  '{#TASK.NAME}': task.Name || key,
+                                  '{#TASK.CATEGORY}': task.Category || '',
+                                  '{#TASK.HIDDEN}': task.IsHidden ? '1' : '0'
+                              });
+                          }
+                      });
+                      return JSON.stringify(result);
+                  }
+                  catch (e) {
+                      return '[]';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 761ebb84c4a9449697cc297cd4e8b3cf
+          name: 'Jellyfin: Storage discovery'
+          type: DEPENDENT
+          key: jellyfin.storage.discovery
+          description: 'Discovers Jellyfin storage folders from the normalized /System/Info/Storage response.'
+          item_prototypes:
+            - uuid: 1d9182000d2a45bd888e306dbd930abf
+              name: 'Jellyfin: Storage {#STORAGE.NAME}: Free space'
+              type: DEPENDENT
+              key: 'jellyfin.storage.free[{#STORAGE.ID}]'
+              history: 90d
+              units: B
+              description: 'Free space for {#STORAGE.PATH}.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#STORAGE.ID}';
+                          var folders = JSON.parse(value).ZabbixFolders || [];
+                          for (var i = 0; i < folders.length; i++) {
+                              if (folders[i].id === id) {
+                                  return Number(folders[i].free) || 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.storage.raw
+              tags:
+                - tag: component
+                  value: storage
+                - tag: storage
+                  value: '{#STORAGE.NAME}'
+            - uuid: 6ec2b4d1ae0341a0b895cda477282f3e
+              name: 'Jellyfin: Storage {#STORAGE.NAME}: Used space'
+              type: DEPENDENT
+              key: 'jellyfin.storage.used[{#STORAGE.ID}]'
+              history: 90d
+              units: B
+              description: 'Used space for {#STORAGE.PATH}.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#STORAGE.ID}';
+                          var folders = JSON.parse(value).ZabbixFolders || [];
+                          for (var i = 0; i < folders.length; i++) {
+                              if (folders[i].id === id) {
+                                  return Number(folders[i].used) || 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.storage.raw
+              tags:
+                - tag: component
+                  value: storage
+                - tag: storage
+                  value: '{#STORAGE.NAME}'
+            - uuid: 11a3188fbb7c4b348632baed34d96c73
+              name: 'Jellyfin: Storage {#STORAGE.NAME}: Free percentage'
+              type: DEPENDENT
+              key: 'jellyfin.storage.pfree[{#STORAGE.ID}]'
+              history: 90d
+              value_type: FLOAT
+              units: '%'
+              description: 'Free-space percentage for {#STORAGE.PATH}.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#STORAGE.ID}';
+                          var folders = JSON.parse(value).ZabbixFolders || [];
+                          for (var i = 0; i < folders.length; i++) {
+                              if (folders[i].id === id) {
+                                  return Number(folders[i].pfree) || 0;
+                              }
+                          }
+                          return 0;
+                      }
+                      catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: jellyfin.storage.raw
+              tags:
+                - tag: component
+                  value: storage
+                - tag: storage
+                  value: '{#STORAGE.NAME}'
+              trigger_prototypes:
+                - uuid: 8b907615aa5f4f8582cab1ea9ced86b9
+                  expression: 'last(/Jellyfin by HTTP/jellyfin.storage.pfree[{#STORAGE.ID}])<{$JELLYFIN.STORAGE.PFREE.MIN:"{#STORAGE.NAME}"} and last(/Jellyfin by HTTP/jellyfin.storage.free[{#STORAGE.ID}])<{$JELLYFIN.STORAGE.FREE.MIN:"{#STORAGE.NAME}"}'
+                  name: 'Jellyfin: Low free space on {#STORAGE.NAME}'
+                  opdata: 'Free: {ITEM.LASTVALUE2}, {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Free space is below both percentage and absolute thresholds for {#STORAGE.PATH}. Override thresholds with context macros for {#STORAGE.NAME}.'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: c556c22f6ce24e10a07805b23c38e599
+              name: 'Jellyfin: Storage {#STORAGE.NAME}: Path'
+              type: DEPENDENT
+              key: 'jellyfin.storage.path[{#STORAGE.ID}]'
+              history: 30d
+              value_type: TEXT
+              description: 'Storage path.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#STORAGE.ID}';
+                          var folders = JSON.parse(value).ZabbixFolders || [];
+                          for (var i = 0; i < folders.length; i++) {
+                              if (folders[i].id === id) {
+                                  return folders[i].path || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: jellyfin.storage.raw
+              tags:
+                - tag: component
+                  value: storage
+                - tag: storage
+                  value: '{#STORAGE.NAME}'
+            - uuid: 4522cc64808740b2a3409f852aa5fa48
+              name: 'Jellyfin: Storage {#STORAGE.NAME}: Type'
+              type: DEPENDENT
+              key: 'jellyfin.storage.type[{#STORAGE.ID}]'
+              history: 30d
+              value_type: CHAR
+              description: 'Storage type reported by Jellyfin.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var id = '{#STORAGE.ID}';
+                          var folders = JSON.parse(value).ZabbixFolders || [];
+                          for (var i = 0; i < folders.length; i++) {
+                              if (folders[i].id === id) {
+                                  return folders[i].storage_type || '';
+                              }
+                          }
+                          return '';
+                      }
+                      catch (e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: jellyfin.storage.raw
+              tags:
+                - tag: component
+                  value: storage
+                - tag: storage
+                  value: '{#STORAGE.NAME}'
+          master_item:
+            key: jellyfin.storage.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var result = [];
+                      (data.ZabbixFolders || []).forEach(function (folder) {
+                          result.push({
+                              '{#STORAGE.ID}': folder.id,
+                              '{#STORAGE.NAME}': folder.name,
+                              '{#STORAGE.PATH}': folder.path,
+                              '{#STORAGE.ROLE}': folder.role,
+                              '{#STORAGE.TYPE}': folder.storage_type || ''
+                          });
+                      });
+                      return JSON.stringify(result);
+                  }
+                  catch (e) {
+                      return '[]';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+      tags:
+        - tag: class
+          value: software
+        - tag: component
+          value: http_api
+        - tag: target
+          value: jellyfin
+      macros:
+        - macro: '{$JELLYFIN.ACTIVITY.ERROR.MAX}'
+          value: '0'
+          description: 'Maximum accepted Error/Critical activity log entries in {$JELLYFIN.ACTIVITY.WINDOW} seconds.'
+        - macro: '{$JELLYFIN.ACTIVITY.INTERVAL}'
+          value: 5m
+          description: 'Polling interval for the activity log endpoint.'
+        - macro: '{$JELLYFIN.ACTIVITY.LIMIT}'
+          value: '200'
+          description: 'Maximum number of activity log entries fetched per poll.'
+        - macro: '{$JELLYFIN.ACTIVITY.WARNING.MAX}'
+          value: '20'
+          description: 'Maximum accepted Warning activity log entries in {$JELLYFIN.ACTIVITY.WINDOW} seconds.'
+        - macro: '{$JELLYFIN.ACTIVITY.WINDOW}'
+          value: '3600'
+          description: 'Activity log evaluation window in seconds.'
+        - macro: '{$JELLYFIN.API.TOKEN}'
+          type: SECRET_TEXT
+          description: 'Jellyfin API key. Create it in Dashboard -> Advanced -> API Keys.'
+        - macro: '{$JELLYFIN.BASEPATH}'
+          value: ''
+          description: 'Optional URL base path, for example /jellyfin when Jellyfin is published below a reverse-proxy subpath. Leave empty for a normal Jellyfin root URL.'
+        - macro: '{$JELLYFIN.DISCOVERY.INTERVAL}'
+          value: 1h
+          description: 'Polling interval for low-level discovery source endpoints.'
+        - macro: '{$JELLYFIN.HTTP.TIMEOUT}'
+          value: 10s
+          description: 'HTTP timeout for Jellyfin API requests.'
+        - macro: '{$JELLYFIN.HOST}'
+          value: '{HOST.CONN}'
+          description: 'Hostname or IP address used to connect to Jellyfin. Defaults to the Zabbix host connection address.'
+        - macro: '{$JELLYFIN.INVENTORY.INTERVAL}'
+          value: 15m
+          description: 'Polling interval for inventory-style endpoints such as users, plugins and item counts.'
+        - macro: '{$JELLYFIN.LIBRARY.MIN_ITEMS}'
+          value: '0'
+          description: 'Minimum expected item count per discovered library. Default 0 disables the library-size trigger; use context macros per {#LIBRARY.NAME}.'
+        - macro: '{$JELLYFIN.NODATA.TIME}'
+          value: 15m
+          description: 'No-data interval after which the API availability trigger fires.'
+        - macro: '{$JELLYFIN.PORT}'
+          value: '8096'
+          description: 'Jellyfin HTTP API port. Use 8096 for HTTP or the published reverse-proxy port, for example 443 for HTTPS.'
+        - macro: '{$JELLYFIN.PLUGIN.STATUS.OK}'
+          value: '^(Active|Disabled|Superseded|Superceded|Deleted)$'
+          description: 'Regex of plugin statuses considered acceptable.'
+        - macro: '{$JELLYFIN.SESSION.ACTIVE.SECONDS}'
+          value: '120'
+          description: 'Sessions active within this number of seconds are fetched from /Sessions.'
+        - macro: '{$JELLYFIN.SCHEME}'
+          value: http
+          description: 'URL scheme used to connect to Jellyfin: http or https.'
+        - macro: '{$JELLYFIN.SESSIONS.INTERVAL}'
+          value: 1m
+          description: 'Polling interval for active sessions and playback metrics.'
+        - macro: '{$JELLYFIN.SESSIONS.MAX}'
+          value: '0'
+          description: 'Maximum active sessions. Default 0 disables the trigger.'
+        - macro: '{$JELLYFIN.STORAGE.FREE.MIN}'
+          value: 10G
+          description: 'Minimum accepted free bytes for discovered storage folders.'
+        - macro: '{$JELLYFIN.STORAGE.INTERVAL}'
+          value: 15m
+          description: 'Polling interval for /System/Info/Storage.'
+        - macro: '{$JELLYFIN.STORAGE.PFREE.MIN}'
+          value: '10'
+          description: 'Minimum accepted free-space percentage for discovered storage folders.'
+        - macro: '{$JELLYFIN.STREAMS.MAX}'
+          value: '0'
+          description: 'Maximum concurrent playing streams. Default 0 disables the trigger.'
+        - macro: '{$JELLYFIN.SYSTEM.INTERVAL}'
+          value: 5m
+          description: 'Polling interval for /System/Info.'
+        - macro: '{$JELLYFIN.TASK.RUNNING.WARN}'
+          value: 6h
+          description: 'How long a scheduled task may stay in Running state before alerting. Supports context per task name.'
+        - macro: '{$JELLYFIN.TASK.STATUS.OK}'
+          value: '^Completed$'
+          description: 'Regex of scheduled-task last-result statuses considered OK. Supports context per task name.'
+        - macro: '{$JELLYFIN.TASKS.INTERVAL}'
+          value: 5m
+          description: 'Polling interval for scheduled tasks.'
+        - macro: '{$JELLYFIN.TRANSCODING.MAX}'
+          value: '0'
+          description: 'Maximum concurrent transcoding streams. Default 0 disables the trigger.'
+        - macro: '{$JELLYFIN.UPDATE.TRIGGER}'
+          value: '1'
+          description: 'Set to 0 to disable the update-available trigger.'
+        - macro: '{$JELLYFIN.USERS.NO_PASSWORD.MAX}'
+          value: '0'
+          description: 'Maximum accepted users without a configured password. Set to -1 to disable the trigger.'
+      valuemaps:
+        - uuid: c15eb1a62fb645aa990165cc6ea4fbea
+          name: 'Jellyfin flag'
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
+        - uuid: 45d59063b699436989231c464ec000d3
+          name: 'Jellyfin service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: c8c9b40b48954fd197a8105ccb16fc37
+          name: 'Jellyfin task state'
+          mappings:
+            - value: '0'
+              newvalue: Idle
+            - value: '1'
+              newvalue: Running
+            - value: '2'
+              newvalue: Cancelling
