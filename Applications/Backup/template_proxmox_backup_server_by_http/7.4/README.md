@@ -150,6 +150,7 @@ These have sensible defaults and only need changing to override behaviour. The s
 
 | Macro                            | Default          | Description                                                                                              |
 |----------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
+| `{$PBS.API.TIMEOUT}`             | `30s`            | Timeout for individual PBS API-backed items and scripts. Increase this if expensive datastore or snapshot endpoints time out. |
 | `{$PBS.ACCESS.MONITORING.REQUIRED}` | `1`           | Set to `0` if user/API token inventory is intentionally not monitored and endpoint diagnostics should not alert. |
 | `{$PBS.ACCESS.USER.EXPIRES.WARN}` | `7d`            | Remaining user lifetime below which a WARNING trigger fires. Supports a user ID context. |
 | `{$PBS.ACCESS.USER.ID.MATCHES}`  | `^.*$`           | Regex of user IDs included by access user discovery. |
