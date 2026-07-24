@@ -42,17 +42,49 @@ This template was built against:
 
 3. Import `template_immich_by_http.yaml` into Zabbix.
 4. Link **Immich by HTTP** to the host.
-5. Set the required host macros.
+5. Set the required host macros listed below.
 
 ## Macros
 
+### Required host macros
+
+These macros must be set on the Zabbix host that has the **Immich by HTTP** template linked.
+The master item builds the API base URL as:
+
+```text
+{$IMMICH.SCHEME}://{$IMMICH.URL.HOST}:{$IMMICH.PORT}{$IMMICH.API.PATH}
+```
+
+For a default Docker installation reachable at `http://immich.example.net:2283/api`, set:
+
+| Macro | Example | Description |
+|-------|---------|-------------|
+| `{$IMMICH.URL.HOST}` | `immich.example.net` | Host name or IP address of the Immich server. Do not include `http://`, `https://`, a port, or `/api`. |
+| `{$IMMICH.API.TOKEN}` | `SECRET_TEXT` | Immich API key sent in the `x-api-key` header. Store this as a Zabbix secret macro. Use a key created by an admin user so the admin-only statistics, jobs, libraries and users endpoints can be read. |
+
+If your Immich URL does not use the defaults, also override these host macros:
+
+| Macro | Default | When to change it |
+|-------|---------|-------------------|
+| `{$IMMICH.SCHEME}` | `http` | Set to `https` when Immich is exposed through TLS, for example behind a reverse proxy. |
+| `{$IMMICH.PORT}` | `2283` | Set to the externally reachable TCP port. For a standard HTTPS reverse proxy this is usually `443`; if the proxy hides the port, set this macro to `443`. |
+| `{$IMMICH.API.PATH}` | `/api` | Change only if Immich is published below a different API path. Keep the leading slash. |
+
+Examples:
+
+| Public Immich URL | Required macro values |
+|-------------------|-----------------------|
+| `http://192.0.2.10:2283/api` | `{$IMMICH.URL.HOST}=192.0.2.10`, keep defaults for scheme, port and API path. |
+| `https://photos.example.net/api` | `{$IMMICH.URL.HOST}=photos.example.net`, `{$IMMICH.SCHEME}=https`, `{$IMMICH.PORT}=443`. |
+| `https://example.net/immich/api` | `{$IMMICH.URL.HOST}=example.net`, `{$IMMICH.SCHEME}=https`, `{$IMMICH.PORT}=443`, `{$IMMICH.API.PATH}=/immich/api`. |
+
+### Optional host macros
+
+The remaining macros have defaults and only need to be changed for tuning intervals, thresholds,
+trigger behavior or discovery filters.
+
 | Macro | Default | Description |
 |-------|---------|-------------|
-| `{$IMMICH.URL.HOST}` | | Immich host name or IP address, without scheme and without port. |
-| `{$IMMICH.SCHEME}` | `http` | Request scheme: `http` or `https`. |
-| `{$IMMICH.PORT}` | `2283` | Immich HTTP port. |
-| `{$IMMICH.API.PATH}` | `/api` | Immich API base path. |
-| `{$IMMICH.API.TOKEN}` | | Immich API key. Store as a secret macro. |
 | `{$IMMICH.API.INTERVAL}` | `1m` | Polling interval for the master API collection item. |
 | `{$IMMICH.API.TIMEOUT}` | `30s` | Timeout for the master API collection item. |
 | `{$IMMICH.NODATA}` | `10m` | No-data window for availability triggers. |
@@ -67,10 +99,11 @@ This template was built against:
 | `{$IMMICH.QUEUE.FAILED.WARN}` | `0` | Per-queue failed-job threshold. |
 | `{$IMMICH.QUEUE.WAITING.WARN}` | `100` | Per-queue waiting-job threshold. |
 | `{$IMMICH.QUEUE.DELAYED.WARN}` | `100` | Per-queue delayed-job threshold. |
-| `{$IMMICH.QUEUE.PAUSED.ALERT}` | `1` | Set to `0` to disable paused-queue alerts. |
-| `{$IMMICH.LIBRARY.REFRESH.MAX}` | `7d` | Maximum acceptable external-library refresh age. Set to `0` to disable. |
+| `{$IMMICH.QUEUE.PAUSED.ALERT}` | `true` | Set to `false` to disable paused-queue alerts. |
+| `{$IMMICH.LIBRARY.REFRESH.ALERT}` | `true` | Set to `false` to disable stale external-library refresh alerts. |
+| `{$IMMICH.LIBRARY.REFRESH.MAX}` | `7d` | Maximum acceptable external-library refresh age. |
 | `{$IMMICH.USER.QUOTA.WARN}` | `90` | User quota usage warning threshold in percent. |
-| `{$IMMICH.VERSION.UPDATE.ALERT}` | `1` | Set to `0` to disable update-available notifications. |
+| `{$IMMICH.VERSION.UPDATE.ALERT}` | `true` | Set to `false` to disable update-available notifications. |
 | `{$IMMICH.VERSIONCHECK.MAXAGE}` | `2d` | Maximum acceptable age of Immich's version-check timestamp. |
 | `{$IMMICH.LLD.LIBRARY.MATCHES}` | `.*` | Keep discovered external libraries whose names match this regex. |
 | `{$IMMICH.LLD.LIBRARY.NOT_MATCHES}` | `CHANGE_IF_NEEDED` | Drop discovered external libraries whose names match this regex. |
