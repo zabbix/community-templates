@@ -5,7 +5,7 @@
 This template monitors an [Immich](https://immich.app/) server via the official HTTP API.
 
 The template uses one Zabbix JavaScript master item to call the Immich API and then derives
-availability, version, update, storage, global asset, album, memory, job, library and user
+availability, version, update, storage, global asset, album, job, library and user
 metrics through dependent items. Low-level discovery creates per-queue, per-external-library
 and per-user items.
 
@@ -35,7 +35,6 @@ This template was built against:
    - `library.read`
    - `library.statistics`
    - `album.statistics`
-   - `memory.statistics`
    - `adminUser.read`
 
    `/server/ping` and `/server/version` are public in the OpenAPI specification.
@@ -118,7 +117,7 @@ The template collects:
 - current and latest version, plus stale version-check state
 - disk size, used space, free space and usage percentage
 - global photo/video counts and media usage from `/server/statistics`
-- album and memory counts visible to the API key user
+- album counts visible to the API key user
 - aggregate job counts and per-queue job counts
 - external-library asset counts, usage and refresh age
 - admin user counts, per-user usage, quota state and removal state
@@ -151,7 +150,7 @@ The template collects:
   will surface it.
 - Library monitoring covers Immich external libraries. The normal upload library is covered by
   global server statistics.
-- Album and memory statistics are scoped to what the API key user can see.
+- Album statistics are scoped to what the API key user can see.
 
 ## Feedback
 
