@@ -1,0 +1,953 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: b919d46e9baf4fa3975f3443b2187da5
+      name: Templates/Applications
+  templates:
+    - uuid: 02af40467e594da0ab3eb3ac953ff869
+      template: 'Audiobookshelf by HTTP'
+      name: 'Audiobookshelf by HTTP'
+      description: |
+        Monitors an audiobookshelf server through its HTTP API without an agent or external scripts.
+
+        The template collects server and API availability, response time, version, initialization
+        state, user/account statistics, open playback and share sessions, running tasks, queued
+        metadata tasks and backup status. Low-level discovery creates statistics and health items
+        for every accessible audiobook or podcast library.
+
+        The master script stores only a sanitized aggregate. Raw responses from /api/users and
+        other administrative endpoints are never stored in Zabbix.
+
+        Required configuration:
+        - {$AUDIOBOOKSHELF.URL}: complete base URL without a trailing slash.
+        - {$AUDIOBOOKSHELF.API.TOKEN}: dedicated API key (or legacy user token) assigned to an
+          admin or root user.
+
+        An admin/root token is required for user, open-session and backup metrics. The token is sent
+        as an Authorization Bearer header. Zabbix server or proxy must be able to reach the URL.
+      vendor:
+        name: community-templates
+        version: '7.4-1'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: bdb0e478b0674d66a52b3b5057322cd3
+          name: 'Audiobookshelf: Get data'
+          type: SCRIPT
+          key: audiobookshelf.get
+          delay: '{$AUDIOBOOKSHELF.UPDATE.INTERVAL}'
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var result = {
+                apiAvailable: 0,
+                adminAvailable: 0,
+                collectedAt: Math.floor(Date.now() / 1000),
+                responseTime: 0,
+                slowestEndpoint: '',
+                errors: [],
+                version: '',
+                initialized: 0,
+                language: '',
+                libraries: [],
+                libraryCount: 0,
+                users: { total: 0, enabled: 0, locked: 0 },
+                sessions: { open: 0, share: 0 },
+                tasks: { active: 0, queuedMetadata: 0 },
+                backups: { total: 0, latestCreatedAt: 0, latestSize: 0 }
+            };
+
+            if (!params.url) {
+                throw 'Required parameter "url" is not set.';
+            }
+            if (!params.token) {
+                throw 'Required parameter "token" is not set.';
+            }
+
+            var baseUrl = params.url.replace(/\/+$/, '');
+
+            function countEntries(object) {
+                if (Array.isArray(object)) {
+                    return object.length;
+                }
+                if (object && typeof object === 'object') {
+                    return Object.keys(object).length;
+                }
+                return 0;
+            }
+
+            function get(path) {
+                var request = new HttpRequest();
+                var started = Date.now();
+                var response;
+
+                if (params.proxy) {
+                    request.setProxy(params.proxy);
+                }
+                request.addHeader('Accept: application/json');
+                request.addHeader('Authorization: Bearer ' + params.token);
+
+                try {
+                    response = request.get(encodeURI(baseUrl + path));
+                }
+                catch (error) {
+                    result.errors.push(path + ': ' + String(error));
+                    return null;
+                }
+
+                var elapsed = Date.now() - started;
+                if (elapsed > result.responseTime) {
+                    result.responseTime = elapsed;
+                    result.slowestEndpoint = path.split('?')[0];
+                }
+
+                var status = request.getStatus();
+                if (status < 200 || status >= 300) {
+                    result.errors.push(path + ': HTTP ' + status);
+                    return null;
+                }
+
+                try {
+                    return JSON.parse(response);
+                }
+                catch (error) {
+                    result.errors.push(path + ': invalid JSON');
+                    return null;
+                }
+            }
+
+            var status = get('/status');
+            var librariesResponse = get('/api/libraries?include=stats');
+            var usersResponse = get('/api/users');
+            var sessionsResponse = get('/api/sessions/open');
+            var tasksResponse = get('/api/tasks?include=queue');
+            var backupsResponse = get('/api/backups');
+
+            if (status) {
+                result.version = String(status.serverVersion || '');
+                result.initialized = status.isInit ? 1 : 0;
+                result.language = String(status.language || '');
+            }
+
+            if (librariesResponse && Array.isArray(librariesResponse.libraries)) {
+                for (var i = 0; i < librariesResponse.libraries.length; i++) {
+                    var library = librariesResponse.libraries[i] || {};
+                    var stats = library.stats || {};
+                    var settings = library.settings || {};
+                    result.libraries.push({
+                        id: String(library.id || ''),
+                        name: String(library.name || library.id || 'Unnamed'),
+                        mediaType: String(library.mediaType || 'unknown'),
+                        folderCount: countEntries(library.folders),
+                        watcherEnabled: settings.disableWatcher ? 0 : 1,
+                        autoScanSchedule: String(settings.autoScanCronExpression || ''),
+                        lastScan: Math.floor(Number(library.lastScan || 0) / 1000),
+                        lastScanVersion: String(library.lastScanVersion || ''),
+                        lastUpdate: Math.floor(Number(library.lastUpdate || 0) / 1000),
+                        stats: {
+                            totalItems: Number(stats.totalItems || 0),
+                            numAudioFiles: Number(stats.numAudioFiles || stats.numAudioTrack || 0),
+                            totalDuration: Number(stats.totalDuration || 0),
+                            totalSize: Number(stats.totalSize || 0)
+                        }
+                    });
+                }
+                result.libraryCount = result.libraries.length;
+            }
+
+            if (usersResponse && Array.isArray(usersResponse.users)) {
+                result.users.total = usersResponse.users.length;
+                for (var u = 0; u < usersResponse.users.length; u++) {
+                    if (usersResponse.users[u] && usersResponse.users[u].isActive) {
+                        result.users.enabled++;
+                    }
+                    if (usersResponse.users[u] && usersResponse.users[u].isLocked) {
+                        result.users.locked++;
+                    }
+                }
+            }
+
+            if (sessionsResponse) {
+                result.sessions.open = countEntries(sessionsResponse.sessions);
+                result.sessions.share = countEntries(sessionsResponse.shareSessions);
+            }
+
+            if (tasksResponse) {
+                result.tasks.active = countEntries(tasksResponse.tasks);
+                if (tasksResponse.queuedTaskData) {
+                    result.tasks.queuedMetadata = countEntries(tasksResponse.queuedTaskData.embedMetadata);
+                }
+            }
+
+            if (backupsResponse && Array.isArray(backupsResponse.backups)) {
+                result.backups.total = backupsResponse.backups.length;
+                for (var b = 0; b < backupsResponse.backups.length; b++) {
+                    var backup = backupsResponse.backups[b] || {};
+                    var createdAt = Number(backup.createdAt || 0);
+                    if (createdAt > result.backups.latestCreatedAt * 1000) {
+                        result.backups.latestCreatedAt = Math.floor(createdAt / 1000);
+                        result.backups.latestSize = Number(backup.fileSize || 0);
+                    }
+                }
+            }
+
+            result.apiAvailable = status && librariesResponse ? 1 : 0;
+            result.adminAvailable = usersResponse && sessionsResponse && tasksResponse && backupsResponse ? 1 : 0;
+            result.errors = result.errors.join('; ');
+
+            return JSON.stringify(result);
+          description: 'Collects and sanitizes data from the status, libraries, users, open sessions, tasks and backups endpoints.'
+          timeout: '{$AUDIOBOOKSHELF.HTTP.TIMEOUT}'
+          parameters:
+            - name: proxy
+              value: '{$AUDIOBOOKSHELF.HTTP.PROXY}'
+            - name: token
+              value: '{$AUDIOBOOKSHELF.API.TOKEN}'
+            - name: url
+              value: '{$AUDIOBOOKSHELF.URL}'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: bf0c86259be4414b97ffd001ad7bd6fe
+              expression: 'nodata(/Audiobookshelf by HTTP/audiobookshelf.get,15m)=1'
+              name: 'Audiobookshelf: No monitoring data'
+              priority: HIGH
+              description: 'No output has been received from the collection script for 15 minutes. Check the Zabbix server/proxy, item timeout and template macros.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: b6ca89ccbe86461a8dd4a39d87937ae3
+          name: 'Audiobookshelf: API available'
+          type: DEPENDENT
+          key: audiobookshelf.api.available
+          history: 30d
+          description: '1 when both the public status endpoint and the authenticated libraries endpoint returned valid JSON.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.apiAvailable
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: fea9b0b2270f42bf97c5749dbfd21c95
+              expression: 'max(/Audiobookshelf by HTTP/audiobookshelf.api.available,10m)=0'
+              name: 'Audiobookshelf: API is unavailable'
+              priority: HIGH
+              description: 'The status endpoint or authenticated libraries endpoint has failed throughout the last 10 minutes.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 801bdf4cca30449f865b33369841d39c
+          name: 'Audiobookshelf: Administrative API available'
+          type: DEPENDENT
+          key: audiobookshelf.api.admin.available
+          history: 30d
+          description: '1 when users, open sessions, tasks and backups endpoints all returned valid JSON. These metrics require an admin/root token.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.adminAvailable
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: 8391a70c9c0f4c27b67311d5452216c4
+              expression: 'max(/Audiobookshelf by HTTP/audiobookshelf.api.admin.available,15m)=0'
+              name: 'Audiobookshelf: Administrative API metrics are unavailable'
+              priority: WARNING
+              description: 'At least one administrative endpoint has failed for 15 minutes. Verify that the token belongs to an admin/root user and inspect the collection error item.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 1810815188ee4bfc8c466fb1ee85c9ad
+          name: 'Audiobookshelf: Collection errors'
+          type: DEPENDENT
+          key: audiobookshelf.api.errors
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          description: 'Sanitized list of endpoint and parsing errors from the last collection.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errors
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: availability
+        - uuid: 27ace7acc95343f5a64a45afbdb8e33d
+          name: 'Audiobookshelf: Maximum API response time'
+          type: DEPENDENT
+          key: audiobookshelf.api.response_time
+          history: 30d
+          value_type: FLOAT
+          units: ms
+          description: 'Slowest response time among the endpoints requested during the collection run.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.responseTime
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: performance
+          triggers:
+            - uuid: dcab4fd23c594b1e9da8ca123b9a00bc
+              expression: 'avg(/Audiobookshelf by HTTP/audiobookshelf.api.response_time,15m)>{$AUDIOBOOKSHELF.RESPONSE.TIME.WARN}'
+              name: 'Audiobookshelf: API response time is high'
+              event_name: 'Audiobookshelf: API response time is high (average > {$AUDIOBOOKSHELF.RESPONSE.TIME.WARN} ms)'
+              priority: WARNING
+              description: 'The average slowest-endpoint response time has exceeded the configured threshold for 15 minutes.'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 340093b95ae243a38d2998fe4c6ac443
+          name: 'Audiobookshelf: Slowest API endpoint'
+          type: DEPENDENT
+          key: audiobookshelf.api.slowest_endpoint
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.slowestEndpoint
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: performance
+        - uuid: 6ad5cad1aadf4f95b449979cc27f1844
+          name: 'Audiobookshelf: Data collection time'
+          type: DEPENDENT
+          key: audiobookshelf.api.collected_at
+          history: 7d
+          units: unixtime
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.collectedAt
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: availability
+        - uuid: d02ffb69031e44c48c8216b5f2ac42af
+          name: 'Audiobookshelf: Server version'
+          type: DEPENDENT
+          key: audiobookshelf.server.version
+          history: 90d
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 843055fa52cb4f2aae85e6d520de2128
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.server.version,#1)<>last(/Audiobookshelf by HTTP/audiobookshelf.server.version,#2) and length(last(/Audiobookshelf by HTTP/audiobookshelf.server.version,#1))>0 and length(last(/Audiobookshelf by HTTP/audiobookshelf.server.version,#2))>0'
+              name: 'Audiobookshelf: Server version has changed'
+              event_name: 'Audiobookshelf: Server version has changed to {ITEM.VALUE}'
+              priority: INFO
+              description: 'The reported audiobookshelf version has changed. Acknowledge to close this informational event.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: b497709bcdf140db8f23dce12778d1e0
+          name: 'Audiobookshelf: Server initialized'
+          type: DEPENDENT
+          key: audiobookshelf.server.initialized
+          history: 30d
+          description: '1 when audiobookshelf reports that a root user exists and initial setup is complete.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.initialized
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 3c11cf179f8745a5a2013ee1aa89506e
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.server.initialized)=0'
+              name: 'Audiobookshelf: Server is not initialized'
+              priority: HIGH
+              description: 'Audiobookshelf reports that initial setup is incomplete or the root user is missing.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 5f20e8b687534d318938596ee93aad61
+          name: 'Audiobookshelf: Server language'
+          type: DEPENDENT
+          key: audiobookshelf.server.language
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.language
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 8a63773e89a746aba9f33937847d8fe7
+          name: 'Audiobookshelf: Libraries'
+          type: DEPENDENT
+          key: audiobookshelf.libraries.count
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.libraryCount
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: library
+        - uuid: 3845bbe08af14a59bf6bc9474d5a8806
+          name: 'Audiobookshelf: Users'
+          type: DEPENDENT
+          key: audiobookshelf.users.total
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.users.total
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: users
+        - uuid: b404e211c60a4029ac35eb9075da3787
+          name: 'Audiobookshelf: Enabled users'
+          type: DEPENDENT
+          key: audiobookshelf.users.enabled
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.users.enabled
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: users
+        - uuid: 2805029e8a6f407f9344d0e59b461d00
+          name: 'Audiobookshelf: Locked users'
+          type: DEPENDENT
+          key: audiobookshelf.users.locked
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.users.locked
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: security
+          triggers:
+            - uuid: f7e9ac52390a48e390b9f291ea4163dd
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.users.locked)>0'
+              name: 'Audiobookshelf: One or more user accounts are locked'
+              priority: WARNING
+              description: 'At least one audiobookshelf user account is locked. Review failed login attempts and unlock the account if appropriate.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 0e1398fe5e4c4593a659c10c15af621c
+          name: 'Audiobookshelf: Open playback sessions'
+          type: DEPENDENT
+          key: audiobookshelf.sessions.open
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sessions.open
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: sessions
+        - uuid: 69503225a0a1406a919c1d7830c93a26
+          name: 'Audiobookshelf: Open share playback sessions'
+          type: DEPENDENT
+          key: audiobookshelf.sessions.share
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sessions.share
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: sessions
+        - uuid: 9d0c8833bafa4f2aa5fd27ed8a1d10b2
+          name: 'Audiobookshelf: Active tasks'
+          type: DEPENDENT
+          key: audiobookshelf.tasks.active
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.tasks.active
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: tasks
+        - uuid: be65945c8ebb44a68edebd124293149e
+          name: 'Audiobookshelf: Queued metadata tasks'
+          type: DEPENDENT
+          key: audiobookshelf.tasks.queued_metadata
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.tasks.queuedMetadata
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: tasks
+        - uuid: 8dc2140232164f6d9b87d4bee79e2ad3
+          name: 'Audiobookshelf: Backups'
+          type: DEPENDENT
+          key: audiobookshelf.backups.total
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.backups.total
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: f0498e9027c94f12a129bd5d4f83e25d
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.backups.total)=0 and {$AUDIOBOOKSHELF.BACKUP.MAX.AGE}>0'
+              name: 'Audiobookshelf: No backups are available'
+              priority: WARNING
+              description: 'The server reports no audiobookshelf configuration/database backups. Set {$AUDIOBOOKSHELF.BACKUP.MAX.AGE} to 0 to disable backup-age monitoring.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 967b4af56c2740d6a02ba27910e93d9c
+          name: 'Audiobookshelf: Latest backup'
+          type: DEPENDENT
+          key: audiobookshelf.backups.latest
+          history: 90d
+          units: unixtime
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.backups.latestCreatedAt
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: f7330b8295a44939b76c407f97cb326f
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.backups.total)>0 and now()-last(/Audiobookshelf by HTTP/audiobookshelf.backups.latest)>{$AUDIOBOOKSHELF.BACKUP.MAX.AGE} and {$AUDIOBOOKSHELF.BACKUP.MAX.AGE}>0'
+              name: 'Audiobookshelf: Latest backup is too old'
+              event_name: 'Audiobookshelf: Latest backup is older than {$AUDIOBOOKSHELF.BACKUP.MAX.AGE}'
+              priority: WARNING
+              description: 'No recent audiobookshelf configuration/database backup exists. Set the threshold to 0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: bfb5322362f64668a437dcd692bbb1bd
+          name: 'Audiobookshelf: Latest backup size'
+          type: DEPENDENT
+          key: audiobookshelf.backups.latest_size
+          history: 90d
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.backups.latestSize
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: backup
+      discovery_rules:
+        - uuid: 6c2d6ab2714e4a049d45b14d518de590
+          name: 'Audiobookshelf: Library discovery'
+          type: DEPENDENT
+          key: audiobookshelf.library.discovery
+          description: 'Discovers all audiobook and podcast libraries visible to the API user.'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#LIBRARY.NAME}'
+                value: '{$AUDIOBOOKSHELF.LLD.LIBRARY.MATCHES}'
+                operator: MATCHES_REGEX
+              - macro: '{#LIBRARY.NAME}'
+                value: '{$AUDIOBOOKSHELF.LLD.LIBRARY.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 30d
+          master_item:
+            key: audiobookshelf.get
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var libraries = data.libraries || [];
+                  var lld = [];
+                  for (var i = 0; i < libraries.length; i++) {
+                      if (!libraries[i].id) {
+                          continue;
+                      }
+                      lld.push({
+                          '{#LIBRARY.ID}': String(libraries[i].id),
+                          '{#LIBRARY.NAME}': String(libraries[i].name || libraries[i].id),
+                          '{#LIBRARY.TYPE}': String(libraries[i].mediaType || 'unknown')
+                      });
+                  }
+                  return JSON.stringify(lld);
+          item_prototypes:
+            - uuid: ec6795ab645841f9b4412fc8ac4a8632
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Media type'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.media_type[{#LIBRARY.ID}]'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].mediaType.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 8edb5876eb0a4d8481e5a235a3ea24a0
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Media items'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.items[{#LIBRARY.ID}]'
+              history: 90d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].stats.totalItems.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: dd3d4227bf874d538299394cc5c605e8
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Audio files'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.audio_files[{#LIBRARY.ID}]'
+              history: 90d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].stats.numAudioFiles.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 1c5bbc29a5d94915bda9b28003ecaa0c
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Total duration'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.duration[{#LIBRARY.ID}]'
+              history: 90d
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].stats.totalDuration.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: b732e475358c48c7974798f22a12b541
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Total size'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.size[{#LIBRARY.ID}]'
+              history: 90d
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].stats.totalSize.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 9efd1bfa10c74c5faf665c5809438bbd
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Folders'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.folders[{#LIBRARY.ID}]'
+              history: 90d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].folderCount.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 0add2ddfaaba4e85a63eec0503c7461d
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Watcher enabled'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.watcher_enabled[{#LIBRARY.ID}]'
+              history: 90d
+              description: '1 when automatic filesystem watching is enabled for this library.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].watcherEnabled.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+              trigger_prototypes:
+                - uuid: d24edb56230442fbbc667919d8865573
+                  expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.library.watcher_enabled[{#LIBRARY.ID}])=0 and {$AUDIOBOOKSHELF.LIBRARY.WATCHER.TRIGGER}=1'
+                  name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] watcher is disabled'
+                  priority: WARNING
+                  description: 'Automatic filesystem watching is disabled for this library. This trigger is disabled by default through {$AUDIOBOOKSHELF.LIBRARY.WATCHER.TRIGGER}.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: c5f46f125f774b8392622d21f29dbbe9
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Last update'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.last_update[{#LIBRARY.ID}]'
+              history: 90d
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].lastUpdate.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 7814b9018e6d440d9257a5d4dfd878bc
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Last scan'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.last_scan[{#LIBRARY.ID}]'
+              history: 90d
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].lastScan.first()'
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+              trigger_prototypes:
+                - uuid: c8ccbcf4d137406daf0bcd8ee764ed7e
+                  expression: 'now()-last(/Audiobookshelf by HTTP/audiobookshelf.library.last_scan[{#LIBRARY.ID}])>{$AUDIOBOOKSHELF.LIBRARY.SCAN.MAX.AGE} and {$AUDIOBOOKSHELF.LIBRARY.SCAN.MAX.AGE}>0'
+                  name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] has not been scanned recently'
+                  event_name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] scan is older than {$AUDIOBOOKSHELF.LIBRARY.SCAN.MAX.AGE}'
+                  priority: WARNING
+                  description: 'The last full library scan is older than the configured threshold. This check is disabled by default because the filesystem watcher can keep a library current without frequent full scans.'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 050f7902a8604bd6a5c568fcdf7fd174
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Last scan version'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.last_scan_version[{#LIBRARY.ID}]'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].lastScanVersion.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 9f05997244f247c7818491945e8b82b6
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Automatic scan schedule'
+              type: DEPENDENT
+              key: 'audiobookshelf.library.auto_scan_schedule[{#LIBRARY.ID}]'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              description: 'Cron expression configured for automatic full library scans. An empty value means no scheduled scan.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.libraries[?(@.id == "{#LIBRARY.ID}")].autoScanSchedule.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: audiobookshelf.get
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 49e26d4b25084801a6372ea94379892a
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}]: Metadata issues'
+              type: HTTP_AGENT
+              key: 'audiobookshelf.library.issues[{#LIBRARY.ID}]'
+              delay: '{$AUDIOBOOKSHELF.ISSUES.UPDATE.INTERVAL}'
+              history: 90d
+              description: 'Number of library items for which audiobookshelf reports metadata or file issues.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.issues
+              url: '{$AUDIOBOOKSHELF.URL}/api/libraries/{#LIBRARY.ID}?include=filterdata'
+              status_codes: '200'
+              http_proxy: '{$AUDIOBOOKSHELF.HTTP.PROXY}'
+              headers:
+                - name: Accept
+                  value: application/json
+                - name: Authorization
+                  value: 'Bearer {$AUDIOBOOKSHELF.API.TOKEN}'
+              timeout: '{$AUDIOBOOKSHELF.HTTP.TIMEOUT}'
+              tags:
+                - tag: component
+                  value: library
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+              trigger_prototypes:
+                - uuid: 8bb1af6ba75d47c49cf293d58cf4fb82
+                  expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.library.issues[{#LIBRARY.ID}])>{$AUDIOBOOKSHELF.LIBRARY.ISSUES.WARN}'
+                  name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] has metadata issues'
+                  event_name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] has {ITEM.VALUE} metadata issue(s)'
+                  priority: WARNING
+                  description: 'Audiobookshelf reports more library issues than the configured threshold.'
+                  tags:
+                    - tag: scope
+                      value: availability
+          graph_prototypes:
+            - uuid: e06a19aa93e54e09a02cd2459d598754
+              name: 'Audiobookshelf: Library [{#LIBRARY.NAME}] content'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Audiobookshelf by HTTP'
+                    key: 'audiobookshelf.library.items[{#LIBRARY.ID}]'
+                - sortorder: '1'
+                  color: 2774A4
+                  item:
+                    host: 'Audiobookshelf by HTTP'
+                    key: 'audiobookshelf.library.audio_files[{#LIBRARY.ID}]'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: audiobookshelf
+      macros:
+        - macro: '{$AUDIOBOOKSHELF.API.TOKEN}'
+          type: SECRET_TEXT
+          description: 'Dedicated API key or legacy user token assigned to an audiobookshelf admin/root user. The template never stores raw user endpoint responses.'
+        - macro: '{$AUDIOBOOKSHELF.BACKUP.MAX.AGE}'
+          value: 2d
+          description: 'Maximum acceptable age of the latest audiobookshelf backup. Set to 0 to disable both backup triggers.'
+        - macro: '{$AUDIOBOOKSHELF.HTTP.PROXY}'
+          description: 'Optional HTTP proxy used by the collection script and library issue checks.'
+        - macro: '{$AUDIOBOOKSHELF.HTTP.TIMEOUT}'
+          value: 30s
+          description: 'Timeout for the collection script and per-library issue requests.'
+        - macro: '{$AUDIOBOOKSHELF.ISSUES.UPDATE.INTERVAL}'
+          value: 1h
+          description: 'Polling interval for the more expensive per-library metadata issue query.'
+        - macro: '{$AUDIOBOOKSHELF.LIBRARY.ISSUES.WARN}'
+          value: '0'
+          description: 'Library metadata issue count above which a warning is raised.'
+        - macro: '{$AUDIOBOOKSHELF.LIBRARY.SCAN.MAX.AGE}'
+          value: '0'
+          description: 'Maximum age of the last full library scan. Set a duration such as 7d to enable the trigger; 0 disables it.'
+        - macro: '{$AUDIOBOOKSHELF.LIBRARY.WATCHER.TRIGGER}'
+          value: '0'
+          description: 'Set to 1 to warn when the automatic filesystem watcher is disabled for a library.'
+        - macro: '{$AUDIOBOOKSHELF.LLD.LIBRARY.MATCHES}'
+          value: '^.*$'
+          description: 'Regular expression matching library names to discover.'
+        - macro: '{$AUDIOBOOKSHELF.LLD.LIBRARY.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Regular expression matching library names to exclude from discovery.'
+        - macro: '{$AUDIOBOOKSHELF.RESPONSE.TIME.WARN}'
+          value: '5000'
+          description: 'Warning threshold for the average maximum API response time, in milliseconds.'
+        - macro: '{$AUDIOBOOKSHELF.UPDATE.INTERVAL}'
+          value: 5m
+          description: 'Polling interval for server-wide API data.'
+        - macro: '{$AUDIOBOOKSHELF.URL}'
+          value: 'http://127.0.0.1:13378'
+          description: 'Complete audiobookshelf base URL, including an optional reverse-proxy subpath and without a trailing slash.'
