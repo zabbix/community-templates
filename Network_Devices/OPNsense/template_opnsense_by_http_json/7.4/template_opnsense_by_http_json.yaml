@@ -237,6 +237,24 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 7945ce5b7e174b9e8f6ea6da6dd64060
+          name: 'RAW WireGuard'
+          type: HTTP_AGENT
+          key: opns.wireguard.raw
+          delay: 1m
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/wireguard/service/show'
+          tags:
+            - tag: component
+              value: raw
         - uuid: f8800baa079b46f485a049ee02d61b57
           name: 'ARC Memory'
           type: DEPENDENT
@@ -1343,6 +1361,293 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#OPNS.INTERFACE.NAME}'
               path: $.name
+        - uuid: 36c000378e754ccb9475fa047160fd8f
+          name: 'WireGuard Instance Discovery'
+          type: DEPENDENT
+          key: opns.wireguard.instance.discovery
+          filter:
+            conditions:
+              - macro: '{#WG.INSTANCE}'
+                value: '{$OPNS.WG.INSTANCE.MATCHES}'
+              - macro: '{#WG.INSTANCE}'
+                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1h
+          item_prototypes:
+            - uuid: 5946da75329d435b93d24a25ed70d5ff
+              name: 'WireGuard instance {#WG.INSTANCE}: status'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.status[{#WG.IF}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].status.first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+                - tag: interface
+                  value: '{#WG.IF}'
+              trigger_prototypes:
+                - uuid: 290408665fab4886ab6d4ef2c35bda65
+                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.instance.status[{#WG.IF}],5m,"eq","up")=0'
+                  name: 'WireGuard instance {#WG.INSTANCE} is down'
+                  priority: HIGH
+            - uuid: 9b6b1a92c9384e8ea4d3302fb701f494
+              name: 'WireGuard instance {#WG.INSTANCE}: listen port'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.listen_port[{#WG.IF}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].["listen-port"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: 5a01a56577a74926a311bbdcff64543f
+              name: 'WireGuard instance {#WG.INSTANCE}: public key'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.public_key[{#WG.IF}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].["public-key"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+                - tag: interface
+                  value: '{#WG.IF}'
+          master_item:
+            key: opns.wireguard.raw
+          lld_macro_paths:
+            - lld_macro: '{#WG.IF}'
+              path: $.if
+            - lld_macro: '{#WG.INSTANCE}'
+              path: $.name
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var instances = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'interface') {
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i].if;
+                          }
+                          instances.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(instances);
+        - uuid: 3f23060d61274c6d9beb2087f259bd54
+          name: 'WireGuard Peer Discovery'
+          type: DEPENDENT
+          key: opns.wireguard.peer.discovery
+          filter:
+            conditions:
+              - macro: '{#WG.NAME}'
+                value: '{$OPNS.WG.PEER.MATCHES}'
+              - macro: '{#WG.NAME}'
+                value: '{$OPNS.WG.PEER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#WG.IFNAME}'
+                value: '{$OPNS.WG.INSTANCE.MATCHES}'
+              - macro: '{#WG.IFNAME}'
+                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1h
+          item_prototypes:
+            - uuid: 7397099101c74754bc0d639b37b8bbc9
+              name: 'WireGuard peer {#WG.NAME}: status'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.status["{#WG.PUBKEY}"]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["peer-status"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+              trigger_prototypes:
+                - uuid: bbb8926ace0b483fa7d397703e47d4d2
+                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0'
+                  name: 'WireGuard peer {#WG.NAME} is not online'
+                  priority: HIGH
+                  description: 'WireGuard peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
+            - uuid: c373db13af244a14b21d582905d4dfa4
+              name: 'WireGuard peer {#WG.NAME}: latest handshake age'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]'
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake-age"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: 5c886d9ab9bf4569acd058a1f060d306
+              name: 'WireGuard peer {#WG.NAME}: latest handshake'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: d1c0192b3c194c73be8cb62a8635de5e
+              name: 'WireGuard peer {#WG.NAME}: endpoint'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].endpoint.first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: e58a63a78b5249f0b579dd0cbd82c0f3
+              name: 'WireGuard peer {#WG.NAME}: bytes received'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: 4fa44cf6d91b4d7595bedb07cdfe480a
+              name: 'WireGuard peer {#WG.NAME}: bytes received per second'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: e74a5d5c709a4ff7932195f5a7d1728b
+              name: 'WireGuard peer {#WG.NAME}: bytes sent'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+            - uuid: df146ef2cc8b4ea59da11b0516befbfe
+              name: 'WireGuard peer {#WG.NAME}: bytes sent per second'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+                - tag: interface
+                  value: '{#WG.IF}'
+          master_item:
+            key: opns.wireguard.raw
+          lld_macro_paths:
+            - lld_macro: '{#WG.IF}'
+              path: $.if
+            - lld_macro: '{#WG.IFNAME}'
+              path: $.ifname
+            - lld_macro: '{#WG.NAME}'
+              path: $.name
+            - lld_macro: '{#WG.PUBKEY}'
+              path: $.public_key
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var peers = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'peer') {
+                          rows[i].public_key = rows[i]['public-key'];
+                          if (rows[i].ifname === '' || rows[i].ifname === null) {
+                              rows[i].ifname = rows[i].if;
+                          }
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i]['public-key'];
+                          }
+                          peers.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(peers);
         - uuid: e53f5f66e0db470b9e1b6bd32384d070
           name: 'IPsec Phase1 Discovery'
           type: DEPENDENT
@@ -1726,6 +2031,18 @@ zabbix_export:
         - macro: '{$OPNS.PORT}'
           value: '443'
           description: 'HTTPS API Port'
+        - macro: '{$OPNS.WG.INSTANCE.MATCHES}'
+          value: .+
+          description: 'Regex filter for WireGuard instance discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
+          value: ^$
+          description: 'Regex filter for excluding WireGuard instances from discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.WG.PEER.MATCHES}'
+          value: .+
+          description: 'Regex filter for WireGuard peer discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.WG.PEER.NOT_MATCHES}'
+          value: ^$
+          description: 'Regex filter for excluding WireGuard peers from discovery. Can be overridden on the host or linked template level.'
       dashboards:
         - uuid: 7a4b378cb31c4d6fb3c4c69731653336
           name: 'OPNsense Info'

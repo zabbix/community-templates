@@ -4,8 +4,8 @@
 
 This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
 It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions,
-gateway health, network interfaces, CARP high-availability status, and UPS status via NUT
-(Network UPS Tools).
+gateway health, network interfaces, CARP high-availability status, WireGuard peers, and UPS status
+via NUT (Network UPS Tools).
 
 The template uses OPNsense API key/secret authentication and requires no agent installation
 on the firewall.
@@ -27,6 +27,7 @@ on the firewall.
   - `core/firmware`
   - `nut/diagnostics`
   - `ipsec/sessions/searchPhase(1|2)` 
+  - `wireguard/service/show`
   
 ### Permissions
 
@@ -40,6 +41,7 @@ on the firewall.
 | page-system-gateways                   | System: Gateways                          |
 | page-system-login-logout               | Lobby: Dashboard                          |
 | page-status-ipsec | Status: IPsec |
+| page-wireguard-diagnostics | VPN: WireGuard: Status |
 
 
 
@@ -69,6 +71,7 @@ on the firewall.
    - Enable the item `RAW UPS` on the host if a UPS is connected and managed by NUT on OPNsense
    - See the [UPS Monitoring](#ups-monitoring-nut) section below for details
 
+
 > **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be
 > configured to skip certificate verification for HTTP agent items.
 
@@ -93,6 +96,10 @@ on the firewall.
 | `{$OPNS.NUT.BAT.LOW}` | `30` | Battery charge (%) below which a warning is triggered. |
 | `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining battery runtime (seconds) below which an alert is triggered. |
 | `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load (%) above which a warning is triggered. |
+| `{$OPNS.WG.INSTANCE.MATCHES}` | `.+` | Regex filter for WireGuard instances to discover. |
+| `{$OPNS.WG.INSTANCE.NOT_MATCHES}` | `^$` | Regex filter for WireGuard instances to exclude from discovery. |
+| `{$OPNS.WG.PEER.MATCHES}` | `.+` | Regex filter for WireGuard peers to discover. |
+| `{$OPNS.WG.PEER.NOT_MATCHES}` | `^$` | Regex filter for WireGuard peers to exclude from discovery. |
 
 ## Items Collected
 
@@ -170,6 +177,7 @@ items and discovery rules.
 | RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
 | RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
 | RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
+| RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
 
 ## Triggers
 
@@ -193,6 +201,13 @@ items and discovery rules.
 | High Load on UPS Battery | **Average** | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%). |
 | Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning** | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%). |
 | Remaining battery runtime is low | **High** | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
+
+### WireGuard Triggers
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
+| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. OPNsense marks peers online when the latest handshake is not older than 300 seconds. |
 
 ## Discovery Rules
 
@@ -342,6 +357,63 @@ items and discovery rules.
 | …blocked packets OUTv4 | `opns.interface.fw.packets.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
 | …passed packets INv4 | `opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
 | …passed packets OUTv4 | `opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
+
+---
+
+### 6. WireGuard Instance Discovery
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.wireguard.instance.discovery` |
+| Type | Dependent (master: `opns.wireguard.raw`) |
+| LLD Macros | `{#WG.IF}` → `$.if`, `{#WG.INSTANCE}` → `$.name` |
+| Filters | `{#WG.INSTANCE}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
+| Keep lost resources | 1h |
+
+**Item Prototypes:**
+
+| Name | Key | Unit | Description |
+|------|-----|------|-------------|
+| WireGuard instance {#WG.INSTANCE}: status | `opns.wireguard.instance.status[{#WG.IF}]` | – | Interface status reported by OPNsense (`up` or `down`). |
+| WireGuard instance {#WG.INSTANCE}: listen port | `opns.wireguard.instance.listen_port[{#WG.IF}]` | – | WireGuard listen port. |
+| WireGuard instance {#WG.INSTANCE}: public key | `opns.wireguard.instance.public_key[{#WG.IF}]` | – | Instance public key. |
+
+**Trigger Prototypes:**
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
+
+---
+
+### 7. WireGuard Peer Discovery
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.wireguard.peer.discovery` |
+| Type | Dependent (master: `opns.wireguard.raw`) |
+| LLD Macros | `{#WG.PUBKEY}` → `$.public_key`, `{#WG.NAME}` → `$.name`, `{#WG.IF}` → `$.if`, `{#WG.IFNAME}` → `$.ifname` |
+| Filters | `{#WG.NAME}` configurable via `{$OPNS.WG.PEER.MATCHES}` and `{$OPNS.WG.PEER.NOT_MATCHES}`; `{#WG.IFNAME}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
+| Keep lost resources | 1h |
+
+**Item Prototypes:**
+
+| Name | Key | Unit | Description |
+|------|-----|------|-------------|
+| WireGuard peer {#WG.NAME}: status | `opns.wireguard.peer.status["{#WG.PUBKEY}"]` | – | Peer status reported by OPNsense (`online`, `stale`, or `offline`). |
+| WireGuard peer {#WG.NAME}: latest handshake | `opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]` | unixtime | Latest WireGuard handshake timestamp. Returns `0` if no handshake exists. |
+| WireGuard peer {#WG.NAME}: latest handshake age | `opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]` | s | Age of the latest handshake in seconds. Returns `0` if no handshake exists. |
+| WireGuard peer {#WG.NAME}: endpoint | `opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]` | – | Current peer endpoint. |
+| WireGuard peer {#WG.NAME}: bytes received | `opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]` | B | Total bytes received from the peer. |
+| WireGuard peer {#WG.NAME}: bytes received per second | `opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]` | Bps | Receive rate calculated from total received bytes. |
+| WireGuard peer {#WG.NAME}: bytes sent | `opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]` | B | Total bytes sent to the peer. |
+| WireGuard peer {#WG.NAME}: bytes sent per second | `opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]` | Bps | Send rate calculated from total sent bytes. |
+
+**Trigger Prototypes:**
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
 
 ## UPS Monitoring (NUT)
 
