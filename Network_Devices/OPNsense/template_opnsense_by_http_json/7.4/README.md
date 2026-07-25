@@ -114,6 +114,11 @@ on the firewall.
 | ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. |
 | Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
 | Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
+| Firmware update status | `opns.firmware.update.status` | Dependent | – | Firmware update status (`none`, `update`, `upgrade`, or `error`). |
+| Firmware update status message | `opns.firmware.update.status_msg` | Dependent | – | Human-readable firmware update status message. |
+| Firmware update count | `opns.firmware.update.count` | Dependent | – | Number of available firmware package or set updates. |
+| Firmware update packages | `opns.firmware.update.packages` | Dependent | – | List of available package or set updates. |
+| Firmware update requires reboot | `opns.firmware.update.reboot` | Dependent | – | Returns `1` when the available firmware update requires a reboot. |
 
 ### Firewall Items
 
@@ -176,6 +181,7 @@ items and discovery rules.
 | RAW Interfaces | `opns.raw.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
 | RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
 | RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
+| RAW Firmware Status | `opns.raw.firmware.status` | 1d | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
 | RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
 | RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
 
@@ -189,6 +195,8 @@ items and discovery rules.
 | CPU load is high | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes. |
 | Memory utilization is high | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes. |
 | OPNSense Business License expires soon | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
+| OPNsense firmware updates are available | **Info** | Firmware update status is `update` or `upgrade` and at least one update is available. |
+| OPNsense firmware update check failed | **Warning** | Firmware update check returned `error`. |
 | State table usage is high | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
 | {HOST.NAME} has been restarted | **Info** | System uptime is less than 600 seconds (10 minutes). |
 

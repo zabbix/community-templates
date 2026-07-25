@@ -341,6 +341,117 @@ zabbix_export:
               name: 'OPNSense Business License expires soon'
               event_name: 'OPNSense Business License expires soon (less than {$OPNS.LICENSE.EXPIRY.WARN} days)'
               priority: AVERAGE
+        - uuid: 6ebbcee115654039a5735c835bbdaa78
+          name: 'Firmware update count'
+          type: DEPENDENT
+          key: opns.firmware.update.count
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  if (data.status !== 'update' && data.status !== 'upgrade') {
+                      return 0;
+                  }
+                  if (data.all_packages) {
+                      return Object.keys(data.all_packages).length;
+                  }
+                  if (data.all_sets) {
+                      return Object.keys(data.all_sets).length;
+                  }
+                  return 0;
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: daba216c1e654377982db23dfad0b0a0
+          name: 'Firmware update packages'
+          type: DEPENDENT
+          key: opns.firmware.update.packages
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var packages = data.all_packages || data.all_sets || {};
+                  var result = [];
+                  Object.keys(packages).sort().forEach(function (name) {
+                      var pkg = packages[name];
+                      result.push(pkg.name + ': ' + pkg.old + ' -> ' + pkg.new + ' (' + pkg.reason + ')');
+                  });
+                  return result.join('\n');
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: c38e9bd38f2749839673580d91239005
+          name: 'Firmware update requires reboot'
+          type: DEPENDENT
+          key: opns.firmware.update.reboot
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status_reboot
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: ec1dbbdb46a1445f9c5595ab24a76083
+          name: 'Firmware update status'
+          type: DEPENDENT
+          key: opns.firmware.update.status
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+          triggers:
+            - uuid: 6003bfd5a8f44a6d9a04f08de932fef1
+              expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"regexp","^(update|upgrade)$")=1 and last(/OPNsense by HTTP-JSON/opns.firmware.update.count)>0'
+              name: 'OPNsense firmware updates are available'
+              event_name: 'OPNsense firmware updates are available ({ITEM.LASTVALUE})'
+              opdata: 'Updates: {ITEM.LASTVALUE2}'
+              priority: INFO
+              description: 'A firmware update or major upgrade is available.'
+            - uuid: a5755520c5e2491cb9b44cd9d1f438af
+              expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"eq","error")=1'
+              name: 'OPNsense firmware update check failed'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: WARNING
+              description: 'The OPNsense firmware update check returned an error.'
+        - uuid: 68ad33be2ee3422c8b711a243a860ca5
+          name: 'Firmware update status message'
+          type: DEPENDENT
+          key: opns.firmware.update.status_msg
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status_msg
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
         - uuid: 164f961df24a445aa57872068e5a1f99
           name: 'RAW Disk'
           type: HTTP_AGENT
@@ -535,6 +646,21 @@ zabbix_export:
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
           url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/info'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: d50283b96ba64d769fbd744e9a71f327
+          name: 'RAW Firmware Status'
+          type: HTTP_AGENT
+          key: opns.raw.firmware.status
+          delay: 1d
+          history: 7d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          request_method: POST
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/status'
           tags:
             - tag: component
               value: raw
