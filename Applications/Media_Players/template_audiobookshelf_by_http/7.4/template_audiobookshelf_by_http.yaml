@@ -27,7 +27,7 @@ zabbix_export:
         as an Authorization Bearer header. Zabbix server or proxy must be able to reach the URL.
       vendor:
         name: community-templates
-        version: '7.4-1'
+        version: '7.4-2'
       groups:
         - name: Templates/Applications
       items:
@@ -56,7 +56,8 @@ zabbix_export:
                 users: { total: 0, enabled: 0, locked: 0 },
                 sessions: { open: 0, share: 0 },
                 tasks: { active: 0, queuedMetadata: 0 },
-                backups: { total: 0, latestCreatedAt: 0, latestSize: 0 }
+                backups: { total: 0, latestCreatedAt: 0, latestSize: 0 },
+                token: { hasExpiration: 0, expiresAt: 0, expiresIn: 0 }
             };
 
             if (!params.url) {
@@ -67,6 +68,24 @@ zabbix_export:
             }
 
             var baseUrl = params.url.replace(/\/+$/, '');
+
+            function getJwtPayload(token) {
+                var parts = token.split('.');
+                if (parts.length !== 3) {
+                    return null;
+                }
+
+                var encoded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                while (encoded.length % 4) {
+                    encoded += '=';
+                }
+
+                var buffer = atob(encoded);
+                var decoded = typeof buffer === 'string'
+                    ? buffer
+                    : String.fromCharCode.apply(this, [].slice.call(buffer));
+                return JSON.parse(decoded);
+            }
 
             function countEntries(object) {
                 if (Array.isArray(object)) {
@@ -124,6 +143,19 @@ zabbix_export:
             var sessionsResponse = get('/api/sessions/open');
             var tasksResponse = get('/api/tasks?include=queue');
             var backupsResponse = get('/api/backups');
+
+            try {
+                var tokenPayload = getJwtPayload(params.token);
+                var expiresAt = tokenPayload ? Number(tokenPayload.exp || 0) : 0;
+                if (expiresAt > 0) {
+                    result.token.hasExpiration = 1;
+                    result.token.expiresAt = Math.floor(expiresAt);
+                    result.token.expiresIn = Math.max(0, Math.floor(expiresAt - result.collectedAt));
+                }
+            }
+            catch (error) {
+                // API availability verifies opaque or legacy tokens. Never expose token payload data.
+            }
 
             if (status) {
                 result.version = String(status.serverVersion || '');
@@ -219,6 +251,218 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: availability
+        - uuid: e1eb8a72d1644eb49505008bc6b7bbc9
+          name: 'Audiobookshelf: Check for updates'
+          type: SCRIPT
+          key: audiobookshelf.update.get
+          delay: '{$AUDIOBOOKSHELF.UPDATE.CHECK.INTERVAL}'
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var result = {
+                available: 0,
+                updateAvailable: 0,
+                currentVersion: '',
+                latestVersion: '',
+                errors: []
+            };
+
+            if (!params.url) {
+                throw 'Required parameter "url" is not set.';
+            }
+
+            var baseUrl = params.url.replace(/\/+$/, '');
+
+            function request(url, github) {
+                var http = new HttpRequest();
+                if (params.proxy) {
+                    http.setProxy(params.proxy);
+                }
+                http.addHeader('Accept: application/json');
+                if (github) {
+                    http.addHeader('User-Agent: Zabbix-audiobookshelf-template');
+                    http.addHeader('X-GitHub-Api-Version: 2022-11-28');
+                }
+
+                var response;
+                try {
+                    response = http.get(url);
+                }
+                catch (error) {
+                    result.errors.push((github ? 'GitHub releases' : 'Audiobookshelf status') + ': ' + String(error));
+                    return null;
+                }
+
+                if (http.getStatus() < 200 || http.getStatus() >= 300) {
+                    result.errors.push((github ? 'GitHub releases' : 'Audiobookshelf status') + ': HTTP ' + http.getStatus());
+                    return null;
+                }
+
+                try {
+                    return JSON.parse(response);
+                }
+                catch (error) {
+                    result.errors.push((github ? 'GitHub releases' : 'Audiobookshelf status') + ': invalid JSON');
+                    return null;
+                }
+            }
+
+            function parseVersion(version) {
+                var match = String(version || '').replace(/^v/, '').match(/^([0-9]+)\.([0-9]+)\.([0-9]+)/);
+                if (!match) {
+                    return null;
+                }
+                return {
+                    text: match[1] + '.' + match[2] + '.' + match[3],
+                    major: Number(match[1]),
+                    minor: Number(match[2]),
+                    patch: Number(match[3])
+                };
+            }
+
+            function isNewer(candidate, installed) {
+                if (candidate.major !== installed.major) {
+                    return candidate.major > installed.major;
+                }
+                if (candidate.minor !== installed.minor) {
+                    return candidate.minor > installed.minor;
+                }
+                return candidate.patch > installed.patch;
+            }
+
+            var status = request(encodeURI(baseUrl + '/status'), false);
+            var release = request('https://api.github.com/repos/advplyr/audiobookshelf/releases/latest', true);
+
+            var current = parseVersion(status ? status.serverVersion : '');
+            var latest = parseVersion(release ? release.tag_name : '');
+
+            if (!current && status) {
+                result.errors.push('Audiobookshelf status: invalid server version');
+            }
+            if (!latest && release) {
+                result.errors.push('GitHub releases: invalid release version');
+            }
+
+            if (current) {
+                result.currentVersion = current.text;
+            }
+            if (latest) {
+                result.latestVersion = latest.text;
+            }
+            if (current && latest) {
+                result.available = 1;
+                result.updateAvailable = isNewer(latest, current) ? 1 : 0;
+            }
+
+            result.errors = result.errors.join('; ');
+            return JSON.stringify(result);
+          description: 'Compares the installed server version with the latest stable GitHub release. It is intentionally polled less often than the main API item.'
+          timeout: '{$AUDIOBOOKSHELF.HTTP.TIMEOUT}'
+          parameters:
+            - name: proxy
+              value: '{$AUDIOBOOKSHELF.HTTP.PROXY}'
+            - name: url
+              value: '{$AUDIOBOOKSHELF.URL}'
+          tags:
+            - tag: component
+              value: update
+          triggers:
+            - uuid: 50447d8c7c2343f5b34ec2d7811e4e55
+              expression: 'nodata(/Audiobookshelf by HTTP/audiobookshelf.update.get,1d)=1'
+              name: 'Audiobookshelf: No update-check data'
+              priority: WARNING
+              description: 'No update-check output has been received for one day.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 8717b3ea3a8c48d1a67fea51b52cd853
+          name: 'Audiobookshelf: Update check available'
+          type: DEPENDENT
+          key: audiobookshelf.update.check.available
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.available
+          master_item:
+            key: audiobookshelf.update.get
+          tags:
+            - tag: component
+              value: update
+          triggers:
+            - uuid: f41460e396d74571b5f4caaf3e2c0755
+              expression: 'max(/Audiobookshelf by HTTP/audiobookshelf.update.check.available,1d)=0'
+              name: 'Audiobookshelf: Update check is unavailable'
+              priority: WARNING
+              description: 'The installed version or the latest stable GitHub release could not be retrieved or parsed during the last day.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 656b15668fb043c4ab9dfa0f847812c1
+          name: 'Audiobookshelf: Latest available version'
+          type: DEPENDENT
+          key: audiobookshelf.update.latest_version
+          history: 90d
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.latestVersion
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: audiobookshelf.update.get
+          tags:
+            - tag: component
+              value: update
+        - uuid: cbbf5272ff9c42358795923462b4e6db
+          name: 'Audiobookshelf: Update available'
+          type: DEPENDENT
+          key: audiobookshelf.update.available
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.updateAvailable
+          master_item:
+            key: audiobookshelf.update.get
+          tags:
+            - tag: component
+              value: update
+          triggers:
+            - uuid: b143197153dc479bb2c2adc4643085df
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.update.available)=1 and length(last(/Audiobookshelf by HTTP/audiobookshelf.update.latest_version))>0 and length(last(/Audiobookshelf by HTTP/audiobookshelf.server.version))>0'
+              name: 'Audiobookshelf: A newer version is available'
+              event_name: 'Audiobookshelf: A newer version is available (latest: {ITEM.LASTVALUE2})'
+              opdata: 'Installed: {ITEM.LASTVALUE3}, latest: {ITEM.LASTVALUE2}'
+              priority: INFO
+              description: 'A newer stable audiobookshelf release is available on GitHub.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: c4a611429dcb4e6888dd46115a5b7dbd
+          name: 'Audiobookshelf: Update check errors'
+          type: DEPENDENT
+          key: audiobookshelf.update.errors
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errors
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: audiobookshelf.update.get
+          tags:
+            - tag: component
+              value: update
         - uuid: b6ca89ccbe86461a8dd4a39d87937ae3
           name: 'Audiobookshelf: API available'
           type: DEPENDENT
@@ -421,6 +665,71 @@ zabbix_export:
           tags:
             - tag: component
               value: system
+        - uuid: 40d4796eeaca4384a4b561acd1384ae3
+          name: 'Audiobookshelf: API token has expiration'
+          type: DEPENDENT
+          key: audiobookshelf.api.token.has_expiration
+          history: 30d
+          description: '1 when the configured JWT contains an exp claim. Legacy tokens without an expiration report 0.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.token.hasExpiration
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: authentication
+        - uuid: f320ddc8b9904357bbb1ed8de7806a08
+          name: 'Audiobookshelf: API token expiration'
+          type: DEPENDENT
+          key: audiobookshelf.api.token.expires_at
+          history: 90d
+          units: unixtime
+          description: 'Expiration timestamp from the JWT exp claim. 0 means that the token has no expiration or is not a JWT.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.token.expiresAt
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: authentication
+          triggers:
+            - uuid: dbdadafd5bf54d15b4d8f91ff1c81866
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.api.token.expires_at)>now() and last(/Audiobookshelf by HTTP/audiobookshelf.api.token.expires_at)-now()<{$AUDIOBOOKSHELF.API.TOKEN.EXPIRY.WARN}'
+              name: 'Audiobookshelf: API token will expire soon'
+              event_name: 'Audiobookshelf: API token expires in less than {$AUDIOBOOKSHELF.API.TOKEN.EXPIRY.WARN}'
+              priority: WARNING
+              description: 'The configured API key JWT is approaching its expiration time.'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: 81cb3eb65bf249579f358108a8d3010c
+              expression: 'last(/Audiobookshelf by HTTP/audiobookshelf.api.token.expires_at)>0 and last(/Audiobookshelf by HTTP/audiobookshelf.api.token.expires_at)<=now()'
+              name: 'Audiobookshelf: API token has expired'
+              priority: HIGH
+              description: 'The configured API key JWT has reached its expiration time. Replace the key and update the secret host macro.'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 4e65e6679e0a4b128a8a02bb8b97b7f6
+          name: 'Audiobookshelf: API token time remaining'
+          type: DEPENDENT
+          key: audiobookshelf.api.token.expires_in
+          history: 90d
+          units: s
+          description: 'Seconds until the JWT expires. 0 is also reported for expired or non-expiring legacy tokens; use the expiration timestamp to distinguish them.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.token.expiresIn
+          master_item:
+            key: audiobookshelf.get
+          tags:
+            - tag: component
+              value: authentication
         - uuid: 8a63773e89a746aba9f33937847d8fe7
           name: 'Audiobookshelf: Libraries'
           type: DEPENDENT
@@ -916,6 +1225,9 @@ zabbix_export:
         - macro: '{$AUDIOBOOKSHELF.API.TOKEN}'
           type: SECRET_TEXT
           description: 'Dedicated API key or legacy user token assigned to an audiobookshelf admin/root user. The template never stores raw user endpoint responses.'
+        - macro: '{$AUDIOBOOKSHELF.API.TOKEN.EXPIRY.WARN}'
+          value: 14d
+          description: 'Warning period before the configured JWT API key expires.'
         - macro: '{$AUDIOBOOKSHELF.BACKUP.MAX.AGE}'
           value: 2d
           description: 'Maximum acceptable age of the latest audiobookshelf backup. Set to 0 to disable both backup triggers.'
@@ -948,6 +1260,9 @@ zabbix_export:
         - macro: '{$AUDIOBOOKSHELF.UPDATE.INTERVAL}'
           value: 5m
           description: 'Polling interval for server-wide API data.'
+        - macro: '{$AUDIOBOOKSHELF.UPDATE.CHECK.INTERVAL}'
+          value: 6h
+          description: 'Interval for comparing the installed version with the latest stable GitHub release.'
         - macro: '{$AUDIOBOOKSHELF.URL}'
           value: 'http://127.0.0.1:13378'
           description: 'Complete audiobookshelf base URL, including an optional reverse-proxy subpath and without a trailing slash.'
