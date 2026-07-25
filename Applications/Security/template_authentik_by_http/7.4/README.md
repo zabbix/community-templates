@@ -10,7 +10,8 @@ inventory and low-level discovery to avoid unnecessary API load.
 The template covers:
 
 - liveness, readiness, API availability and response times;
-- installed/latest version, server clock skew and runtime information;
+- installed/latest version, update availability, update-check validity, server clock
+  skew and runtime information;
 - worker availability and worker version mismatches;
 - queued, running, rejected, warning and failed background tasks;
 - successful and failed logins, configuration warnings and critical security/system
