@@ -422,7 +422,6 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [AirFiber_5U](Network_Devices/Ubiquiti/template_airfiber_5u)
         * [EdgeMAX SNMPv2](Network_Devices/Ubiquiti/template_edgemax_(snmpv2))
         * [Ubiquiti Unifi AP LR SNMPv1](Network_Devices/Ubiquiti/template_ubiquit_unifi_ap_wifi)
-        * [Ubiquiti UniFi AP by SNMP](Network_Devices/Ubiquiti/template_ubiquiti_unifi_ap_by_snmp)
         * [Ubiquiti AirMax AP Clientes by Dzset](Network_Devices/Ubiquiti/template_ubiquiti_airmax_stations_clients)
         * [AirOS8](Network_Devices/Ubiquiti/template_ubiquiti_airos8)
         * [Ubiquiti LTU-rocket wireless](Network_Devices/Ubiquiti/template_ubiquiti_ltu-rocket_wireless)
