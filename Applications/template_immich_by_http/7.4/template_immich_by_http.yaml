@@ -1,0 +1,2091 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 34f0654d59f64d1d909869caf3e3a366
+      template: 'Immich by HTTP'
+      name: 'Immich by HTTP'
+      description: |
+        Monitors an Immich server via the official HTTP API.
+
+        Collection:
+        - A Zabbix JavaScript master item calls the Immich API and returns one JSON document.
+        - Dependent items monitor availability, API endpoint errors, version/update state, storage,
+          global asset statistics, album statistics, queue totals, library totals and user totals.
+        - Low-level discovery creates per-queue, per-external-library and per-user items.
+
+        Requirements:
+        - Zabbix 7.4 or newer.
+        - An Immich API key in {$IMMICH.API.TOKEN}. Use an admin user/API key with read permissions
+          for server information, server statistics, storage, version checks, jobs, libraries,
+          library statistics, album statistics and admin users.
+        - Configure {$IMMICH.URL.HOST}; defaults for Immich are http, port 2283 and API path /api.
+
+        Notes:
+        - Queue counts use Immich's compact /jobs endpoint. The current OpenAPI specification marks
+          it as deprecated, but the replacement queue endpoint does not provide an equivalent
+          all-queue counter view without many per-queue requests.
+        - External library freshness is based on the library refreshedAt timestamp.
+
+        Tested against Zabbix 7.4 template syntax and Immich OpenAPI specification published in July 2026.
+      vendor:
+        name: community-templates
+        version: '7.4'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: a1e4214e7c0047b4b21a8c86c07e30ad
+          name: 'Immich: Get API data'
+          type: SCRIPT
+          key: immich.get
+          delay: '{$IMMICH.API.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+
+            function trimRightSlash(value) {
+              value = String(value || '');
+              while (value.length > 1 && value.charAt(value.length - 1) === '/') {
+                value = value.substring(0, value.length - 1);
+              }
+              return value;
+            }
+
+            function normalizeApiPath(value) {
+              value = trimRightSlash(value || '/api');
+              if (value === '') {
+                return '';
+              }
+              return value.charAt(0) === '/' ? value : '/' + value;
+            }
+
+            function toNumber(value) {
+              var number = Number(value);
+              return isNaN(number) ? 0 : number;
+            }
+
+            function isoToUnix(value) {
+              if (!value) {
+                return 0;
+              }
+
+              var timestamp = Date.parse(value);
+              return isNaN(timestamp) ? 0 : Math.floor(timestamp / 1000);
+            }
+
+            var scheme = String(params.scheme || 'http').replace('://', '').replace(':', '');
+            var host = trimRightSlash(String(params.host || '').replace(/^https?:\/\//, ''));
+            var port = String(params.port || '2283');
+            var apiPath = normalizeApiPath(params.api_path);
+
+            if (!host) {
+              throw 'Macro {$IMMICH.URL.HOST} is empty';
+            }
+
+            var baseUrl = scheme + '://' + host + (port ? ':' + port : '') + apiPath;
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (params.token) {
+              req.addHeader('x-api-key: ' + params.token);
+            }
+
+            var result = {
+              baseUrl: baseUrl,
+              collectedAt: new Date().toISOString(),
+              errors: [],
+              requests: {}
+            };
+
+            function getJson(name, path, options) {
+              options = options || {};
+              var started = Date.now();
+              var entry = {
+                ok: false,
+                status: 0,
+                ms: 0,
+                optional: options.optional ? true : false
+              };
+
+              try {
+                var response = req.get(encodeURI(baseUrl + path));
+                entry.status = req.getStatus();
+                entry.ms = Date.now() - started;
+
+                if (entry.status < 200 || entry.status >= 300) {
+                  throw 'HTTP status ' + entry.status;
+                }
+
+                var data = response ? JSON.parse(response) : null;
+                entry.ok = true;
+              } catch (error) {
+                entry.ms = Date.now() - started;
+                entry.error = String(error);
+                if (!entry.optional) {
+                  result.errors.push(name + ': ' + entry.error);
+                }
+              }
+
+              result.requests[name] = entry;
+              return entry.ok ? data : null;
+            }
+
+            result.ping = getJson('server.ping', '/server/ping');
+            result.version = getJson('server.version', '/server/version');
+            result.about = getJson('server.about', '/server/about') || {};
+            result.versionCheck = getJson('server.version-check', '/server/version-check') || {};
+            result.storage = getJson('server.storage', '/server/storage') || {};
+            result.statistics = getJson('server.statistics', '/server/statistics') || {};
+            result.albumStatistics = getJson('albums.statistics', '/albums/statistics') || {};
+            result.jobs = getJson('jobs', '/jobs') || {};
+            result.libraries = getJson('libraries', '/libraries') || [];
+            result.users = getJson('admin.users', '/admin/users?withDeleted=true') || [];
+
+            result.serviceAvailable = result.ping && result.ping.res === 'pong' ? 1 : 0;
+            if (result.version && result.version.major !== undefined) {
+              result.versionString = String(result.version.major) + '.' + String(result.version.minor) + '.' + String(result.version.patch);
+              if (result.version.prerelease !== null && result.version.prerelease !== undefined) {
+                result.versionString += '-' + String(result.version.prerelease);
+              }
+            } else {
+              result.versionString = result.about.version || '';
+            }
+
+            result.versionCheck.checkedAtTimestamp = isoToUnix(result.versionCheck.checkedAt);
+
+            result.queueTotals = {
+              active: 0,
+              completed: 0,
+              delayed: 0,
+              failed: 0,
+              paused: 0,
+              waiting: 0,
+              pausedQueues: 0
+            };
+
+            Object.keys(result.jobs || {}).forEach(function (name) {
+              var queue = result.jobs[name] || {};
+              var counts = queue.jobCounts || {};
+              ['active', 'completed', 'delayed', 'failed', 'paused', 'waiting'].forEach(function (key) {
+                result.queueTotals[key] += toNumber(counts[key]);
+              });
+
+              queue.queueStatusPaused = queue.queueStatus && queue.queueStatus.isPaused ? 1 : 0;
+              queue.queueStatusActive = queue.queueStatus && queue.queueStatus.isActive ? 1 : 0;
+              if (queue.queueStatusPaused) {
+                result.queueTotals.pausedQueues += 1;
+              }
+            });
+
+            var usageByUser = {};
+            (result.statistics.usageByUser || []).forEach(function (usage) {
+              usageByUser[usage.userId] = usage;
+            });
+
+            result.userTotals = {
+              total: 0,
+              active: 0,
+              removing: 0,
+              deleted: 0,
+              admins: 0,
+              quotaExceeded: 0,
+              quotaMaxPercent: 0
+            };
+
+            (result.users || []).forEach(function (user) {
+              var usageStats = usageByUser[user.id] || {};
+              var quotaSize = toNumber(user.quotaSizeInBytes);
+              var quotaUsage = user.quotaUsageInBytes !== null && user.quotaUsageInBytes !== undefined ? toNumber(user.quotaUsageInBytes) : toNumber(usageStats.usage);
+
+              user.usageStatistics = usageStats;
+              user.statusNumeric = user.status === 'active' ? 0 : (user.status === 'removing' ? 1 : (user.status === 'deleted' ? 2 : 3));
+              user.isAdminNumeric = user.isAdmin ? 1 : 0;
+              user.quotaUsagePercentage = quotaSize > 0 ? quotaUsage * 100 / quotaSize : 0;
+
+              result.userTotals.total += 1;
+              if (user.status === 'active') {
+                result.userTotals.active += 1;
+              } else if (user.status === 'removing') {
+                result.userTotals.removing += 1;
+              } else if (user.status === 'deleted') {
+                result.userTotals.deleted += 1;
+              }
+              if (user.isAdmin) {
+                result.userTotals.admins += 1;
+              }
+              if (quotaSize > 0 && quotaUsage >= quotaSize) {
+                result.userTotals.quotaExceeded += 1;
+              }
+              if (user.quotaUsagePercentage > result.userTotals.quotaMaxPercent) {
+                result.userTotals.quotaMaxPercent = user.quotaUsagePercentage;
+              }
+            });
+
+            result.libraryTotals = {
+              total: 0,
+              assets: 0,
+              photos: 0,
+              videos: 0,
+              usage: 0
+            };
+
+            (result.libraries || []).forEach(function (library) {
+              var stats = getJson('libraries.' + library.id + '.statistics', '/libraries/' + encodeURIComponent(library.id) + '/statistics') || {};
+              library.statistics = stats;
+              library.importPathCount = (library.importPaths || []).length;
+              library.exclusionPatternCount = (library.exclusionPatterns || []).length;
+              library.refreshedAtTimestamp = isoToUnix(library.refreshedAt);
+              library.refreshAge = library.refreshedAtTimestamp > 0 ? Math.max(0, Math.floor(Date.now() / 1000) - library.refreshedAtTimestamp) : 0;
+
+              result.libraryTotals.total += 1;
+              result.libraryTotals.assets += toNumber(stats.total !== undefined ? stats.total : library.assetCount);
+              result.libraryTotals.photos += toNumber(stats.photos);
+              result.libraryTotals.videos += toNumber(stats.videos);
+              result.libraryTotals.usage += toNumber(stats.usage);
+            });
+
+            result.errorCount = result.errors.length;
+
+            return JSON.stringify(result);
+          description: 'Master item that queries Immich API endpoints and returns one JSON document for dependent items and discovery rules.'
+          timeout: '{$IMMICH.API.TIMEOUT}'
+          parameters:
+            - name: api_path
+              value: '{$IMMICH.API.PATH}'
+            - name: host
+              value: '{$IMMICH.URL.HOST}'
+            - name: port
+              value: '{$IMMICH.PORT}'
+            - name: scheme
+              value: '{$IMMICH.SCHEME}'
+            - name: token
+              value: '{$IMMICH.API.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: c862d70125684f84828f1e0191a4ce25
+          name: 'Immich: Service status'
+          type: DEPENDENT
+          key: immich.service.status
+          history: 7d
+          trends: 365d
+          description: 'Service availability from /server/ping. 1 = pong, 0 = failed response.'
+          valuemap:
+            name: 'Immich service state'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.serviceAvailable
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: eda5ced9886b49b0af57885f66ad55d9
+              expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              name: 'Immich: Service is not responding'
+              priority: HIGH
+              description: 'The Immich ping endpoint is failing or no data has been received.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 73544abf5b73467d9dea09cf267c77cc
+          name: 'Immich: API endpoint errors'
+          type: DEPENDENT
+          key: immich.api.errors.count
+          history: 7d
+          trends: 365d
+          description: 'Number of Immich API endpoints that failed during the last collection.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errorCount
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: api
+          triggers:
+            - uuid: 2bfa73eca4d84595bbb0a0c0d9742e8f
+              expression: 'last(/Immich by HTTP/immich.api.errors.count)>{$IMMICH.API.ERRORS.WARN}'
+              name: 'Immich: One or more API endpoints failed'
+              opdata: 'Failed endpoints: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'At least one API endpoint used by this template failed. Check the API key permissions and endpoint compatibility.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 29ede73768c54109b8ea831be59df1a6
+          name: 'Immich: API endpoint error details'
+          type: DEPENDENT
+          key: immich.api.errors.text
+          history: 7d
+          value_type: TEXT
+          description: 'Text list of API endpoints that failed during the last collection.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return (data.errors || []).join('\n');
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: api
+        - uuid: 2e65c19e939743b69e9bd24ee76415f3
+          name: 'Immich: Server version'
+          type: DEPENDENT
+          key: immich.server.version
+          history: 7d
+          value_type: CHAR
+          description: 'Immich server version from /server/version.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.versionString
+              error_handler: CUSTOM_VALUE
+              error_handler_params: ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+        - uuid: 1300d95782ad476db15b84bb3d548fca
+          name: 'Immich: Latest release version'
+          type: DEPENDENT
+          key: immich.version.latest
+          history: 7d
+          value_type: CHAR
+          description: 'Latest Immich release version reported by /server/version-check.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.versionCheck.releaseVersion
+              error_handler: CUSTOM_VALUE
+              error_handler_params: ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+        - uuid: 2818514edce04c12af0ce92935394f97
+          name: 'Immich: Update available'
+          type: DEPENDENT
+          key: immich.version.update_available
+          history: 7d
+          trends: 365d
+          description: 'Compares current server version with releaseVersion from /server/version-check. 1 = update appears available.'
+          valuemap:
+            name: 'Immich update state'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+
+                  function parseVersion(version) {
+                    if (!version) {
+                      return null;
+                    }
+
+                    version = String(version).replace(/^v/, '').split('-')[0].split('.');
+                    return [
+                      Number(version[0] || 0),
+                      Number(version[1] || 0),
+                      Number(version[2] || 0)
+                    ];
+                  }
+
+                  var current = parseVersion(data.versionString || (data.about || {}).version);
+                  var latest = parseVersion((data.versionCheck || {}).releaseVersion);
+
+                  if (!current || !latest) {
+                    return 0;
+                  }
+
+                  for (var i = 0; i < 3; i++) {
+                    if (latest[i] > current[i]) {
+                      return 1;
+                    }
+                    if (latest[i] < current[i]) {
+                      return 0;
+                    }
+                  }
+
+                  return 0;
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+          triggers:
+            - uuid: 3e366f086ea942a384409d19dccd4441
+              expression: 'last(/Immich by HTTP/immich.version.update_available)=1 and "{$IMMICH.VERSION.UPDATE.ALERT}"="true"'
+              name: 'Immich: Update is available'
+              opdata: 'Update available: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'Immich reports a newer release version. Set {$IMMICH.VERSION.UPDATE.ALERT}=false if update notifications are handled elsewhere.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 6cd8226e5ee74be8a79ebc9841d8ea1b
+          name: 'Immich: Version check time'
+          type: DEPENDENT
+          key: immich.version_check.checked.timestamp
+          history: 7d
+          trends: 365d
+          units: unixtime
+          description: 'Unix timestamp when Immich last checked for a newer version.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.versionCheck.checkedAtTimestamp
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+          triggers:
+            - uuid: b49bc2a3a4ad4730bcfe71617058ab8e
+              expression: 'last(/Immich by HTTP/immich.version_check.checked.timestamp)>0 and fuzzytime(/Immich by HTTP/immich.version_check.checked.timestamp,{$IMMICH.VERSIONCHECK.MAXAGE})=0'
+              name: 'Immich: Version check is stale'
+              priority: INFO
+              description: 'Immich has not refreshed its version-check state within the expected age.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 873b425d0bac47af92081444fa7b482d
+          name: 'Immich: Licensed'
+          type: DEPENDENT
+          key: immich.server.licensed
+          history: 7d
+          trends: 365d
+          description: 'License flag from /server/about.'
+          valuemap:
+            name: 'Immich boolean state'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.about.licensed
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'false'
+            - type: BOOL_TO_DECIMAL
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+        - uuid: 7f71438f66a6433aab0dba579db1693d
+          name: 'Immich: FFmpeg version'
+          type: DEPENDENT
+          key: immich.server.ffmpeg
+          history: 7d
+          value_type: CHAR
+          description: 'FFmpeg version reported by Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.about.ffmpeg
+              error_handler: CUSTOM_VALUE
+              error_handler_params: ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+        - uuid: 471dcbf073654f8dabd5fbf8dd702b6a
+          name: 'Immich: ExifTool version'
+          type: DEPENDENT
+          key: immich.server.exiftool
+          history: 7d
+          value_type: CHAR
+          description: 'ExifTool version reported by Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.about.exiftool
+              error_handler: CUSTOM_VALUE
+              error_handler_params: ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: version
+        - uuid: bbf460600ff248b5b5d66dc589ec7c51
+          name: 'Immich: Storage total'
+          type: DEPENDENT
+          key: immich.storage.total.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Total storage size visible to Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.diskSizeRaw
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: storage
+        - uuid: 4c4145bf847b48179aca3718792fcf6f
+          name: 'Immich: Storage used'
+          type: DEPENDENT
+          key: immich.storage.used.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Used storage visible to Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.diskUseRaw
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: storage
+        - uuid: 27075d9b28f3456fa07c526cbcef70ac
+          name: 'Immich: Storage available'
+          type: DEPENDENT
+          key: immich.storage.available.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Available storage visible to Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.diskAvailableRaw
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: storage
+          triggers:
+            - uuid: 3c8c1cf9c53745728ad72ad25eb9544c
+              expression: 'max(/Immich by HTTP/immich.storage.available.bytes,5m)<{$IMMICH.STORAGE.FREE.MIN}'
+              name: 'Immich: Storage free space is low'
+              opdata: 'Free: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Available storage reported by Immich is below {$IMMICH.STORAGE.FREE.MIN}.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 0b1f0e41e2a8431e998c75f7e03164da
+          name: 'Immich: Storage used percentage'
+          type: DEPENDENT
+          key: immich.storage.used.percent
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: '%'
+          description: 'Disk usage percentage reported by Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.diskUsagePercentage
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: storage
+          triggers:
+            - uuid: 4310c7e420c94e4b85aa7e5d523e0aca
+              expression: 'min(/Immich by HTTP/immich.storage.used.percent,5m)>{$IMMICH.STORAGE.USED.HIGH}'
+              name: 'Immich: Storage usage is critically high'
+              opdata: 'Used: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Storage usage reported by Immich is above {$IMMICH.STORAGE.USED.HIGH}%.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: capacity
+            - uuid: b6172f3474144108be8961a203ffac6d
+              expression: 'min(/Immich by HTTP/immich.storage.used.percent,5m)>{$IMMICH.STORAGE.USED.WARN}'
+              name: 'Immich: Storage usage is high'
+              opdata: 'Used: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Storage usage reported by Immich is above {$IMMICH.STORAGE.USED.WARN}%.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                - name: 'Immich: Storage usage is critically high'
+                  expression: 'min(/Immich by HTTP/immich.storage.used.percent,5m)>{$IMMICH.STORAGE.USED.HIGH}'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 2d307874f1d34e739012d64cfdb0bff0
+          name: 'Immich: Assets total'
+          type: DEPENDENT
+          key: immich.assets.total
+          history: 7d
+          trends: 365d
+          description: 'Total number of assets in the Immich instance.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return Number((data.statistics || {}).photos || 0) + Number((data.statistics || {}).videos || 0);
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: ec64c7e670cc4bb181a20df1fa6e3b97
+          name: 'Immich: Photos'
+          type: DEPENDENT
+          key: immich.assets.photos
+          history: 7d
+          trends: 365d
+          description: 'Total number of photos in the Immich instance.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.photos
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: a1eabe014e534749bc26c7f529c722e1
+          name: 'Immich: Videos'
+          type: DEPENDENT
+          key: immich.assets.videos
+          history: 7d
+          trends: 365d
+          description: 'Total number of videos in the Immich instance.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.videos
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: da40a445da504e0aa2378f28011286e0
+          name: 'Immich: Media storage usage'
+          type: DEPENDENT
+          key: immich.assets.usage.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Total storage usage for media assets.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.usage
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: a3c54cb143834e7f992c60a9cde3521c
+          name: 'Immich: Photo storage usage'
+          type: DEPENDENT
+          key: immich.assets.usage.photos.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Storage usage for photos.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.usagePhotos
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: 4cbbb13749e04a439e0832496b4c5916
+          name: 'Immich: Video storage usage'
+          type: DEPENDENT
+          key: immich.assets.usage.videos.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Storage usage for videos.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.usageVideos
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: assets
+        - uuid: 9b990bc00f2147eeb6dc6b8211ddd795
+          name: 'Immich: Albums owned'
+          type: DEPENDENT
+          key: immich.albums.owned
+          history: 7d
+          trends: 365d
+          description: 'Number of owned albums visible to the API key user.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.albumStatistics.owned
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: albums
+        - uuid: 1fc718e67c0b47289532218869c85206
+          name: 'Immich: Albums shared'
+          type: DEPENDENT
+          key: immich.albums.shared
+          history: 7d
+          trends: 365d
+          description: 'Number of shared albums visible to the API key user.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.albumStatistics.shared
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: albums
+        - uuid: 639fb014e7ef41c3a47b9bf2d26a1f81
+          name: 'Immich: Albums not shared'
+          type: DEPENDENT
+          key: immich.albums.not_shared
+          history: 7d
+          trends: 365d
+          description: 'Number of non-shared albums visible to the API key user.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.albumStatistics.notShared
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: albums
+        - uuid: 3e6ce109da6c49199d368f80ea1599f6
+          name: 'Immich: Jobs active'
+          type: DEPENDENT
+          key: immich.jobs.active
+          history: 7d
+          trends: 365d
+          description: 'Total active jobs across all Immich queues.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.queueTotals.active
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: jobs
+        - uuid: 363221a329374b5f95e6cff717aeadbc
+          name: 'Immich: Jobs waiting'
+          type: DEPENDENT
+          key: immich.jobs.waiting
+          history: 7d
+          trends: 365d
+          description: 'Total waiting jobs across all Immich queues.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.queueTotals.waiting
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: jobs
+          triggers:
+            - uuid: d1b600e4d62a4185899d1c4d84bee53d
+              expression: 'min(/Immich by HTTP/immich.jobs.waiting,30m)>{$IMMICH.JOBS.WAITING.WARN}'
+              name: 'Immich: Waiting job backlog is high'
+              opdata: 'Waiting: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The total number of waiting Immich jobs stayed above the configured threshold for 30 minutes.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 66823cc88a33455c9dbb681a66a11d48
+          name: 'Immich: Jobs delayed'
+          type: DEPENDENT
+          key: immich.jobs.delayed
+          history: 7d
+          trends: 365d
+          description: 'Total delayed jobs across all Immich queues.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.queueTotals.delayed
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: jobs
+          triggers:
+            - uuid: 16cec87f70ae4e08bb199aa1f0c5f1ef
+              expression: 'min(/Immich by HTTP/immich.jobs.delayed,30m)>{$IMMICH.JOBS.DELAYED.WARN}'
+              name: 'Immich: Delayed job backlog is high'
+              opdata: 'Delayed: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The total number of delayed Immich jobs stayed above the configured threshold for 30 minutes.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 5498bba289964455a5a8684a7ac7275a
+          name: 'Immich: Jobs failed'
+          type: DEPENDENT
+          key: immich.jobs.failed
+          history: 7d
+          trends: 365d
+          description: 'Total failed jobs across all Immich queues.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.queueTotals.failed
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: jobs
+          triggers:
+            - uuid: ab5d001a0f2c4efc9e5193ac6e049974
+              expression: 'min(/Immich by HTTP/immich.jobs.failed,5m)>{$IMMICH.JOBS.FAILED.WARN}'
+              name: 'Immich: Failed jobs detected'
+              opdata: 'Failed: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'One or more Immich queue jobs are failed.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: a8abbbb024d549c596246c3e9e42385e
+          name: 'Immich: Paused queues'
+          type: DEPENDENT
+          key: immich.jobs.queues.paused
+          history: 7d
+          trends: 365d
+          description: 'Number of Immich queues currently paused.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.queueTotals.pausedQueues
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: jobs
+          triggers:
+            - uuid: 122cbbb51aca42d7b12ed19215361a76
+              expression: 'last(/Immich by HTTP/immich.jobs.queues.paused)>{$IMMICH.JOBS.PAUSED.WARN}'
+              name: 'Immich: Queues are paused'
+              opdata: 'Paused queues: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'One or more Immich queues are paused.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e953f3c4ee184d388bef04b4dcf61e24
+          name: 'Immich: Users total'
+          type: DEPENDENT
+          key: immich.users.total
+          history: 7d
+          trends: 365d
+          description: 'Total number of users including deleted users.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.userTotals.total
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: users
+        - uuid: dcf5998f641b41f3a7be863ae2620ac6
+          name: 'Immich: Active users'
+          type: DEPENDENT
+          key: immich.users.active
+          history: 7d
+          trends: 365d
+          description: 'Number of active Immich users.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.userTotals.active
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: users
+        - uuid: 72f16336861f4b3593bb67ff695f61a1
+          name: 'Immich: Users being removed'
+          type: DEPENDENT
+          key: immich.users.removing
+          history: 7d
+          trends: 365d
+          description: 'Number of users in removing state.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.userTotals.removing
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: users
+          triggers:
+            - uuid: 5d5e78bc32a44e39b1eb3de335f3e655
+              expression: 'min(/Immich by HTTP/immich.users.removing,1h)>0'
+              name: 'Immich: Users are stuck in removing state'
+              opdata: 'Removing users: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'At least one user has stayed in removing state for one hour.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 16eece9d7d3e489189f4d7fde791465f
+          name: 'Immich: Admin users'
+          type: DEPENDENT
+          key: immich.users.admins
+          history: 7d
+          trends: 365d
+          description: 'Number of users with admin privileges.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.userTotals.admins
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: users
+        - uuid: 1b33b6b6a7e745e0bae7c9a7622d9187
+          name: 'Immich: Users over quota'
+          type: DEPENDENT
+          key: immich.users.quota_exceeded
+          history: 7d
+          trends: 365d
+          description: 'Number of users whose quota usage is at or above their quota size.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.userTotals.quotaExceeded
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: users
+          triggers:
+            - uuid: 7f3042e5e792479d994806717ac75b3b
+              expression: 'last(/Immich by HTTP/immich.users.quota_exceeded)>0'
+              name: 'Immich: User quota exceeded'
+              opdata: 'Users over quota: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'At least one Immich user has reached or exceeded the configured quota.'
+              dependencies:
+                - name: 'Immich: Service is not responding'
+                  expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 0dc24663a2574deba6458410af3a580e
+          name: 'Immich: External libraries'
+          type: DEPENDENT
+          key: immich.libraries.total
+          history: 7d
+          trends: 365d
+          description: 'Number of external libraries configured in Immich.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.libraryTotals.total
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: libraries
+        - uuid: 7563e582377e4de58419c4759a767ee3
+          name: 'Immich: External library assets'
+          type: DEPENDENT
+          key: immich.libraries.assets
+          history: 7d
+          trends: 365d
+          description: 'Total number of assets in external libraries.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.libraryTotals.assets
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: libraries
+        - uuid: c1f517ca559743919bcf9b7dade5d3f7
+          name: 'Immich: External library usage'
+          type: DEPENDENT
+          key: immich.libraries.usage.bytes
+          history: 7d
+          trends: 365d
+          units: B
+          description: 'Total storage usage of external libraries.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.libraryTotals.usage
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: immich.get
+          tags:
+            - tag: component
+              value: libraries
+      discovery_rules:
+        - uuid: f6576aa5eca9470c9b6df237d0287eb0
+          name: 'Immich: Queues discovery'
+          type: DEPENDENT
+          key: immich.queue.discovery
+          description: 'Discovers Immich job queues from the /jobs endpoint.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var result = [];
+
+                  Object.keys(data.jobs || {}).forEach(function (name) {
+                    result.push({
+                      queue: name
+                    });
+                  });
+
+                  return JSON.stringify(result);
+          master_item:
+            key: immich.get
+          lld_macro_paths:
+            - lld_macro: '{#QUEUE.NAME}'
+              path: $.queue
+          item_prototypes:
+            - uuid: 47b81d2ecf2b4fbf8e46216028ce4af0
+              name: 'Immich: Queue [{#QUEUE.NAME}]: active jobs'
+              type: DEPENDENT
+              key: 'immich.queue.jobs.active[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number((queue.jobCounts || {}).active || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+            - uuid: 06e95d86dbba4646ad6faaa8a280be95
+              name: 'Immich: Queue [{#QUEUE.NAME}]: waiting jobs'
+              type: DEPENDENT
+              key: 'immich.queue.jobs.waiting[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number((queue.jobCounts || {}).waiting || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+              trigger_prototypes:
+                - uuid: 62e09efcec9748639467e71bf48f0a96
+                  expression: 'min(/Immich by HTTP/immich.queue.jobs.waiting[{#QUEUE.NAME}],30m)>{$IMMICH.QUEUE.WAITING.WARN}'
+                  name: 'Immich: Queue [{#QUEUE.NAME}] waiting backlog is high'
+                  opdata: 'Waiting: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'This Immich queue has stayed above the waiting job threshold for 30 minutes.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 7d4e89a9f1204cc0a87ebb18d12025f5
+              name: 'Immich: Queue [{#QUEUE.NAME}]: delayed jobs'
+              type: DEPENDENT
+              key: 'immich.queue.jobs.delayed[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number((queue.jobCounts || {}).delayed || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+              trigger_prototypes:
+                - uuid: a3a79b44b0414f168a4a65fce739bdde
+                  expression: 'min(/Immich by HTTP/immich.queue.jobs.delayed[{#QUEUE.NAME}],30m)>{$IMMICH.QUEUE.DELAYED.WARN}'
+                  name: 'Immich: Queue [{#QUEUE.NAME}] delayed backlog is high'
+                  opdata: 'Delayed: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'This Immich queue has stayed above the delayed job threshold for 30 minutes.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 09d2e23a87454e269ee634293ccd519c
+              name: 'Immich: Queue [{#QUEUE.NAME}]: failed jobs'
+              type: DEPENDENT
+              key: 'immich.queue.jobs.failed[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number((queue.jobCounts || {}).failed || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+              trigger_prototypes:
+                - uuid: 03628ef4b42647c0b0c05211948edc24
+                  expression: 'min(/Immich by HTTP/immich.queue.jobs.failed[{#QUEUE.NAME}],5m)>{$IMMICH.QUEUE.FAILED.WARN}'
+                  name: 'Immich: Queue [{#QUEUE.NAME}] has failed jobs'
+                  opdata: 'Failed: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'This Immich queue has failed jobs.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: fdd993dd20a9410595c0855b83fa02fb
+              name: 'Immich: Queue [{#QUEUE.NAME}]: completed jobs'
+              type: DEPENDENT
+              key: 'immich.queue.jobs.completed[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number((queue.jobCounts || {}).completed || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+            - uuid: b178a20a0b4f4765877279776d74b818
+              name: 'Immich: Queue [{#QUEUE.NAME}]: paused'
+              type: DEPENDENT
+              key: 'immich.queue.paused[{#QUEUE.NAME}]'
+              history: 7d
+              trends: 365d
+              description: 'Queue paused state. 1 = paused.'
+              valuemap:
+                name: 'Immich queue pause state'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var queue = (data.jobs || {})['{#QUEUE.NAME}'] || {};
+                      return Number(queue.queueStatusPaused || 0);
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: jobs
+                - tag: queue
+                  value: '{#QUEUE.NAME}'
+              trigger_prototypes:
+                - uuid: 3ef997d0c6bd4f2480fa3da5637046bf
+                  expression: 'last(/Immich by HTTP/immich.queue.paused[{#QUEUE.NAME}])=1 and "{$IMMICH.QUEUE.PAUSED.ALERT}"="true"'
+                  name: 'Immich: Queue [{#QUEUE.NAME}] is paused'
+                  priority: WARNING
+                  description: 'This Immich queue is paused.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: availability
+          graph_prototypes:
+            - uuid: 46e42273ef9b4aae913c5a2261d6be6d
+              name: 'Immich: Queue [{#QUEUE.NAME}] jobs'
+              graph_items:
+                - color: 2774A4
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.queue.jobs.active[{#QUEUE.NAME}]'
+                - sortorder: '1'
+                  color: F7941D
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.queue.jobs.waiting[{#QUEUE.NAME}]'
+                - sortorder: '2'
+                  color: 8E44AD
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.queue.jobs.delayed[{#QUEUE.NAME}]'
+                - sortorder: '3'
+                  color: F63100
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.queue.jobs.failed[{#QUEUE.NAME}]'
+        - uuid: b9d13a99e55e431b8daabda7cb84f59b
+          name: 'Immich: External libraries discovery'
+          type: DEPENDENT
+          key: immich.library.discovery
+          description: 'Discovers Immich external libraries.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var result = [];
+
+                  (data.libraries || []).forEach(function (library) {
+                    result.push({
+                      id: library.id,
+                      name: library.name,
+                      owner: library.ownerId,
+                      import_paths: String((library.importPaths || []).length)
+                    });
+                  });
+
+                  return JSON.stringify(result);
+          master_item:
+            key: immich.get
+          lld_macro_paths:
+            - lld_macro: '{#LIBRARY.ID}'
+              path: $.id
+            - lld_macro: '{#LIBRARY.NAME}'
+              path: $.name
+            - lld_macro: '{#LIBRARY.OWNER.ID}'
+              path: $.owner
+            - lld_macro: '{#LIBRARY.IMPORT_PATHS}'
+              path: $.import_paths
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#LIBRARY.NAME}'
+                value: '{$IMMICH.LLD.LIBRARY.MATCHES}'
+                formulaid: A
+              - macro: '{#LIBRARY.NAME}'
+                value: '{$IMMICH.LLD.LIBRARY.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: 9870a1ee851d4e80a638a0681f56a58f
+              name: 'Immich: Library [{#LIBRARY.NAME}]: assets'
+              type: DEPENDENT
+              key: 'immich.library.assets[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number(((library.statistics || {}).total !== undefined ? (library.statistics || {}).total : library.assetCount) || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 5d78ab76bad24cad97058acbbbaacab7
+              name: 'Immich: Library [{#LIBRARY.NAME}]: photos'
+              type: DEPENDENT
+              key: 'immich.library.photos[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number((library.statistics || {}).photos || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: e99f11e65d654d56b9b6174527b44f4b
+              name: 'Immich: Library [{#LIBRARY.NAME}]: videos'
+              type: DEPENDENT
+              key: 'immich.library.videos[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number((library.statistics || {}).videos || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 433e43438a644ed28c148dc2c8049793
+              name: 'Immich: Library [{#LIBRARY.NAME}]: usage'
+              type: DEPENDENT
+              key: 'immich.library.usage.bytes[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              units: B
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number((library.statistics || {}).usage || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: fc49ae98650646a891811647f6984acb
+              name: 'Immich: Library [{#LIBRARY.NAME}]: import paths'
+              type: DEPENDENT
+              key: 'immich.library.import_paths[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number(library.importPathCount || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: 9a6167a138b143df8036688147abb6a9
+              name: 'Immich: Library [{#LIBRARY.NAME}]: last refresh'
+              type: DEPENDENT
+              key: 'immich.library.refreshed_at[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              units: unixtime
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number(library.refreshedAtTimestamp || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+            - uuid: eedb5e3cc78644dcb4c7bc78aad26674
+              name: 'Immich: Library [{#LIBRARY.NAME}]: refresh age'
+              type: DEPENDENT
+              key: 'immich.library.refresh_age[{#LIBRARY.ID}]'
+              history: 7d
+              trends: 365d
+              units: s
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#LIBRARY.ID}';
+                      var resultValue = 0;
+                      (data.libraries || []).forEach(function (library) {
+                        if (library.id === id) {
+                          resultValue = Number(library.refreshAge || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: libraries
+                - tag: library
+                  value: '{#LIBRARY.NAME}'
+              trigger_prototypes:
+                - uuid: cee696c1cc0f4e45840d504fabc90684
+                  expression: 'last(/Immich by HTTP/immich.library.refresh_age[{#LIBRARY.ID}])>{$IMMICH.LIBRARY.REFRESH.MAX} and "{$IMMICH.LIBRARY.REFRESH.ALERT}"="true"'
+                  name: 'Immich: Library [{#LIBRARY.NAME}] has not been refreshed recently'
+                  opdata: 'Age: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The external library refreshedAt timestamp is older than {$IMMICH.LIBRARY.REFRESH.MAX}. Set {$IMMICH.LIBRARY.REFRESH.ALERT}=false to disable this freshness alert.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: notice
+          graph_prototypes:
+            - uuid: 53ce204af3e243fbbbaa620389f181f9
+              name: 'Immich: Library [{#LIBRARY.NAME}] assets'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.library.photos[{#LIBRARY.ID}]'
+                - sortorder: '1'
+                  color: 2774A4
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.library.videos[{#LIBRARY.ID}]'
+        - uuid: 200ec06308e843f5a2c3dda856cbb538
+          name: 'Immich: Users discovery'
+          type: DEPENDENT
+          key: immich.user.discovery
+          description: 'Discovers Immich users from the admin users endpoint.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var result = [];
+
+                  (data.users || []).forEach(function (user) {
+                    result.push({
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      status: user.status
+                    });
+                  });
+
+                  return JSON.stringify(result);
+          master_item:
+            key: immich.get
+          lld_macro_paths:
+            - lld_macro: '{#USER.ID}'
+              path: $.id
+            - lld_macro: '{#USER.NAME}'
+              path: $.name
+            - lld_macro: '{#USER.EMAIL}'
+              path: $.email
+            - lld_macro: '{#USER.STATUS}'
+              path: $.status
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#USER.STATUS}'
+                value: '{$IMMICH.LLD.USER.STATUS.MATCHES}'
+                formulaid: A
+              - macro: '{#USER.NAME}'
+                value: '{$IMMICH.LLD.USER.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: 34856f38926f49178bc6062f9c95aa31
+              name: 'Immich: User [{#USER.NAME}]: status'
+              type: DEPENDENT
+              key: 'immich.user.status[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              valuemap:
+                name: 'Immich user status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 3;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number(user.statusNumeric);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+              trigger_prototypes:
+                - uuid: a3f1178e990a436898c8ff2677f7a37e
+                  expression: 'min(/Immich by HTTP/immich.user.status[{#USER.ID}],1h)=1'
+                  name: 'Immich: User [{#USER.NAME}] is stuck in removing state'
+                  priority: WARNING
+                  description: 'This user has stayed in removing state for one hour.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: e4b7a60539824244a56e2ceabb915fa8
+              name: 'Immich: User [{#USER.NAME}]: admin'
+              type: DEPENDENT
+              key: 'immich.user.admin[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              valuemap:
+                name: 'Immich boolean state'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number(user.isAdminNumeric || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+            - uuid: 853730812b7f45d3b790b8180a9d494a
+              name: 'Immich: User [{#USER.NAME}]: usage'
+              type: DEPENDENT
+              key: 'immich.user.usage.bytes[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              units: B
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number(user.quotaUsageInBytes || (user.usageStatistics || {}).usage || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+            - uuid: a7c36831d78b41a89355fa59ccb5f91e
+              name: 'Immich: User [{#USER.NAME}]: quota size'
+              type: DEPENDENT
+              key: 'immich.user.quota.bytes[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              units: B
+              description: 'Configured user quota. 0 means unlimited or no quota.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number(user.quotaSizeInBytes || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+            - uuid: 68af72a4279b452f991b32bc7027f043
+              name: 'Immich: User [{#USER.NAME}]: quota usage'
+              type: DEPENDENT
+              key: 'immich.user.quota.percent[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number(user.quotaUsagePercentage || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+              trigger_prototypes:
+                - uuid: 8272bd5f34a748b490c869879df29df6
+                  expression: 'min(/Immich by HTTP/immich.user.quota.percent[{#USER.ID}],5m)>{$IMMICH.USER.QUOTA.WARN} and last(/Immich by HTTP/immich.user.quota.bytes[{#USER.ID}])>0'
+                  name: 'Immich: User [{#USER.NAME}] quota usage is high'
+                  opdata: 'Usage: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'This user quota usage is above {$IMMICH.USER.QUOTA.WARN}%.'
+                  dependencies:
+                    - name: 'Immich: Service is not responding'
+                      expression: 'last(/Immich by HTTP/immich.service.status)=0 or nodata(/Immich by HTTP/immich.service.status,{$IMMICH.NODATA})=1'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: 9a5bc7e06bc042199f9f9368d555f308
+              name: 'Immich: User [{#USER.NAME}]: photos'
+              type: DEPENDENT
+              key: 'immich.user.photos[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number((user.usageStatistics || {}).photos || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+            - uuid: ec84de145e544581a798741c9596ee27
+              name: 'Immich: User [{#USER.NAME}]: videos'
+              type: DEPENDENT
+              key: 'immich.user.videos[{#USER.ID}]'
+              history: 7d
+              trends: 365d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var id = '{#USER.ID}';
+                      var resultValue = 0;
+                      (data.users || []).forEach(function (user) {
+                        if (user.id === id) {
+                          resultValue = Number((user.usageStatistics || {}).videos || 0);
+                        }
+                      });
+                      return resultValue;
+              master_item:
+                key: immich.get
+              tags:
+                - tag: component
+                  value: users
+                - tag: user
+                  value: '{#USER.NAME}'
+          graph_prototypes:
+            - uuid: d4a1fa9aba4e4bfdb35e83777ed8a068
+              name: 'Immich: User [{#USER.NAME}] assets'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.user.photos[{#USER.ID}]'
+                - sortorder: '1'
+                  color: 2774A4
+                  item:
+                    host: 'Immich by HTTP'
+                    key: 'immich.user.videos[{#USER.ID}]'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: immich
+      macros:
+        - macro: '{$IMMICH.URL.HOST}'
+          description: 'Immich host name or IP address, without scheme and without port.'
+        - macro: '{$IMMICH.SCHEME}'
+          value: http
+          description: 'Request scheme: http or https.'
+        - macro: '{$IMMICH.PORT}'
+          value: '2283'
+          description: 'Immich HTTP port.'
+        - macro: '{$IMMICH.API.PATH}'
+          value: /api
+          description: 'Immich API base path.'
+        - macro: '{$IMMICH.API.TOKEN}'
+          type: SECRET_TEXT
+          description: 'Immich API key. Use a key from an admin user with the read permissions listed in the README.'
+        - macro: '{$IMMICH.API.INTERVAL}'
+          value: 1m
+          description: 'Polling interval for the master API collection item.'
+        - macro: '{$IMMICH.API.TIMEOUT}'
+          value: 30s
+          description: 'Timeout for the master API collection item.'
+        - macro: '{$IMMICH.NODATA}'
+          value: 10m
+          description: 'Interval with no data after which availability triggers fire.'
+        - macro: '{$IMMICH.API.ERRORS.WARN}'
+          value: '0'
+          description: 'Allowed number of failed API endpoints before raising an API endpoint warning.'
+        - macro: '{$IMMICH.STORAGE.USED.WARN}'
+          value: '80'
+          description: 'Storage usage warning threshold, in percent.'
+        - macro: '{$IMMICH.STORAGE.USED.HIGH}'
+          value: '90'
+          description: 'Storage usage high threshold, in percent.'
+        - macro: '{$IMMICH.STORAGE.FREE.MIN}'
+          value: 5G
+          description: 'Minimum acceptable free storage reported by Immich.'
+        - macro: '{$IMMICH.JOBS.FAILED.WARN}'
+          value: '0'
+          description: 'Allowed total failed jobs before raising a warning.'
+        - macro: '{$IMMICH.JOBS.WAITING.WARN}'
+          value: '100'
+          description: 'Total waiting job threshold.'
+        - macro: '{$IMMICH.JOBS.DELAYED.WARN}'
+          value: '100'
+          description: 'Total delayed job threshold.'
+        - macro: '{$IMMICH.JOBS.PAUSED.WARN}'
+          value: '0'
+          description: 'Allowed number of paused queues before raising a warning.'
+        - macro: '{$IMMICH.QUEUE.FAILED.WARN}'
+          value: '0'
+          description: 'Per-queue failed job threshold.'
+        - macro: '{$IMMICH.QUEUE.WAITING.WARN}'
+          value: '100'
+          description: 'Per-queue waiting job threshold.'
+        - macro: '{$IMMICH.QUEUE.DELAYED.WARN}'
+          value: '100'
+          description: 'Per-queue delayed job threshold.'
+        - macro: '{$IMMICH.QUEUE.PAUSED.ALERT}'
+          value: 'true'
+          description: 'Whether a paused queue should trigger. Set to false to disable paused-queue alerts.'
+        - macro: '{$IMMICH.LIBRARY.REFRESH.ALERT}'
+          value: 'true'
+          description: 'Whether stale external library refresh timestamps should trigger. Set to false to disable freshness alerts.'
+        - macro: '{$IMMICH.LIBRARY.REFRESH.MAX}'
+          value: 7d
+          description: 'Maximum acceptable age of an external library refresh.'
+        - macro: '{$IMMICH.USER.QUOTA.WARN}'
+          value: '90'
+          description: 'User quota usage warning threshold, in percent.'
+        - macro: '{$IMMICH.VERSION.UPDATE.ALERT}'
+          value: 'true'
+          description: 'Whether an available Immich update should trigger an informational event. Set to false to disable update notifications.'
+        - macro: '{$IMMICH.VERSIONCHECK.MAXAGE}'
+          value: 2d
+          description: 'Maximum acceptable age of the Immich version-check timestamp.'
+        - macro: '{$IMMICH.LLD.LIBRARY.MATCHES}'
+          value: '.*'
+          description: 'Discovered external libraries whose names match this regex are kept.'
+        - macro: '{$IMMICH.LLD.LIBRARY.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Discovered external libraries whose names match this regex are dropped.'
+        - macro: '{$IMMICH.LLD.USER.STATUS.MATCHES}'
+          value: 'active|removing'
+          description: 'Discovered users whose status matches this regex are kept. Deleted users are counted globally but not discovered by default.'
+        - macro: '{$IMMICH.LLD.USER.NAME.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Discovered users whose names match this regex are dropped.'
+      valuemaps:
+        - uuid: 93f59b95736d416fa2d4c2e6f1f65c9e
+          name: 'Immich service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 02bea747e7c646cb9d9cce5470b0841a
+          name: 'Immich boolean state'
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
+        - uuid: 35e74898ad7044228ace49a7a5f51563
+          name: 'Immich update state'
+          mappings:
+            - value: '0'
+              newvalue: 'Current or unknown'
+            - value: '1'
+              newvalue: 'Update available'
+        - uuid: 3211d97011304e65bd6a3a7dfe08f8c6
+          name: 'Immich queue pause state'
+          mappings:
+            - value: '0'
+              newvalue: Running
+            - value: '1'
+              newvalue: Paused
+        - uuid: 884b1ade4878429ea4fa6226d765b6b1
+          name: 'Immich user status'
+          mappings:
+            - value: '0'
+              newvalue: Active
+            - value: '1'
+              newvalue: Removing
+            - value: '2'
+              newvalue: Deleted
+            - value: '3'
+              newvalue: Unknown
+  graphs:
+    - uuid: 8ea74253236f4d0396797d9e7f885f7d
+      name: 'Immich: Storage usage'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: F63100
+          item:
+            host: 'Immich by HTTP'
+            key: immich.storage.used.bytes
+        - sortorder: '1'
+          color: 1A7C11
+          item:
+            host: 'Immich by HTTP'
+            key: immich.storage.available.bytes
+    - uuid: 4ab458e604a046659967a77cec13fbed
+      name: 'Immich: Asset counts'
+      graph_items:
+        - color: 1A7C11
+          item:
+            host: 'Immich by HTTP'
+            key: immich.assets.photos
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'Immich by HTTP'
+            key: immich.assets.videos
+    - uuid: 8da5aef869ff48e79043cdccef52120e
+      name: 'Immich: Media storage usage'
+      graph_items:
+        - color: 1A7C11
+          item:
+            host: 'Immich by HTTP'
+            key: immich.assets.usage.photos.bytes
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'Immich by HTTP'
+            key: immich.assets.usage.videos.bytes
+    - uuid: 9c67d42b5eda4e72a806a42e22fe1344
+      name: 'Immich: Job queues'
+      graph_items:
+        - color: 2774A4
+          item:
+            host: 'Immich by HTTP'
+            key: immich.jobs.active
+        - sortorder: '1'
+          color: F7941D
+          item:
+            host: 'Immich by HTTP'
+            key: immich.jobs.waiting
+        - sortorder: '2'
+          color: 8E44AD
+          item:
+            host: 'Immich by HTTP'
+            key: immich.jobs.delayed
+        - sortorder: '3'
+          color: F63100
+          item:
+            host: 'Immich by HTTP'
+            key: immich.jobs.failed
