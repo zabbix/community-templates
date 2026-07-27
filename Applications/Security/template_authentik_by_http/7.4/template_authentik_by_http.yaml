@@ -1,0 +1,2440 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: c2b7d6d5cc91446eaebc77961d8ba996
+      template: 'Authentik by HTTP'
+      name: 'Authentik by HTTP'
+      description: |
+        Agentless monitoring of an authentik instance through its HTTP health endpoints
+        and the official REST API.
+
+        The template monitors availability, latency, version state, clock skew, runtime
+        information, workers, background tasks, authentication and security events, object
+        counts, outpost health, sources, certificate expiry and expiring tokens.
+
+        Requirements:
+          - Zabbix 7.4 or newer.
+          - authentik 2026.5 or newer.
+          - A dedicated authentik API token with read access to all monitored objects.
+
+        Setup:
+          1. Create a dedicated service account and API token in authentik.
+          2. Grant the account read permissions for Admin/System, Core, Crypto, Events,
+             Flows, Managed Blueprints, Outposts, Policies, Providers, Sources, Stages
+             and Tasks. A dedicated account in the authentik Admins group is the simplest
+             option, but a custom read-only role is preferred.
+          3. Set {$AUTHENTIK.URL} and {$AUTHENTIK.API.TOKEN} on the Zabbix host.
+
+        TLS:
+          Self-signed certificates are supported. Certificate-chain and hostname
+          verification are disabled because the Zabbix HttpRequest object used by the
+          central Script items does not expose configurable TLS verification. Restrict
+          network access between Zabbix and authentik accordingly.
+
+        API documentation:
+        https://api.goauthentik.io/
+
+        Monitoring documentation:
+        https://docs.goauthentik.io/sys-mgmt/ops/monitoring/
+      vendor:
+        name: community-templates
+        version: 7.4-6
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: ed194117fc8d442d9587c72a9ee1a493
+          name: 'Authentik: Get monitoring data'
+          type: SCRIPT
+          key: authentik.get
+          delay: '{$AUTHENTIK.INTERVAL}'
+          history: 1d
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value),
+                base = params.url.replace(/\/+$/, ''),
+                apiBase = base + '/api/v3',
+                result = {
+                    api: {status: 0, response_time: 0, errors: [], error_count: 0},
+                    health: {
+                        live: {status: 0, response_time: 0},
+                        ready: {status: 0, response_time: 0}
+                    },
+                    system: {},
+                    version: {},
+                    workers: {},
+                    tasks: {},
+                    events: {
+                        last_critical_timestamp: 0,
+                        last_critical_action: '', last_critical_summary: ''
+                    }
+                },
+                publicRequest = new HttpRequest(),
+                apiRequest = new HttpRequest();
+
+            if (params.proxy) {
+                publicRequest.setProxy(params.proxy);
+                apiRequest.setProxy(params.proxy);
+            }
+
+            apiRequest.addHeader('Accept: application/json');
+            apiRequest.addHeader('Authorization: Bearer ' + params.token);
+
+            function publicCheck(path, target) {
+                var started = Date.now();
+                try {
+                    publicRequest.get(base + path);
+                    target.status = publicRequest.getStatus();
+                } catch (error) {
+                    target.status = 0;
+                    result.api.errors.push(path + ': ' + error);
+                }
+                target.response_time = Date.now() - started;
+            }
+
+            function apiGet(path, label) {
+                var body, status, started = Date.now();
+                try {
+                    body = apiRequest.get(apiBase + path);
+                    status = apiRequest.getStatus();
+                    if (label === 'system') {
+                        result.api.status = status;
+                        result.api.response_time = Date.now() - started;
+                    }
+                    if (status !== 200) {
+                        result.api.errors.push(label + ': HTTP ' + status);
+                        return null;
+                    }
+                    return JSON.parse(body);
+                } catch (error) {
+                    if (label === 'system') {
+                        result.api.status = 0;
+                        result.api.response_time = Date.now() - started;
+                    }
+                    result.api.errors.push(label + ': ' + error);
+                    return null;
+                }
+            }
+
+            function firstCount(stats) {
+                var key;
+                if (!stats || !stats.count_step) {
+                    return null;
+                }
+                for (key in stats.count_step) {
+                    if (stats.count_step.hasOwnProperty(key) &&
+                            !isNaN(Number(stats.count_step[key]))) {
+                        return Number(stats.count_step[key]);
+                    }
+                }
+                return null;
+            }
+
+            function eventStats(query, step, label) {
+                return apiGet('/events/events/stats/?' + query +
+                    '&count_steps=' + encodeURIComponent(step), label);
+            }
+
+            function isoTimestamp(value) {
+                var timestamp = Date.parse(value);
+                return isNaN(timestamp) ? 0 : Math.floor(timestamp / 1000);
+            }
+
+            function setIfNotNull(target, key, value) {
+                if (value !== null) {
+                    target[key] = value;
+                }
+            }
+
+            publicCheck('/-/health/live/', result.health.live);
+            publicCheck('/-/health/ready/', result.health.ready);
+
+            var system = apiGet('/admin/system/', 'system');
+            if (system) {
+                result.system = {
+                    server_time: isoTimestamp(system.server_time),
+                    clock_skew: Math.round(Math.abs(Date.now() -
+                        Date.parse(system.server_time)) / 1000),
+                    http_is_secure: system.http_is_secure ? 1 : 0,
+                    brand: system.brand || '',
+                    embedded_outpost_disabled: system.embedded_outpost_disabled ? 1 : 0,
+                    embedded_outpost_host: system.embedded_outpost_host || '',
+                    environment: system.runtime ? system.runtime.environment || '' : '',
+                    architecture: system.runtime ? system.runtime.architecture || '' : '',
+                    platform: system.runtime ? system.runtime.platform || '' : '',
+                    python_version: system.runtime ? system.runtime.python_version || '' : '',
+                    openssl_version: system.runtime ? system.runtime.openssl_version || '' : '',
+                    openssl_fips_enabled: system.runtime &&
+                        system.runtime.openssl_fips_enabled === true ? 1 : 0,
+                    authentik_version: system.runtime ? system.runtime.authentik_version || '' : ''
+                };
+            }
+
+            var version = apiGet('/admin/version/', 'version');
+            if (version) {
+                result.version = {
+                    current: version.version_current || '',
+                    latest: version.version_latest || '',
+                    latest_valid: version.version_latest_valid ? 1 : 0,
+                    build_hash: version.build_hash || '',
+                    outdated: version.outdated ? 1 : 0,
+                    outpost_outdated: version.outpost_outdated ? 1 : 0
+                };
+            }
+
+            var workers = apiGet('/tasks/workers/', 'workers');
+            if (workers) {
+                result.workers.connected = workers.length;
+                result.workers.version_mismatch = 0;
+                for (var workerIndex = 0; workerIndex < workers.length; workerIndex++) {
+                    if (!workers[workerIndex].version_matching) {
+                        result.workers.version_mismatch++;
+                    }
+                }
+            }
+
+            var tasks = apiGet('/tasks/tasks/status/', 'task status');
+            if (tasks) {
+                var taskStates = [
+                    'queued', 'consumed', 'preprocess', 'running', 'postprocess',
+                    'rejected', 'done', 'info', 'warning', 'error'
+                ];
+                for (var taskIndex = 0; taskIndex < taskStates.length; taskIndex++) {
+                    var taskState = taskStates[taskIndex];
+                    if (tasks[taskState] !== undefined) {
+                        result.tasks[taskState] = Number(tasks[taskState]) || 0;
+                    }
+                }
+            }
+
+            var login1h = eventStats('action=login', 'hours=1', 'login events 1h'),
+                login24h = eventStats('action=login', 'hours=24', 'login events 24h'),
+                failed1h = eventStats('action=login_failed', 'hours=1', 'failed logins 1h'),
+                failed24h = eventStats('action=login_failed', 'hours=24', 'failed logins 24h'),
+                criticalActions = 'actions=policy_exception' +
+                    '&actions=property_mapping_exception&actions=system_task_exception' +
+                    '&actions=system_exception&actions=configuration_error' +
+                    '&actions=suspicious_request',
+                critical1h = eventStats(criticalActions, 'hours=1', 'critical events 1h'),
+                critical24h = eventStats(criticalActions, 'hours=24', 'critical events 24h'),
+                warning24h = eventStats('action=configuration_warning', 'hours=24',
+                    'configuration warnings 24h');
+
+            setIfNotNull(result.events, 'login_1h', firstCount(login1h));
+            setIfNotNull(result.events, 'login_24h', firstCount(login24h));
+            setIfNotNull(result.events, 'login_failed_1h', firstCount(failed1h));
+            setIfNotNull(result.events, 'login_failed_24h', firstCount(failed24h));
+            setIfNotNull(result.events, 'critical_1h', firstCount(critical1h));
+            setIfNotNull(result.events, 'critical_24h', firstCount(critical24h));
+            setIfNotNull(result.events, 'warning_24h', firstCount(warning24h));
+
+            var latest = apiGet('/events/events/?' + criticalActions +
+                '&ordering=-created&page_size=1', 'latest critical event');
+            if (latest && latest.results && latest.results.length) {
+                var event = latest.results[0],
+                    username = event.user && event.user.username ?
+                        event.user.username : 'unknown',
+                    context = event.context ? JSON.stringify(event.context) : '{}';
+                if (context.length > 1000) {
+                    context = context.substring(0, 1000) + '...';
+                }
+                result.events.last_critical_timestamp = isoTimestamp(event.created);
+                result.events.last_critical_action = event.action || '';
+                result.events.last_critical_summary = (event.action || 'event') +
+                    ' by ' + username + ' from ' + (event.client_ip || 'unknown') +
+                    ': ' + context;
+            }
+
+            result.api.error_count = result.api.errors.length;
+            return JSON.stringify(result);
+          description: |
+            Central collection item. It queries the public liveness/readiness endpoints and
+            the authenticated API, then returns normalized JSON for dependent items.
+          timeout: '{$AUTHENTIK.HTTP.TIMEOUT}'
+          parameters:
+            - name: proxy
+              value: '{$AUTHENTIK.HTTP.PROXY}'
+            - name: token
+              value: '{$AUTHENTIK.API.TOKEN}'
+            - name: url
+              value: '{$AUTHENTIK.URL}'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 3d00586df4184484bb2b4fcb78107a4d
+              expression: 'nodata(/Authentik by HTTP/authentik.get,{$AUTHENTIK.NODATA})=1'
+              name: 'Authentik: No monitoring data'
+              priority: HIGH
+              description: 'The central collection item has not returned data within the configured period.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 401b7c9de94f45c884643b026a94be43
+          name: 'Authentik: API status'
+          type: DEPENDENT
+          key: authentik.api.status
+          valuemap:
+            name: 'Authentik HTTP status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.api.status
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: api
+          triggers:
+            - uuid: f07e25cbf19040eeadbfabcc2aaa2943
+              expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+              name: 'Authentik: API is unavailable'
+              opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The API cannot be reached, its endpoint is missing, or it returned a server error.'
+              dependencies:
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: bddb0ebab8334875843aa4eff7f7c54d
+              expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+              name: 'Authentik: API authentication failed'
+              opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The API rejected the monitoring token. Check whether the token is valid, enabled and unexpired.'
+              dependencies:
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: ce528692d2a34ea5906ba5de0f85648d
+              expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+              name: 'Authentik: API access is forbidden'
+              opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'The monitoring account is authenticated but lacks permission for the Admin/System API. Grant the required view permissions or use a dedicated account with sufficient read access.'
+              dependencies:
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 756b1f37b75947e9a45ff614a52f0525
+          name: 'Authentik: API response time'
+          type: DEPENDENT
+          key: authentik.api.response_time
+          units: ms
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.api.response_time
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: api
+          triggers:
+            - uuid: 317de840cf75482bbc75046746b198f0
+              expression: 'min(/Authentik by HTTP/authentik.api.response_time,#3)>{$AUTHENTIK.RESPONSE_TIME.WARN}'
+              name: 'Authentik: API response time is high'
+              opdata: 'Response time: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'Authentik: API is unavailable'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                - name: 'Authentik: API authentication failed'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                - name: 'Authentik: API access is forbidden'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 9a1437d6c942475b8d0cee129c69d956
+          name: 'Authentik: Collection errors'
+          type: DEPENDENT
+          key: authentik.api.errors
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.api.error_count
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: api
+          triggers:
+            - uuid: 195af19b377f42bf80f82da01be7dddb
+              expression: 'last(/Authentik by HTTP/authentik.api.errors)>0'
+              name: 'Authentik: Some API data could not be collected'
+              opdata: 'Failed requests: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              dependencies:
+                - name: 'Authentik: API is unavailable'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                - name: 'Authentik: API authentication failed'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                - name: 'Authentik: API access is forbidden'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 6be7415a7d8a403192a21a5ed089695e
+          name: 'Authentik: Collection error details'
+          type: DEPENDENT
+          key: authentik.api.error_details
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.api.errors
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.stringify(JSON.parse(value));'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: api
+        - uuid: a4fe512011fd4ec88979d8168124c342
+          name: 'Authentik: Liveness status'
+          type: DEPENDENT
+          key: authentik.health.live
+          valuemap:
+            name: 'Authentik HTTP status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.health.live.status
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 81389aa57422479aa3d55c36c43d6b01
+              expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              name: 'Authentik: Server is not alive'
+              opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+              priority: DISASTER
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 5d7b6cab05bc49ce84273b8ba8dfce87
+          name: 'Authentik: Liveness response time'
+          type: DEPENDENT
+          key: authentik.health.live.response_time
+          units: ms
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.health.live.response_time
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: health
+        - uuid: 8c3d64541aff4548868466975a7ebbed
+          name: 'Authentik: Readiness status'
+          type: DEPENDENT
+          key: authentik.health.ready
+          valuemap:
+            name: 'Authentik HTTP status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.health.ready.status
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 3b33e46440284c159d638f27f387aec1
+              expression: 'last(/Authentik by HTTP/authentik.health.ready)<>200'
+              name: 'Authentik: Server is not ready'
+              opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              dependencies:
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e709c6a53f9a44a6b7ec4c7d8e1b2751
+          name: 'Authentik: Readiness response time'
+          type: DEPENDENT
+          key: authentik.health.ready.response_time
+          units: ms
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.health.ready.response_time
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: health
+        - uuid: b6acacfe0ba7419db7dba62a2cf422ab
+          name: 'Authentik: Current version'
+          type: DEPENDENT
+          key: authentik.version.current
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.version.current
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 7c457fdc1026480c8efe8385e2ef6a01
+          name: 'Authentik: Latest version'
+          type: DEPENDENT
+          key: authentik.version.latest
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.version.latest
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 5b0ede07afbe49af99a83af181504370
+          name: 'Authentik: Version is outdated'
+          type: DEPENDENT
+          key: authentik.version.outdated
+          valuemap:
+            name: 'Authentik boolean'
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.version.outdated
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: ea6ac2b602e14bf0aa21a3a184734724
+              expression: 'last(/Authentik by HTTP/authentik.version.outdated)=1 and last(/Authentik by HTTP/authentik.version.latest_valid)=1 and last(/Authentik by HTTP/authentik.version.current)<>last(/Authentik by HTTP/authentik.version.latest)'
+              name: 'Authentik: A newer version is available'
+              opdata: 'Installed: {ITEM.LASTVALUE3}, available: {ITEM.LASTVALUE4}'
+              priority: INFO
+              description: 'authentik reports that a newer released version is available.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: e442bb5279444e9c87dc328e8144b227
+          name: 'Authentik: Update information is valid'
+          type: DEPENDENT
+          key: authentik.version.latest_valid
+          valuemap:
+            name: 'Authentik boolean'
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.version.latest_valid
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 955b4f63c7cb41b981ec0cdf994f4c15
+              expression: 'last(/Authentik by HTTP/authentik.version.latest_valid)=0'
+              name: 'Authentik: Update check is unavailable'
+              priority: INFO
+              description: 'authentik could not obtain valid information about the latest released version. Check outbound connectivity and the authentik version-check task.'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 3a2a15c2d8474e919c935ebd1041a81a
+          name: 'Authentik: Outpost version mismatch exists'
+          type: DEPENDENT
+          key: authentik.version.outpost_outdated
+          valuemap:
+            name: 'Authentik boolean'
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.version.outpost_outdated
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: outpost
+          triggers:
+            - uuid: f5809c1496fc40afbfe44c94743ac17a
+              expression: 'last(/Authentik by HTTP/authentik.version.outpost_outdated)=1'
+              name: 'Authentik: At least one outpost has a version mismatch'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: d811dafd62bc4c71ab0299aa2f58443a
+          name: 'Authentik: Server clock skew'
+          type: DEPENDENT
+          key: authentik.system.clock_skew
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.clock_skew
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 464b30da4fb9454182ec3c7e01ccda47
+              expression: 'min(/Authentik by HTTP/authentik.system.clock_skew,#3)>{$AUTHENTIK.CLOCK_SKEW.MAX}'
+              name: 'Authentik: Server clock skew is too high'
+              opdata: 'Clock skew: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 347005b61aaf45e9981320675ae1cd9a
+          name: 'Authentik: HTTP connection reported secure'
+          type: DEPENDENT
+          key: authentik.system.http_secure
+          valuemap:
+            name: 'Authentik boolean'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.http_is_secure
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: security
+        - uuid: 1136c7a9111b41f2992d800029a7192d
+          name: 'Authentik: Runtime environment'
+          type: DEPENDENT
+          key: authentik.system.environment
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.environment
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 3040232b816f4a8ba3a04f2630f37008
+          name: 'Authentik: Runtime platform'
+          type: DEPENDENT
+          key: authentik.system.platform
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.platform
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 8805df04c0df44edb8ff884c1e6d9f16
+          name: 'Authentik: Runtime architecture'
+          type: DEPENDENT
+          key: authentik.system.architecture
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.architecture
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 4fdb0c6bacf54a9ca9927d60f9bf128e
+          name: 'Authentik: Python version'
+          type: DEPENDENT
+          key: authentik.system.python_version
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.python_version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 4e90d2cb3e1246d2a4d0d8d061ff6d83
+          name: 'Authentik: OpenSSL version'
+          type: DEPENDENT
+          key: authentik.system.openssl_version
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.openssl_version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 1c32be0feeaf403a850a6fe7ce677896
+          name: 'Authentik: OpenSSL FIPS mode'
+          type: DEPENDENT
+          key: authentik.system.openssl_fips
+          valuemap:
+            name: 'Authentik boolean'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.openssl_fips_enabled
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: security
+        - uuid: f12ad236fe7b49b5a6a500b203fb50d7
+          name: 'Authentik: Connected workers'
+          type: DEPENDENT
+          key: authentik.workers.connected
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.workers.connected
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: worker
+          triggers:
+            - uuid: bfc2ed15fe7843e39022f68d3ea258b0
+              expression: 'max(/Authentik by HTTP/authentik.workers.connected,#3)=0'
+              name: 'Authentik: No worker is connected'
+              priority: HIGH
+              dependencies:
+                - name: 'Authentik: API is unavailable'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                - name: 'Authentik: API authentication failed'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                - name: 'Authentik: API access is forbidden'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 2c1653e0d98f414d93693cf2a8df617b
+          name: 'Authentik: Workers with version mismatch'
+          type: DEPENDENT
+          key: authentik.workers.version_mismatch
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.workers.version_mismatch
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: worker
+          triggers:
+            - uuid: dd8a153982e64c78b0437aeaa01102bd
+              expression: 'last(/Authentik by HTTP/authentik.workers.version_mismatch)>0'
+              name: 'Authentik: Worker version mismatch detected'
+              opdata: 'Affected workers: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 285caf116a164fe286e9eeab356be352
+          name: 'Authentik: Queued tasks'
+          type: DEPENDENT
+          key: authentik.tasks.queued
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.tasks.queued
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: task
+          triggers:
+            - uuid: 953403d043834917b376f8b6307d9cc6
+              expression: 'min(/Authentik by HTTP/authentik.tasks.queued,#3)>{$AUTHENTIK.TASKS.QUEUED.WARN}'
+              name: 'Authentik: Task queue backlog is high'
+              opdata: 'Queued tasks: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: c22f83a91ee1443ea164196d46d44784
+          name: 'Authentik: Running tasks'
+          type: DEPENDENT
+          key: authentik.tasks.running
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.tasks.running
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: task
+        - uuid: 10559e065d224ae2b4a9c644700f7db0
+          name: 'Authentik: Rejected tasks'
+          type: DEPENDENT
+          key: authentik.tasks.rejected
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.tasks.rejected
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: task
+          triggers:
+            - uuid: 90eb82e6075d4f83aee3416a2c5254d5
+              expression: 'last(/Authentik by HTTP/authentik.tasks.rejected)>0'
+              name: 'Authentik: Rejected background tasks detected'
+              opdata: 'Rejected tasks: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 67a30f9e54804580b0ee2bcddd59246b
+          name: 'Authentik: Tasks completed with warnings'
+          type: DEPENDENT
+          key: authentik.tasks.warning
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.tasks.warning
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: task
+          triggers:
+            - uuid: bacbb7a803c14da9b2a5b7426aca0cea
+              expression: 'change(/Authentik by HTTP/authentik.tasks.warning)>0'
+              name: 'Authentik: New background task warnings detected'
+              opdata: 'Tasks with warnings: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 3c6e119902fb4928b2140b416a7bd422
+          name: 'Authentik: Tasks completed with errors'
+          type: DEPENDENT
+          key: authentik.tasks.error
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.tasks.error
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: task
+          triggers:
+            - uuid: 77d9972cf9ba4a96877de37490a02832
+              expression: 'change(/Authentik by HTTP/authentik.tasks.error)>0'
+              name: 'Authentik: New failed background tasks detected'
+              opdata: 'Failed tasks: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 09ad1467d4a34825b7ce86902686cdff
+          name: 'Authentik: Successful logins (1h)'
+          type: DEPENDENT
+          key: authentik.events.login[1h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.login_1h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: authentication
+        - uuid: a0a1b739849344ef8dfe90142b7b11b0
+          name: 'Authentik: Successful logins (24h)'
+          type: DEPENDENT
+          key: authentik.events.login[24h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.login_24h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: authentication
+        - uuid: c60b544c8edb48498feea906bad8acac
+          name: 'Authentik: Failed logins (1h)'
+          type: DEPENDENT
+          key: authentik.events.login_failed[1h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.login_failed_1h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: authentication
+          triggers:
+            - uuid: db1d695a90f2483d8eb1f21ee37a5e85
+              expression: 'last(/Authentik by HTTP/authentik.events.login_failed[1h])>{$AUTHENTIK.LOGIN_FAILED.WARN}'
+              name: 'Authentik: Many failed logins in the last hour'
+              opdata: 'Failed logins: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 635901351b6249c29d41bf90250bf4f5
+          name: 'Authentik: Failed logins (24h)'
+          type: DEPENDENT
+          key: authentik.events.login_failed[24h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.login_failed_24h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: authentication
+        - uuid: b46f9b73766b41898a8adea4bb2a2acb
+          name: 'Authentik: Critical security/system events (1h)'
+          type: DEPENDENT
+          key: authentik.events.critical[1h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.critical_1h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+          triggers:
+            - uuid: ec4d397523d149f6ba10382f7adf5428
+              expression: 'last(/Authentik by HTTP/authentik.events.critical[1h])>{$AUTHENTIK.EVENTS.CRITICAL.WARN}'
+              name: 'Authentik: Critical security or system events detected'
+              opdata: 'Events in last hour: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 4407697bc5654cb7ad499bc569325bc3
+          name: 'Authentik: Critical security/system events (24h)'
+          type: DEPENDENT
+          key: authentik.events.critical[24h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.critical_24h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+        - uuid: 34cc0b9128f9407387c61edcca3cc837
+          name: 'Authentik: Configuration warnings (24h)'
+          type: DEPENDENT
+          key: authentik.events.configuration_warning[24h]
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.warning_24h
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+          triggers:
+            - uuid: 71e5e251393c402ab4d81440672dd0de
+              expression: 'last(/Authentik by HTTP/authentik.events.configuration_warning[24h])>{$AUTHENTIK.EVENTS.WARNING.WARN}'
+              name: 'Authentik: Configuration warnings detected'
+              opdata: 'Warnings in last 24 hours: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 318b0c13f70f41309d047e7fd9000e68
+          name: 'Authentik: Last critical event time'
+          type: DEPENDENT
+          key: authentik.events.last_critical.timestamp
+          units: unixtime
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.last_critical_timestamp
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+        - uuid: 84df64fc43d440fa924aea4ef74f1275
+          name: 'Authentik: Last critical event action'
+          type: DEPENDENT
+          key: authentik.events.last_critical.action
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.last_critical_action
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+        - uuid: 968c0ef88eb848ef981b6673b26d581c
+          name: 'Authentik: Last critical event details'
+          type: DEPENDENT
+          key: authentik.events.last_critical.summary
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.events.last_critical_summary
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: authentik.get
+          tags:
+            - tag: component
+              value: event
+        - uuid: 8f29f7c34e42485488b7a460a28483f0
+          name: 'Authentik: Get inventory'
+          type: SCRIPT
+          key: authentik.inventory.get
+          delay: '{$AUTHENTIK.INVENTORY.INTERVAL}'
+          history: 1d
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value),
+                base = params.url.replace(/\/+$/, '') + '/api/v3',
+                request = new HttpRequest(),
+                result = {
+                    errors: [],
+                    counts: {},
+                    sources: [],
+                    sync_resources: [],
+                    blueprints: [],
+                    certificates: [],
+                    tokens: [],
+                    outposts: []
+                };
+
+            if (params.proxy) {
+                request.setProxy(params.proxy);
+            }
+            request.addHeader('Accept: application/json');
+            request.addHeader('Authorization: Bearer ' + params.token);
+
+            function get(path, label) {
+                var body, status;
+                try {
+                    body = request.get(base + path);
+                    status = request.getStatus();
+                    if (status !== 200) {
+                        result.errors.push(label + ': HTTP ' + status);
+                        return null;
+                    }
+                    return JSON.parse(body);
+                } catch (error) {
+                    result.errors.push(label + ': ' + error);
+                    return null;
+                }
+            }
+
+            function count(path, label) {
+                var separator = path.indexOf('?') === -1 ? '?' : '&',
+                    response = get(path + separator + 'page_size=1', label);
+                return response && response.pagination ?
+                    Number(response.pagination.count) || 0 : null;
+            }
+
+            function all(path, label) {
+                var items = [], page = 1, totalPages = 1, response,
+                    separator = path.indexOf('?') === -1 ? '?' : '&';
+                do {
+                    response = get(path + separator + 'page_size=100&page=' + page,
+                        label + ' page ' + page);
+                    if (!response || !response.results) {
+                        return null;
+                    }
+                    items = items.concat(response.results);
+                    totalPages = response.pagination ?
+                        Number(response.pagination.total_pages) || 1 : 1;
+                    page++;
+                } while (page <= totalPages && page <= 100);
+                if (totalPages > 100) {
+                    result.errors.push(label + ': pagination safety limit reached');
+                }
+                return items;
+            }
+
+            result.counts.users = count('/core/users/', 'users');
+            result.counts.users_active = count('/core/users/?is_active=true', 'active users');
+            result.counts.users_inactive = count('/core/users/?is_active=false', 'inactive users');
+            result.counts.users_superusers = count('/core/users/?is_superuser=true', 'superusers');
+            result.counts.users_service_accounts =
+                count('/core/users/?type=service_account&type=internal_service_account',
+                    'service accounts');
+            result.counts.groups = count('/core/groups/?include_users=false', 'groups');
+            result.counts.applications =
+                count('/core/applications/?superuser_full_list=true', 'applications');
+            result.counts.sessions =
+                count('/core/authenticated_sessions/', 'authenticated sessions');
+            var providers = all('/providers/all/', 'providers');
+            if (providers) {
+                result.counts.providers = providers.length;
+            }
+            result.counts.flows = count('/flows/instances/', 'flows');
+            result.counts.policies = count('/policies/all/', 'policies');
+            result.counts.stages = count('/stages/all/', 'stages');
+
+            var sources = all('/sources/all/', 'sources');
+            if (sources) {
+                result.sources = [];
+                for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
+                    var source = sources[sourceIndex];
+                    result.sources.push({
+                        uuid: source.pk,
+                        name: source.name,
+                        slug: source.slug,
+                        enabled: source.enabled ? 1 : 0,
+                        component: source.component || '',
+                        type: source.verbose_name || source.meta_model_name || ''
+                    });
+                }
+                result.counts.sources = result.sources.length;
+                result.counts.sources_enabled = 0;
+                for (var enabledIndex = 0; enabledIndex < result.sources.length; enabledIndex++) {
+                    if (result.sources[enabledIndex].enabled) {
+                        result.counts.sources_enabled++;
+                    }
+                }
+                result.counts.sources_disabled =
+                    result.counts.sources - result.counts.sources_enabled;
+            }
+
+            if (sources && providers) {
+                result.sync_resources = [];
+                for (var syncSourceIndex = 0;
+                        syncSourceIndex < sources.length; syncSourceIndex++) {
+                    var syncSource = sources[syncSourceIndex],
+                        sourceModel = syncSource.meta_model_name || '';
+                    if (sourceModel.indexOf('sources_ldap.ldapsource') !== -1) {
+                        result.sync_resources.push({
+                            id: 'source-' + syncSource.pk,
+                            name: syncSource.name,
+                            kind: 'LDAP source',
+                            path: '/sources/ldap/' + syncSource.slug + '/sync/status/'
+                        });
+                    } else if (sourceModel.indexOf('sources_kerberos.kerberossource') !== -1) {
+                        result.sync_resources.push({
+                            id: 'source-' + syncSource.pk,
+                            name: syncSource.name,
+                            kind: 'Kerberos source',
+                            path: '/sources/kerberos/' + syncSource.slug + '/sync/status/'
+                        });
+                    }
+                }
+                for (var syncProviderIndex = 0;
+                        syncProviderIndex < providers.length; syncProviderIndex++) {
+                    var syncProvider = providers[syncProviderIndex],
+                        providerModel = syncProvider.meta_model_name || '',
+                        providerPath = '',
+                        providerKind = '';
+                    if (providerModel.indexOf('providers_scim.scimprovider') !== -1) {
+                        providerPath = '/providers/scim/';
+                        providerKind = 'SCIM provider';
+                    } else if (providerModel.indexOf(
+                            'providers_google_workspace.googleworkspaceprovider') !== -1) {
+                        providerPath = '/providers/google_workspace/';
+                        providerKind = 'Google Workspace provider';
+                    } else if (providerModel.indexOf(
+                            'providers_microsoft_entra.microsoftentraprovider') !== -1) {
+                        providerPath = '/providers/microsoft_entra/';
+                        providerKind = 'Microsoft Entra provider';
+                    }
+                    if (providerPath) {
+                        result.sync_resources.push({
+                            id: 'provider-' + syncProvider.pk,
+                            name: syncProvider.name,
+                            kind: providerKind,
+                            path: providerPath + syncProvider.pk + '/sync/status/'
+                        });
+                    }
+                }
+                result.counts.sync_resources = result.sync_resources.length;
+            }
+
+            var blueprints = all('/managed/blueprints/', 'blueprints');
+            if (blueprints) {
+                result.blueprints = [];
+                result.counts.blueprints_problem = 0;
+                for (var blueprintIndex = 0;
+                        blueprintIndex < blueprints.length; blueprintIndex++) {
+                    var blueprint = blueprints[blueprintIndex];
+                    result.blueprints.push({
+                        uuid: blueprint.pk,
+                        name: blueprint.name,
+                        enabled: blueprint.enabled ? 1 : 0,
+                        status: blueprint.status || 'unknown',
+                        last_applied: blueprint.last_applied || '',
+                        last_applied_timestamp: blueprint.last_applied ?
+                            Math.floor(Date.parse(blueprint.last_applied) / 1000) : 0
+                    });
+                    if (blueprint.enabled && blueprint.status !== 'successful') {
+                        result.counts.blueprints_problem++;
+                    }
+                }
+                result.counts.blueprints = result.blueprints.length;
+            }
+
+            var certificates = all('/crypto/certificatekeypairs/', 'certificates');
+            if (certificates) {
+                result.certificates = [];
+                for (var certIndex = 0; certIndex < certificates.length; certIndex++) {
+                    var certificate = certificates[certIndex];
+                    result.certificates.push({
+                        uuid: certificate.pk,
+                        name: certificate.name,
+                        expiry: certificate.cert_expiry || '',
+                        expiry_timestamp: certificate.cert_expiry ?
+                            Math.floor(Date.parse(certificate.cert_expiry) / 1000) : 0,
+                        subject: certificate.cert_subject || '',
+                        key_type: certificate.key_type || '',
+                        private_key: certificate.private_key_available ? 1 : 0,
+                        managed: certificate.managed || ''
+                    });
+                }
+                result.counts.certificates = result.certificates.length;
+            }
+
+            var tokens = all('/core/tokens/?expiring=true', 'expiring tokens');
+            if (tokens) {
+                result.tokens = [];
+                for (var tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
+                    var token = tokens[tokenIndex];
+                    if (!token.expires) {
+                        continue;
+                    }
+                    result.tokens.push({
+                        uuid: token.pk,
+                        identifier: token.identifier,
+                        intent: token.intent || '',
+                        username: token.user_obj ? token.user_obj.username || '' : '',
+                        expiry: token.expires,
+                        expiry_timestamp: Math.floor(Date.parse(token.expires) / 1000),
+                        managed: token.managed || ''
+                    });
+                }
+                result.counts.expiring_tokens = result.tokens.length;
+            }
+            result.counts.tokens = count('/core/tokens/', 'tokens');
+            result.counts.api_tokens = count('/core/tokens/?intent=api', 'API tokens');
+
+            var outposts = all('/outposts/instances/', 'outposts');
+            if (outposts) {
+                for (var outpostIndex = 0; outpostIndex < outposts.length; outpostIndex++) {
+                    var outpost = outposts[outpostIndex];
+                    result.outposts.push({
+                        uuid: outpost.pk,
+                        name: outpost.name,
+                        type: outpost.type || '',
+                        managed: outpost.managed || '',
+                        providers: outpost.providers ? outpost.providers.length : 0
+                    });
+                }
+                result.counts.outposts = result.outposts.length;
+            }
+            for (var countName in result.counts) {
+                if (result.counts.hasOwnProperty(countName) &&
+                        result.counts[countName] === null) {
+                    delete result.counts[countName];
+                }
+            }
+            result.error_count = result.errors.length;
+            return JSON.stringify(result);
+          description: |
+            Hourly inventory collection used for object counts and low-level discovery.
+            Pagination is handled up to 10,000 objects per endpoint.
+          timeout: '{$AUTHENTIK.HTTP.TIMEOUT}'
+          parameters:
+            - name: proxy
+              value: '{$AUTHENTIK.HTTP.PROXY}'
+            - name: token
+              value: '{$AUTHENTIK.API.TOKEN}'
+            - name: url
+              value: '{$AUTHENTIK.URL}'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 8fa1f45bad1145429bf502001c2019b8
+              expression: 'nodata(/Authentik by HTTP/authentik.inventory.get,{$AUTHENTIK.INVENTORY.NODATA})=1'
+              name: 'Authentik: No inventory data'
+              priority: AVERAGE
+              description: 'The inventory and discovery collection has not returned data within the configured period.'
+              dependencies:
+                - name: 'Authentik: API is unavailable'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                - name: 'Authentik: API authentication failed'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                - name: 'Authentik: API access is forbidden'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 01cc37a95c43414386e4e5a9cd5d2064
+          name: 'Authentik: Inventory collection errors'
+          type: DEPENDENT
+          key: authentik.inventory.errors
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.error_count
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: api
+          triggers:
+            - uuid: 397e7aa9bcb246c7a79cc3ce2067eaa4
+              expression: 'last(/Authentik by HTTP/authentik.inventory.errors)>0'
+              name: 'Authentik: Some inventory data could not be collected'
+              opdata: 'Failed requests: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'Authentik: API is unavailable'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                - name: 'Authentik: API authentication failed'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                - name: 'Authentik: API access is forbidden'
+                  expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                - name: 'Authentik: Server is not alive'
+                  expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 5897d7a1b7744c4490e7f59a76c796d4
+          name: 'Authentik: Inventory collection error details'
+          type: DEPENDENT
+          key: authentik.inventory.error_details
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errors
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.stringify(JSON.parse(value));'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: api
+        - uuid: accf5306b75c49839c24e268fdc2afd9
+          name: 'Authentik: Users'
+          type: DEPENDENT
+          key: authentik.inventory.users
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.users
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: user
+        - uuid: 967cdbc1f25c429b8a6fa2d355661b1e
+          name: 'Authentik: Active users'
+          type: DEPENDENT
+          key: authentik.inventory.users.active
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.users_active
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: user
+        - uuid: c0e3d83aacc441748c6b786146f37b06
+          name: 'Authentik: Inactive users'
+          type: DEPENDENT
+          key: authentik.inventory.users.inactive
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.users_inactive
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: user
+        - uuid: e148b9f60ebc442a8960bce686a0a43e
+          name: 'Authentik: Superusers'
+          type: DEPENDENT
+          key: authentik.inventory.users.superusers
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.users_superusers
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: security
+        - uuid: 90551ed838844a4fbe6b94570048fdca
+          name: 'Authentik: Service accounts'
+          type: DEPENDENT
+          key: authentik.inventory.users.service_accounts
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.users_service_accounts
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: user
+        - uuid: a2331683679e4bffb7db870c7b485c91
+          name: 'Authentik: Groups'
+          type: DEPENDENT
+          key: authentik.inventory.groups
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.groups
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: group
+        - uuid: 7e6b7da0b94f4946abb5d99f25d94128
+          name: 'Authentik: Applications'
+          type: DEPENDENT
+          key: authentik.inventory.applications
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.applications
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: application
+        - uuid: b4434a9c56134061a858de68a22c1d52
+          name: 'Authentik: Authenticated sessions'
+          type: DEPENDENT
+          key: authentik.inventory.sessions
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.sessions
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: authentication
+        - uuid: b6fc2062a63149c087e841492bbbf0c4
+          name: 'Authentik: Tokens'
+          type: DEPENDENT
+          key: authentik.inventory.tokens
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.tokens
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: token
+        - uuid: f94376e2c8da48d98889d95f625387a6
+          name: 'Authentik: API tokens'
+          type: DEPENDENT
+          key: authentik.inventory.tokens.api
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.api_tokens
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: token
+        - uuid: fac7cf58311f45999c02c0da8a210472
+          name: 'Authentik: Expiring tokens'
+          type: DEPENDENT
+          key: authentik.inventory.tokens.expiring
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.expiring_tokens
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: token
+        - uuid: 48d05fa0040e4b4db6e858ad18078503
+          name: 'Authentik: Providers'
+          type: DEPENDENT
+          key: authentik.inventory.providers
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.providers
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: provider
+        - uuid: 83e8ec438f444dd2ab5a59a146628aa2
+          name: 'Authentik: Sources'
+          type: DEPENDENT
+          key: authentik.inventory.sources
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.sources
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: source
+        - uuid: 26306503efe2445ba0a5dca2d5991d4a
+          name: 'Authentik: Enabled sources'
+          type: DEPENDENT
+          key: authentik.inventory.sources.enabled
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.sources_enabled
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: source
+        - uuid: 326a441333f34ed7a889abf9fd36e9ba
+          name: 'Authentik: Disabled sources'
+          type: DEPENDENT
+          key: authentik.inventory.sources.disabled
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.sources_disabled
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: source
+        - uuid: df769bdf0004436f80be2615169b53b8
+          name: 'Authentik: Outposts'
+          type: DEPENDENT
+          key: authentik.inventory.outposts
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.outposts
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: outpost
+        - uuid: 21d22cd1120041628fd2c4f6908593ac
+          name: 'Authentik: Certificates'
+          type: DEPENDENT
+          key: authentik.inventory.certificates
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.certificates
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: certificate
+        - uuid: 7d552dc7a05546d98919dc87fb2b5aab
+          name: 'Authentik: Flows'
+          type: DEPENDENT
+          key: authentik.inventory.flows
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.flows
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: configuration
+        - uuid: ca1b90dd0b674ec3bf29db935711eb90
+          name: 'Authentik: Policies'
+          type: DEPENDENT
+          key: authentik.inventory.policies
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.policies
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: configuration
+        - uuid: 40cbc95fd6f543e0a064b2328c8bffd7
+          name: 'Authentik: Stages'
+          type: DEPENDENT
+          key: authentik.inventory.stages
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.stages
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: configuration
+        - uuid: 8f7e914915624d21b885ea896f906893
+          name: 'Authentik: Blueprint instances'
+          type: DEPENDENT
+          key: authentik.inventory.blueprints
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.blueprints
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: configuration
+        - uuid: f4b1a849d90540e996b827f46dcb2b9a
+          name: 'Authentik: Enabled blueprint instances not successful'
+          type: DEPENDENT
+          key: authentik.inventory.blueprints.problem
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.blueprints_problem
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: configuration
+        - uuid: 9546365fe826498d81a2ec4cd22c36e8
+          name: 'Authentik: Sync-capable sources/providers'
+          type: DEPENDENT
+          key: authentik.inventory.sync_resources
+          preprocessing:
+            - type: JSONPATH
+              error_handler: DISCARD_VALUE
+              parameters:
+                - $.counts.sync_resources
+          master_item:
+            key: authentik.inventory.get
+          tags:
+            - tag: component
+              value: synchronization
+      discovery_rules:
+        - uuid: 3e56e1e5fbe94b09bfca2c78b779b9dd
+          name: 'Authentik: Blueprint discovery'
+          type: DEPENDENT
+          key: authentik.blueprint.discovery
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: f1684e4f0a4c416493ef7e918bc1a656
+              name: 'Authentik: Blueprint [{#BLUEPRINT.NAME}]: Status'
+              type: DEPENDENT
+              key: 'authentik.blueprint.status[{#BLUEPRINT.UUID}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.blueprints[?(@.uuid == "{#BLUEPRINT.UUID}")].status.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: blueprint
+                  value: '{#BLUEPRINT.NAME}'
+                - tag: component
+                  value: configuration
+              trigger_prototypes:
+                - uuid: 3d17f60129a84677b026a897af3ce206
+                  expression: 'find(/Authentik by HTTP/authentik.blueprint.status[{#BLUEPRINT.UUID}],,"regexp","^(error|orphaned)$")=1 and last(/Authentik by HTTP/authentik.blueprint.enabled[{#BLUEPRINT.UUID}])=1'
+                  name: 'Authentik: Blueprint [{#BLUEPRINT.NAME}] is in an error state'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: dd2f90bc1b5f4ad1b42289ba6ec27494
+                  expression: 'find(/Authentik by HTTP/authentik.blueprint.status[{#BLUEPRINT.UUID}],,"regexp","^(warning|unknown)$")=1 and last(/Authentik by HTTP/authentik.blueprint.enabled[{#BLUEPRINT.UUID}])=1'
+                  name: 'Authentik: Blueprint [{#BLUEPRINT.NAME}] is not successfully applied'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 28698e6ee0da402cbc3de235739aa311
+              name: 'Authentik: Blueprint [{#BLUEPRINT.NAME}]: Enabled'
+              type: DEPENDENT
+              key: 'authentik.blueprint.enabled[{#BLUEPRINT.UUID}]'
+              valuemap:
+                name: 'Authentik boolean'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.blueprints[?(@.uuid == "{#BLUEPRINT.UUID}")].enabled.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: blueprint
+                  value: '{#BLUEPRINT.NAME}'
+                - tag: component
+                  value: configuration
+            - uuid: 6ecdd3490e884d01832b623e55c6305d
+              name: 'Authentik: Blueprint [{#BLUEPRINT.NAME}]: Last applied'
+              type: DEPENDENT
+              key: 'authentik.blueprint.last_applied[{#BLUEPRINT.UUID}]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.blueprints[?(@.uuid == "{#BLUEPRINT.UUID}")].last_applied_timestamp.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: blueprint
+                  value: '{#BLUEPRINT.NAME}'
+                - tag: component
+                  value: configuration
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#BLUEPRINT.NAME}'
+              path: $.name
+            - lld_macro: '{#BLUEPRINT.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.blueprints
+        - uuid: 7310c3707d1b41268940b27510871d1e
+          name: 'Authentik: Synchronization discovery'
+          type: DEPENDENT
+          key: authentik.sync.discovery
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: 6fa779a885034a779995cbd738515c3f
+              name: 'Authentik: Sync [{#SYNC.NAME}]: Get status'
+              type: HTTP_AGENT
+              key: 'authentik.sync.get[{#SYNC.ID}]'
+              delay: '{$AUTHENTIK.SYNC.INTERVAL}'
+              history: '0'
+              value_type: TEXT
+              status_codes: '200'
+              http_proxy: '{$AUTHENTIK.HTTP.PROXY}'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var status = JSON.parse(value), timestamp = 0;
+                      if (status.last_successful_sync) {
+                          timestamp = Math.floor(
+                              Date.parse(status.last_successful_sync) / 1000);
+                      }
+                      return JSON.stringify({
+                          running: status.is_running ? 1 : 0,
+                          last_successful_sync: timestamp,
+                          status: status.last_sync_status || ''
+                      });
+              timeout: '{$AUTHENTIK.HTTP.TIMEOUT}'
+              url: '{$AUTHENTIK.URL}/api/v3{#SYNC.PATH}'
+              verify_peer: 'NO'
+              verify_host: 'NO'
+              headers:
+                - name: Accept
+                  value: application/json
+                - name: Authorization
+                  value: 'Bearer {$AUTHENTIK.API.TOKEN}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: synchronization
+                  value: '{#SYNC.NAME}'
+            - uuid: 85263c2cf0634e34b0d62cf9122edafc
+              name: 'Authentik: Sync [{#SYNC.NAME}]: Running'
+              type: DEPENDENT
+              key: 'authentik.sync.running[{#SYNC.ID}]'
+              valuemap:
+                name: 'Authentik boolean'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.running
+              master_item:
+                key: 'authentik.sync.get[{#SYNC.ID}]'
+              tags:
+                - tag: component
+                  value: synchronization
+                - tag: synchronization
+                  value: '{#SYNC.NAME}'
+            - uuid: a7bf63acb98b43709686d8e4c2161357
+              name: 'Authentik: Sync [{#SYNC.NAME}]: Last status'
+              type: DEPENDENT
+              key: 'authentik.sync.status[{#SYNC.ID}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.status
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'authentik.sync.get[{#SYNC.ID}]'
+              tags:
+                - tag: component
+                  value: synchronization
+                - tag: synchronization
+                  value: '{#SYNC.NAME}'
+              trigger_prototypes:
+                - uuid: 84d2d22f9617477485edefcd5e52b10e
+                  expression: 'find(/Authentik by HTTP/authentik.sync.status[{#SYNC.ID}],,"regexp","^(error|rejected)$")=1'
+                  name: 'Authentik: Sync [{#SYNC.NAME}] failed'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 5b06613cb9564fb1b1beab38cad4ae51
+                  expression: 'find(/Authentik by HTTP/authentik.sync.status[{#SYNC.ID}],,"regexp","^warning$")=1'
+                  name: 'Authentik: Sync [{#SYNC.NAME}] completed with warnings'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: f756a9ec98844a70a4c4cd94855ee726
+              name: 'Authentik: Sync [{#SYNC.NAME}]: Last successful sync'
+              type: DEPENDENT
+              key: 'authentik.sync.last_success[{#SYNC.ID}]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.last_successful_sync
+              master_item:
+                key: 'authentik.sync.get[{#SYNC.ID}]'
+              tags:
+                - tag: component
+                  value: synchronization
+                - tag: synchronization
+                  value: '{#SYNC.NAME}'
+              trigger_prototypes:
+                - uuid: c67ff404b76641309c1feb8e156872f8
+                  expression: 'last(/Authentik by HTTP/authentik.sync.last_success[{#SYNC.ID}])>0 and now()-last(/Authentik by HTTP/authentik.sync.last_success[{#SYNC.ID}])>{$AUTHENTIK.SYNC.MAX_AGE:"{#SYNC.NAME}"}'
+                  name: 'Authentik: Sync [{#SYNC.NAME}] has not succeeded recently'
+                  opdata: 'Last successful sync: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#SYNC.ID}'
+              path: $.id
+            - lld_macro: '{#SYNC.KIND}'
+              path: $.kind
+            - lld_macro: '{#SYNC.NAME}'
+              path: $.name
+            - lld_macro: '{#SYNC.PATH}'
+              path: $.path
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sync_resources
+        - uuid: e2d2615a9798449e95ee42f7cdb548f1
+          name: 'Authentik: Source discovery'
+          type: DEPENDENT
+          key: authentik.source.discovery
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: a4508b766c6e4acb8d778e1ee7efde93
+              name: 'Authentik: Source [{#SOURCE.NAME}]: Enabled'
+              type: DEPENDENT
+              key: 'authentik.source.enabled[{#SOURCE.UUID}]'
+              valuemap:
+                name: 'Authentik boolean'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sources[?(@.uuid == "{#SOURCE.UUID}")].enabled.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: component
+                  value: source
+                - tag: source
+                  value: '{#SOURCE.SLUG}'
+            - uuid: c78df9a23da7419fa75696712782a5df
+              name: 'Authentik: Source [{#SOURCE.NAME}]: Type'
+              type: DEPENDENT
+              key: 'authentik.source.type[{#SOURCE.UUID}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sources[?(@.uuid == "{#SOURCE.UUID}")].type.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: component
+                  value: source
+                - tag: source
+                  value: '{#SOURCE.SLUG}'
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#SOURCE.COMPONENT}'
+              path: $.component
+            - lld_macro: '{#SOURCE.NAME}'
+              path: $.name
+            - lld_macro: '{#SOURCE.SLUG}'
+              path: $.slug
+            - lld_macro: '{#SOURCE.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sources
+        - uuid: 680346100bcc4961b59c636f7427575d
+          name: 'Authentik: Certificate discovery'
+          type: DEPENDENT
+          key: authentik.certificate.discovery
+          filter:
+            conditions:
+              - macro: '{#CERT.EXPIRY}'
+                value: .+
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: bb4b9208943246eda42c5d40a53c8721
+              name: 'Authentik: Certificate [{#CERT.NAME}]: Expiry'
+              type: DEPENDENT
+              key: 'authentik.certificate.expiry[{#CERT.UUID}]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.certificates[?(@.uuid == "{#CERT.UUID}")].expiry_timestamp.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: certificate
+                  value: '{#CERT.NAME}'
+                - tag: component
+                  value: certificate
+              trigger_prototypes:
+                - uuid: a825417a89ba4537b0322aa3201927b6
+                  expression: 'last(/Authentik by HTTP/authentik.certificate.expiry[{#CERT.UUID}])-now()<{$AUTHENTIK.CERT.EXPIRY.WARN:"{#CERT.NAME}"} and last(/Authentik by HTTP/authentik.certificate.expiry[{#CERT.UUID}])>now()'
+                  name: 'Authentik: Certificate [{#CERT.NAME}] expires soon'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 758128eb5e574da290ae6e3c6b312158
+                  expression: 'last(/Authentik by HTTP/authentik.certificate.expiry[{#CERT.UUID}])<=now()'
+                  name: 'Authentik: Certificate [{#CERT.NAME}] has expired'
+                  opdata: 'Expired: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 983b711372654611ac6e415f71256bfd
+              name: 'Authentik: Certificate [{#CERT.NAME}]: Private key available'
+              type: DEPENDENT
+              key: 'authentik.certificate.private_key[{#CERT.UUID}]'
+              valuemap:
+                name: 'Authentik boolean'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.certificates[?(@.uuid == "{#CERT.UUID}")].private_key.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: certificate
+                  value: '{#CERT.NAME}'
+                - tag: component
+                  value: certificate
+            - uuid: 1a44635321534309a54d6c809ae2043c
+              name: 'Authentik: Certificate [{#CERT.NAME}]: Key type'
+              type: DEPENDENT
+              key: 'authentik.certificate.key_type[{#CERT.UUID}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.certificates[?(@.uuid == "{#CERT.UUID}")].key_type.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: certificate
+                  value: '{#CERT.NAME}'
+                - tag: component
+                  value: certificate
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#CERT.EXPIRY}'
+              path: $.expiry
+            - lld_macro: '{#CERT.NAME}'
+              path: $.name
+            - lld_macro: '{#CERT.SUBJECT}'
+              path: $.subject
+            - lld_macro: '{#CERT.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.certificates
+        - uuid: 3b90ecb46e604130ba7e5887272d6086
+          name: 'Authentik: Expiring token discovery'
+          type: DEPENDENT
+          key: authentik.token.discovery
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: df0053b610814c2899bd2110fe68eaf8
+              name: 'Authentik: Token [{#TOKEN.IDENTIFIER}]: Expiry'
+              type: DEPENDENT
+              key: 'authentik.token.expiry[{#TOKEN.UUID}]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.tokens[?(@.uuid == "{#TOKEN.UUID}")].expiry_timestamp.first()'
+              master_item:
+                key: authentik.inventory.get
+              tags:
+                - tag: component
+                  value: token
+                - tag: token
+                  value: '{#TOKEN.IDENTIFIER}'
+              trigger_prototypes:
+                - uuid: 765deda5cdf04be294427b8d9f76a800
+                  expression: 'last(/Authentik by HTTP/authentik.token.expiry[{#TOKEN.UUID}])-now()<{$AUTHENTIK.TOKEN.EXPIRY.WARN:"{#TOKEN.IDENTIFIER}"} and last(/Authentik by HTTP/authentik.token.expiry[{#TOKEN.UUID}])>now()'
+                  name: 'Authentik: Token [{#TOKEN.IDENTIFIER}] expires soon'
+                  opdata: 'Expires: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 0e870840ad994bb5987fd52d45c8327c
+                  expression: 'last(/Authentik by HTTP/authentik.token.expiry[{#TOKEN.UUID}])<=now()'
+                  name: 'Authentik: Token [{#TOKEN.IDENTIFIER}] has expired'
+                  opdata: 'Expired: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: security
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#TOKEN.IDENTIFIER}'
+              path: $.identifier
+            - lld_macro: '{#TOKEN.INTENT}'
+              path: $.intent
+            - lld_macro: '{#TOKEN.USERNAME}'
+              path: $.username
+            - lld_macro: '{#TOKEN.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.tokens
+        - uuid: b33323f15d5949889f6f617067467d77
+          name: 'Authentik: Outpost discovery'
+          type: DEPENDENT
+          key: authentik.outpost.discovery
+          lifetime: '{$AUTHENTIK.LLD.LIFETIME}'
+          item_prototypes:
+            - uuid: bae22564e8df434ea064d1a317fb554f
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: Get health'
+              type: HTTP_AGENT
+              key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              delay: '{$AUTHENTIK.OUTPOST.INTERVAL}'
+              history: '0'
+              value_type: TEXT
+              status_codes: '200'
+              http_proxy: '{$AUTHENTIK.HTTP.PROXY}'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var instances = JSON.parse(value), newest = null, mismatches = 0,
+                          fipsEnabled = 0;
+                      for (var index = 0; index < instances.length; index++) {
+                          if (!newest || Date.parse(instances[index].last_seen) >
+                                  Date.parse(newest.last_seen)) {
+                              newest = instances[index];
+                          }
+                          if (instances[index].version_outdated) {
+                              mismatches++;
+                          }
+                          if (instances[index].fips_enabled === true) {
+                              fipsEnabled++;
+                          }
+                      }
+                      return JSON.stringify({
+                          connected: instances.length,
+                          last_seen: newest ?
+                              Math.floor(Date.parse(newest.last_seen) / 1000) : 0,
+                          version: newest ? newest.version || '' : '',
+                          hostname: newest ? newest.hostname || '' : '',
+                          fips_enabled: fipsEnabled,
+                          version_mismatch: mismatches
+                      });
+              timeout: '{$AUTHENTIK.HTTP.TIMEOUT}'
+              url: '{$AUTHENTIK.URL}/api/v3/outposts/instances/{#OUTPOST.UUID}/health/'
+              verify_peer: 'NO'
+              verify_host: 'NO'
+              headers:
+                - name: Accept
+                  value: application/json
+                - name: Authorization
+                  value: 'Bearer {$AUTHENTIK.API.TOKEN}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+            - uuid: 8400fa9b4feb4fea943f80027f79f3c9
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: Connected instances'
+              type: DEPENDENT
+              key: 'authentik.outpost.connected[{#OUTPOST.UUID}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.connected
+              master_item:
+                key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              tags:
+                - tag: component
+                  value: outpost
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+              trigger_prototypes:
+                - uuid: c3b24e2ec1f44614a316579705254061
+                  expression: 'max(/Authentik by HTTP/authentik.outpost.connected[{#OUTPOST.UUID}],#3)=0'
+                  name: 'Authentik: Outpost [{#OUTPOST.NAME}] has no connected instance'
+                  priority: HIGH
+                  dependencies:
+                    - name: 'Authentik: API is unavailable'
+                      expression: 'last(/Authentik by HTTP/authentik.api.status)=0 or last(/Authentik by HTTP/authentik.api.status)=404 or last(/Authentik by HTTP/authentik.api.status)>=500'
+                    - name: 'Authentik: API authentication failed'
+                      expression: 'last(/Authentik by HTTP/authentik.api.status)=401'
+                    - name: 'Authentik: API access is forbidden'
+                      expression: 'last(/Authentik by HTTP/authentik.api.status)=403'
+                    - name: 'Authentik: Server is not alive'
+                      expression: 'last(/Authentik by HTTP/authentik.health.live)<>200'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: d25203894c9b4d438c6c3681efcfeaeb
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: Last seen'
+              type: DEPENDENT
+              key: 'authentik.outpost.last_seen[{#OUTPOST.UUID}]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.last_seen
+              master_item:
+                key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              tags:
+                - tag: component
+                  value: outpost
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+              trigger_prototypes:
+                - uuid: 1c0a26257b1e467e91737b46051cae02
+                  expression: 'last(/Authentik by HTTP/authentik.outpost.last_seen[{#OUTPOST.UUID}])>0 and now()-last(/Authentik by HTTP/authentik.outpost.last_seen[{#OUTPOST.UUID}])>{$AUTHENTIK.OUTPOST.LAST_SEEN.MAX:"{#OUTPOST.NAME}"}'
+                  name: 'Authentik: Outpost [{#OUTPOST.NAME}] has not checked in recently'
+                  opdata: 'Last seen: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Authentik: Outpost [{#OUTPOST.NAME}] has no connected instance'
+                      expression: 'max(/Authentik by HTTP/authentik.outpost.connected[{#OUTPOST.UUID}],#3)=0'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: cac38fedd9fe4815b71cb62127ec9599
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: Version'
+              type: DEPENDENT
+              key: 'authentik.outpost.version[{#OUTPOST.UUID}]'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.version
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              tags:
+                - tag: component
+                  value: outpost
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+            - uuid: 8d602e647584470f8f5a8ca89f831205
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: Version mismatches'
+              type: DEPENDENT
+              key: 'authentik.outpost.version_mismatch[{#OUTPOST.UUID}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.version_mismatch
+              master_item:
+                key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              tags:
+                - tag: component
+                  value: outpost
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+              trigger_prototypes:
+                - uuid: 912f1be5e2c54520867cc1ff024db540
+                  expression: 'last(/Authentik by HTTP/authentik.outpost.version_mismatch[{#OUTPOST.UUID}])>0'
+                  name: 'Authentik: Outpost [{#OUTPOST.NAME}] version mismatch'
+                  opdata: 'Affected instances: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: d7968425ce6a4954b152d86d655662d7
+              name: 'Authentik: Outpost [{#OUTPOST.NAME}]: FIPS-enabled instances'
+              type: DEPENDENT
+              key: 'authentik.outpost.fips[{#OUTPOST.UUID}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.fips_enabled
+              master_item:
+                key: 'authentik.outpost.health.get[{#OUTPOST.UUID}]'
+              tags:
+                - tag: component
+                  value: security
+                - tag: outpost
+                  value: '{#OUTPOST.NAME}'
+          master_item:
+            key: authentik.inventory.get
+          lld_macro_paths:
+            - lld_macro: '{#OUTPOST.NAME}'
+              path: $.name
+            - lld_macro: '{#OUTPOST.TYPE}'
+              path: $.type
+            - lld_macro: '{#OUTPOST.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.outposts
+      tags:
+        - tag: class
+          value: security
+        - tag: target
+          value: authentik
+      macros:
+        - macro: '{$AUTHENTIK.API.TOKEN}'
+          type: SECRET_TEXT
+          description: 'API token of a dedicated authentik monitoring account.'
+        - macro: '{$AUTHENTIK.CERT.EXPIRY.WARN}'
+          value: 30d
+          description: 'Certificate expiry warning threshold. Supports context by certificate name.'
+        - macro: '{$AUTHENTIK.CLOCK_SKEW.MAX}'
+          value: '60'
+          description: 'Maximum allowed clock skew in seconds.'
+        - macro: '{$AUTHENTIK.EVENTS.CRITICAL.WARN}'
+          value: '0'
+          description: 'Critical event count in one hour above which a trigger fires.'
+        - macro: '{$AUTHENTIK.EVENTS.WARNING.WARN}'
+          value: '0'
+          description: 'Configuration warning count in 24 hours above which a trigger fires.'
+        - macro: '{$AUTHENTIK.HTTP.PROXY}'
+          description: 'Optional HTTP proxy URL. Leave empty when no proxy is required.'
+        - macro: '{$AUTHENTIK.HTTP.TIMEOUT}'
+          value: 30s
+          description: 'Timeout for API requests and collection scripts.'
+        - macro: '{$AUTHENTIK.INTERVAL}'
+          value: 5m
+          description: 'Main monitoring interval.'
+        - macro: '{$AUTHENTIK.INVENTORY.INTERVAL}'
+          value: 1h
+          description: 'Object inventory and discovery interval.'
+        - macro: '{$AUTHENTIK.INVENTORY.NODATA}'
+          value: 3h
+          description: 'No-data threshold for inventory and discovery collection.'
+        - macro: '{$AUTHENTIK.LLD.LIFETIME}'
+          value: 30d
+          description: 'How long lost discovered resources are retained.'
+        - macro: '{$AUTHENTIK.LOGIN_FAILED.WARN}'
+          value: '10'
+          description: 'Failed login count in one hour above which a trigger fires.'
+        - macro: '{$AUTHENTIK.NODATA}'
+          value: 15m
+          description: 'No-data interval for the central collection item.'
+        - macro: '{$AUTHENTIK.OUTPOST.INTERVAL}'
+          value: 5m
+          description: 'Outpost health polling interval.'
+        - macro: '{$AUTHENTIK.OUTPOST.LAST_SEEN.MAX}'
+          value: 10m
+          description: 'Maximum age of an outpost check-in. Supports context by outpost name.'
+        - macro: '{$AUTHENTIK.RESPONSE_TIME.WARN}'
+          value: '2000'
+          description: 'API response time threshold in milliseconds.'
+        - macro: '{$AUTHENTIK.TASKS.QUEUED.WARN}'
+          value: '25'
+          description: 'Queued task count above which a trigger fires.'
+        - macro: '{$AUTHENTIK.SYNC.INTERVAL}'
+          value: 15m
+          description: 'Polling interval for LDAP/Kerberos/SCIM/directory synchronization status.'
+        - macro: '{$AUTHENTIK.SYNC.MAX_AGE}'
+          value: 25h
+          description: 'Maximum age of a successful synchronization. Supports context by source/provider name.'
+        - macro: '{$AUTHENTIK.TOKEN.EXPIRY.WARN}'
+          value: 14d
+          description: 'Token expiry warning threshold. Supports context by token identifier.'
+        - macro: '{$AUTHENTIK.URL}'
+          value: 'https://authentik.example.com'
+          description: 'Base URL without a trailing slash.'
+      valuemaps:
+        - uuid: 14b568d4a6c84c0b9a01398c1aaa80fb
+          name: 'Authentik boolean'
+          mappings:
+            - value: '0'
+              newvalue: 'false'
+            - value: '1'
+              newvalue: 'true'
+        - uuid: 668734ff8ccd47b8902088c890afb931
+          name: 'Authentik HTTP status'
+          mappings:
+            - value: '0'
+              newvalue: 'Connection failed'
+            - value: '200'
+              newvalue: 'OK'
+            - value: '401'
+              newvalue: 'Authentication failed'
+            - value: '403'
+              newvalue: 'Access forbidden'
+            - value: '404'
+              newvalue: 'API endpoint not found'
