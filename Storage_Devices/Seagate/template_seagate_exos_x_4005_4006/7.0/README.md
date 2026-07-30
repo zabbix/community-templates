@@ -10,95 +10,270 @@ Indium controller modules and the following enclosure formats:
 - 2U24
 - 5U84
 
-The template was validated offline with real API responses from:
+It was validated offline with real API responses from:
 
 - Seagate Exos X 4005-family storage reporting product ID `4865`
 - Seagate Exos X 4006
 
 It uses native Zabbix features only: Script items, dependent items, low-level
-discovery, trigger prototypes, graph prototypes, value maps, and host macros.
-No external scripts or agents are required.
+discovery, trigger prototypes, graph prototypes, template dashboards, value
+maps, and host macros. No external scripts or Zabbix Agent are required on the
+storage system.
+
+## Version 1.1.1
+
+Version 1.1.1 is a backward-compatible correction release for version 1.1.0.
+
+It adds independent optional API ports for the primary and secondary
+controllers:
+
+- `{$SEAGATE.API.PORT.PRIMARY}`
+- `{$SEAGATE.API.PORT.SECONDARY}`
+
+This supports NAT and port-forwarding designs where both controllers are
+accessed through the same public IP address or DNS name but use different
+external TCP ports.
+
+Existing hosts continue to work without changes. Both new macros are empty by
+default and inherit the existing `{$SEAGATE.API.PORT}` value.
 
 ## Requirements
 
 - Zabbix 7.0 or newer
-- Network access from the Zabbix server or proxy to the storage management
-  controller over HTTP or HTTPS
+- Network access from the Zabbix server or proxy to the storage management API
 - A Seagate Exos account with Monitor/read-only permissions and Web/API access
-- The native Seagate JSON API enabled on the storage system
+- Native Seagate JSON API enabled
 
 > [!IMPORTANT]
-> Import and test the template on a non-critical host first. Although it was
-> validated against real API captures, a live import and several collection
-> cycles are the final compatibility test for your firmware and configuration.
+> Import and test the template on a non-critical host first. Offline YAML,
+> UUID, and JavaScript validation does not replace an actual Zabbix import and
+> a live collection/failover test against the target storage firmware.
 
 ## Installation
 
-1. Download
-   [`template_seagate_exos_x_4005_4006.yaml`](template_seagate_exos_x_4005_4006.yaml).
+1. Download `template_seagate_exos_x_4005_4006.yaml`.
 2. In Zabbix, open **Data collection > Templates**.
-3. Select **Import**, choose the downloaded YAML file, and complete the import.
-4. Create or select the host that represents the storage array.
-5. Link the **Seagate Exos Storage by HTTP** template to the host.
-6. Open the host's **Macros** tab and configure the required values:
+3. Select **Import** and choose the YAML file.
+4. Create or select the host representing the storage array.
+5. Link **Seagate Exos Storage by HTTP**.
+6. Configure the required host macros:
 
-   | Macro | Example | Description |
-   |---|---|---|
-   | `{$SEAGATE.API.HOST}` | `192.0.2.10` | Primary controller management IP address or hostname |
-   | `{$SEAGATE.API.USERNAME}` | `zbx_monitor` | Dedicated Monitor/read-only API user |
-   | `{$SEAGATE.API.PASSWORD}` | — | API password, stored as a secret-text macro |
+| Macro | Example | Description |
+|---|---|---|
+| `{$SEAGATE.API.HOST}` | `192.0.2.10` | Primary controller management IP address or hostname |
+| `{$SEAGATE.API.USERNAME}` | `zbx_monitor` | Monitor/read-only API user |
+| `{$SEAGATE.API.PASSWORD}` | — | API password stored as a secret-text macro |
 
-7. If necessary, override the connection defaults:
+Optional connection macros:
 
-   | Macro | Default | Description |
-   |---|---:|---|
-   | `{$SEAGATE.API.SCHEME}` | `https` | API scheme: `https` or `http` |
-   | `{$SEAGATE.API.PORT}` | `443` | Management API TCP port |
-   | `{$SEAGATE.API.HOST.SECONDARY}` | empty | Optional partner-controller management address |
-   | `{$SEAGATE.HTTP.PROXY}` | empty | Optional HTTP proxy, for example `http://proxy.example:8080` |
+| Macro | Default | Description |
+|---|---:|---|
+| `{$SEAGATE.API.SCHEME}` | `https` | API scheme: `https` or `http` |
+| `{$SEAGATE.API.PORT}` | `443` | Shared/default management API TCP port |
+| `{$SEAGATE.API.HOST.SECONDARY}` | empty | Optional partner-controller address |
+| `{$SEAGATE.API.PORT.PRIMARY}` | empty | Primary-controller port override; inherits the shared port |
+| `{$SEAGATE.API.PORT.SECONDARY}` | empty | Secondary-controller port override; inherits the shared port |
+| `{$SEAGATE.HTTP.PROXY}` | empty | Optional HTTP proxy used by all Script master items |
 
-The host does not require an Agent, SNMP, JMX, or IPMI interface for this
-template. Collection is performed by Zabbix Script items from the Zabbix server
-or the proxy monitoring the host.
+The Zabbix host does not require Agent, SNMP, JMX, or IPMI interfaces. All
+collection is performed by Script master items running on the Zabbix server or
+the proxy assigned to the host.
+
+## Controller-specific API ports
+
+The template resolves the API port independently for each controller.
+
+Primary controller:
+
+```text
+{$SEAGATE.API.PORT.PRIMARY}
+        or, when empty:
+{$SEAGATE.API.PORT}
+```
+
+Secondary controller:
+
+```text
+{$SEAGATE.API.PORT.SECONDARY}
+        or, when empty:
+{$SEAGATE.API.PORT}
+```
+
+The fallback to `{$SEAGATE.API.PORT}` preserves the behavior of version 1.1.0
+and earlier host configurations.
+
+### Use case 1: Standard direct management addresses
+
+Both controllers use HTTPS TCP/443 and have different management addresses.
+
+```text
+{$SEAGATE.API.HOST} = 192.0.2.10
+{$SEAGATE.API.HOST.SECONDARY} = 192.0.2.11
+{$SEAGATE.API.PORT} = 443
+{$SEAGATE.API.PORT.PRIMARY} =
+{$SEAGATE.API.PORT.SECONDARY} =
+```
+
+The collector tries:
+
+```text
+https://192.0.2.10:443
+```
+
+and, if the primary endpoint cannot be used:
+
+```text
+https://192.0.2.11:443
+```
+
+### Use case 2: Both controllers behind the same NAT address
+
+A NAT device publishes controller A on TCP/8001 and controller B on TCP/8002.
+
+```text
+{$SEAGATE.API.HOST} = storage-nat.example.com
+{$SEAGATE.API.HOST.SECONDARY} = storage-nat.example.com
+{$SEAGATE.API.PORT} = 443
+{$SEAGATE.API.PORT.PRIMARY} = 8001
+{$SEAGATE.API.PORT.SECONDARY} = 8002
+```
+
+The collector tries:
+
+```text
+https://storage-nat.example.com:8001
+```
+
+and, if that endpoint fails:
+
+```text
+https://storage-nat.example.com:8002
+```
+
+Version 1.1.1 allows the primary and secondary host values to be identical when
+their resolved ports are different. This is required for controller-specific
+destination NAT.
+
+Example NAT rules:
+
+```text
+Public-IP:8001 -> Controller-A-IP:443
+Public-IP:8002 -> Controller-B-IP:443
+```
+
+The Zabbix server or proxy must be able to reach both externally published
+ports. Firewall source restrictions and NAT session timeouts must permit the
+complete HTTPS API request.
+
+### Use case 3: One custom port shared by both controllers
+
+Both controllers listen or are published on TCP/8443.
+
+```text
+{$SEAGATE.API.HOST} = 192.0.2.10
+{$SEAGATE.API.HOST.SECONDARY} = 192.0.2.11
+{$SEAGATE.API.PORT} = 8443
+{$SEAGATE.API.PORT.PRIMARY} =
+{$SEAGATE.API.PORT.SECONDARY} =
+```
+
+Both controller-specific macros are empty, so both endpoints inherit TCP/8443.
+
+### Use case 4: Different addresses and different ports
+
+```text
+{$SEAGATE.API.HOST} = 198.51.100.10
+{$SEAGATE.API.HOST.SECONDARY} = 198.51.100.11
+{$SEAGATE.API.PORT} = 443
+{$SEAGATE.API.PORT.PRIMARY} = 8001
+{$SEAGATE.API.PORT.SECONDARY} = 8002
+```
+
+The template uses the exact host-and-port pair assigned to each controller.
+
+## Active management endpoint
+
+The `Active management endpoint` item stores the endpoint selected by the
+collector in `host:port` format.
+
+Examples:
+
+```text
+storage-nat.example.com:8001
+```
+
+After failover:
+
+```text
+storage-nat.example.com:8002
+```
+
+This makes controller and NAT-port failover visible in Zabbix and Grafana.
+
+## Backward compatibility
+
+No host macro changes are required for arrays already monitored with version
+1.1.0.
+
+When these macros remain empty:
+
+```text
+{$SEAGATE.API.PORT.PRIMARY} =
+{$SEAGATE.API.PORT.SECONDARY} =
+```
+
+the behavior remains:
+
+```text
+Primary:
+{$SEAGATE.API.HOST}:{$SEAGATE.API.PORT}
+
+Secondary:
+{$SEAGATE.API.HOST.SECONDARY}:{$SEAGATE.API.PORT}
+```
+
+All existing item, discovery-rule, trigger, graph, and value-map UUIDs are
+preserved. The template dashboard UUID published with version 1.1.0 is also
+preserved.
 
 ## Storage-side preparation
 
 Create a dedicated account in the Seagate management interface with the
-Monitor/read-only role, name it `zbx_monitor` when practical, and permit Web/API
-access. Confirm that the Zabbix server or proxy can reach the selected
-management address and port.
+Monitor/read-only role and Web/API access. Confirm that the Zabbix server or
+proxy can reach each configured host-and-port pair.
 
-The template authenticates with the Seagate API using
-`SHA-256(username + "_" + password)`, obtains a session key, runs read-only
-`show` commands, and logs out. Credentials are supplied through Zabbix macros;
-the password macro is defined as `SECRET_TEXT`.
+The template authenticates using:
 
-For dual-controller systems, set `{$SEAGATE.API.HOST.SECONDARY}` to enable
-login failover. The template tries the secondary address when the primary
-address cannot be used.
+```text
+SHA-256(username + "_" + password)
+```
+
+It obtains a session key, runs read-only `show` and supported `query` commands,
+and logs out. The password is supplied through the
+`{$SEAGATE.API.PASSWORD}` secret-text macro.
 
 ## First-run verification
 
-Allow two or three polling cycles after linking the template, then check
-**Monitoring > Latest data** for the host.
+Allow two or three polling cycles after linking or updating the template, then
+check **Monitoring > Latest data**.
 
-Verify the following:
+Verify:
 
-1. The `API availability raw` item is supported and reports an available API.
-2. The five Script master items collect data without method errors:
-   - API check
+1. `API availability raw` is supported.
+2. `API available` reports `Yes`.
+3. `Active management endpoint` shows the expected `host:port`.
+4. All five Script master items collect without method errors:
+   - API availability
    - Core data
    - Performance data
-   - Events and alerts
    - Inventory data
-3. Low-level discovery creates the expected controllers, disks, pools, volumes,
-   ports, enclosures, and other installed components.
-4. Unsupported firmware-specific fields do not affect required monitoring.
-5. Trigger thresholds and port policies match the storage configuration.
-6. `System latency: Source` identifies either the native 4006 metrics or the
-   4005/4865 host-port weighted fallback.
+   - Events and alerts
+5. Low-level discovery creates the expected controllers, disks, pools, volumes,
+   ports, enclosures, and hardware components.
+6. For NAT deployments, test TCP/8001 and TCP/8002 independently and confirm
+   failover to the secondary endpoint.
 
-The default collection schedule is:
+Default collection schedule:
 
 | Data set | Interval |
 |---|---:|
@@ -108,25 +283,16 @@ The default collection schedule is:
 | Events and alerts | 1 minute |
 | Inventory | 30 minutes |
 
-Intervals can be changed with the `{$SEAGATE.INTERVAL.*}` macros.
+Intervals can be changed using the `{$SEAGATE.INTERVAL.*}` macros.
 
 ## Dashboard data freshness
 
-Version 1.0.7 reduces stale-looking values in Grafana and NOC dashboards without
-storing every unchanged polling result.
+The default inventory interval is 30 minutes. Dashboard-facing unchanged
+values are periodically stored using preprocessing heartbeats so short Grafana
+time ranges can still retrieve recent text and inventory values.
 
-- The default `{$SEAGATE.INTERVAL.INVENTORY}` value is `30m`.
-- All preprocessing heartbeats that previously used `1d` now use `30m`.
-- The template contains 76 30-minute heartbeat steps and no remaining one-day
-  heartbeat.
-- Existing one-hour heartbeats remain unchanged.
-- Availability, core, performance, and event polling intervals remain
-  unchanged.
-
-This affects how frequently unchanged values are stored, not how frequently
-most operational data is collected. The shorter inventory master-item interval
-is necessary so dependent product and firmware values can store a sample every
-30 minutes.
+Grafana text panels must use the Zabbix data source **Text** query type for
+Character, Text, and Log items. Numeric items use **Metrics**.
 
 ## Monitored components
 
@@ -139,7 +305,7 @@ Low-level discovery covers:
 - Volumes
 - Storage tiers
 - Enclosures
-- Field-replaceable units (FRUs)
+- Field-replaceable units
 - Fans and power supplies
 - Sensors
 - SAS links
@@ -147,26 +313,134 @@ Low-level discovery covers:
 - Replication sets
 
 The template monitors health, capacity, utilization, performance, firmware,
-system read/write latency, error counters, the common event log, and structured
-active alerts when the storage model supports them.
+system read/write latency, error counters, the common Event Log, and structured
+active alerts when supported by the storage generation.
 
-The [complete monitoring inventory](#complete-monitoring-inventory) below lists
-every fixed item, discovery rule, item prototype, fixed trigger, trigger
-prototype, fixed graph, graph prototype, and dashboard widget, including Zabbix
-keys and severities.
+## System latency
 
-| Zabbix object | Fixed | LLD/prototype |
-|---|---:|---:|
-| Items | 78 | 192 |
-| Discovery rules | — | 14 |
-| Triggers | 24 | 80 |
-| Graphs | 2 | 19 |
-| Template dashboards | 1 dashboard / 2 pages / 14 widgets | — |
+### Exos X 4006
+
+The template queries native read-only Metrics Framework values:
+
+```text
+system.read-avg-response-time
+system.write-avg-response-time
+system.read-max-response-time
+system.write-max-response-time
+```
+
+### 4005 / 4865 fallback
+
+The tested 4005/4865 API does not expose the same Metrics Framework. The
+template derives host-facing average read and write latency from I/O-weighted
+host-port statistics:
+
+```text
+sum(port_latency_us * port_IO_rate) / sum(port_IO_rate)
+```
+
+`System latency: Source` identifies the method currently feeding the unified
+system-latency items.
+
+## Important macros
+
+| Macro | Default | Purpose |
+|---|---:|---|
+| `{$SEAGATE.API.HOST}` | empty | Primary management host |
+| `{$SEAGATE.API.HOST.SECONDARY}` | empty | Optional partner-controller host |
+| `{$SEAGATE.API.PORT}` | `443` | Shared/default API port |
+| `{$SEAGATE.API.PORT.PRIMARY}` | empty | Primary port override |
+| `{$SEAGATE.API.PORT.SECONDARY}` | empty | Secondary port override |
+| `{$SEAGATE.API.SCHEME}` | `https` | HTTP or HTTPS |
+| `{$SEAGATE.API.USERNAME}` | `zbx_monitor` | Read-only API username |
+| `{$SEAGATE.API.PASSWORD}` | secret | Read-only API password |
+| `{$SEAGATE.HTTP.PROXY}` | empty | Optional HTTP proxy |
+| `{$SEAGATE.ALERTS.MODE}` | `auto` | Structured Alerts mode |
+| `{$SEAGATE.EVENTS.LAST}` | `100` | Number of recent events requested |
+| `{$SEAGATE.ENCLOSURE.EXPECTED}` | `1` | Expected total enclosure count |
+| `{$SEAGATE.PORT.DOWN.ENABLED}` | `1` | Host-port/SFP alert policy |
+| `{$SEAGATE.REDUNDANCY.REQUIRED}` | `1` | Require storage redundancy |
+| `{$SEAGATE.NTP.REQUIRED}` | `0` | Require NTP when set to 1 |
+
+## Security notes
+
+- Use a dedicated Monitor/read-only storage account.
+- Keep `{$SEAGATE.API.PASSWORD}` as a secret-text host macro.
+- Limit firewall access to the Zabbix server or proxy source addresses.
+- For NAT deployments, do not expose the management API broadly to the
+  Internet.
+- Prefer a private network, VPN, or dedicated management path.
+- The template executes read-only API commands only.
+
+## Troubleshooting controller-specific ports
+
+### Primary works but the secondary endpoint is never attempted
+
+Version 1.1.1 recognizes the secondary endpoint when either the host or port
+differs.
+
+Confirm at least one condition is true:
+
+```text
+{$SEAGATE.API.HOST.SECONDARY} != {$SEAGATE.API.HOST}
+```
+
+or:
+
+```text
+{$SEAGATE.API.PORT.SECONDARY} != {$SEAGATE.API.PORT.PRIMARY}
+```
+
+### Both NAT ports fail
+
+From the Zabbix server or proxy, verify TCP/TLS reachability:
+
+```bash
+curl -kI https://storage-nat.example.com:8001/
+curl -kI https://storage-nat.example.com:8002/
+```
+
+An HTTP response from the root path can prove basic TCP/TLS reachability, but
+the final test must use the Seagate API login endpoint or the Zabbix Script
+item.
+
+Check:
+
+- Destination NAT rules
+- Firewall source restrictions
+- TCP port forwarding
+- TLS inspection or reverse-proxy behavior
+- Controller Web/API service status
+- Credentials
+- Zabbix Script item timeout
+
+### Existing direct-connected storage stopped collecting after import
+
+Confirm the new macros are empty or contain valid TCP ports:
+
+```text
+{$SEAGATE.API.PORT.PRIMARY} =
+{$SEAGATE.API.PORT.SECONDARY} =
+```
+
+Also confirm the shared port is still correct:
+
+```text
+{$SEAGATE.API.PORT} = 443
+```
+
+## License
+
+MIT
+
+## Author
+
+Guilherme Campos — `@guicampos21`
 
 ## Template dashboard
 
-The **Overview** template dashboard is designed for the Zabbix 72-column
-Full HD grid and contains two pages:
+The **Overview** template dashboard uses the Zabbix 72-column Full HD grid and
+contains two pages:
 
 - **Overview**: API availability, system health, product, firmware,
   latency-source values, average and maximum system-latency graphs, and active
@@ -174,276 +448,67 @@ Full HD grid and contains two pages:
 - **Components**: controller, disk, pool, volume, host-port, and disk
   temperature graph prototypes
 
-## Important configuration macros
-
-| Macro | Default | Purpose |
-|---|---:|---|
-| `{$SEAGATE.ALERTS.MODE}` | `auto` | Structured Alerts API mode: `auto`, `enabled`, or `disabled` |
-| `{$SEAGATE.EVENTS.LAST}` | `100` | Number of recent events requested; maximum 1000 |
-| `{$SEAGATE.DATA.TIMEOUT}` | `60s` | Script master-item timeout |
-| `{$SEAGATE.HTTP.PROXY}` | empty | Optional proxy applied to all HTTP API requests |
-| `{$SEAGATE.ENCLOSURE.EXPECTED}` | `1` | Expected total enclosure count, including the controller enclosure |
-| `{$SEAGATE.PORT.DOWN.ENABLED}` | `1` | Enable host-port and SFP alerts |
-| `{$SEAGATE.VOLUME.WRITEBACK.REQUIRED}` | `1` | Require write-back policy |
-| `{$SEAGATE.REDUNDANCY.REQUIRED}` | `1` | Alert when the system is not redundant |
-| `{$SEAGATE.NTP.REQUIRED}` | `0` | Require NTP when set to `1` |
-| `{$SEAGATE.CONTROLLER.CPU.WARN}` | `90` | Controller CPU warning threshold, in percent |
-| `{$SEAGATE.DISK.TEMP.WARN}` | `50` | Disk temperature warning threshold, in degrees Celsius |
-| `{$SEAGATE.DISK.TEMP.CRIT}` | `60` | Disk temperature critical threshold, in degrees Celsius |
-| `{$SEAGATE.SSD.LIFE.WARN}` | `10` | SSD remaining-life warning threshold, in percent |
-
-Capacity thresholds for disk groups, pools, and tiers are also exposed as
-template macros and can be overridden at host level.
-
-### Excluding intentionally unused ports
-
-Port and SFP alerts support macro contexts. To suppress down alerts for an
-intentionally unused port, create a host-level context macro such as:
-
-```text
-{$SEAGATE.PORT.DOWN.ENABLED:"A3"} = 0
-```
-
-Use the discovered port name shown in Zabbix as the context.
-
-### Enclosure and SAS expansion-port policy
-
-Set `{$SEAGATE.ENCLOSURE.EXPECTED}` to the total number of enclosures that
-should be visible:
-
-- `1`: controller enclosure only
-- `2`: controller enclosure and one expansion enclosure
-- `3`: controller enclosure and two expansion enclosures
-
-The template raises a High-severity problem when the discovered enclosure count
-is below this value.
-
-An external `Expansion Port Universal` SAS link is not considered failed only
-because its state is `Disconnected`; that state is valid for an unused expansion
-port or the last port in an enclosure chain. Health monitoring remains enabled
-for all SAS links, while abnormal internal or non-expansion SAS links continue
-to generate problems.
-
-## System latency
-
-Version 1.0.6 provides one unified system-latency view while selecting the
-collection method supported by the storage model.
-
-### Exos X 4006 native metrics
-
-On Exos X 4006, the template queries these read-only Metrics Framework values:
-
-- `system.read-avg-response-time`
-- `system.write-avg-response-time`
-- `system.read-max-response-time`
-- `system.write-max-response-time`
-
-The collector only runs `query metrics`; it does not call `start metrics` or
-`stop metrics`. Bare `N/A` tokens occasionally returned by the API are sanitized
-before the response is parsed as JSON.
-
-### 4005/4865 fallback
-
-The tested 4005/4865 API does not expose the Metrics Framework. For that system,
-the template derives the host-facing average read and write latency from
-`show host-port-statistics`.
-
-It derives the read and write I/O rate of each host port from its cumulative
-counters and calculates an I/O-weighted aggregate:
-
-```text
-sum(port_latency_us × port_IO_rate) / sum(port_IO_rate)
-```
-
-Comparison with native 4006 metrics over clean, aligned intervals produced:
-
-| Measurement | Read | Write |
-|---|---:|---:|
-| Mean absolute error | approximately 3.05% | approximately 18.16% |
-| Pearson correlation | approximately 0.9201 | approximately 0.9605 |
-
-`System latency: Source` shows which method currently feeds the unified items.
-
-### Items and graphs
-
-The system-latency items are:
-
-- `System: Read average response time`
-- `System: Write average response time`
-- `System: Read maximum response time` — native 4006 only
-- `System: Write maximum response time` — native 4006 only
-- `System latency: Source`
-
-All system-latency values are stored and displayed in microseconds. The template
-includes the `System latency` graph for average read/write time and the
-`System maximum latency (4006 native)` graph for native maximum values.
-
-Pool, disk-group, and host-port latency graphs remain available because they
-represent different layers of the storage I/O path.
-
-## Hardware and model compatibility
-
-| Scope | Supported target |
-|---|---|
-| Product family | Seagate Exos X |
-| Management/controller models | 4005 and 4006 |
-| Controller platforms | Gallium and Indium |
-| Enclosure formats | 2U12, 2U24, and 5U84 |
-
-| Feature | 4005/4865 | Exos X 4006 |
-|---|:---:|:---:|
-| Core system and hardware state | Validated | Validated |
-| Controllers and performance | Validated | Validated |
-| Disks and predictive counters | Validated | Validated |
-| Disk groups, pools, volumes, and tiers | Validated | Validated |
-| Enclosures, FRUs, fans, PSUs, and sensors | Validated | Validated |
-| SAS link and expander health | Validated | Validated |
-| Host ports and SFP data | Validated | Validated |
-| Unified system average latency | Weighted fallback | Native metrics |
-| System maximum latency | Not exposed by tested API | Native metrics |
-| Common Event Log | Validated | Validated |
-| Structured active Alerts | Not exposed by tested API | Validated |
-| Alert-condition history | Not exposed by tested API | Validated |
-| Replication commands | Validated; no active set available | Validated; no active set available |
-
-The template discovers components dynamically and addresses API fields by name,
-which makes it tolerant of model differences. Results can still vary with
-firmware releases and installed hardware.
-
-## Alert behavior
-
-- Controller and system firmware changes generate Information events.
-- Disk error triggers fire when a cumulative counter increases.
-- Block-based capacity values are converted to bytes using the reported block
-  size.
-- Existing component response-time values are converted from microseconds to
-  seconds where required; the unified system-latency items remain in
-  microseconds.
-- Persistent hardware problems use the current component health or status.
-- New Warning, Error, and Critical event IDs generate supplemental edge
-  notifications.
-- Structured active-alert counters are used on supported Exos X 4006 systems.
-
-Native syslog or SNMP event forwarding is still recommended when guaranteed
-delivery of every asynchronous storage event is required.
-
-## Troubleshooting
-
-### Authentication fails
-
-- Confirm the username and password at host macro level.
-- Confirm the account has Monitor/read-only and Web/API access.
-- Check that no unresolved macro is overriding the template value.
-- Test both controller addresses if a secondary endpoint is configured.
-
-The login endpoint is validated through a successful HTTP status,
-`response-type: Success`, and a non-empty session key. Unlike normal `show`
-commands, login does not need to return `return-code: 0`.
-
-### Script items are unsupported
-
-- Confirm that the Zabbix server or assigned proxy can resolve and reach the
-  controller address.
-- Check `{$SEAGATE.API.SCHEME}` and `{$SEAGATE.API.PORT}`.
-- Review the master item's error message and the API method-error items.
-- Increase `{$SEAGATE.DATA.TIMEOUT}` if the array answers slowly.
-
-### Expected hardware is not discovered
-
-- Wait for the relevant discovery interval.
-- Check the corresponding Script master item for API errors.
-- Confirm that the component is visible to the read-only storage account.
-- Compare the storage firmware and model with the validated systems above.
-
-## Intentional exclusions
-
-The template does not collect:
-
-- Full `audit-log`, because it was extremely large and truncated in testing
-- `workload`, which is mainly intended for tiering and capacity analysis
-- `metrics-list` continuously; the 4006 system-latency collector queries the
-  required metrics directly
-- `fan-modules`, which returned HTTP 400 on the tested 4006; `show fans` supplies
-  the required data
-- `host-phy-statistics`, which is SAS-host-specific and did not apply to the
-  tested configuration
-- `remote-systems`, which returned HTTP 400 on the tested 4006
-
 ## Validation
 
-Release 1.1.0 passed offline YAML, UUID format and uniqueness, heartbeat,
-HTTP-proxy, dashboard-reference, and severity-policy checks. The monitoring
-logic is already in production use; the upstream-compatible packaging and
-1.1.0 conformance changes were validated structurally.
+The 1.1.1 bundle passed its supplied offline port-resolution and failover
+validation. The repository package also passed YAML, UUID, JavaScript,
+dashboard-reference, generated-inventory, and severity-policy checks:
 
 - Zabbix export version: `7.0`
-- UUID fields: `427`, all correctly formatted and unique
-- Script master items: `5`, all passing JavaScript syntax and HTTP-proxy checks
-- Dashboard: `1` dashboard, `2` pages, and `14` widgets with valid references
-- Heartbeats: `76` occurrences of `30m` and no remaining `1d` heartbeat
-- Trigger policy: no Disaster triggers; degraded states use Average
-- SHA-256: `51daf147ad05a2835ae69ffd404945466f9e756a528c2165275b0409da6811fa`
+- Template version: `1.1.1`
+- UUID fields: `427`, with the complete 1.1.0 UUID set preserved
+- Script master items: `5`, all passing JavaScript syntax, proxy, port
+  resolution, same-host/different-port failover, and active-endpoint checks
+- Dashboard: `1` dashboard, `2` pages, and `14` widgets
+- Heartbeats: `76` occurrences of `30m`, `64` occurrences of `1h`, and no
+  remaining `1d` heartbeat
+- Trigger severities: `51` High, `11` Average, `35` Warning, `7` Information,
+  and no Disaster triggers
+- SHA-256: `1030c9b9e4810d528b1f196ca7fd438cd1c280000cd2a82f9e71242abccffc63`
 
-A separate clean-instance import was intentionally not executed for 1.1.0 at
-the maintainer's request.
-
-## Vendor documentation
-
-- [Seagate Exos X 4006 support](https://www.seagate.com/support/disk-arrays/exos-x-4006/)
-- [Seagate Exos X 4006 Series Storage Management Guide](https://www.seagate.com/content/dam/seagate/assets/support/disk-arrays/exos-x-4006-2u12/_shared/files/204468700-01-A_4006_SMG.pdf)
-
-## Version
-
-- Template version: `1.1.0`
-- Minimum Zabbix version: `7.0`
-- Export format: Zabbix `7.0`
-
-## Author and license
-
-- Author: [Guilherme Campos (@guicampos21)](https://github.com/guicampos21)
-- Maintainer/vendor: SentrixIT
-- License: [MIT](https://github.com/guicampos21/zabbix-templates/blob/main/LICENSE)
+This offline result does not claim a live import or controller failover test.
+The final validation is an import into Zabbix 7.0+ and a controlled test of both
+configured management endpoints.
 
 ## Release history
 
+### 1.1.1
+
+- Added optional primary and secondary controller API port macros.
+- Added same-host, different-port failover for NAT and port-forwarding.
+- Preserved `{$SEAGATE.API.PORT}` as the backward-compatible shared default.
+- Changed the active management endpoint value to `host:port`.
+
 ### 1.1.0
 
-- Reorganized the template into the upstream-compatible
-  `template_seagate_exos_x_4005_4006/7.0/` directory layout.
-- Renamed the import file to `template_seagate_exos_x_4005_4006.yaml`.
+- Adopted the upstream-compatible directory and filename convention.
 - Added a Full HD template dashboard with Overview and Components pages.
-- Added `{$SEAGATE.HTTP.PROXY}` to every Script master item.
+- Added optional HTTP proxy support to every Script master item.
 - Changed the default least-privilege API username to `zbx_monitor`.
-- Aligned template tags with the Zabbix storage classification.
-- Changed resource-level Disaster triggers to High and degraded-state triggers
-  from High to Average.
-- Added the author and MIT license metadata required for upstream submission.
+- Aligned template tags and resource trigger severities with Zabbix guidance.
+- Added author and MIT license metadata.
 
 ### 1.0.7
 
-- Changed the inventory interval and all former one-day preprocessing
-  heartbeats to `30m`, ensuring dashboard-facing unchanged values are stored at
-  least every 30 minutes.
-- Left one-hour heartbeats and core, performance, availability, and event
-  polling intervals unchanged.
+- Changed the inventory interval and former one-day preprocessing heartbeats to
+  `30m` so unchanged dashboard-facing values remain recent.
 
 ### 1.0.6
 
 - Added unified system read and write average latency.
 - Added native average and maximum system latency for Exos X 4006.
 - Added an I/O-weighted host-port fallback for the tested 4005/4865 API.
-- Added average and maximum system-latency graphs and source identification.
-- Corrected fixed graph placement in the Zabbix 7.0 export hierarchy.
+- Added the average and maximum system-latency graphs.
 
 ### 1.0.4
 
 - Refined disconnected expansion-port handling.
-- Added the expected-enclosure policy and related High-severity trigger.
+- Added the expected-enclosure policy and related trigger.
 
 <!-- BEGIN GENERATED MONITORING INVENTORY -->
 ## Complete monitoring inventory
 
-Complete inventory generated from the Zabbix 7.0 YAML export, version 1.1.0.
+Complete inventory generated from the Zabbix 7.0 YAML export, version 1.1.1.
 It includes fixed objects and low-level discovery (LLD) prototypes.
 
 > [!NOTE]

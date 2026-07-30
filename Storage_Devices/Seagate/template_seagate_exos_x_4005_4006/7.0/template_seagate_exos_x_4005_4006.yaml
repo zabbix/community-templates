@@ -12,7 +12,7 @@ zabbix_export:
 
       The template uses Zabbix Script master items, dependent items, low-level discovery, trigger prototypes, graph prototypes, template dashboards, macros, and value maps. Authentication uses SHA-256(username + "_" + password), obtains a sessionKey, and executes only read-only show or query commands.
 
-      Configure {$SEAGATE.API.HOST}, {$SEAGATE.API.PORT}, {$SEAGATE.API.USERNAME}, and secret {$SEAGATE.API.PASSWORD}. {$SEAGATE.API.PORT} defaults to 443. Optionally configure {$SEAGATE.API.HOST.SECONDARY} and {$SEAGATE.HTTP.PROXY}. Review context macros for intentionally unused host ports and intentionally write-through volumes.
+      Configure {$SEAGATE.API.HOST}, {$SEAGATE.API.PORT}, {$SEAGATE.API.USERNAME}, and secret {$SEAGATE.API.PASSWORD}. {$SEAGATE.API.PORT} defaults to 443. Optionally configure {$SEAGATE.API.HOST.SECONDARY}, {$SEAGATE.API.PORT.PRIMARY}, {$SEAGATE.API.PORT.SECONDARY}, and {$SEAGATE.HTTP.PROXY}. Controller-specific port macros inherit {$SEAGATE.API.PORT} when left empty, preserving compatibility with existing hosts. Separate primary and secondary ports support NAT/port-forwarding designs where both controllers are reached through the same public IP or DNS name.
 
       Structured Alerts are auto-enabled for the tested 4006 identity. The tested 4005/4865 is monitored through component state plus the common Event Log. For guaranteed delivery of every asynchronous event, also configure the array native syslog or SNMP event forwarding.
 
@@ -20,7 +20,7 @@ zabbix_export:
       License: MIT
     vendor:
       name: SentrixIT
-      version: 1.1.0
+      version: 1.1.1
     groups:
     - name: Templates/SAN
     items:
@@ -41,18 +41,24 @@ zabbix_export:
             if (p.scheme !== 'https' && p.scheme !== 'http') throw 'Unsupported API scheme: ' + p.scheme;
             if (typeof p.port === 'undefined' || p.port === '') p.port = '443';
             if (!/^\d+$/.test(String(p.port)) || Number(p.port) < 1 || Number(p.port) > 65535)
-                throw 'Invalid API TCP port: ' + p.port;
+                throw 'Invalid default API TCP port: ' + p.port;
+            if (typeof p.port_primary === 'undefined' || p.port_primary === '') p.port_primary = p.port;
+            if (!/^\d+$/.test(String(p.port_primary)) || Number(p.port_primary) < 1 || Number(p.port_primary) > 65535)
+                throw 'Invalid primary API TCP port: ' + p.port_primary;
+            if (typeof p.port_secondary === 'undefined' || p.port_secondary === '') p.port_secondary = p.port;
+            if (!/^\d+$/.test(String(p.port_secondary)) || Number(p.port_secondary) < 1 || Number(p.port_secondary) > 65535)
+                throw 'Invalid secondary API TCP port: ' + p.port_secondary;
         }
-        function baseUrl(p, host) { return p.scheme + '://' + host + ':' + String(p.port) + '/'; }
+        function baseUrl(p, host, port) { return p.scheme + '://' + host + ':' + String(port) + '/'; }
         function finalStatus(o) {
             if (!o || !o.status || !o.status.length) return null;
             return o.status[o.status.length - 1];
         }
-        function loginAt(p, host) {
+        function loginAt(p, host, port) {
             var r = new HttpRequest(), body, o, st, http;
             if (p.http_proxy) r.setProxy(p.http_proxy);
             r.addHeader('datatype: json');
-            body = r.get(baseUrl(p,host) + 'api/login/' + sha256(p.username + '_' + p.password));
+            body = r.get(baseUrl(p,host,port) + 'api/login/' + sha256(p.username + '_' + p.password));
             http = r.getStatus();
             if (http === 401 || http === 403) throw 'AUTH: Login HTTP ' + http + ' at ' + host;
             if (http < 200 || http >= 300) throw 'CONNECT: Login HTTP ' + http + ' at ' + host;
@@ -61,13 +67,13 @@ zabbix_export:
             if (!st || String(st['response-type'] || '').toLowerCase() !== 'success' || !o.status[0].response)
                 throw 'AUTH: Authentication failed at ' + host + ': ' + (st ? st.response : 'missing status');
             r.addHeader('sessionKey: ' + o.status[0].response);
-            return {request:r, host:host, base:baseUrl(p,host)};
+            return {request:r, host:host, port:String(port), base:baseUrl(p,host,port)};
         }
         function connect(p) {
-            try { return loginAt(p,p.host); }
+            try { return loginAt(p,p.host,p.port_primary); }
             catch(e1) {
-                if (p.secondary && p.secondary !== p.host) {
-                    try { return loginAt(p,p.secondary); }
+                if (p.secondary && (p.secondary !== p.host || String(p.port_secondary) !== String(p.port_primary))) {
+                    try { return loginAt(p,p.secondary,p.port_secondary); }
                     catch(e2) { throw String(e1) + '; secondary: ' + String(e2); }
                 }
                 throw e1;
@@ -103,7 +109,7 @@ zabbix_export:
         try {
             validate(p);
             var c = connect(p), body, o, st;
-            out.endpoint = c.host;
+            out.endpoint = c.host + ':' + c.port;
             body = c.request.get(c.base + 'api/show/system');
             out.system_http = c.request.getStatus();
             if (out.system_http < 200 || out.system_http >= 300) throw 'show system HTTP ' + out.system_http;
@@ -131,6 +137,10 @@ zabbix_export:
         value: '{$SEAGATE.API.PASSWORD}'
       - name: port
         value: '{$SEAGATE.API.PORT}'
+      - name: port_primary
+        value: '{$SEAGATE.API.PORT.PRIMARY}'
+      - name: port_secondary
+        value: '{$SEAGATE.API.PORT.SECONDARY}'
       - name: scheme
         value: '{$SEAGATE.API.SCHEME}'
       - name: secondary
@@ -157,18 +167,24 @@ zabbix_export:
             if (p.scheme !== 'https' && p.scheme !== 'http') throw 'Unsupported API scheme: ' + p.scheme;
             if (typeof p.port === 'undefined' || p.port === '') p.port = '443';
             if (!/^\d+$/.test(String(p.port)) || Number(p.port) < 1 || Number(p.port) > 65535)
-                throw 'Invalid API TCP port: ' + p.port;
+                throw 'Invalid default API TCP port: ' + p.port;
+            if (typeof p.port_primary === 'undefined' || p.port_primary === '') p.port_primary = p.port;
+            if (!/^\d+$/.test(String(p.port_primary)) || Number(p.port_primary) < 1 || Number(p.port_primary) > 65535)
+                throw 'Invalid primary API TCP port: ' + p.port_primary;
+            if (typeof p.port_secondary === 'undefined' || p.port_secondary === '') p.port_secondary = p.port;
+            if (!/^\d+$/.test(String(p.port_secondary)) || Number(p.port_secondary) < 1 || Number(p.port_secondary) > 65535)
+                throw 'Invalid secondary API TCP port: ' + p.port_secondary;
         }
-        function baseUrl(p, host) { return p.scheme + '://' + host + ':' + String(p.port) + '/'; }
+        function baseUrl(p, host, port) { return p.scheme + '://' + host + ':' + String(port) + '/'; }
         function finalStatus(o) {
             if (!o || !o.status || !o.status.length) return null;
             return o.status[o.status.length - 1];
         }
-        function loginAt(p, host) {
+        function loginAt(p, host, port) {
             var r = new HttpRequest(), body, o, st, http;
             if (p.http_proxy) r.setProxy(p.http_proxy);
             r.addHeader('datatype: json');
-            body = r.get(baseUrl(p,host) + 'api/login/' + sha256(p.username + '_' + p.password));
+            body = r.get(baseUrl(p,host,port) + 'api/login/' + sha256(p.username + '_' + p.password));
             http = r.getStatus();
             if (http === 401 || http === 403) throw 'AUTH: Login HTTP ' + http + ' at ' + host;
             if (http < 200 || http >= 300) throw 'CONNECT: Login HTTP ' + http + ' at ' + host;
@@ -177,13 +193,13 @@ zabbix_export:
             if (!st || String(st['response-type'] || '').toLowerCase() !== 'success' || !o.status[0].response)
                 throw 'AUTH: Authentication failed at ' + host + ': ' + (st ? st.response : 'missing status');
             r.addHeader('sessionKey: ' + o.status[0].response);
-            return {request:r, host:host, base:baseUrl(p,host)};
+            return {request:r, host:host, port:String(port), base:baseUrl(p,host,port)};
         }
         function connect(p) {
-            try { return loginAt(p,p.host); }
+            try { return loginAt(p,p.host,p.port_primary); }
             catch(e1) {
-                if (p.secondary && p.secondary !== p.host) {
-                    try { return loginAt(p,p.secondary); }
+                if (p.secondary && (p.secondary !== p.host || String(p.port_secondary) !== String(p.port_primary))) {
+                    try { return loginAt(p,p.secondary,p.port_secondary); }
                     catch(e2) { throw String(e1) + '; secondary: ' + String(e2); }
                 }
                 throw e1;
@@ -217,7 +233,7 @@ zabbix_export:
 
         var p = JSON.parse(value), data = {errors:''}, errors = [], o, i, detail, phy = [], bad = 0;
         try {
-            validate(p); var c = connect(p); data.endpoint = c.host;
+            validate(p); var c = connect(p); data.endpoint = c.host + ':' + c.port;
             o=fetchApi(c,'show/system','system',errors,false); data.system=o?first(o.system):{};
             o=fetchApi(c,'show/redundancy-mode','redundancy-mode',errors,false); data.redundancy=o?first(o.redundancy):{};
             o=fetchApi(c,'show/fde-state','fde-state',errors,false); data.fde=o?first(o['fde-state']):{};
@@ -261,6 +277,10 @@ zabbix_export:
         value: '{$SEAGATE.API.PASSWORD}'
       - name: port
         value: '{$SEAGATE.API.PORT}'
+      - name: port_primary
+        value: '{$SEAGATE.API.PORT.PRIMARY}'
+      - name: port_secondary
+        value: '{$SEAGATE.API.PORT.SECONDARY}'
       - name: scheme
         value: '{$SEAGATE.API.SCHEME}'
       - name: secondary
@@ -289,18 +309,24 @@ zabbix_export:
             if (p.scheme !== 'https' && p.scheme !== 'http') throw 'Unsupported API scheme: ' + p.scheme;
             if (typeof p.port === 'undefined' || p.port === '') p.port = '443';
             if (!/^\d+$/.test(String(p.port)) || Number(p.port) < 1 || Number(p.port) > 65535)
-                throw 'Invalid API TCP port: ' + p.port;
+                throw 'Invalid default API TCP port: ' + p.port;
+            if (typeof p.port_primary === 'undefined' || p.port_primary === '') p.port_primary = p.port;
+            if (!/^\d+$/.test(String(p.port_primary)) || Number(p.port_primary) < 1 || Number(p.port_primary) > 65535)
+                throw 'Invalid primary API TCP port: ' + p.port_primary;
+            if (typeof p.port_secondary === 'undefined' || p.port_secondary === '') p.port_secondary = p.port;
+            if (!/^\d+$/.test(String(p.port_secondary)) || Number(p.port_secondary) < 1 || Number(p.port_secondary) > 65535)
+                throw 'Invalid secondary API TCP port: ' + p.port_secondary;
         }
-        function baseUrl(p, host) { return p.scheme + '://' + host + ':' + String(p.port) + '/'; }
+        function baseUrl(p, host, port) { return p.scheme + '://' + host + ':' + String(port) + '/'; }
         function finalStatus(o) {
             if (!o || !o.status || !o.status.length) return null;
             return o.status[o.status.length - 1];
         }
-        function loginAt(p, host) {
+        function loginAt(p, host, port) {
             var r = new HttpRequest(), body, o, st, http;
             if (p.http_proxy) r.setProxy(p.http_proxy);
             r.addHeader('datatype: json');
-            body = r.get(baseUrl(p,host) + 'api/login/' + sha256(p.username + '_' + p.password));
+            body = r.get(baseUrl(p,host,port) + 'api/login/' + sha256(p.username + '_' + p.password));
             http = r.getStatus();
             if (http === 401 || http === 403) throw 'AUTH: Login HTTP ' + http + ' at ' + host;
             if (http < 200 || http >= 300) throw 'CONNECT: Login HTTP ' + http + ' at ' + host;
@@ -309,13 +335,13 @@ zabbix_export:
             if (!st || String(st['response-type'] || '').toLowerCase() !== 'success' || !o.status[0].response)
                 throw 'AUTH: Authentication failed at ' + host + ': ' + (st ? st.response : 'missing status');
             r.addHeader('sessionKey: ' + o.status[0].response);
-            return {request:r, host:host, base:baseUrl(p,host)};
+            return {request:r, host:host, port:String(port), base:baseUrl(p,host,port)};
         }
         function connect(p) {
-            try { return loginAt(p,p.host); }
+            try { return loginAt(p,p.host,p.port_primary); }
             catch(e1) {
-                if (p.secondary && p.secondary !== p.host) {
-                    try { return loginAt(p,p.secondary); }
+                if (p.secondary && (p.secondary !== p.host || String(p.port_secondary) !== String(p.port_primary))) {
+                    try { return loginAt(p,p.secondary,p.port_secondary); }
                     catch(e2) { throw String(e1) + '; secondary: ' + String(e2); }
                 }
                 throw e1;
@@ -386,7 +412,7 @@ zabbix_export:
             write_avg_us: 0
         };
         try {
-            validate(p); var c=connect(p); data.endpoint=c.host;
+            validate(p); var c=connect(p); data.endpoint=c.host+':'+c.port;
             o=fetchApi(c,'show/controller-statistics','controller-statistics',errors,false); a=o?array(o,'controller-statistics'):[]; for(i=0;i<a.length;i++) if(a[i]['durable-id']) a[i]['durable-id']=String(a[i]['durable-id']).toLowerCase(); data['controller-statistics']=a;
             o=fetchApi(c,'show/disk-statistics','disk-statistics',errors,false); data['disk-statistics']=o?array(o,'disk-statistics'):[];
             o=fetchApi(c,'show/disk-group-statistics','disk-group-statistics',errors,false); data['disk-group-statistics']=o?array(o,'disk-group-statistics'):[];
@@ -427,6 +453,10 @@ zabbix_export:
         value: '{$SEAGATE.API.PASSWORD}'
       - name: port
         value: '{$SEAGATE.API.PORT}'
+      - name: port_primary
+        value: '{$SEAGATE.API.PORT.PRIMARY}'
+      - name: port_secondary
+        value: '{$SEAGATE.API.PORT.SECONDARY}'
       - name: scheme
         value: '{$SEAGATE.API.SCHEME}'
       - name: secondary
@@ -453,18 +483,24 @@ zabbix_export:
             if (p.scheme !== 'https' && p.scheme !== 'http') throw 'Unsupported API scheme: ' + p.scheme;
             if (typeof p.port === 'undefined' || p.port === '') p.port = '443';
             if (!/^\d+$/.test(String(p.port)) || Number(p.port) < 1 || Number(p.port) > 65535)
-                throw 'Invalid API TCP port: ' + p.port;
+                throw 'Invalid default API TCP port: ' + p.port;
+            if (typeof p.port_primary === 'undefined' || p.port_primary === '') p.port_primary = p.port;
+            if (!/^\d+$/.test(String(p.port_primary)) || Number(p.port_primary) < 1 || Number(p.port_primary) > 65535)
+                throw 'Invalid primary API TCP port: ' + p.port_primary;
+            if (typeof p.port_secondary === 'undefined' || p.port_secondary === '') p.port_secondary = p.port;
+            if (!/^\d+$/.test(String(p.port_secondary)) || Number(p.port_secondary) < 1 || Number(p.port_secondary) > 65535)
+                throw 'Invalid secondary API TCP port: ' + p.port_secondary;
         }
-        function baseUrl(p, host) { return p.scheme + '://' + host + ':' + String(p.port) + '/'; }
+        function baseUrl(p, host, port) { return p.scheme + '://' + host + ':' + String(port) + '/'; }
         function finalStatus(o) {
             if (!o || !o.status || !o.status.length) return null;
             return o.status[o.status.length - 1];
         }
-        function loginAt(p, host) {
+        function loginAt(p, host, port) {
             var r = new HttpRequest(), body, o, st, http;
             if (p.http_proxy) r.setProxy(p.http_proxy);
             r.addHeader('datatype: json');
-            body = r.get(baseUrl(p,host) + 'api/login/' + sha256(p.username + '_' + p.password));
+            body = r.get(baseUrl(p,host,port) + 'api/login/' + sha256(p.username + '_' + p.password));
             http = r.getStatus();
             if (http === 401 || http === 403) throw 'AUTH: Login HTTP ' + http + ' at ' + host;
             if (http < 200 || http >= 300) throw 'CONNECT: Login HTTP ' + http + ' at ' + host;
@@ -473,13 +509,13 @@ zabbix_export:
             if (!st || String(st['response-type'] || '').toLowerCase() !== 'success' || !o.status[0].response)
                 throw 'AUTH: Authentication failed at ' + host + ': ' + (st ? st.response : 'missing status');
             r.addHeader('sessionKey: ' + o.status[0].response);
-            return {request:r, host:host, base:baseUrl(p,host)};
+            return {request:r, host:host, port:String(port), base:baseUrl(p,host,port)};
         }
         function connect(p) {
-            try { return loginAt(p,p.host); }
+            try { return loginAt(p,p.host,p.port_primary); }
             catch(e1) {
-                if (p.secondary && p.secondary !== p.host) {
-                    try { return loginAt(p,p.secondary); }
+                if (p.secondary && (p.secondary !== p.host || String(p.port_secondary) !== String(p.port_primary))) {
+                    try { return loginAt(p,p.secondary,p.port_secondary); }
                     catch(e2) { throw String(e1) + '; secondary: ' + String(e2); }
                 }
                 throw e1;
@@ -513,7 +549,7 @@ zabbix_export:
 
         var p=JSON.parse(value), data={errors:''}, errors=[], o, sys={}, ah=false, pools=[], tiers=[], pmap={}, i;
         try {
-            validate(p); var c=connect(p); data.endpoint=c.host;
+            validate(p); var c=connect(p); data.endpoint=c.host+':'+c.port;
             o=fetchApi(c,'show/system','system',errors,false); sys=o?first(o.system):{}; data.system=sys;
             o=fetchApi(c,'show/versions','versions',errors,false); data.versions=o?array(o,'versions'):[];
             o=fetchApi(c,'show/pools','pools',errors,false); pools=o?array(o,'pools'):[]; for(i=0;i<pools.length;i++)pmap[String(pools[i].name)]=Number(pools[i].blocksize||512);
@@ -542,6 +578,10 @@ zabbix_export:
         value: '{$SEAGATE.API.PASSWORD}'
       - name: port
         value: '{$SEAGATE.API.PORT}'
+      - name: port_primary
+        value: '{$SEAGATE.API.PORT.PRIMARY}'
+      - name: port_secondary
+        value: '{$SEAGATE.API.PORT.SECONDARY}'
       - name: scheme
         value: '{$SEAGATE.API.SCHEME}'
       - name: secondary
@@ -568,18 +608,24 @@ zabbix_export:
             if (p.scheme !== 'https' && p.scheme !== 'http') throw 'Unsupported API scheme: ' + p.scheme;
             if (typeof p.port === 'undefined' || p.port === '') p.port = '443';
             if (!/^\d+$/.test(String(p.port)) || Number(p.port) < 1 || Number(p.port) > 65535)
-                throw 'Invalid API TCP port: ' + p.port;
+                throw 'Invalid default API TCP port: ' + p.port;
+            if (typeof p.port_primary === 'undefined' || p.port_primary === '') p.port_primary = p.port;
+            if (!/^\d+$/.test(String(p.port_primary)) || Number(p.port_primary) < 1 || Number(p.port_primary) > 65535)
+                throw 'Invalid primary API TCP port: ' + p.port_primary;
+            if (typeof p.port_secondary === 'undefined' || p.port_secondary === '') p.port_secondary = p.port;
+            if (!/^\d+$/.test(String(p.port_secondary)) || Number(p.port_secondary) < 1 || Number(p.port_secondary) > 65535)
+                throw 'Invalid secondary API TCP port: ' + p.port_secondary;
         }
-        function baseUrl(p, host) { return p.scheme + '://' + host + ':' + String(p.port) + '/'; }
+        function baseUrl(p, host, port) { return p.scheme + '://' + host + ':' + String(port) + '/'; }
         function finalStatus(o) {
             if (!o || !o.status || !o.status.length) return null;
             return o.status[o.status.length - 1];
         }
-        function loginAt(p, host) {
+        function loginAt(p, host, port) {
             var r = new HttpRequest(), body, o, st, http;
             if (p.http_proxy) r.setProxy(p.http_proxy);
             r.addHeader('datatype: json');
-            body = r.get(baseUrl(p,host) + 'api/login/' + sha256(p.username + '_' + p.password));
+            body = r.get(baseUrl(p,host,port) + 'api/login/' + sha256(p.username + '_' + p.password));
             http = r.getStatus();
             if (http === 401 || http === 403) throw 'AUTH: Login HTTP ' + http + ' at ' + host;
             if (http < 200 || http >= 300) throw 'CONNECT: Login HTTP ' + http + ' at ' + host;
@@ -588,13 +634,13 @@ zabbix_export:
             if (!st || String(st['response-type'] || '').toLowerCase() !== 'success' || !o.status[0].response)
                 throw 'AUTH: Authentication failed at ' + host + ': ' + (st ? st.response : 'missing status');
             r.addHeader('sessionKey: ' + o.status[0].response);
-            return {request:r, host:host, base:baseUrl(p,host)};
+            return {request:r, host:host, port:String(port), base:baseUrl(p,host,port)};
         }
         function connect(p) {
-            try { return loginAt(p,p.host); }
+            try { return loginAt(p,p.host,p.port_primary); }
             catch(e1) {
-                if (p.secondary && p.secondary !== p.host) {
-                    try { return loginAt(p,p.secondary); }
+                if (p.secondary && (p.secondary !== p.host || String(p.port_secondary) !== String(p.port_primary))) {
+                    try { return loginAt(p,p.secondary,p.port_secondary); }
                     catch(e2) { throw String(e1) + '; secondary: ' + String(e2); }
                 }
                 throw e1;
@@ -629,7 +675,7 @@ zabbix_export:
         var p=JSON.parse(value), data={errors:''}, errors=[], o, ev=[], al=[], sys={}, ah=false, i, e;
         function latestBySeverity(events,sev){ var best={}; for(var j=0;j<events.length;j++){ var x=events[j]; if(Number(x['severity-numeric'])===sev && Number(x['event-id']||0)>Number(best['event-id']||0)) best=x; } return best; }
         try {
-            validate(p); var c=connect(p); data.endpoint=c.host;
+            validate(p); var c=connect(p); data.endpoint=c.host+':'+c.port;
             o=fetchApi(c,'show/system','system',errors,false); sys=o?first(o.system):{};
             var n=parseInt(p.events_last,10); if(!n||n<1)n=100; if(n>1000)n=1000;
             o=fetchApi(c,'show/events/last/'+n+'/detail','events',errors,false); ev=o?array(o,'events'):[]; data.events=ev;
@@ -661,6 +707,10 @@ zabbix_export:
         value: '{$SEAGATE.API.PASSWORD}'
       - name: port
         value: '{$SEAGATE.API.PORT}'
+      - name: port_primary
+        value: '{$SEAGATE.API.PORT.PRIMARY}'
+      - name: port_secondary
+        value: '{$SEAGATE.API.PORT.SECONDARY}'
       - name: scheme
         value: '{$SEAGATE.API.SCHEME}'
       - name: secondary
@@ -751,8 +801,8 @@ zabbix_export:
       tags:
       - tag: component
         value: inventory
-      description: Management endpoint currently used by the API collector. An unchanged value is stored at least every 30
-        minutes for dashboards.
+      description: Management endpoint currently used by the API collector, stored as host:port. An unchanged value is stored
+        at least every 30 minutes for dashboards.
     - uuid: a92e6bbf81ac4235936212c08c22927a
       name: API response time
       type: DEPENDENT
@@ -7001,11 +7051,18 @@ zabbix_export:
       description: Primary storage management controller hostname or IP address.
     - macro: '{$SEAGATE.API.HOST.SECONDARY}'
       value: ''
-      description: Optional partner controller management hostname or IP address.
+      description: Optional partner-controller management hostname or IP address. It may be the same value as the primary
+        host when the controllers are exposed through different NAT or port-forwarding ports.
     - macro: '{$SEAGATE.API.PORT}'
       value: '443'
-      description: Storage management API TCP port used in every API URL. Defaults to HTTPS TCP/443; override this macro at
-        host level when the array management API listens on a different port.
+      description: Default storage management API TCP port. Used by both controllers unless overridden by a controller-specific
+        port macro.
+    - macro: '{$SEAGATE.API.PORT.PRIMARY}'
+      value: ''
+      description: Optional primary-controller API TCP port. When empty, inherits {$SEAGATE.API.PORT}.
+    - macro: '{$SEAGATE.API.PORT.SECONDARY}'
+      value: ''
+      description: Optional secondary-controller API TCP port. When empty, inherits {$SEAGATE.API.PORT}.
     - macro: '{$SEAGATE.API.SCHEME}'
       value: https
       description: 'API scheme: https or http.'
@@ -7017,7 +7074,7 @@ zabbix_export:
       description: Read-only storage API password. Configure at host level.
     - macro: '{$SEAGATE.HTTP.PROXY}'
       value: ''
-      description: 'Optional HTTP proxy used by all Script master items. Format example: http://proxy.example:8080.'
+      description: 'Optional HTTP proxy used by all Script master items. Example: http://proxy.example:8080.'
     - macro: '{$SEAGATE.DATA.TIMEOUT}'
       value: 60s
       description: Timeout for Script master items.
@@ -7098,236 +7155,6 @@ zabbix_export:
     - macro: '{$SEAGATE.TIER.USED.CRIT}'
       value: '95'
       description: Tier used-space critical threshold in percent.
-    dashboards:
-    - uuid: 439da5017030424db53e1910db62e9f7
-      name: Overview
-      pages:
-      - name: Overview
-        widgets:
-        - type: item
-          name: API availability
-          width: '12'
-          height: '3'
-          fields:
-          - type: ITEM
-            name: itemid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              key: seagate.exos.api.available
-          - type: STRING
-            name: reference
-            value: AAAAA
-        - type: item
-          name: System health
-          x: '12'
-          width: '12'
-          height: '3'
-          fields:
-          - type: ITEM
-            name: itemid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              key: seagate.exos.system.health
-          - type: STRING
-            name: reference
-            value: AAAAB
-        - type: item
-          name: Product
-          x: '24'
-          width: '12'
-          height: '3'
-          fields:
-          - type: ITEM
-            name: itemid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              key: seagate.exos.system.product_id
-          - type: STRING
-            name: reference
-            value: AAAAC
-        - type: item
-          name: Firmware bundle
-          x: '36'
-          width: '18'
-          height: '3'
-          fields:
-          - type: ITEM
-            name: itemid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              key: seagate.exos.system.bundle_version
-          - type: STRING
-            name: reference
-            value: AAAAD
-        - type: item
-          name: System latency source
-          x: '54'
-          width: '18'
-          height: '3'
-          fields:
-          - type: ITEM
-            name: itemid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              key: seagate.exos.system.latency.source
-          - type: STRING
-            name: reference
-            value: AAAAE
-        - type: graph
-          name: Average system latency
-          'y': '3'
-          width: '36'
-          height: '5'
-          fields:
-          - type: GRAPH
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: System latency
-          - type: STRING
-            name: reference
-            value: AAAAF
-        - type: graph
-          name: Maximum system latency
-          x: '36'
-          'y': '3'
-          width: '36'
-          height: '5'
-          fields:
-          - type: GRAPH
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: System maximum latency (4006 native)
-          - type: STRING
-            name: reference
-            value: AAAAG
-        - type: problems
-          name: Active problems
-          'y': '8'
-          width: '72'
-          height: '6'
-          fields:
-          - type: STRING
-            name: reference
-            value: AAAAH
-          - type: INTEGER
-            name: show
-            value: '3'
-          - type: INTEGER
-            name: show_opdata
-            value: '2'
-          - type: INTEGER
-            name: show_tags
-            value: '1'
-          - type: STRING
-            name: tag_priority
-            value: scope
-      - name: Components
-        widgets:
-        - type: graphprototype
-          name: Controller performance
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Controller [{#CONTROLLER.ID}]: Performance'
-          - type: STRING
-            name: reference
-            value: BAAAA
-        - type: graphprototype
-          name: Disk performance
-          x: '36'
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Disk [{#LOCATION}]: Performance'
-          - type: STRING
-            name: reference
-            value: BAAAB
-        - type: graphprototype
-          name: Pool performance
-          'y': '5'
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Pool [{#NAME}]: Performance'
-          - type: STRING
-            name: reference
-            value: BAAAC
-        - type: graphprototype
-          name: Volume performance
-          x: '36'
-          'y': '5'
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Volume [{#NAME}]: Performance'
-          - type: STRING
-            name: reference
-            value: BAAAD
-        - type: graphprototype
-          name: Host port performance
-          'y': '10'
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Host port [{#PORT.ID}]: Performance'
-          - type: STRING
-            name: reference
-            value: BAAAE
-        - type: graphprototype
-          name: Disk temperature
-          x: '36'
-          'y': '10'
-          width: '36'
-          height: '5'
-          fields:
-          - type: INTEGER
-            name: columns
-            value: '1'
-          - type: GRAPH_PROTOTYPE
-            name: graphid.0
-            value:
-              host: Seagate Exos Storage by HTTP
-              name: 'Disk [{#LOCATION}]: Temperature'
-          - type: STRING
-            name: reference
-            value: BAAAF
     valuemaps:
     - uuid: 1791af26432b4aa898933b1fdeebd835
       name: Yes/No
@@ -7522,6 +7349,236 @@ zabbix_export:
         newvalue: Critical
       - value: '4'
         newvalue: Resolved
+    dashboards:
+    - uuid: 439da5017030424db53e1910db62e9f7
+      name: Overview
+      pages:
+      - name: Overview
+        widgets:
+        - type: item
+          name: API availability
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              key: seagate.exos.api.available
+          - type: STRING
+            name: reference
+            value: AAAAA
+        - type: item
+          name: System health
+          x: '12'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              key: seagate.exos.system.health
+          - type: STRING
+            name: reference
+            value: AAAAB
+        - type: item
+          name: Product
+          x: '24'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              key: seagate.exos.system.product_id
+          - type: STRING
+            name: reference
+            value: AAAAC
+        - type: item
+          name: Firmware bundle
+          x: '36'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              key: seagate.exos.system.bundle_version
+          - type: STRING
+            name: reference
+            value: AAAAD
+        - type: item
+          name: System latency source
+          x: '54'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              key: seagate.exos.system.latency.source
+          - type: STRING
+            name: reference
+            value: AAAAE
+        - type: graph
+          name: Average system latency
+          y: '3'
+          width: '36'
+          height: '5'
+          fields:
+          - type: GRAPH
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: System latency
+          - type: STRING
+            name: reference
+            value: AAAAF
+        - type: graph
+          name: Maximum system latency
+          x: '36'
+          y: '3'
+          width: '36'
+          height: '5'
+          fields:
+          - type: GRAPH
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: System maximum latency (4006 native)
+          - type: STRING
+            name: reference
+            value: AAAAG
+        - type: problems
+          name: Active problems
+          y: '8'
+          width: '72'
+          height: '6'
+          fields:
+          - type: STRING
+            name: reference
+            value: AAAAH
+          - type: INTEGER
+            name: show
+            value: '3'
+          - type: INTEGER
+            name: show_opdata
+            value: '2'
+          - type: INTEGER
+            name: show_tags
+            value: '1'
+          - type: STRING
+            name: tag_priority
+            value: scope
+      - name: Components
+        widgets:
+        - type: graphprototype
+          name: Controller performance
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Controller [{#CONTROLLER.ID}]: Performance'
+          - type: STRING
+            name: reference
+            value: BAAAA
+        - type: graphprototype
+          name: Disk performance
+          x: '36'
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Disk [{#LOCATION}]: Performance'
+          - type: STRING
+            name: reference
+            value: BAAAB
+        - type: graphprototype
+          name: Pool performance
+          y: '5'
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Pool [{#NAME}]: Performance'
+          - type: STRING
+            name: reference
+            value: BAAAC
+        - type: graphprototype
+          name: Volume performance
+          x: '36'
+          y: '5'
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Volume [{#NAME}]: Performance'
+          - type: STRING
+            name: reference
+            value: BAAAD
+        - type: graphprototype
+          name: Host port performance
+          y: '10'
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Host port [{#PORT.ID}]: Performance'
+          - type: STRING
+            name: reference
+            value: BAAAE
+        - type: graphprototype
+          name: Disk temperature
+          x: '36'
+          y: '10'
+          width: '36'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Seagate Exos Storage by HTTP
+              name: 'Disk [{#LOCATION}]: Temperature'
+          - type: STRING
+            name: reference
+            value: BAAAF
   graphs:
   - uuid: 495b817859a54d20b723a62e8fc11085
     name: System latency
