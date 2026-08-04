@@ -36,7 +36,37 @@ zabbix_export:
            never read this table on this firmware; only LLD discovery (which walks) can see it. If
            you need this data, it would require an external UserParameter script (snmpbulkwalk) on
            a Zabbix agent/proxy with network access to the device -- outside the scope of this template.
-        
+
+        Known counter bug on the management port:
+         - Confirmed on one unit (2026-08-04, SNMPv2c, ruling out the "Counter64 doesn't exist in
+           SNMPv1" explanation): the Management1/MGT out-of-band port's ifHCInOctets/ifHCOutOctets
+           (IF-MIB, 64-bit) intermittently returns a value corrupted by a spurious ~2^32-octet jump,
+           which after this template's standard CHANGE_PER_SECOND -> x8 conversion showed up as a
+           computed rate in the Gbps range (once even above the port's own reported 1Gbps
+           ifHighSpeed). Cross-checked directly against the device's own local counters (`show
+           interface counters`, two samples taken seconds apart): real traffic on this port was in
+           the tens of kbps at the same time -- five to six orders of magnitude below what the HC
+           counter implied. ifHighSpeed, ifOperStatus/ifAdminStatus, ifInDiscards/ifInErrors, and
+           ifOutDiscards/ifOutErrors all read correctly throughout; only the two HC octet counters
+           on this specific interface were affected, consistent with the device synthesizing the
+           64-bit value in software from a 32-bit source (the port's own local-counter field names
+           -- RX/TX bytes, RX dropped, RX overruns, TX carrier errors, TX collisions -- match Linux
+           kernel network-stat naming, suggesting it's served by a small embedded NIC/driver on the
+           management CPU rather than the main switching ASIC that drives the real front-panel
+           ports).
+           Fix: interfaces whose {#IFDESCR} matches "^Management" are excluded from the main
+           "Interface discovery" rule and picked up instead by a separate "Management interface
+           discovery" rule that uses the plain 32-bit ifInOctets/ifOutOctets for traffic, a direct
+           unsynthesized read. This isn't a magic fix for wraparound in general -- a 32-bit counter
+           genuinely wrapping will still produce one bad, self-correcting CHANGE_PER_SECOND reading,
+           same as on any 32-bit interface counter anywhere -- but at this port's real (kbps-range)
+           traffic level that only recurs roughly every 1-2 weeks, versus the near-constant
+           unreliability of the HC counter observed here. The real front-panel data interfaces are
+           unaffected and stay on "Interface discovery" and its HC counters, which they need (a
+           32-bit counter wraps in ~1 second at 40Gbps). If you deploy this template against another
+           G8264-T unit, it's worth spot-checking Management1's traffic items against `show
+           interface counters` the same way before trusting them.
+
         Requires: host's SNMP interface configured with valid community (v1/v2c) or SNMPv3 credentials.
         No MIBs need to be loaded on the Zabbix server -- all items use numeric OIDs.
         
@@ -856,7 +886,11 @@ zabbix_export:
                 value: ^53$
                 operator: NOT_MATCHES_REGEX
                 formulaid: A
-          description: 'Base table walked is ifDescr (IF-MIB). {#IFTYPE}=53 (propVirtual) is filtered out -- on this platform that value corresponds to the internal "IP128" management pseudo-interface, not a physical/logical link worth alerting on.'
+              - macro: '{#IFDESCR}'
+                value: '^Management'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: 'Base table walked is ifDescr (IF-MIB). {#IFTYPE}=53 (propVirtual) is filtered out -- on this platform that value corresponds to the internal "IP128" management pseudo-interface, not a physical/logical link worth alerting on. Interfaces whose {#IFDESCR} matches "^Management" (confirmed: "Management1", the MGT out-of-band port) are also excluded here and discovered instead by the separate "Management interface discovery" rule below, which uses 32-bit octet counters for traffic instead of the HC ones used by this rule -- see the description on that rule for why.'
           item_prototypes:
             - uuid: e9d302aee26040a286b84fe1b7747811
               name: 'Interface {#IFDESCR}({#IFALIAS}): Admin status'
@@ -917,7 +951,7 @@ zabbix_export:
               history: 7d
               trends: 90d
               units: bps
-              description: '64-bit counter (ifHCInOctets), converted from octets/s to bits/s.'
+              description: '64-bit counter (ifHCInOctets), converted from octets/s to bits/s. Confirmed unreliable on at least one unit for the Management1/MGT pseudo-interface: the agent intermittently returns a value corrupted by a spurious ~2^32-octet jump. That interface is excluded from this rule (see filter above) and discovered instead by the separate "Management interface discovery" rule, which uses the plain 32-bit ifInOctets -- a direct read not involved in this HC synthesis.'
               preprocessing:
                 - type: CHANGE_PER_SECOND
                   parameters:
@@ -973,7 +1007,7 @@ zabbix_export:
               history: 7d
               trends: 90d
               units: bps
-              description: '64-bit counter (ifHCOutOctets), converted from octets/s to bits/s.'
+              description: '64-bit counter (ifHCOutOctets), converted from octets/s to bits/s. Same reliability caveat as net.if.in above.'
               preprocessing:
                 - type: CHANGE_PER_SECOND
                   parameters:
@@ -1094,6 +1128,282 @@ zabbix_export:
                   item:
                     host: 'IBM RackSwitch G8264-T by SNMP'
                     key: 'net.if.out[ifHCOutOctets.{#SNMPINDEX}]'
+          overrides:
+            - name: 'Only tag with description when one is configured'
+              step: '1'
+              filter:
+                evaltype: AND
+                conditions:
+                  - macro: '{#IFALIAS}'
+                    value: ^$
+                    operator: NOT_MATCHES_REGEX
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  tags:
+                    - tag: description
+                      value: '{#IFALIAS}'
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  tags:
+                    - tag: description
+                      value: '{#IFALIAS}'
+        - uuid: a651a4ed391341a2ba7d1b451dac5242
+          name: 'Management interface discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: net.if.mgmt.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFDESCR}'
+                value: '^Management'
+                operator: MATCHES_REGEX
+                formulaid: A
+              - macro: '{#IFTYPE}'
+                value: ^53$
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: 'Companion to "Interface discovery" above, split out for interfaces whose {#IFDESCR} matches "^Management" (confirmed on one unit: "Management1", the MGT out-of-band port; {#IFTYPE}=53/"IP128" is excluded here too, defensively, in case that pseudo-interface ever shares the naming pattern on some unit). Exists because, on at least one unit, this interface class returned ifHCInOctets/ifHCOutOctets values intermittently corrupted by a spurious ~2^32-octet jump -- confirmed against local counters read directly on the device (show interface counters, two samples taken seconds apart): real traffic was in the tens of kbps while the HC-derived rate computed to Gbps. This rule uses the plain 32-bit ifInOctets/ifOutOctets for traffic instead, a direct read not involved in that HC synthesis. Everything else here is otherwise identical in logic to "Interface discovery", just keyed separately (".mgmt" suffix on the non-traffic items) so the same underlying OID is not declared twice under one key across the two rules.'
+          item_prototypes:
+            - uuid: c921a8fca4a24e4a885e43637b58fa8d
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.admin.status.mgmt[ifAdminStatus.{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              trends: '0'
+              description: 'ifAdminStatus (IF-MIB): 1=up 2=down 3=testing'
+              valuemap:
+                name: 'IF-MIB::ifAdminStatus'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 0486beac6e7847ffa68d077733fc6e25
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Inbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}'
+              key: 'net.if.in.discards.mgmt[ifInDiscards.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: discards/s
+              description: 'ifInDiscards (IF-MIB): packets discarded despite no errors, typically buffer/queue drops rather than a physical link problem.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 760eab9bfa9d4241b577d058c6a576e6
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Inbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}'
+              key: 'net.if.in.errors.mgmt[ifInErrors.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: errors/s
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 1951e13606464d5ba4f27021c5cd8f34
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Inbound traffic'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.10.{#SNMPINDEX}'
+              key: 'net.if.in[ifInOctets.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: bps
+              description: 'Plain 32-bit counter (ifInOctets), converted from octets/s to bits/s. Used here instead of the HC (64-bit) ifHCInOctets that "Interface discovery" uses for other interfaces -- see the description on this rule for why. Wraps at ~4.3GB, which at typical management-port traffic levels means roughly one self-correcting bad CHANGE_PER_SECOND reading every 1-2 weeks -- a standard, bounded limitation of 32-bit counters, and not a concern for the real front-panel data ports, which stay on the HC counters in "Interface discovery" since they genuinely need them (a 32-bit counter wraps in about a second at 40Gbps).'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: cb57e38218ce4e709b3c9cdfa38443f3
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Outbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
+              key: 'net.if.out.discards.mgmt[ifOutDiscards.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: discards/s
+              description: 'ifOutDiscards (IF-MIB): packets discarded despite no errors, typically buffer/queue drops rather than a physical link problem.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 0dc4729ee05f4484a331bface8999442
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Outbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
+              key: 'net.if.out.errors.mgmt[ifOutErrors.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: errors/s
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 9fbfa9c496d84abca0023b11e3ce999e
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Outbound traffic'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.16.{#SNMPINDEX}'
+              key: 'net.if.out[ifOutOctets.{#SNMPINDEX}]'
+              history: 7d
+              trends: 90d
+              units: bps
+              description: 'Plain 32-bit counter (ifOutOctets), converted from octets/s to bits/s. Same rationale as the Inbound traffic item above.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 3a0e85df819f4a25a9dd2dd87f7278da
+              name: 'Interface {#IFDESCR}({#IFALIAS}): High speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
+              key: 'net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              trends: 90d
+              units: bps
+              description: 'ifHighSpeed is reported in Mbps; converted to bps via preprocessing.'
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1000000'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+              trigger_prototypes:
+                - uuid: 955eef5af2f24640ba057606b7715a1a
+                  expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and change(/IBM RackSwitch G8264-T by SNMP/net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}])<0'
+                  name: 'Interface {#IFDESCR}({#IFALIAS}): Link speed decreased'
+                  priority: INFO
+                  description: 'Negotiated speed dropped since the last poll -- often an early sign of a marginal cable/optic before it fails outright. Informational only; does not auto-resolve if speed later recovers, since change() compares consecutive polls, not a sustained state.'
+                  tags:
+                    - tag: component
+                      value: interfaces
+                    - tag: interface
+                      value: '{#IFDESCR}'
+            - uuid: 0f7ff9b914c743248ef36ea6429e51bf
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}]'
+              history: 7d
+              trends: '0'
+              description: 'ifOperStatus (IF-MIB): 1=up 2=down 3=testing 4=unknown 5=dormant 6=notPresent 7=lowerLayerDown'
+              valuemap:
+                name: 'IF-MIB::ifOperStatus'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+          trigger_prototypes:
+            - uuid: 7d12cf4541384f53af86fc71e6829737
+              expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.admin.status.mgmt[ifAdminStatus.{#SNMPINDEX}])=1 and (min(/IBM RackSwitch G8264-T by SNMP/net.if.in.discards.mgmt[ifInDiscards.{#SNMPINDEX}],5m)>{$IF_DISCARD_CRIT} or min(/IBM RackSwitch G8264-T by SNMP/net.if.out.discards.mgmt[ifOutDiscards.{#SNMPINDEX}],5m)>{$IF_DISCARD_CRIT})'
+              name: 'Interface {#IFDESCR}({#IFALIAS}): High discard rate'
+              priority: WARNING
+              description: 'Discards without errors usually mean queue/buffer congestion (oversubscription) rather than a physical fault -- check for a saturated uplink or QoS policy before assuming the port itself is bad.'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 3e32414c89474ff989c63f2b2896b148
+              expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.admin.status.mgmt[ifAdminStatus.{#SNMPINDEX}])=1 and (min(/IBM RackSwitch G8264-T by SNMP/net.if.in.errors.mgmt[ifInErrors.{#SNMPINDEX}],5m)>{$IF_ERR_CRIT} or min(/IBM RackSwitch G8264-T by SNMP/net.if.out.errors.mgmt[ifOutErrors.{#SNMPINDEX}],5m)>{$IF_ERR_CRIT})'
+              name: 'Interface {#IFDESCR}({#IFALIAS}): High error rate'
+              priority: WARNING
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 35617b7b3a224d9898d07e69ddcf69b1
+              expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}])=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}])>0 and avg(/IBM RackSwitch G8264-T by SNMP/net.if.in[ifInOctets.{#SNMPINDEX}],5m)/last(/IBM RackSwitch G8264-T by SNMP/net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}])*100>{$IF_UTIL_CRIT}'
+              name: 'Interface {#IFDESCR}({#IFALIAS}): High inbound bandwidth utilization'
+              priority: WARNING
+              description: 'Gated on ifOperStatus=up and speed>0 to avoid a divide-by-zero/false-positive read while the link is down.'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 7111b9da123a4e589131289d97a175b3
+              expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}])=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}])>0 and avg(/IBM RackSwitch G8264-T by SNMP/net.if.out[ifOutOctets.{#SNMPINDEX}],5m)/last(/IBM RackSwitch G8264-T by SNMP/net.if.speed.mgmt[ifHighSpeed.{#SNMPINDEX}])*100>{$IF_UTIL_CRIT}'
+              name: 'Interface {#IFDESCR}({#IFALIAS}): High outbound bandwidth utilization'
+              priority: WARNING
+              description: 'Gated on ifOperStatus=up and speed>0 to avoid a divide-by-zero/false-positive read while the link is down.'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: fe90498bb1fd4c88a50cc90b8ab55019
+              expression: '{$IFCONTROL:"{#IFDESCR}"}=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.admin.status.mgmt[ifAdminStatus.{#SNMPINDEX}])=1 and last(/IBM RackSwitch G8264-T by SNMP/net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}])=2 and (last(/IBM RackSwitch G8264-T by SNMP/net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}],#1)<>last(/IBM RackSwitch G8264-T by SNMP/net.if.status.mgmt[ifOperStatus.{#SNMPINDEX}],#2))'
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Link down'
+              priority: AVERAGE
+              description: 'Fires only if the port is administratively up. Disable per-port via a context macro override, e.g. {$IFCONTROL:"Ethernet1"} = 0.'
+              tags:
+                - tag: component
+                  value: interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+          graph_prototypes:
+            - uuid: 0a7b909c11ac4d10885218a93ba89a87
+              name: 'Interface {#IFDESCR}({#IFALIAS}): Traffic'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'IBM RackSwitch G8264-T by SNMP'
+                    key: 'net.if.in[ifInOctets.{#SNMPINDEX}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'IBM RackSwitch G8264-T by SNMP'
+                    key: 'net.if.out[ifOutOctets.{#SNMPINDEX}]'
           overrides:
             - name: 'Only tag with description when one is configured'
               step: '1'
