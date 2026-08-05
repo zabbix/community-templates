@@ -20,22 +20,38 @@ discovery, trigger prototypes, graph prototypes, template dashboards, value
 maps, and host macros. No external scripts or Zabbix Agent are required on the
 storage system.
 
-## Version 1.1.1
 
-Version 1.1.1 is a backward-compatible correction release for version 1.1.0.
+## Repository
 
-It adds independent optional API ports for the primary and secondary
-controllers:
+Current template source:
+
+[https://github.com/guicampos21/zabbix-templates/tree/main/templates/storage/template_seagate_exos_x_4005_4006/7.0](https://github.com/guicampos21/zabbix-templates/tree/main/templates/storage/template_seagate_exos_x_4005_4006/7.0)
+
+## Version 1.1.2
+
+Version 1.1.2 is a backward-compatible correction release for version 1.1.1.
+
+It changes the host-port down trigger from a static state check to a
+transition-aware alert:
+
+```text
+Up -> non-Up
+```
+
+A host port that is already disconnected when the template is linked or
+updated does not create a problem. This prevents unused FC/iSCSI ports from
+generating false alarms.
+
+After a monitored port transitions from `Up` to any non-Up state, the problem
+remains open until the port returns to `Up`.
+
+Version 1.1.1 controller-specific API port support remains unchanged:
 
 - `{$SEAGATE.API.PORT.PRIMARY}`
 - `{$SEAGATE.API.PORT.SECONDARY}`
 
-This supports NAT and port-forwarding designs where both controllers are
-accessed through the same public IP address or DNS name but use different
-external TCP ports.
-
-Existing hosts continue to work without changes. Both new macros are empty by
-default and inherit the existing `{$SEAGATE.API.PORT}` value.
+Existing API, NAT, collection, item, discovery, graph, dashboard, and UUID
+behavior is preserved.
 
 ## Requirements
 
@@ -150,7 +166,7 @@ and, if that endpoint fails:
 https://storage-nat.example.com:8002
 ```
 
-Version 1.1.1 allows the primary and secondary host values to be identical when
+Version 1.1.1 and later allow the primary and secondary host values to be identical when
 their resolved ports are different. This is required for controller-specific
 destination NAT.
 
@@ -342,6 +358,90 @@ sum(port_latency_us * port_IO_rate) / sum(port_IO_rate)
 `System latency: Source` identifies the method currently feeding the unified
 system-latency items.
 
+
+## Host-port down alert behavior
+
+### Purpose
+
+Storage arrays commonly have unused FC or iSCSI host ports. These ports are
+normally reported as `Disconnected`, even though no cable, switch path, or host
+connection is expected.
+
+Earlier template versions alerted whenever the current status was not `Up`.
+That behavior required contextual macros for every intentionally unused port.
+
+Version 1.1.2 distinguishes between:
+
+- a port that was already disconnected when monitoring started; and
+- a port that was operational and then lost its connection.
+
+### Problem condition
+
+The host-port problem opens only when all of the following are true:
+
+```text
+Current status is not Up
+Previous stored status was Up
+{$SEAGATE.PORT.DOWN.ENABLED:"{#PORT.ID}"} = 1
+```
+
+Conceptual transition:
+
+```text
+Up -> Warning
+Up -> Error
+Up -> Not present
+Up -> Unknown
+Up -> Disconnected
+```
+
+A port whose first observed state is `Disconnected` has no previous `Up`
+sample and therefore does not create a problem.
+
+### Persistent problem behavior
+
+The trigger uses a dedicated recovery expression:
+
+```text
+Current status = Up
+```
+
+This means that after a real `Up -> non-Up` transition:
+
+- the problem opens once;
+- repeated non-Up samples do not create duplicate events;
+- the problem remains open for minutes, days, or weeks while the port remains
+  non-Up; and
+- the problem closes only when the port returns to `Up`.
+
+The comparison with the previous sample is used only to detect the initial
+transition. It does not cause the open problem to disappear on later polling
+cycles.
+
+### Contextual overrides
+
+The existing contextual macro remains available:
+
+```text
+{$SEAGATE.PORT.DOWN.ENABLED:"A3"} = 0
+```
+
+Use it when a specific port must be completely excluded from host-port and SFP
+alerting, even if that port was previously connected.
+
+For normal unused ports, no per-port override is required in version 1.1.2.
+
+### Upgrade note
+
+Problems that were already open under the version 1.1.1 static-state trigger
+may remain visible after import because they were created before the new
+transition-aware logic.
+
+The trigger prototype now permits manual close. After confirming that the
+affected ports are intentionally unused, close those legacy problems once.
+They will not reopen unless the port later becomes `Up` and then transitions
+back to a non-Up state.
+
 ## Important macros
 
 | Macro | Default | Purpose |
@@ -358,7 +458,7 @@ system-latency items.
 | `{$SEAGATE.ALERTS.MODE}` | `auto` | Structured Alerts mode |
 | `{$SEAGATE.EVENTS.LAST}` | `100` | Number of recent events requested |
 | `{$SEAGATE.ENCLOSURE.EXPECTED}` | `1` | Expected total enclosure count |
-| `{$SEAGATE.PORT.DOWN.ENABLED}` | `1` | Host-port/SFP alert policy |
+| `{$SEAGATE.PORT.DOWN.ENABLED}` | `1` | Enable transition-aware host-port/SFP alerts; override by port context to completely ignore a port |
 | `{$SEAGATE.REDUNDANCY.REQUIRED}` | `1` | Require storage redundancy |
 | `{$SEAGATE.NTP.REQUIRED}` | `0` | Require NTP when set to 1 |
 
@@ -376,7 +476,7 @@ system-latency items.
 
 ### Primary works but the secondary endpoint is never attempted
 
-Version 1.1.1 recognizes the secondary endpoint when either the host or port
+Version 1.1.1 and later recognize the secondary endpoint when either the host or port
 differs.
 
 Confirm at least one condition is true:
@@ -437,6 +537,7 @@ MIT
 
 Guilherme Campos — `@guicampos21`
 
+
 ## Template dashboard
 
 The **Overview** template dashboard uses the Zabbix 72-column Full HD grid and
@@ -444,33 +545,65 @@ contains two pages:
 
 - **Overview**: API availability, system health, product, firmware,
   latency-source values, average and maximum system-latency graphs, and active
-  problems
+  problems.
 - **Components**: controller, disk, pool, volume, host-port, and disk
-  temperature graph prototypes
+  temperature graph prototypes.
 
 ## Validation
 
-The 1.1.1 bundle passed its supplied offline port-resolution and failover
-validation. The repository package also passed YAML, UUID, JavaScript,
-dashboard-reference, generated-inventory, and severity-policy checks:
+The supplied bundle includes an offline validation report covering:
 
-- Zabbix export version: `7.0`
-- Template version: `1.1.1`
-- UUID fields: `427`, with the complete 1.1.0 UUID set preserved
-- Script master items: `5`, all passing JavaScript syntax, proxy, port
-  resolution, same-host/different-port failover, and active-endpoint checks
-- Dashboard: `1` dashboard, `2` pages, and `14` widgets
-- Heartbeats: `76` occurrences of `30m`, `64` occurrences of `1h`, and no
-  remaining `1d` heartbeat
-- Trigger severities: `51` High, `11` Average, `35` Warning, `7` Information,
-  and no Disaster triggers
-- SHA-256: `1030c9b9e4810d528b1f196ca7fd438cd1c280000cd2a82f9e71242abccffc63`
+- YAML parsing
+- Zabbix export version
+- Vendor version
+- UUID uniqueness and UUIDv4 format
+- Object-count preservation
+- Current severity policy
+- Host-port trigger UUID preservation
+- Transition-aware problem expression
+- Recovery expression
+- Manual-close support
+- JavaScript syntax for all Script master items
+- Heartbeat policy
+- Static state-machine scenarios
 
-This offline result does not claim a live import or controller failover test.
-The final validation is an import into Zabbix 7.0+ and a controlled test of both
-configured management endpoints.
+The final repository package preserves the 1.1.1 storage tags and passed the
+repository checks with:
+
+- `427` unique UUIDv4 identifiers
+- `78` fixed items, `14` discovery rules, and `192` item prototypes
+- `24` fixed triggers and `80` trigger prototypes
+- `2` fixed graphs and `19` graph prototypes
+- `51` High, `11` Average, `35` Warning, `7` Information, and no Disaster
+  triggers
+- SHA-256: `13a678cf46f939cc58fe5e8ede8b7e1e19ed3b21ffb033a13adeac7598b38c25`
+
+Offline validation does not replace an import into Zabbix 7.0+ and a controlled
+live test.
+
+Recommended live validation:
+
+1. Import version 1.1.2 over version 1.1.1.
+2. Confirm an unused port already in `Disconnected` state does not open a new
+   problem.
+3. Connect a test port and confirm it reaches `Up`.
+4. Disconnect the same port and confirm the problem opens.
+5. Leave the port disconnected through multiple polling and heartbeat cycles
+   and confirm the problem remains open.
+6. Reconnect the port and confirm the problem closes.
+7. Manually close any legacy unused-port problems created by version 1.1.1.
 
 ## Release history
+
+### 1.1.2
+
+- Changed the host-port down trigger to detect `Up -> non-Up` transitions.
+- Prevented ports that are already disconnected from generating false alarms.
+- Added a recovery expression so a real port-down event remains open until the
+  port returns to `Up`.
+- Enabled manual close for one-time cleanup of legacy unused-port problems.
+- Preserved the contextual host-port/SFP alert macro.
+- Preserved all existing UUIDs and monitoring objects.
 
 ### 1.1.1
 
@@ -483,10 +616,8 @@ configured management endpoints.
 
 - Adopted the upstream-compatible directory and filename convention.
 - Added a Full HD template dashboard with Overview and Components pages.
-- Added optional HTTP proxy support to every Script master item.
-- Changed the default least-privilege API username to `zbx_monitor`.
-- Aligned template tags and resource trigger severities with Zabbix guidance.
-- Added author and MIT license metadata.
+- Added optional HTTP proxy support.
+- Published the normalized Seagate Exos X 4005/4006 monitoring package.
 
 ### 1.0.7
 
@@ -508,7 +639,7 @@ configured management endpoints.
 <!-- BEGIN GENERATED MONITORING INVENTORY -->
 ## Complete monitoring inventory
 
-Complete inventory generated from the Zabbix 7.0 YAML export, version 1.1.1.
+Complete inventory generated from the Zabbix 7.0 YAML export, version 1.1.2.
 It includes fixed objects and low-level discovery (LLD) prototypes.
 
 > [!NOTE]
