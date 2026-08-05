@@ -39,18 +39,163 @@ zabbix_export:
         - name: 'Linux by SNMP'
       groups:
         - name: 'Templates/Network devices'
+      items:
+        - uuid: 35b68edf08e14e808e4a98a9840700b9
+          name: 'Sensor table walk (raw)'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.99.1.1.1.1,1.3.6.1.2.1.99.1.1.1.2,1.3.6.1.2.1.99.1.1.1.3,1.3.6.1.2.1.99.1.1.1.4,1.3.6.1.2.1.47.1.1.1.1.2]'
+          key: sensor.raw
+          delay: 15m
+          history: '0'
+          value_type: TEXT
+          description: |
+            Raw walk of entPhySensorType/Scale/Precision/Value (ENTITY-SENSOR-MIB, RFC 3433) and entPhysicalDescr (ENTITY-MIB, RFC 2737). Master item for sensor.discovery and sensor.chassis.discovery, which parse this text themselves rather than relying on Zabbix's discovery[] OID helper - needed to cross-reference each port's transceiver-type descriptor (e.g. "SFP for Eth1/34" vs "QSFP28 for Eth1/1") against its per-lane DOM sensors, which discovery[] cannot do since they live at different indexes.
+          tags:
+            - tag: component
+              value: raw
       discovery_rules:
         - uuid: dc2d40ed23384df2b88083142aa43543
           name: 'Sensor discovery (ports)'
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#SENSOR_HASVALUE},1.3.6.1.2.1.99.1.1.1.4,{#SENSOR_TYPE},1.3.6.1.2.1.99.1.1.1.1,{#SENSOR_SCALE},1.3.6.1.2.1.99.1.1.1.2,{#SENSOR_PRECISION},1.3.6.1.2.1.99.1.1.1.3,{#SENSOR_DESCR},1.3.6.1.2.1.47.1.1.1.1.2]'
+          type: DEPENDENT
           key: sensor.discovery
-          delay: 15m
           description: |
             MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
             Discovers physical sensors (temperature, fan, voltage, current, etc.) via entPhySensorTable (RFC 3433), named using the matching entPhysicalDescr from entPhysicalTable (RFC 2737) at the same entPhysicalIndex. Port-associated sensors only ({#SENSOR_IFNAME} non-empty) - see sensor.chassis.discovery for everything else.
             SONiC's sonic-snmpagent is the source of this table. Confirmed POPULATED on the hardware/build this template was authored against (DellEMC-S5232f-C32, Enterprise SONiC 4.6.0 Standard) - CPU/ASIC/system temperature, PSU temperature/voltage/current/power, fan tachometers, and per-port DOM temperature all present.
-            entPhysicalTable also contains pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) that appear in this same walk but have neither an entPhySensorType nor an entPhySensorValue - polling them would immediately go "Not supported". Deliberately NOT using a discovery-rule filter for this: Zabbix's filter mechanism throws "Cannot evaluate expression: no value received for macro" if a referenced macro has no value at all for some row (as opposed to an empty string it can regex-match and reject), and entPhySensorType is not reliably present for every row this walks. The JS preprocessing below filters the array directly instead, which handles "missing" safely.
+            Parses the raw walk from the sensor.raw master item itself (rather than using discovery[]) so it can cross-reference each port's transceiver-type descriptor and skip DOM lanes beyond what that transceiver actually supports (e.g. lanes 2-4 on a single-lane SFP port) - see sensor.raw's description. Also drops entPhysicalTable's pure container/aggregate entries (chassis, fan tray, PSU-as-a-whole, MGMT), which have neither an entPhySensorType nor entPhySensorValue.
+          master_item:
+            key: sensor.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var raw = value;
+                  function parseColumn(oidPrefix) {
+                      var map = {};
+                      var re = new RegExp('\\.?' + oidPrefix.replace(/\\./g, '\\\\.') + '\\.([0-9]+)[ \\t]*=[ \\t]*(?:[A-Za-z0-9_-]+:[ \\t]*)?([^\\r\\n]*)', 'g');
+                      var m;
+                      while ((m = re.exec(raw)) !== null) {
+                          var v = m[2].replace(/\\r$/, '').replace(/\\s+$/, '');
+                          if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+                              v = v.slice(1, -1);
+                          }
+                          map[m[1]] = v;
+                      }
+                      return map;
+                  }
+                  var typeMap = parseColumn('1.3.6.1.2.1.99.1.1.1.1');
+                  var scaleMap = parseColumn('1.3.6.1.2.1.99.1.1.1.2');
+                  var precMap = parseColumn('1.3.6.1.2.1.99.1.1.1.3');
+                  var valueMap = parseColumn('1.3.6.1.2.1.99.1.1.1.4');
+                  var descrMap = parseColumn('1.3.6.1.2.1.47.1.1.1.1.2');
+
+                  // Map each port to how many DOM lanes its actual transceiver supports, from the
+                  // transceiver container's own entPhysicalDescr entry (e.g. "SFP for Eth1/34" -> 1,
+                  // "QSFP28 for Eth1/1" -> 4). Double-density variants (SFP-DD, QSFP-DD) and OSFP
+                  // ("Octal" - 8 lanes, not a QSFP variant despite the name) are listed before their
+                  // plain counterparts so the more specific match wins. Confirmed against a real walk
+                  // for SFP/QSFP28 only - SFP-DD/QSFP-DD/OSFP lane counts are correct by spec but their
+                  // entPhysicalDescr text has not been seen on real hardware; a port not found here at
+                  // all (unrecognized form factor) is left unrestricted rather than risk hiding data.
+                  var laneCounts = {'SFP-DD': 2, 'QSFP-DD': 8, 'OSFP': 8, 'SFP': 1, 'QSFP': 4};
+                  var maxLanes = {};
+                  for (var pidx in descrMap) {
+                      var tm = descrMap[pidx].match(/^(SFP-DD|QSFP-DD|OSFP|SFP|QSFP)[A-Za-z0-9+]* for (\S+)$/i);
+                      if (tm) {
+                          maxLanes[tm[2]] = laneCounts[tm[1].toUpperCase()];
+                      }
+                  }
+
+                  var units = {'1':'','2':'','3':'V','4':'V','5':'mA','6':'mW','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
+                  var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
+
+                  var result = [];
+                  for (var idx in valueMap) {
+                      if (!/^-?[0-9]+$/.test(valueMap[idx])) continue;
+                      var type = typeMap[idx];
+                      if (!/^[0-9]+$/.test(type)) continue;
+                      var descr = descrMap[idx];
+                      if (descr === undefined) continue;
+
+                      var kind = kinds[type] || 'Value';
+                      // Dell's SONiC agent reports fan tachometers as entPhySensorType=unknown(2) rather
+                      // than rpm(10) - override by name since the type code alone doesn't tell us "Fan speed" here.
+                      if (descr.indexOf('Tachometers for ') === 0) kind = 'Fan speed';
+
+                      // Descriptions come in a few shapes:
+                      //   "DOM RX Power Sensor for Eth1/1/1" -> per-lane on a breakout port
+                      //   "DOM Temperature Sensor for Eth1/1" -> per-port, real interface suffix
+                      //   "Tachometers for FAN 1"            -> "for <id>", but not an interface
+                      //   "Temperature for PSU 1"            -> same, and prefix just repeats the kind
+                      //   "CPU On-board"                     -> no "for" at all
+                      var ifname = '', label = descr, display = descr, lane = 1;
+                      var m = descr.match(/^(.*) for (.+)$/);
+                      if (m) {
+                          var prefix = m[1].replace(/ Sensor$/, '');
+                          var suffix = m[2];
+                          if (/^[A-Za-z]+[0-9]+(\/[0-9]+)*$/.test(suffix)) {
+                              // A real interface name, possibly a specific lane on a breakout port
+                              // (Eth1/1/1..4). Tag with just the parent port (first two segments) so it
+                              // matches the ifName the linked "Linux by SNMP" template tags its own
+                              // interface items with, but keep the full lane path in the display name.
+                              var parts = suffix.split('/');
+                              ifname = parts.slice(0, 2).join('/');
+                              lane = parts.length > 2 ? parseInt(parts[2], 10) : 1;
+                              label = prefix;
+                              display = suffix + ' ' + prefix;
+                          } else if (prefix.toLowerCase() === kind.toLowerCase() || prefix === 'Tachometers') {
+                              // prefix only repeats what {#SENSOR_KIND} already says - keep just the
+                              // identifying part ("FAN 1", "PSU 1")
+                              label = suffix;
+                              display = suffix;
+                          } else {
+                              label = prefix + ' ' + suffix;
+                              display = label;
+                          }
+                      }
+
+                      if (ifname === '') continue; // port-associated sensors only - see sensor.chassis.discovery
+
+                      // Skip lanes beyond what this port's actual transceiver supports (e.g. lanes 2-4 on a
+                      // single-lane SFP port, which structurally don't exist and always read unavailable).
+                      var limit = maxLanes[ifname];
+                      if (limit !== undefined && lane > limit) continue;
+
+                      label = label.replace(/ Sensor$/, '');
+                      display = display.replace(/ Sensor$/, '');
+                      // Merge every PSU sub-sensor ("PSU1 Airflow", "PSU 1 FAN 1", "PSU 1") into one
+                      // "PSU 1" sensor tag value - the display name keeps the full detail, only the
+                      // tag (used for grouping/filtering) collapses.
+                      var psuMatch = label.match(/PSU\s?([0-9]+)/i);
+                      if (psuMatch) label = 'PSU ' + psuMatch[1];
+
+                      // Component classification, so these line up with the linked "Linux by SNMP"
+                      // template's own component tags (e.g. filter component:cpu to see both CPU
+                      // utilization and CPU On-board temperature together) instead of one flat "sensor".
+                      var component = 'chassis';
+                      if (descr === 'CPU On-board') component = 'cpu';
+                      else if (descr === 'ASIC On-board') component = 'asic';
+                      else if (/PSU/i.test(descr)) component = 'psu';
+                      else if (/FAN|Tachometers/i.test(descr)) component = 'fan';
+                      else if (ifname) component = 'network';
+
+                      result.push({
+                          '{#SNMPINDEX}': idx,
+                          '{#SENSOR_TYPE}': type,
+                          '{#SENSOR_SCALE}': scaleMap[idx],
+                          '{#SENSOR_PRECISION}': precMap[idx],
+                          '{#SENSOR_DESCR}': descr,
+                          '{#SENSOR_UNIT}': (kind === 'Fan speed') ? 'rpm' : (units[type] || ''),
+                          '{#SENSOR_KIND}': kind,
+                          '{#SENSOR_IFNAME}': ifname,
+                          '{#SENSOR_LABEL}': label,
+                          '{#SENSOR_DISPLAY}': display,
+                          '{#SENSOR_NAME}': (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind),
+                          '{#SENSOR_COMPONENT}': component
+                      });
+                  }
+                  return JSON.stringify(result);
+
           item_prototypes:
             - uuid: 503fcabadcca42eb8da8aac17ab745f2
               name: '{#SENSOR_DISPLAY}: Status'
@@ -154,32 +299,65 @@ zabbix_export:
                       value: '{#SENSOR_IFNAME}'
                     - tag: scope
                       value: availability
+        - uuid: 7f3622aeae6a4ae6bd742e205c015cf2
+          name: 'Sensor discovery (chassis)'
+          type: DEPENDENT
+          key: sensor.chassis.discovery
+          description: |
+            MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
+            Discovers physical sensors (temperature, fan, voltage, current, etc.) via entPhySensorTable (RFC 3433), named using the matching entPhysicalDescr from entPhysicalTable (RFC 2737) at the same entPhysicalIndex. Everything NOT port-associated ({#SENSOR_IFNAME} empty) - see sensor.discovery for port sensors.
+            Parses the raw walk from the sensor.raw master item itself - see sensor.discovery's description for why (same reasoning applies, though this rule has no lanes to limit).
+            SONiC's sonic-snmpagent is the source of this table. Confirmed POPULATED on the hardware/build this template was authored against (DellEMC-S5232f-C32, Enterprise SONiC 4.6.0 Standard) - CPU/ASIC/system temperature, PSU temperature/voltage/current/power, fan tachometers, and per-port DOM temperature all present.
+            entPhysicalTable also contains pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) that appear in this same walk but have neither an entPhySensorType nor an entPhySensorValue - polling them would immediately go "Not supported". The JS below filters those out directly, requiring both to look like real numbers; confirmed against a real walk (445 physical entities, 398 with an actual sensor row, 47 without - 47x2 = 94 "Not supported" items is what you'd see without this filter).
+          master_item:
+            key: sensor.raw
           preprocessing:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var data = JSON.parse(value);
+                  var raw = value;
+                  function parseColumn(oidPrefix) {
+                      var map = {};
+                      var re = new RegExp('\\.?' + oidPrefix.replace(/\\./g, '\\\\.') + '\\.([0-9]+)[ \\t]*=[ \\t]*(?:[A-Za-z0-9_-]+:[ \\t]*)?([^\\r\\n]*)', 'g');
+                      var m;
+                      while ((m = re.exec(raw)) !== null) {
+                          var v = m[2].replace(/\\r$/, '').replace(/\\s+$/, '');
+                          if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+                              v = v.slice(1, -1);
+                          }
+                          map[m[1]] = v;
+                      }
+                      return map;
+                  }
+                  var typeMap = parseColumn('1.3.6.1.2.1.99.1.1.1.1');
+                  var scaleMap = parseColumn('1.3.6.1.2.1.99.1.1.1.2');
+                  var precMap = parseColumn('1.3.6.1.2.1.99.1.1.1.3');
+                  var valueMap = parseColumn('1.3.6.1.2.1.99.1.1.1.4');
+                  var descrMap = parseColumn('1.3.6.1.2.1.47.1.1.1.1.2');
+
                   var units = {'1':'','2':'','3':'V','4':'V','5':'mA','6':'mW','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
                   var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
-                  for (var i = 0; i < data.length; i++) {
-                      var type = data[i]['{#SENSOR_TYPE}'];
-                      var descr = data[i]['{#SENSOR_DESCR}'];
+
+                  var result = [];
+                  for (var idx in valueMap) {
+                      if (!/^-?[0-9]+$/.test(valueMap[idx])) continue;
+                      var type = typeMap[idx];
+                      if (!/^[0-9]+$/.test(type)) continue;
+                      var descr = descrMap[idx];
+                      if (descr === undefined) continue;
+
                       var kind = kinds[type] || 'Value';
                       // Dell's SONiC agent reports fan tachometers as entPhySensorType=unknown(2) rather
                       // than rpm(10) - override by name since the type code alone doesn't tell us "Fan speed" here.
-                      if (descr.indexOf('Tachometers for ') === 0) {
-                          kind = 'Fan speed';
-                      }
-                      data[i]['{#SENSOR_UNIT}'] = (kind === 'Fan speed') ? 'rpm' : (units[type] || '');
-                      data[i]['{#SENSOR_KIND}'] = kind;
-                  
+                      if (descr.indexOf('Tachometers for ') === 0) kind = 'Fan speed';
+
                       // Descriptions come in a few shapes:
                       //   "DOM RX Power Sensor for Eth1/1/1" -> per-lane on a breakout port
                       //   "DOM Temperature Sensor for Eth1/1" -> per-port, real interface suffix
                       //   "Tachometers for FAN 1"            -> "for <id>", but not an interface
                       //   "Temperature for PSU 1"            -> same, and prefix just repeats the kind
                       //   "CPU On-board"                     -> no "for" at all
-                      var ifname = '', label = descr, display = descr;
+                      var ifname = '', label = descr, display = descr, lane = 1;
                       var m = descr.match(/^(.*) for (.+)$/);
                       if (m) {
                           var prefix = m[1].replace(/ Sensor$/, '');
@@ -189,7 +367,9 @@ zabbix_export:
                               // (Eth1/1/1..4). Tag with just the parent port (first two segments) so it
                               // matches the ifName the linked "Linux by SNMP" template tags its own
                               // interface items with, but keep the full lane path in the display name.
-                              ifname = suffix.split('/').slice(0, 2).join('/');
+                              var parts = suffix.split('/');
+                              ifname = parts.slice(0, 2).join('/');
+                              lane = parts.length > 2 ? parseInt(parts[2], 10) : 1;
                               label = prefix;
                               display = suffix + ' ' + prefix;
                           } else if (prefix.toLowerCase() === kind.toLowerCase() || prefix === 'Tachometers') {
@@ -202,21 +382,16 @@ zabbix_export:
                               display = label;
                           }
                       }
+
+                      if (ifname !== '') continue; // everything NOT port-associated - see sensor.discovery
+
                       label = label.replace(/ Sensor$/, '');
                       display = display.replace(/ Sensor$/, '');
                       // Merge every PSU sub-sensor ("PSU1 Airflow", "PSU 1 FAN 1", "PSU 1") into one
                       // "PSU 1" sensor tag value - the display name keeps the full detail, only the
                       // tag (used for grouping/filtering) collapses.
                       var psuMatch = label.match(/PSU\s?([0-9]+)/i);
-                      if (psuMatch) {
-                          label = 'PSU ' + psuMatch[1];
-                      }
-                      data[i]['{#SENSOR_IFNAME}'] = ifname;
-                      data[i]['{#SENSOR_LABEL}'] = label;
-                      data[i]['{#SENSOR_DISPLAY}'] = display;
-                      // Only append the kind if it isn't already implied by the display text
-                      // (avoids "DOM Temperature: Temperature" while still adding it to "CPU On-board").
-                      data[i]['{#SENSOR_NAME}'] = (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind);
+                      if (psuMatch) label = 'PSU ' + psuMatch[1];
 
                       // Component classification, so these line up with the linked "Linux by SNMP"
                       // template's own component tags (e.g. filter component:cpu to see both CPU
@@ -227,26 +402,24 @@ zabbix_export:
                       else if (/PSU/i.test(descr)) component = 'psu';
                       else if (/FAN|Tachometers/i.test(descr)) component = 'fan';
                       else if (ifname) component = 'network';
-                      data[i]['{#SENSOR_COMPONENT}'] = component;
+
+                      result.push({
+                          '{#SNMPINDEX}': idx,
+                          '{#SENSOR_TYPE}': type,
+                          '{#SENSOR_SCALE}': scaleMap[idx],
+                          '{#SENSOR_PRECISION}': precMap[idx],
+                          '{#SENSOR_DESCR}': descr,
+                          '{#SENSOR_UNIT}': (kind === 'Fan speed') ? 'rpm' : (units[type] || ''),
+                          '{#SENSOR_KIND}': kind,
+                          '{#SENSOR_IFNAME}': ifname,
+                          '{#SENSOR_LABEL}': label,
+                          '{#SENSOR_DISPLAY}': display,
+                          '{#SENSOR_NAME}': (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind),
+                          '{#SENSOR_COMPONENT}': component
+                      });
                   }
-                  data = data.filter(function(row) {
-                      return /^-?[0-9]+$/.test(row['{#SENSOR_HASVALUE}']) &&
-                             /^[0-9]+$/.test(row['{#SENSOR_TYPE}']) &&
-                             row['{#SENSOR_IFNAME}'] !== '';
-                  });
-                  return JSON.stringify(data);
-        - uuid: 7f3622aeae6a4ae6bd742e205c015cf2
-          name: 'Sensor discovery (chassis)'
-          type: SNMP_AGENT
-          snmp_oid: 'discovery[{#SENSOR_HASVALUE},1.3.6.1.2.1.99.1.1.1.4,{#SENSOR_TYPE},1.3.6.1.2.1.99.1.1.1.1,{#SENSOR_SCALE},1.3.6.1.2.1.99.1.1.1.2,{#SENSOR_PRECISION},1.3.6.1.2.1.99.1.1.1.3,{#SENSOR_DESCR},1.3.6.1.2.1.47.1.1.1.1.2]'
-          key: sensor.chassis.discovery
-          delay: 15m
-          description: |
-            MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
-            Discovers physical sensors (temperature, fan, voltage, current, etc.) via entPhySensorTable (RFC 3433), named using the matching entPhysicalDescr from entPhysicalTable (RFC 2737) at the same entPhysicalIndex. Everything NOT port-associated ({#SENSOR_IFNAME} empty) - see sensor.discovery for port sensors.
-            No discovery-rule filter here (see sensor.discovery's description for why) - the JS preprocessing below filters the array directly instead.
-            SONiC's sonic-snmpagent is the source of this table. Confirmed POPULATED on the hardware/build this template was authored against (DellEMC-S5232f-C32, Enterprise SONiC 4.6.0 Standard) - CPU/ASIC/system temperature, PSU temperature/voltage/current/power, fan tachometers, and per-port DOM temperature all present.
-            entPhysicalTable also contains pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) that appear in this same walk but have neither an entPhySensorType nor an entPhySensorValue - polling them would immediately go "Not supported". The filter below requires both to look like real numbers before an item gets created; confirmed against a real walk (445 physical entities, 398 with an actual sensor row, 47 without - 47x2 = 94 "Not supported" items is what you'd see without this filter).
+                  return JSON.stringify(result);
+
           item_prototypes:
             - uuid: ff61fd195baa4f02b0949008c41ed22a
               name: '{#SENSOR_DISPLAY}: Status'
@@ -332,87 +505,7 @@ zabbix_export:
                   tags:
                     - tag: scope
                       value: availability
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var data = JSON.parse(value);
-                  var units = {'1':'','2':'','3':'V','4':'V','5':'A','6':'W','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
-                  var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
-                  for (var i = 0; i < data.length; i++) {
-                      var type = data[i]['{#SENSOR_TYPE}'];
-                      var descr = data[i]['{#SENSOR_DESCR}'];
-                      var kind = kinds[type] || 'Value';
-                      // Dell's SONiC agent reports fan tachometers as entPhySensorType=unknown(2) rather
-                      // than rpm(10) - override by name since the type code alone doesn't tell us "Fan speed" here.
-                      if (descr.indexOf('Tachometers for ') === 0) {
-                          kind = 'Fan speed';
-                      }
-                      data[i]['{#SENSOR_UNIT}'] = (kind === 'Fan speed') ? 'rpm' : (units[type] || '');
-                      data[i]['{#SENSOR_KIND}'] = kind;
-                  
-                      // Descriptions come in a few shapes:
-                      //   "DOM RX Power Sensor for Eth1/1/1" -> per-lane on a breakout port
-                      //   "DOM Temperature Sensor for Eth1/1" -> per-port, real interface suffix
-                      //   "Tachometers for FAN 1"            -> "for <id>", but not an interface
-                      //   "Temperature for PSU 1"            -> same, and prefix just repeats the kind
-                      //   "CPU On-board"                     -> no "for" at all
-                      var ifname = '', label = descr, display = descr;
-                      var m = descr.match(/^(.*) for (.+)$/);
-                      if (m) {
-                          var prefix = m[1].replace(/ Sensor$/, '');
-                          var suffix = m[2];
-                          if (/^[A-Za-z]+[0-9]+(\/[0-9]+)*$/.test(suffix)) {
-                              // A real interface name, possibly a specific lane on a breakout port
-                              // (Eth1/1/1..4). Tag with just the parent port (first two segments) so it
-                              // matches the ifName the linked "Linux by SNMP" template tags its own
-                              // interface items with, but keep the full lane path in the display name.
-                              ifname = suffix.split('/').slice(0, 2).join('/');
-                              label = prefix;
-                              display = suffix + ' ' + prefix;
-                          } else if (prefix.toLowerCase() === kind.toLowerCase() || prefix === 'Tachometers') {
-                              // prefix only repeats what {#SENSOR_KIND} already says - keep just the
-                              // identifying part ("FAN 1", "PSU 1")
-                              label = suffix;
-                              display = suffix;
-                          } else {
-                              label = prefix + ' ' + suffix;
-                              display = label;
-                          }
-                      }
-                      label = label.replace(/ Sensor$/, '');
-                      display = display.replace(/ Sensor$/, '');
-                      // Merge every PSU sub-sensor ("PSU1 Airflow", "PSU 1 FAN 1", "PSU 1") into one
-                      // "PSU 1" sensor tag value - the display name keeps the full detail, only the
-                      // tag (used for grouping/filtering) collapses.
-                      var psuMatch = label.match(/PSU\s?([0-9]+)/i);
-                      if (psuMatch) {
-                          label = 'PSU ' + psuMatch[1];
-                      }
-                      data[i]['{#SENSOR_IFNAME}'] = ifname;
-                      data[i]['{#SENSOR_LABEL}'] = label;
-                      data[i]['{#SENSOR_DISPLAY}'] = display;
-                      // Only append the kind if it isn't already implied by the display text
-                      // (avoids "DOM Temperature: Temperature" while still adding it to "CPU On-board").
-                      data[i]['{#SENSOR_NAME}'] = (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind);
 
-                      // Component classification, so these line up with the linked "Linux by SNMP"
-                      // template's own component tags (e.g. filter component:cpu to see both CPU
-                      // utilization and CPU On-board temperature together) instead of one flat "sensor".
-                      var component = 'chassis';
-                      if (descr === 'CPU On-board') component = 'cpu';
-                      else if (descr === 'ASIC On-board') component = 'asic';
-                      else if (/PSU/i.test(descr)) component = 'psu';
-                      else if (/FAN|Tachometers/i.test(descr)) component = 'fan';
-                      else if (ifname) component = 'network';
-                      data[i]['{#SENSOR_COMPONENT}'] = component;
-                  }
-                  data = data.filter(function(row) {
-                      return /^-?[0-9]+$/.test(row['{#SENSOR_HASVALUE}']) &&
-                             /^[0-9]+$/.test(row['{#SENSOR_TYPE}']) &&
-                             row['{#SENSOR_IFNAME}'] === '';
-                  });
-                  return JSON.stringify(data);
       tags:
         - tag: class
           value: network
