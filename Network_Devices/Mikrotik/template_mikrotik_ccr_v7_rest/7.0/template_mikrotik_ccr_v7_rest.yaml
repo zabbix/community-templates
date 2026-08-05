@@ -24,7 +24,8 @@ zabbix_export:
             — disabled is treated as "maintenance", NOT as an alert state
           - Connection tracking: total, IPv4, IPv6, max, utilisation %
 
-        Validated 2026-05-21 against CCR2004-1G-12S+2XS, RouterOS 7.21.4 (long-term).
+        Validated against CCR2004-1G-12S+2XS and CCR2116, RouterOS 7.21.4 (long-term)
+        through 7.23.
 
         Requires per-host:
           - {$ROUTEROS.REST.USER} and {$ROUTEROS.REST.PASSWORD} (SECRET_TEXT)
@@ -79,6 +80,21 @@ zabbix_export:
         - macro: '{$ROUTEROS.BGP.SESSION.MATCHES}'
           value: '.*'
           description: 'Regex of BGP session names to include.'
+        - macro: '{$ROUTEROS.BGP.CHANGE.MATCHES}'
+          value: '.*'
+          description: |
+            Regex of BGP session names that get the two "prefix count changed" triggers
+            (received and sent). Defaults to all discovered sessions.
+            TUNE THIS. Those triggers fire on ANY movement in the prefix count, in either
+            direction, and they are sticky (manual close). On a session whose count moves
+            routinely — a full-table eBGP peer, or any peer where you add and withdraw
+            prefixes deliberately — a problem will be raised almost immediately and stay
+            open until you close it. They are most useful on sessions where the prefix
+            count is expected to be STABLE, so that any movement is by definition
+            unexpected: iBGP / route-reflector sessions, or peers carrying a small fixed
+            prefix set.
+            Narrow to those sessions (e.g. '^ibgp-'), or set to '^$' to disable both
+            triggers entirely.
         - macro: '{$ROUTEROS.VRRP.NAME.MATCHES}'
           value: '.*'
           description: 'Regex of VRRP names to include.'
@@ -1826,11 +1842,16 @@ zabbix_export:
             - uuid: 9248df5c9e344421ace2eb6e1516e124
               expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.prefix_count[{#BGP_NAME}])=0 and last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=1 and (change(/MikroTik CCR v7 REST/routeros.bgp.prefix_count[{#BGP_NAME}])<>0 or change(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])>0)'
               name: 'BGP {#BGP_NAME}: established with 0 prefixes received'
-              priority: WARNING
+              priority: HIGH
               recovery_mode: NONE
               manual_close: 'YES'
               description: |
                 Session is up but receives no routes — filter chain issue or peer advertises nothing.
+                Rated HIGH (matching "0 prefixes sent") because this is a silently-degraded
+                state rather than a visible outage: on an upstream session no routes are being
+                learned from that peer, and traffic may still flow via a static default route,
+                masking the fault; on an iBGP or route-reflector session it means the mesh has
+                gone empty. Neither shows up as a down interface or a down session.
                 EDGE-TRIGGERED: fires only on the transition into the bad state (received-prefix
                 count moves to 0, or the session (re)establishes already at 0). While it sits flat
                 at 0 the expression is false, so recovery_mode NONE + manual_close means a manual
@@ -1887,6 +1908,66 @@ zabbix_export:
                 - tag: peer
                   value: '{#BGP_NAME}'
 
+            - uuid: dd78256dff9644939fa78475c1a6b5d5
+              expression: 'change(/MikroTik CCR v7 REST/routeros.bgp.prefix_count[{#BGP_NAME}])<>0 and last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=1'
+              name: 'BGP {#BGP_NAME}: prefix count (received) changed'
+              priority: HIGH
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Received-prefix count moved (ANY change, in either direction) while the
+                session is established. Catches PARTIAL withdraws that the "0 prefixes
+                received" trigger cannot see — one prefix disappearing out of several,
+                because it went inactive at the advertising end or an outbound filter entry
+                was removed there. A drop from N to N-1 never reaches 0, so only this
+                trigger sees it.
+                EDGE-TRIGGERED and sticky (recovery_mode NONE, manual close): a problem is
+                raised on the first change and stays open as the record of it; close it once
+                you have reconciled the new count against what you expect, which re-arms it.
+                Suppressed while the session is down (dependency), but note it will fire once
+                on session re-establishment as the count returns.
+                SCOPED by {$ROUTEROS.BGP.CHANGE.MATCHES} via an LLD override — read that
+                macro's description before relying on this trigger, as the default (all
+                sessions) is noisy on peers whose prefix count moves routinely.
+              dependencies:
+                - name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): session not established'
+                  expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=0'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
+            - uuid: 64dbac6622004ccfb4a0ded83cf247f5
+              expression: 'change(/MikroTik CCR v7 REST/routeros.bgp.sent_count[{#BGP_NAME}])<>0 and last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=1'
+              name: 'BGP {#BGP_NAME}: prefix count (sent) changed'
+              priority: HIGH
+              recovery_mode: NONE
+              manual_close: 'YES'
+              description: |
+                Sent-prefix count moved (ANY change, in either direction) while the session
+                is established. Catches PARTIAL withdraws that the "0 prefixes sent" trigger
+                cannot see: going from N to N-1 when a single origination goes inactive fires
+                HERE, never at 0.
+                EDGE-TRIGGERED and sticky (recovery_mode NONE, manual close): a problem is
+                raised on the first change and stays open as the record of it; close it once
+                you have reconciled the new count against what you expect, which re-arms it.
+                Suppressed while the session is down (dependency), but note it will fire once
+                on session re-establishment as the count returns.
+                SCOPED by {$ROUTEROS.BGP.CHANGE.MATCHES} via an LLD override — read that
+                macro's description before relying on this trigger.
+                LIMITATION: it cannot see a prefix that was never advertised in the first
+                place, because nothing changed. Confirming that intended originations are
+                actually present is a provisioning-time check, not something this covers.
+              dependencies:
+                - name: 'BGP {#BGP_NAME} (AS{#BGP_REMOTE_AS}): session not established'
+                  expression: 'last(/MikroTik CCR v7 REST/routeros.bgp.established[{#BGP_NAME}])=0'
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: peer
+                  value: '{#BGP_NAME}'
+
           graph_prototypes:
             - uuid: 1439c41243914fd8ac5da39e8b766dd9
               name: 'BGP {#BGP_NAME}: prefixes (sent/received)'
@@ -1918,6 +1999,20 @@ zabbix_export:
                   item:
                     host: 'MikroTik CCR v7 REST'
                     key: 'routeros.bgp.remote_bytes[{#BGP_NAME}]'
+          overrides:
+            - name: 'Prefix-count-change triggers: only for sessions matching {$ROUTEROS.BGP.CHANGE.MATCHES}'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#BGP_NAME}'
+                    value: '{$ROUTEROS.BGP.CHANGE.MATCHES}'
+                    operator: NOT_MATCHES_REGEX
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: 'changed$'
+                  discover: NO_DISCOVER
 
         # ---------------- VRRP LLD (REST) ----------------
         - uuid: 9e0d238e194e45e7abb33558f47a3605
@@ -2068,7 +2163,8 @@ zabbix_export:
               expression: '(last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=0 or last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])=1) and last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])<>{$ROUTEROS.VRRP.EXPECTED_STATE}'
               name: 'VRRP {#VRRP_NAME}: not in expected role'
               priority: DISASTER
-              recovery_mode: NONE
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/MikroTik CCR v7 REST/routeros.vrrp.state[{#VRRP_NAME}])={$ROUTEROS.VRRP.EXPECTED_STATE}'
               manual_close: 'YES'
               description: |
                 Current state is master or backup but does not match the host-level
@@ -2079,6 +2175,12 @@ zabbix_export:
                     if vrrp-uplink should specifically be backup on this host.
                 init/fault, invalid, disabled (maintenance) states are handled by other
                 triggers and do not fire this one.
+                Recovery: auto-resolves only when the state returns to the role the macro
+                expects — deliberately NOT when the VRRP merely leaves master/backup for
+                init/fault/invalid, which is a different problem owned by another trigger.
+                This rides through a transient fault during failback instead of flapping
+                closed and reopening. manual_close remains available for the case where the
+                box is intentionally left in maintenance with the problem still open.
               tags:
                 - tag: component
                   value: vrrp
