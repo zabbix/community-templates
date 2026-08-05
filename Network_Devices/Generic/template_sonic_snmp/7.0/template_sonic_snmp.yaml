@@ -87,7 +87,7 @@ zabbix_export:
                   expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SNMPINDEX}])=2 and {$SENSOR.DOM.IGNORE:"{#SENSOR_IFNAME}"}=0'
                   name: 'SONiC: {#SENSOR_DISPLAY} is unavailable'
                   priority: WARNING
-                  description: 'unavailable(2) commonly means the port''s transceiver does not support this measurement at all (e.g. RX/TX optical power and TX bias on a copper SFP-to-RJ45 module have no laser/photodiode to read), not that something is broken - non-operational(3) is the one that indicates an actual fault. Set {$SENSOR.DOM.IGNORE:"<ifname>"}=1 at the host level for ports with known non-optical transceivers to silence this without touching the item itself.'
+                  description: 'unavailable(2) commonly does not mean anything is broken - non-operational(3) is the one that indicates an actual fault. Two known-benign causes: (1) a single-lane SFP/SFP28 port still gets 4 lane-slots allocated in entPhySensorTable the same as a QSFP port, so lanes 2-4 permanently report unavailable regardless of what is plugged in (confirmed: an SFP port''s lane 1 read ok(1) while lanes 2-4 read unavailable(2), against a QSFP28 port on the same switch where all 4 lanes read ok); (2) a non-optical transceiver (e.g. an SFP-to-RJ45 copper module) has no laser/photodiode, so RX/TX power and TX bias are permanently unavailable on every lane. Set {$SENSOR.DOM.IGNORE:"<ifname>"}=1 at the host level (parent port, not the lane) to silence this without touching the item itself.'
                   dependencies:
                     - name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
                       expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SNMPINDEX}])=3'
@@ -106,16 +106,21 @@ zabbix_export:
               units: '{#SENSOR_UNIT}'
               description: |
                 MIB: ENTITY-SENSOR-MIB
-                entPhySensorValue, normalized using entPhySensorScale ({#SENSOR_SCALE}) and entPhySensorPrecision ({#SENSOR_PRECISION}) per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType ({#SENSOR_TYPE}).
+                entPhySensorValue, normalized using entPhySensorScale ({#SENSOR_SCALE}) and entPhySensorPrecision ({#SENSOR_PRECISION}) per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType ({#SENSOR_TYPE}). Power/current (RX/TX optical power, TX bias) are further scaled to mW/mA - the raw SI value is a small fraction of a watt/amp and unreadable otherwise. See {#SENSOR_UNIT} for the resulting unit.
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
                     - |
                       var scale = parseInt('{#SENSOR_SCALE}', 10);
                       var precision = parseInt('{#SENSOR_PRECISION}', 10);
+                      var type = '{#SENSOR_TYPE}';
                       var exponents = {1:-24,2:-21,3:-18,4:-15,5:-12,6:-9,7:-6,8:-3,9:0,10:3,11:6,12:9,13:12,14:15,15:18,16:21,17:24};
                       var exp = (exponents[scale] !== undefined ? exponents[scale] : 0) - precision;
-                      return parseFloat(value) * Math.pow(10, exp);
+                      var result = parseFloat(value) * Math.pow(10, exp);
+                      if (type === '5' || type === '6') {
+                          result = result * 1000; // amperes/watts -> milliamps/milliwatts (this rule is port/DOM-associated only)
+                      }
+                      return result;
               tags:
                 - tag: component
                   value: '{#SENSOR_COMPONENT}'
@@ -154,7 +159,7 @@ zabbix_export:
               parameters:
                 - |
                   var data = JSON.parse(value);
-                  var units = {'1':'','2':'','3':'V','4':'V','5':'A','6':'W','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
+                  var units = {'1':'','2':'','3':'V','4':'V','5':'mA','6':'mW','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
                   var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
                   for (var i = 0; i < data.length; i++) {
                       var type = data[i]['{#SENSOR_TYPE}'];
@@ -416,7 +421,7 @@ zabbix_export:
       macros:
         - macro: '{$SENSOR.DOM.IGNORE}'
           value: '0'
-          description: 'Set to 1 with an interface context (e.g. {$SENSOR.DOM.IGNORE:"Eth1/34"}=1 at the host level) to silence the "is unavailable" trigger for a port''s DOM sensors - useful for ports with a non-optical transceiver (e.g. an SFP-to-RJ45 copper module), which will always report RX/TX power and TX bias as unavailable(2) since there is no laser/photodiode to read. Does not affect non-operational(3), which still alerts.'
+          description: 'Set to 1 with an interface context (e.g. {$SENSOR.DOM.IGNORE:"Eth1/34"}=1 at the host level, parent port not lane) to silence the "is unavailable" trigger for a port''s DOM sensors. Two known-benign causes this covers: a single-lane SFP/SFP28 port still gets 4 lane-slots in entPhySensorTable, so lanes 2-4 permanently read unavailable regardless of media type; and a non-optical transceiver (e.g. SFP-to-RJ45 copper) has no laser/photodiode for RX/TX power or TX bias on any lane. Does not affect non-operational(3), which still alerts.'
         - macro: '{$SENSOR.TEMP.CRIT}'
           value: '65'
           description: 'Critical temperature threshold (deg C) for ENTITY-SENSOR-MIB sensors of type celsius(8). Verify against real sensor readings before relying on it.'
