@@ -77,4 +77,6 @@ Standalone, pure-REST Zabbix template for MikroTik CCR routers. Does not require
 
 ## License
 
-MIT License. Maintained by [@paskotis](https://github.com/paskotis) in this repository; this directory is the canonical source for the template.
+MIT License. Maintained by [@paskotis](https://github.com/paskotis).
+
+Development happens at [paskotis/mikrotik-ccr-v7-rest-zabbix-template](https://github.com/paskotis/mikrotik-ccr-v7-rest-zabbix-template), which carries the changelog and release tags. **Please file issues and feature requests there** rather than against this repository. Releases are published here by pull request, so this copy may lag slightly.
