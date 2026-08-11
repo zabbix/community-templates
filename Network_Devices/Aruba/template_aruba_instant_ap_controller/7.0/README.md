@@ -16,6 +16,7 @@ Monitors:
 - Network interfaces
 - Managed SSIDs
 
+Note: "Uptime (hardware)" needs HOST-RESOURCES-MIB, not supported on all Aruba Instant AP firmware — may show as unsupported.
 
 ## Author
 
@@ -30,10 +31,11 @@ Christos Diamantis (christos-diamantis)
 |{$ICMP_RESPONSE_TIME_WARN}|<p>-</p>|`0.15`|Text macro|
 |{$IF.ERRORS.WARN}|<p>-</p>|`2`|Text macro|
 |{$IF.UTIL.MAX}|<p>-</p>|`90`|Text macro|
-|{$MEMORY.UTIL.MAX}|<p>-</p>|`1`|Text macro|
+|{$IFCONTROL}|Set to 0 per-interface to ignore link down.|`1`|Text macro|
+|{$MEMORY.UTIL.MAX}|<p>-</p>|`80`|Text macro|
 |{$NET.IF.IFADMINSTATUS.MATCHES}|<p>-</p>|`^.*`|Text macro|
 |{$NET.IF.IFADMINSTATUS.NOT_MATCHES}|Ignore down(2) administrative status|`^2$`|Text macro|
-|{$NET.IF.IFALIAS.MATCHES}|<p>-</p>|`.*`|Text macro|
+|{$NET.IF.IFALIAS.MATCHES}|filter out anything empty|`.*`|Text macro|
 |{$NET.IF.IFALIAS.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
 |{$NET.IF.IFDESCR.MATCHES}|<p>-</p>|`.*`|Text macro|
 |{$NET.IF.IFDESCR.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
@@ -41,7 +43,7 @@ Christos Diamantis (christos-diamantis)
 |{$NET.IF.IFNAME.NOT_MATCHES}|Filter out loopbacks, nulls, docker veth links and docker0 bridge by default|`(^Software Loopback Interface\|^NULL[0-9.]*$\|^[Ll]o[0-9.]*$\|^[Ss]ystem$\|^Nu[0-9.]*$\|^veth[0-9a-z]+$\|docker[0-9]+\|br-[a-z0-9]{12})`|Text macro|
 |{$NET.IF.IFOPERSTATUS.MATCHES}|<p>-</p>|`^.*$`|Text macro|
 |{$NET.IF.IFOPERSTATUS.NOT_MATCHES}|Ignore notPresent(6)|`^6$`|Text macro|
-|{$NET.IF.IFTYPE.MATCHES}|<p>-</p>|`^.*$`|Text macro|
+|{$NET.IF.IFTYPE.MATCHES}|<p>-</p>|`.*`|Text macro|
 |{$NET.IF.IFTYPE.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
 |{$SNMP.TIMEOUT}|The time interval for SNMP agent availability trigger expression.|`5m`|Text macro|
 
@@ -53,10 +55,10 @@ There are no template links in this template.
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|----|
-|Access point clients discovery|<p>-</p>|`Dependent item`|aruba.ap.clients.discovery|
-|APs discovery|<p>-</p>|`Dependent item`|aruba.ap.discovery|
-|Network interfaces discovery|<p>-</p>|`Dependent item`|net.if.discovery|
-|SSID discovery|<p>-</p>|`Dependent item`|aruba.ssid.discovery|
+|Access point clients discovery|Cleans up stale entries after 1h (`lifetime: 1h`).|`Dependent item`|aruba.ap.clients.discovery|
+|APs discovery|Cleans up stale entries after 1h (`lifetime: 1h`).|`Dependent item`|aruba.ap.discovery|
+|Network interfaces discovery|Cleans up stale entries after 1h (`lifetime: 1h`, never auto-disables).|`Dependent item`|net.if.discovery|
+|SSID discovery|Cleans up stale entries after 1h (`lifetime: 1h`).|`Dependent item`|aruba.ssid.discovery|
 
 ## Items collected
 
@@ -74,12 +76,12 @@ There are no template links in this template.
 |Aruba AP Controller: SNMP walk AP clients|Discovering Access point clients from AI-AP-MIB.|`SNMP agent`|aruba.ap.clients.walk|
 |Aruba AP Controller: SNMP walk access points|Discovering Access Points from AI-AP-MIB.|`SNMP agent`|aruba.ap.walk|
 |Aruba AP Controller: SNMP traps (fallback)|The item is used to collect all SNMP traps unmatched by other snmptrap items|`SNMP trap`|snmptrap.fallback|
-|Aruba AP Controller: SNMP agent availability|<p>-</p>|`Zabbix internal`|zabbix[host,snmp,available]|
+|Aruba AP Controller: SNMP agent availability|Value is human-readable via the `zabbix.host.available` valuemap (0=not available, 1=available, 2=unknown).|`Zabbix internal`|zabbix[host,snmp,available]|
 |Aruba AP Controller: Operating system|MIB: SNMPv2-MIB|`SNMP agent`|system.sw.os[sysDescr.0]|
 |Aruba AP Controller: ICMP response time|<p>-</p>|`Simple check`|icmppingsec|
 |Aruba AP Controller: ICMP ping|<p>-</p>|`Simple check`|icmpping|
 |Aruba AP Controller: ICMP loss|<p>-</p>|`Simple check`|icmppingloss|
-|Aruba AP Controller: Controller version|MIB: ENTITY-MIB|`SNMP agent`|aruba.ap.ctrl.version|
+|Aruba AP Controller: Controller version|MIB: AI-AP-MIB|`SNMP agent`|aruba.ap.ctrl.version|
 |Client: {#CLIENT.NAME} ({#CLIENT.IP.ADDR}): Bits received|AI-AP-MIB<p>Bits rate received by the client.</p>|`Dependent item`|aruba.ap.clients[bits.in.{#CLIENT.MAC.ADDR}]<p>LLD</p>|
 |Client: {#CLIENT.NAME} ({#CLIENT.IP.ADDR}): Bits sent|AI-AP-MIB<p>Bits rate transmitted by the client.</p>|`Dependent item`|aruba.ap.clients[bits.out.{#CLIENT.MAC.ADDR}]<p>LLD</p>|
 |Client: {#CLIENT.NAME} ({#CLIENT.IP.ADDR}): Operating System|AI-AP-MIB<p>Operating system of client</p>|`Dependent item`|aruba.ap.clients[os.{#CLIENT.MAC.ADDR}]<p>LLD</p>|
@@ -101,7 +103,7 @@ There are no template links in this template.
 |Interface {#IFNAME}({#IFALIAS}): Outbound packets discarded|MIB: IF-MIB<p>The number of outbound packets which were chosen to be discarded even though no errors had been detected to prevent their being deliverable to a higher-layer protocol. One possible reason for discarding such a packet could be to free up buffer space. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.</p>|`Dependent item`|net.if.out.discards[ifOutDiscards.{#SNMPINDEX}]<p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Outbound packets with errors|MIB: IF-MIB<p>For packet-oriented interfaces, the number of outbound packets that contained errors preventing them from being deliverable to a higher-layer protocol.  For character-oriented or fixed-length interfaces, the number of outbound transmission units that contained errors preventing them from being deliverable to a higher-layer protocol. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.</p>|`Dependent item`|net.if.out.errors[ifOutErrors.{#SNMPINDEX}]<p>LLD</p>|
 |Interface {#IFNAME}({#IFALIAS}): Speed|MIB: IF-MIB<p>An estimate of the interface's current bandwidth in units of 1,000,000 bits per second. If this object reports a value of `n' then the speed of the interface is somewhere in the range of `n-500,000' to`n+499,999'.  For interfaces which do not vary in bandwidth or for those where no accurate estimation can be made, this object should contain the nominal bandwidth. For a sub-layer which has no concept of bandwidth, this object should be zero.</p>|`Dependent item`|net.if.speed[ifHighSpeed.{#SNMPINDEX}]<p>LLD</p>|
-|SSID: {#SSID.NAME}: Hide status|AI-AP-MIB<p>Indicates whether the SSID hide is enabled(0) or disabled(1)</p>|`Dependent item`|aruba.ssid[status.hide.{#SSID.NAME}]<p>LLD</p>|
+|SSID: {#SSID.NAME}: Hide status|AI-AP-MIB<p>Indicates whether SSID hide is enabled(1)/hidden or disabled(0)/broadcast.</p>|`Dependent item`|aruba.ssid[status.hide.{#SSID.NAME}]<p>LLD</p>|
 |SSID: {#SSID.NAME}: Number of clients|AI-AP-MIB<p>Number of clients connected to the SSID.</p>|`Dependent item`|aruba.ssid[clients.num.{#SSID.NAME}]<p>LLD</p>|
 |SSID: {#SSID.NAME}: Status|AI-AP-MIB<p>Indicates whether the SSID is enabled(0) or disabled(1)</p>|`Dependent item`|aruba.ssid[status.{#SSID.NAME}]<p>LLD</p>|
 
@@ -124,5 +126,7 @@ There are no template links in this template.
 |Interface {#IFNAME}({#IFALIAS}): High bandwidth usage|<p>The utilization of the network interface is close to its estimated maximum bandwidth.</p>|<p>**Expression**: (avg(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) or avg(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])) and last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0</p><p>**Recovery expression**: avg(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) and avg(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])</p>|warning|
 |Interface {#IFNAME}({#IFALIAS}): High error rate|<p>It recovers when it is below 80% of the `{$IF.ERRORS.WARN:"{#IFNAME}"}` threshold.</p>|<p>min(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"} or min(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"}</p><p>**Recovery expression**: max(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)<{$IF.ERRORS.WARN:"{#IFNAME}"}*0.8 and max(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)<{$IF.ERRORS.WARN:"{#IFNAME}"}*0.8</p>|warning|
 |Interface {#IFNAME}({#IFALIAS}): Link down|<p>This trigger expression works as follows: 1. It can be triggered if the operations status is down. 2. `{$IFCONTROL:"{#IFNAME}"}=1` - a user can redefine context macro to value - 0. That marks this interface as not important. No new trigger will be fired if this interface is down. 3. `{TEMPLATE_NAME:METRIC.diff()}=1` - the trigger fires only if the operational status was up to (1) sometime before (so, do not fire for the 'eternal off' interfaces.) WARNING: if closed manually - it will not fire again on the next poll, because of .diff.</p>|<p>**Expression**: {$IFCONTROL:"{#IFNAME}"}=1 and last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))</p><p>**Recovery expression**: last(/ADAPTERA - Aruba Instant AP Controller by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2 or {$IFCONTROL:"{#IFNAME}"}=0</p>|average|
+|SSID: {#SSID.NAME} status has changed|<p>The enabled/disabled status of this SSID has changed. Acknowledge to close the problem manually.</p>|<p>**Expression**: last(/ADAPTERA - Aruba Instant AP Controller by SNMP/aruba.ssid[status.{#SSID.NAME}],#1)<>last(/ADAPTERA - Aruba Instant AP Controller by SNMP/aruba.ssid[status.{#SSID.NAME}],#2)</p><p>**Recovery expression**: </p>|information|
+|SSID: {#SSID.NAME} hide status has changed|<p>Whether this SSID is broadcast or hidden has changed. Acknowledge to close the problem manually.</p>|<p>**Expression**: last(/ADAPTERA - Aruba Instant AP Controller by SNMP/aruba.ssid[status.hide.{#SSID.NAME}],#1)<>last(/ADAPTERA - Aruba Instant AP Controller by SNMP/aruba.ssid[status.hide.{#SSID.NAME}],#2)</p><p>**Recovery expression**: </p>|information|
 
 
