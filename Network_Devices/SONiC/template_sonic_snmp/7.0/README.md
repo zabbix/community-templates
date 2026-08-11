@@ -6,7 +6,7 @@ Monitors switches running **SONiC** (Software for Open Networking in the Cloud) 
 
 ## Why this template is thin
 
-SONiC doesn't implement Dell's legacy Force10 chassis MIB (`F10-S-SERIES-CHASSIS-MIB`, used by [Dell Force S-Series by SNMP](https://git.zabbix.com/projects/ZBX/repos/zabbix/browse/templates/net/dell_force_s_series_snmp)) or OS10's proprietary chassis MIB (`DELLEMC-OS10-CHASSIS-MIB`, used by [Dell SmartFabric OS10 by SNMP](../../Dell/template_smartfabric_os10_snmp)). Migrating a switch from FTOS/OS10 to SONiC? Use this template instead - those chassis/CPU/fan/PSU OIDs won't resolve.
+SONiC doesn't implement Dell's legacy Force10 chassis MIB (`F10-S-SERIES-CHASSIS-MIB`, used by [Dell Force S-Series by SNMP](https://git.zabbix.com/projects/ZBX/repos/zabbix/browse/templates/net/dell_force_s_series_snmp)) or OS10's proprietary chassis MIB (`DELLEMC-OS10-CHASSIS-MIB`, used by [Dell SmartFabric OS10 by SNMP](../../../Dell/template_smartfabric_os10_snmp)). Migrating a switch from FTOS/OS10 to SONiC? Use this template instead - those chassis/CPU/fan/PSU OIDs won't resolve.
 
 Instead of reimplementing host, interface and filesystem monitoring, **this template links to the official "Linux by SNMP" template** and only adds physical chassis sensors via the standards-based `ENTITY-MIB`/`ENTITY-SENSOR-MIB`. Attaching just "SONiC by SNMP" to a host also pulls in everything from "Linux by SNMP" automatically.
 
@@ -123,7 +123,7 @@ Determined from a full `snmpwalk` of the mib-2 subtree against a real Dell Power
 ## Related templates
 
 - [Dell Force S-Series by SNMP](https://git.zabbix.com/projects/ZBX/repos/zabbix/browse/templates/net/dell_force_s_series_snmp) - for switches running FTOS/Dell Networking OS (not SONiC)
-- [Dell SmartFabric OS10 by SNMP](../../Dell/template_smartfabric_os10_snmp) - for the same Dell "-ON" hardware running SmartFabric OS10 instead of SONiC
+- [Dell SmartFabric OS10 by SNMP](../../../Dell/template_smartfabric_os10_snmp) - for the same Dell "-ON" hardware running SmartFabric OS10 instead of SONiC
 - [Official Zabbix Templates](https://www.zabbix.com/integrations)
 
 ## License
