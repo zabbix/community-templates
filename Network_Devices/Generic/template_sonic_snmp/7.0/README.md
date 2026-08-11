@@ -67,6 +67,8 @@ Sensor item names are derived, not a literal copy of `entPhysicalDescr` - e.g. `
 | `component` | `cpu`, `asic`, `psu`, `fan`, `network`, or `chassis` (fallback: system-level ambient/airflow sensors with no more specific match) - classified from the description | Same tag name the linked "Linux by SNMP" template uses (`component: cpu`, `component: memory`, etc.), so filtering **Latest data** by `component: cpu` shows CPU utilization *and* CPU On-board temperature together. Classification order matters for edge cases: a PSU's own internal fan ("Tachometers for PSU 1 FAN 1") is `psu`, not `fan`. |
 | `interface` | e.g. `Eth1/1` - present only on items from `sensor.discovery`; `sensor.chassis.discovery`'s items have no `interface` tag at all | Same tag name the linked "Linux by SNMP" template uses for its own interface items, so filtering **Latest data** by `interface: Eth1/1` shows that port's traffic counters *and* its DOM sensors together. For breakout-port lanes (`Eth1/1/1`..`Eth1/1/4`, one per optical lane) this is truncated to the parent port so it still matches; the lane number is kept in the item name instead. |
 | `measurement` | `Temperature`, `Power`, `Current`, `DC voltage`, `Fan speed`, `Airflow`, `Humidity`, `Frequency`, `State` - derived from `entPhySensorType` (with the tachometer override above) | Filter to one kind of reading across every interface/sensor |
+
+DOM Power/Current readings (RX/TX optical power, TX bias) are displayed in **mW/mA**, not W/A - `sensor.discovery`'s items scale the RFC 3433-normalized SI value by another 1000x and use `mW`/`mA` as the unit, since raw watts/amps for these is a small fraction (e.g. `0.0005 W`) and unreadable. This only applies to `sensor.discovery` (port-associated sensors); `sensor.chassis.discovery`'s PSU voltage/current/power readings stay in V/A/W since those are legitimately whole units.
 | `sensor` | The description with the trailing `for <id>` stripped, e.g. `DOM RX Power` instead of `DOM RX Power Sensor for Eth1/1/1`. All PSU sub-sensors (`PSU1 Airflow`, `Temperature for PSU 1`, `Tachometers for PSU 1 FAN 1`) further collapse to a single `PSU 1` - the item name keeps the full detail, only this tag merges. | Collapses what would otherwise be dozens of near-identical tag values (one per port/lane), or several unrelated-looking ones per PSU, into one |
 
 To go from "the interface" to "its DOM sensors" in the UI: filter Latest data by the `interface` tag first, then narrow further with the `measurement` or `sensor` tag.
@@ -86,11 +88,16 @@ SONiC switches run off flash storage with no swap partition (and swap is general
 
 All macros from the linked "Linux by SNMP" template (CPU/memory/swap thresholds, interface filters, etc.) apply as-is; override them at the host level as needed.
 
-### Non-optical transceivers (e.g. SFP-to-RJ45)
+### Permanently "unavailable" DOM lanes on single-lane ports
 
-`entPhySensorOperStatus=unavailable(2)` fires the "is unavailable" trigger, but it commonly just means the transceiver in that port doesn't support the measurement at all - a copper SFP-to-RJ45 module has no laser or photodiode, so its RX/TX power and TX bias sensors will permanently read `unavailable`, not because anything is wrong. `nonoperational(3)` ("is non-operational") is the one that actually indicates a fault and is unaffected by this.
+`entPhySensorOperStatus=unavailable(2)` fires the "is unavailable" trigger, but it commonly doesn't mean anything is wrong - `nonoperational(3)` ("is non-operational") is the one that actually indicates a fault and is unaffected by any of this. Two confirmed-benign causes:
 
-To silence it for a specific port, set a host-level macro with that interface as context, e.g. `{$SENSOR.DOM.IGNORE:"Eth1/34"}` = `1`. This only suppresses the unavailable-status trigger for that port's DOM sensors; the items keep polling and reporting normally, and non-operational still alerts.
+- **Form factor, not media type.** A single-lane SFP/SFP28 port still gets 4 lane-slots allocated in `entPhySensorTable`, the same as a 4-lane QSFP port - lanes 2-4 permanently read `unavailable` regardless of what's plugged in, fiber or copper. Confirmed against a real switch: a QSFP28 port had all 4 lanes reading `ok(1)`, while an SFP port had lane 1 `ok(1)` and lanes 2-4 `unavailable(2)`.
+- **Non-optical transceivers** (e.g. an SFP-to-RJ45 copper module) have no laser or photodiode, so RX/TX power and TX bias will permanently read `unavailable` on every lane.
+
+You can tell which transceiver type a port has directly from SNMP - `entPhysicalDescr` includes an entry literally named e.g. `"QSFP28 for Eth1/1"` or `"SFP for Eth1/34"` (not currently surfaced as a template item, but visible in a walk with `ENTITY-MIB` loaded).
+
+To silence either case for a specific port, set a host-level macro with the **parent port** (not a lane) as context, e.g. `{$SENSOR.DOM.IGNORE:"Eth1/34"}` = `1` - this covers all of that port's lanes at once, since they share the same interface tag. This only suppresses the unavailable-status trigger for that port's DOM sensors; the items keep polling and reporting normally, and non-operational still alerts.
 
 ## Known caveats
 
