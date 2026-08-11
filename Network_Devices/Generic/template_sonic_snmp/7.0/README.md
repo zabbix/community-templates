@@ -39,13 +39,29 @@ See Dell's [How to configure SNMP v2c on Dell Networking SONiC](https://www.dell
 
 ### Discovery rules
 
-| Discovery Rule       | Description                                                        | Source |
+| Item/Discovery Rule  | Description                                                        | Source |
 |-----------------------|---------------------------------------------------------------------|--------|
-| `sensor.discovery`    | Port-associated sensors (DOM temperature/power/bias/voltage) via `entPhySensorTable` - tagged with `interface` | This template |
-| `sensor.chassis.discovery` | Everything else (CPU/ASIC/system temperature, PSU, fan tachometers) - same table and item/trigger shape as `sensor.discovery`, just without the `interface` tag, since there's no interface to tag it with | This template |
+| `sensor.raw`          | Plain item (not a discovery rule) - one combined `walk[]` of `entPhySensorType`/`Scale`/`Precision`/`Value` and `entPhysicalDescr`. Master item for both rules below; not meant to be looked at directly (history disabled). | This template |
+| `sensor.discovery`    | Port-associated sensors (DOM temperature/power/bias/voltage) via `entPhySensorTable` - tagged with `interface`, and limited to the lanes the port's actual transceiver supports (see below) | This template |
+| `sensor.chassis.discovery` | Everything else (CPU/ASIC/system temperature, PSU, fan tachometers) - same table and item/trigger shape as `sensor.discovery`, just without the `interface` tag or lane limiting | This template |
 | `net.if.discovery`, `cpu.discovery[snmp]`, `vfs.fs.discovery[snmp]`, `vfs.dev.discovery[snmp]`, `net.if.duplex.discovery` | Interfaces, per-core CPU, filesystems, block devices, duplex | Linked "Linux by SNMP" |
 
-`sensor.discovery` and `sensor.chassis.discovery` walk the same OIDs and share the same naming/parsing logic - they're split only so the `interface` tag can be genuinely absent (not just empty) on sensors that aren't tied to a port, since Zabbix doesn't support conditionally including a tag on a single item prototype based on whether its value would be empty.
+Both discovery rules are `DEPENDENT` items with `sensor.raw` as their master item, parsing its raw walk text themselves (regex, in JavaScript) rather than using Zabbix's `discovery[]` OID helper. This is needed for the lane-limiting below - `discovery[]` can only look up columns at the *same* index it's walking, and the transceiver-type descriptor lives at a different one - but it also sidesteps the `filter:` error described further down, and means both rules see the exact same data (parsed independently, since JS preprocessing can't share results between items) and split purely on whether `{#SENSOR_IFNAME}` came out empty.
+
+### Per-port lane limiting
+
+A single-lane SFP/SFP28 port gets the same 4 lane-slots in `entPhySensorTable` as a 4-lane QSFP port - without this, `Eth1/34` (SFP) would discover phantom `Eth1/34/2`, `/3`, `/4` DOM power/bias items that permanently read `unavailable(2)`/`0`, alongside the one real lane. `sensor.discovery`'s preprocessing also parses `entPhysicalDescr`'s transceiver-type entries (e.g. `"SFP for Eth1/34"`, `"QSFP28 for Eth1/1"`) from the same raw walk and skips discovering any lane beyond what that port's form factor supports:
+
+| Form factor | Lanes |
+|---|---|
+| `SFP`, `SFP+`, `SFP28`, `SFP56` | 1 |
+| `SFP-DD` | 2 |
+| `QSFP`, `QSFP+`, `QSFP28`, `QSFP56` | 4 |
+| `QSFP-DD`, `OSFP` | 8 |
+
+A port whose transceiver-type entry isn't found at all (unrecognized form factor, or no transceiver present) is left unrestricted rather than risk hiding real data.
+
+Confirmed against a real switch for the `SFP`/`QSFP28` rows: `Eth1/34` (SFP, actually fiber not copper) went from discovering 4 lanes' worth of RX/TX power and TX bias (3 real, 9 permanently phantom) down to exactly the 1 real lane, while `Eth1/1` (QSFP28, 4 real lanes) was unaffected. The `SFP-DD`/`QSFP-DD`/`OSFP` rows are correct per spec (OSFP is "Octal" - 8 lanes, not a QSFP variant despite the similar name) but exercised only with synthetic `entPhysicalDescr` text, not seen on real hardware - if your build phrases these differently than `"<TYPE> for <ifname>"`, they won't match and that port's lanes are left unrestricted (same as today) rather than break.
 
 ### Trigger prototypes added by this template
 
@@ -54,9 +70,9 @@ See Dell's [How to configure SNMP v2c on Dell Networking SONiC](https://www.dell
 
 ### Why some entPhysicalTable entries never turn into items
 
-`entPhysicalTable` includes pure container/aggregate entries - the chassis itself, each fan tray, each individual fan (as opposed to its tachometer), the PSU as a whole, the management port container - that have neither an `entPhySensorType` nor an `entPhySensorValue`. Both discovery rules' JavaScript preprocessing filters the discovered array to require both looking like real numbers before creating an item, so these never turn into items in the first place. Confirmed against a real walk: 445 physical entities, 398 with an actual sensor row, 47 without (chassis/fan-tray/fan/PSU/MGMT containers) - without this, that's 47 x 2 items = 94 permanently "Not supported".
+`entPhysicalTable` includes pure container/aggregate entries - the chassis itself, each fan tray, each individual fan (as opposed to its tachometer), the PSU as a whole, the management port container - that have neither an `entPhySensorType` nor an `entPhySensorValue`. Both discovery rules' JavaScript preprocessing only emits a row when both parse as real numbers from the raw walk, so these never turn into items in the first place. Confirmed against a real walk: 445 physical entities, 398 with an actual sensor row, 47 without (chassis/fan-tray/fan/PSU/MGMT containers) - without this, that's 47 x 2 items = 94 permanently "Not supported".
 
-This is done in JavaScript rather than a discovery-rule `filter:` block on purpose: Zabbix's filter mechanism throws `Cannot evaluate expression: ... no value received for macro "{#SENSOR_TYPE}"` if that macro has no value at all for some row, rather than treating it as an empty string that fails a regex match - and `entPhySensorType` is not reliably present for every row `sensor.discovery`/`sensor.chassis.discovery` walk. If you're adapting this template and see that same error, check for a `filter:` referencing a macro that isn't guaranteed on every discovered row and move the check into preprocessing instead.
+This (and the lane limiting above) is done in JavaScript rather than a discovery-rule `filter:` block on purpose: Zabbix's filter mechanism throws `Cannot evaluate expression: ... no value received for macro "{#SENSOR_TYPE}"` if that macro has no value at all for some row, rather than treating it as an empty string that fails a regex match - and `entPhySensorType` is not reliably present for every row these rules would otherwise walk. If you're adapting this template and see that same error, check for a `filter:` referencing a macro that isn't guaranteed on every discovered row and move the check into preprocessing instead.
 
 ### Sensor naming and filtering in Latest data
 
