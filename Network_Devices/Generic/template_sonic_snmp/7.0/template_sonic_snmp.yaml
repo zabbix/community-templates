@@ -8,33 +8,25 @@ zabbix_export:
       template: 'SONiC by SNMP'
       name: 'SONiC by SNMP'
       description: |
-        Template for monitoring switches running SONiC (Software for Open Networking in the Cloud) via SNMP. Built for and tested against a Dell PowerSwitch (HwSku DellEMC-S5232f-C32) running Dell Enterprise SONiC Distribution 4.6.0 (Standard). The MIBs it adds are vendor-neutral (from the upstream sonic-snmpagent project), so this should apply to SONiC on other switch platforms too.
-        
-        This template is intentionally thin: it links to the official "Linux by SNMP" template for host/interface/filesystem monitoring, since SONiC's control plane is Debian Linux running net-snmp and exposes the same standard MIBs (HOST-RESOURCES-MIB, IF-MIB, EtherLike-MIB) - there is no need to reimplement that here. This template only adds what "Linux by SNMP" does not cover: physical chassis sensors (fan/PSU/temperature) via the standards-based ENTITY-MIB/ENTITY-SENSOR-MIB, since SONiC has no vendor-proprietary chassis MIB the way FTOS (F10-S-SERIES-CHASSIS-MIB, used by the official "Dell Force S-Series by SNMP" template) or Dell OS10 (DELLEMC-OS10-CHASSIS-MIB, used by the "Dell SmartFabric OS10 by SNMP" template in this repo) do. If you are migrating a switch from FTOS/Dell Networking OS or SmartFabric OS10 to SONiC, replace those vendor templates with this one instead of trying to reuse them.
-        
-        Requires the official "Linux by SNMP" template (ships with Zabbix / zabbix/zabbix templates/os/linux_snmp_snmp) to already be imported - this template links to it by name.
-        
-        MIBs used directly by this template:
-        ENTITY-MIB
-        ENTITY-SENSOR-MIB
-        
-        MIBs used via the linked "Linux by SNMP" template:
-        SNMPv2-MIB
-        IF-MIB
-        EtherLike-MIB
-        HOST-RESOURCES-MIB
-        UCD-SNMP-MIB
-        UCD-DISKIO-MIB
-        
+        Monitors switches running SONiC via SNMP. Built for and tested against a Dell PowerSwitch (HwSku DellEMC-S5232f-C32) running Dell Enterprise SONiC 4.6.0 (Standard); uses only vendor-neutral MIBs (from sonic-snmpagent), so it should apply to other SONiC platforms too.
+
+        Thin template: links to the official "Linux by SNMP" template for host/interface/filesystem monitoring (SONiC's control plane is Debian Linux/net-snmp exposing the same standard MIBs) and only adds physical chassis sensors via ENTITY-MIB/ENTITY-SENSOR-MIB, since SONiC has no vendor chassis MIB the way FTOS (F10-S-SERIES-CHASSIS-MIB) or Dell OS10 (DELLEMC-OS10-CHASSIS-MIB) do. Migrating from FTOS/OS10 to SONiC? Use this instead of those vendor templates.
+
+        Requires the official "Linux by SNMP" template (ships with Zabbix) already imported - linked by name.
+
+        MIBs used directly: ENTITY-MIB, ENTITY-SENSOR-MIB
+        MIBs used via linked template: SNMPv2-MIB, IF-MIB, EtherLike-MIB, HOST-RESOURCES-MIB, UCD-SNMP-MIB, UCD-DISKIO-MIB
+
         Known caveats (see README for detail):
-        - ENTITY-MIB/ENTITY-SENSOR-MIB are confirmed POPULATED on the tested hardware/build: 445 physical entities and ~398 sensors, covering CPU/ASIC/system-airflow temperatures, PSU temperature/voltage/current/power, 4 fan trays (2 fans each) with tachometers, and per-port transceiver DOM temperature for all front-panel ports. Note this requires the ENTITY-MIB and ENTITY-SENSOR-MIB definitions to be loaded wherever you run snmptranslate/snmpwalk yourself, or net-snmp falls back to rendering these OIDs as generic "mib-2.47.../mib-2.99..." instead of symbolic names - easy to miss if you're grepping walk output by MIB name.
-        - Dell's SONiC release notes reportedly also expose temperature via SNMP traps (as of 4.5.3/4.6.0) - not implemented here, since this template only polls. Polling via ENTITY-SENSOR-MIB is confirmed to work; traps would be a complementary/alternative ingestion path (needs a configured trap receiver) if you want threshold-crossing push notifications instead of/in addition to polling.
-        - "Linux by SNMP"'s UCD-SNMP-MIB-based items (memory/swap/interrupt counters) live under the private enterprises branch, which a default-scope `snmpwalk` does not reach - unverified either way on SONiC. Its HOST-RESOURCES-MIB-based items (per-core CPU via hrProcessorTable, filesystem discovery via hrStorageTable) were confirmed populated with real data.
-        - HOST-RESOURCES-MIB's hrStorageTable on SONiC reports many Docker bind-mount pseudo-filesystems (/etc/hosts, /etc/resolv.conf, /host/reboot-cause, /tmp, /var/tmp, etc.) alongside real memory pools - this template overrides {$VFS.FS.FSNAME.NOT_MATCHES} to filter those out; there is no real disk/partition entry in hrStorageTable on the tested build, only memory pools and bind mounts.
-        - SONiC switches have no swap (flash storage, and swap on flash is generally avoided to limit wear). "Linux by SNMP"'s system.swap.free/total items will just read 0, and the calculated system.swap.pfree[snmp] (free/total*100) will show "Not supported" from the division by zero - its "High swap space usage" trigger already guards on total>0 so it will not fire either way. Disable the three swap items at the host level (Data collection -> Hosts -> Items, or Mass update across hosts) if you want them gone rather than just idle.
+        - ENTITY-MIB/ENTITY-SENSOR-MIB confirmed POPULATED: 445 physical entities, 398 sensors (CPU/ASIC/system-airflow temps, PSU temperature + fan tachometers - no PSU voltage/current/power on this hardware, per-port DOM temp). Load ENTITY-MIB/ENTITY-SENSOR-MIB locally or snmpwalk renders generic mib-2.47/.99 OIDs instead of symbolic names.
+        - sonic.sensor.raw's stored value can truncate at 65535 bytes if inspected directly for debugging; discovery itself is unaffected (see README).
+        - SNMP traps for temperature (reportedly 4.5.3+) not implemented here - polling only.
+        - UCD-SNMP-MIB confirmed POPULATED - memory items return real data despite living under the private enterprises branch.
+        - hrStorageTable reports Docker bind-mount pseudo-filesystems alongside real memory pools; {$VFS.FS.FSNAME.NOT_MATCHES} filters them out.
+        - No swap on SONiC (flash storage) - swap items read 0/"Not supported" harmlessly; disable at the host level if you want them gone.
       vendor:
         name: community-templates
-        version: 7.4.1
+        version: 7.0-0
       templates:
         - name: 'Linux by SNMP'
       groups:
@@ -49,7 +41,7 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           description: |
-            Raw walk of entPhySensorType/Scale/Precision/Value (ENTITY-SENSOR-MIB, RFC 3433) and entPhysicalDescr (ENTITY-MIB, RFC 2737). Master item for sonic.sensor.discovery and sonic.sensor.chassis.discovery, which parse this text themselves rather than relying on Zabbix's discovery[] OID helper - needed to cross-reference each port's transceiver-type descriptor (e.g. "SFP for Eth1/34" vs "QSFP28 for Eth1/1") against its per-lane DOM sensors, which discovery[] cannot do since they live at different indexes.
+            Raw walk of entPhySensorType/Scale/Precision/Value (ENTITY-SENSOR-MIB) and entPhysicalDescr (ENTITY-MIB). Master item for sonic.sensor.discovery/sonic.sensor.chassis.discovery, which parse it in JS rather than discovery[] - needed to cross-reference each port's transceiver type against its per-lane DOM sensors, which live at a different index.
           tags:
             - tag: component
               value: raw
@@ -60,9 +52,8 @@ zabbix_export:
           key: sonic.sensor.discovery
           description: |
             MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
-            Discovers physical sensors (temperature, fan, voltage, current, etc.) via entPhySensorTable (RFC 3433), named using the matching entPhysicalDescr from entPhysicalTable (RFC 2737) at the same entPhysicalIndex. Port-associated sensors only ({#SENSOR_IFNAME} non-empty) - see sonic.sensor.chassis.discovery for everything else.
-            SONiC's sonic-snmpagent is the source of this table. Confirmed POPULATED on the hardware/build this template was authored against (DellEMC-S5232f-C32, Enterprise SONiC 4.6.0 Standard) - CPU/ASIC/system temperature, PSU temperature/voltage/current/power, fan tachometers, and per-port DOM temperature all present.
-            Parses the raw walk from the sonic.sensor.raw master item itself (rather than using discovery[]) so it can cross-reference each port's transceiver-type descriptor and skip DOM lanes beyond what that transceiver actually supports (e.g. lanes 2-4 on a single-lane SFP port) - see sonic.sensor.raw's description. Also drops entPhysicalTable's pure container/aggregate entries (chassis, fan tray, PSU-as-a-whole, MGMT), which have neither an entPhySensorType nor entPhySensorValue.
+            Port-associated sensors (temperature, fan, voltage, current) via entPhySensorTable, named from entPhysicalDescr at the same index ({#SENSOR_IFNAME} non-empty) - see sonic.sensor.chassis.discovery for everything else. Confirmed POPULATED on the tested hardware (DellEMC-S5232f-C32, SONiC 4.6.0 Standard): CPU/ASIC/system temp, PSU temp, fan tachometers, per-port DOM temp (no PSU voltage/current/power on this hardware - see README).
+            Parses sonic.sensor.raw's raw text directly (not discovery[]) to cross-reference each port's transceiver type and skip DOM lanes it doesn't support, and to drop entPhysicalTable's pure container/aggregate entries (chassis, fan tray, PSU-as-a-whole, MGMT), which have neither an entPhySensorType nor entPhySensorValue.
           master_item:
             key: sonic.sensor.raw
           preprocessing:
@@ -232,7 +223,7 @@ zabbix_export:
                   expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SENSOR_DISPLAY}])=2 and {$SENSOR.DOM.IGNORE:"{#SENSOR_IFNAME}"}=0'
                   name: 'SONiC: {#SENSOR_DISPLAY} is unavailable'
                   priority: WARNING
-                  description: 'unavailable(2) commonly does not mean anything is broken - non-operational(3) is the one that indicates an actual fault. Two known-benign causes: (1) a single-lane SFP/SFP28 port still gets 4 lane-slots allocated in entPhySensorTable the same as a QSFP port, so lanes 2-4 permanently report unavailable regardless of what is plugged in (confirmed: an SFP port''s lane 1 read ok(1) while lanes 2-4 read unavailable(2), against a QSFP28 port on the same switch where all 4 lanes read ok); (2) a non-optical transceiver (e.g. an SFP-to-RJ45 copper module) has no laser/photodiode, so RX/TX power and TX bias are permanently unavailable on every lane. Set {$SENSOR.DOM.IGNORE:"<ifname>"}=1 at the host level (parent port, not the lane) to silence this without touching the item itself.'
+                  description: 'unavailable(2) often is not a fault - non-operational(3) is. Two benign causes: an unrecognized transceiver form factor left lane-unrestricted, or a non-optical transceiver (e.g. SFP-to-RJ45 copper) with no laser/photodiode, so RX/TX power and TX bias read unavailable on every lane. Set {$SENSOR.DOM.IGNORE:"<ifname>"}=1 at the host level (parent port) to silence.'
                   dependencies:
                     - name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
                       expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SENSOR_DISPLAY}])=3'
@@ -251,7 +242,7 @@ zabbix_export:
               units: '{#SENSOR_UNIT}'
               description: |
                 MIB: ENTITY-SENSOR-MIB
-                entPhySensorValue, normalized using entPhySensorScale ({#SENSOR_SCALE}) and entPhySensorPrecision ({#SENSOR_PRECISION}) per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType ({#SENSOR_TYPE}). Power/current (RX/TX optical power, TX bias) are further scaled to mW/mA - the raw SI value is a small fraction of a watt/amp and unreadable otherwise. See {#SENSOR_UNIT} for the resulting unit.
+                entPhySensorValue, normalized using entPhySensorScale/Precision per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType. Power/current (RX/TX optical power, TX bias) are further scaled to mW/mA, unreadable otherwise as raw watts/amps. See {#SENSOR_UNIT} for the resulting unit.
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
@@ -280,7 +271,7 @@ zabbix_export:
                   expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
                   name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
                   priority: HIGH
-                  description: 'Only meaningful for Celsius-type sensors (entPhySensorType=8); the type check is baked into the expression so this stays inert for other sensor types. Confirm which indexes actually report temperature on your device before trusting this.'
+                  description: 'Only fires for Celsius sensors (entPhySensorType=8); the check is baked into the expression.'
                   tags:
                     - tag: interface
                       value: '{#SENSOR_IFNAME}'
@@ -305,10 +296,8 @@ zabbix_export:
           key: sonic.sensor.chassis.discovery
           description: |
             MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
-            Discovers physical sensors (temperature, fan, voltage, current, etc.) via entPhySensorTable (RFC 3433), named using the matching entPhysicalDescr from entPhysicalTable (RFC 2737) at the same entPhysicalIndex. Everything NOT port-associated ({#SENSOR_IFNAME} empty) - see sonic.sensor.discovery for port sensors.
-            Parses the raw walk from the sonic.sensor.raw master item itself - see sonic.sensor.discovery's description for why (same reasoning applies, though this rule has no lanes to limit).
-            SONiC's sonic-snmpagent is the source of this table. Confirmed POPULATED on the hardware/build this template was authored against (DellEMC-S5232f-C32, Enterprise SONiC 4.6.0 Standard) - CPU/ASIC/system temperature, PSU temperature/voltage/current/power, fan tachometers, and per-port DOM temperature all present.
-            entPhysicalTable also contains pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) that appear in this same walk but have neither an entPhySensorType nor an entPhySensorValue - polling them would immediately go "Not supported". The JS below filters those out directly, requiring both to look like real numbers; confirmed against a real walk (445 physical entities, 398 with an actual sensor row, 47 without - 47x2 = 94 "Not supported" items is what you'd see without this filter).
+            Everything NOT port-associated ({#SENSOR_IFNAME} empty) via entPhySensorTable, named from entPhysicalDescr at the same index - see sonic.sensor.discovery for port sensors (same parsing approach, no lanes to limit here). Confirmed POPULATED on the tested hardware: CPU/ASIC/system temp, PSU temp, fan tachometers (no PSU voltage/current/power on this hardware - see README).
+            entPhysicalTable also has pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) with neither an entPhySensorType nor entPhySensorValue - the JS below filters those out by requiring both to look like real numbers (445 physical entities, 398 with an actual sensor row, 47 without).
           master_item:
             key: sonic.sensor.raw
           preprocessing:
@@ -468,7 +457,7 @@ zabbix_export:
               units: '{#SENSOR_UNIT}'
               description: |
                 MIB: ENTITY-SENSOR-MIB
-                entPhySensorValue, normalized using entPhySensorScale ({#SENSOR_SCALE}) and entPhySensorPrecision ({#SENSOR_PRECISION}) per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType ({#SENSOR_TYPE}).
+                entPhySensorValue, normalized using entPhySensorScale/Precision per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType.
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
@@ -490,7 +479,7 @@ zabbix_export:
                   expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.chassis.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
                   name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
                   priority: HIGH
-                  description: 'Only meaningful for Celsius-type sensors (entPhySensorType=8); the type check is baked into the expression so this stays inert for other sensor types. Confirm which indexes actually report temperature on your device before trusting this.'
+                  description: 'Only fires for Celsius sensors (entPhySensorType=8); the check is baked into the expression.'
                   tags:
                     - tag: scope
                       value: availability
@@ -514,16 +503,16 @@ zabbix_export:
       macros:
         - macro: '{$SENSOR.DOM.IGNORE}'
           value: '0'
-          description: 'Set to 1 with an interface context (e.g. {$SENSOR.DOM.IGNORE:"Eth1/34"}=1 at the host level, parent port not lane) to silence the "is unavailable" trigger for a port''s DOM sensors. Two known-benign causes this covers: a single-lane SFP/SFP28 port still gets 4 lane-slots in entPhySensorTable, so lanes 2-4 permanently read unavailable regardless of media type; and a non-optical transceiver (e.g. SFP-to-RJ45 copper) has no laser/photodiode for RX/TX power or TX bias on any lane. Does not affect non-operational(3), which still alerts.'
+          description: 'Set to 1 with an interface context (e.g. {$SENSOR.DOM.IGNORE:"Eth1/34"}=1 at the host level, parent port not lane) to silence the "is unavailable" trigger for that port''s DOM sensors - covers unrecognized transceiver form factors and non-optical transceivers (no laser/photodiode). Does not affect non-operational(3), which still alerts.'
         - macro: '{$SENSOR.TEMP.CRIT}'
           value: '65'
-          description: 'Critical temperature threshold (deg C) for ENTITY-SENSOR-MIB sensors of type celsius(8). Verify against real sensor readings before relying on it.'
+          description: 'Critical threshold (deg C) for ENTITY-SENSOR-MIB celsius(8)-type sensors.'
         - macro: '{$SENSOR.TEMP.WARN}'
           value: '55'
-          description: 'Warning temperature threshold (deg C) for ENTITY-SENSOR-MIB sensors of type celsius(8). Verify against real sensor readings before relying on it.'
+          description: 'Warning threshold (deg C) for ENTITY-SENSOR-MIB celsius(8)-type sensors.'
         - macro: '{$VFS.FS.FSNAME.NOT_MATCHES}'
           value: ^(/dev|/sys|/run|/proc|/etc|/host|/tmp|/var/tmp|.+/shm$)
-          description: 'Overrides the "Linux by SNMP" default. SONiC''s hrStorageTable reports numerous Docker bind-mount pseudo-filesystems (confirmed: /etc/hosts, /etc/resolv.conf, /etc/hostname, /host/reboot-cause, /tmp, /var/tmp) alongside real memory pools - these are filtered out here. Adjust if your build differs.'
+          description: 'Overrides the "Linux by SNMP" default - filters Docker bind-mount pseudo-filesystems SONiC''s hrStorageTable reports alongside real memory pools. Adjust if your build differs.'
       valuemaps:
         - uuid: 01c35e38a61340b28de01151df2186fc
           name: 'ENTITY-SENSOR-MIB::entPhySensorOperStatus'
