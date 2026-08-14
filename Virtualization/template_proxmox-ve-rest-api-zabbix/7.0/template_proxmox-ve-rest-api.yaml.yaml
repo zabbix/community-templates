@@ -1,8 +1,8 @@
 zabbix_export:
   version: '7.0'
   template_groups:
-    - uuid: 7df96b18c230490a9a0a9e2307226338
-      name: Templates
+    - uuid: 02e4df4f20b848e79267641790f241da
+      name: Templates/Virtualization
   templates:
     - uuid: 512de161946b46af952076320eb2b366
       template: 'Template Proxmox VE REST API'
@@ -14,7 +14,7 @@ zabbix_export:
         For documentation, updates, and source code, visit:  
         https://github.com/Garfieldttt/Zabbix-Template-Proxmox-VE-REST-API
       groups:
-        - name: Templates
+        - name: Templates/Virtualization
       items:
         - uuid: 9a98e0c1e615419d8c3fc835aba5b216
           name: 'PVE backup raw'
@@ -23,15 +23,16 @@ zabbix_export:
           history: 1d
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/tasks, filtered and grouped by JavaScript preprocessing to extract only backup tasks (vzdump/PBS), deduplicated to the most recent run per VM.'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  // Zabbix JS preprocessing: Backups (VZDUMP/PBS) aus Task-Feed extrahieren + gruppieren (ES5.1)
+                  // Zabbix JS preprocessing: Extract and group backup tasks (VZDUMP/PBS) from task feed (ES5.1)
                   try {
                       var obj = (typeof value === 'string') ? JSON.parse(value) : value;
                   
-                      // 0) Datenquelle bestimmen
+                      // 0) Determine data source
                       var dataArr = [];
                       if (obj && obj.data && obj.data instanceof Array) {
                           dataArr = obj.data;
@@ -42,7 +43,7 @@ zabbix_export:
                           return JSON.stringify({ total: 0, data: [] });
                       }
                   
-                      // Hilfsfunktionen
+                      // Helper functions
                       function firstDefined(a, b, c, d) {
                           if (a !== null && a !== undefined) return a;
                           if (b !== null && b !== undefined) return b;
@@ -51,21 +52,21 @@ zabbix_export:
                           return null;
                       }
                   
-                      // ===== Änderung 1: robuste Zeitkonvertierung =====
+                      // Robust timestamp conversion: supports epoch (sec/ms), numeric strings, ISO and "YYYY-MM-DD HH:mm:ss"
                       function toEpochMs(v) {
                           if (v === null || v === undefined) return -Infinity;
-                          if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v; // sec->ms
+                          if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v; // sec → ms
                   
                           if (typeof v === "string") {
                               var s = v.trim();
                   
-                              // Nur rein numerische Strings als Zahl behandeln
+                              // Treat purely numeric strings as numbers
                               if (/^\d+(\.\d+)?$/.test(s)) {
                                   var n = parseFloat(s);
                                   return n < 1000000000000 ? n * 1000 : n;
                               }
                   
-                              // "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
+                              // Parse "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
                               var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*(AM|PM))?$/i);
                               if (m) {
                                   var H = parseInt(m[4], 10), ampm = (m[7] || "").toUpperCase();
@@ -73,19 +74,19 @@ zabbix_export:
                                   return Date.UTC(+m[1], +m[2] - 1, +m[3], H, +m[5], +m[6]);
                               }
                   
-                              // Fallback: ISO-kompatibel parsen
+                              // Fallback: parse as ISO-compatible string
                               var p = Date.parse(s.replace(/\s+/, "T"));
                               return isNaN(p) ? -Infinity : p;
                           }
                           return -Infinity;
                       }
-                      // ===== Ende Änderung 1 =====
+                      
                   
-                      // Breiter Backup-Matcher
+                      // Broad backup type matcher
                       var reVzdump = /vzdump/i;
-                      var reBackup = /backup/i;              // generisch (PBS/Proxmox Backup)
-                      var rePbs    = /\bpbs\b/i;             // "pbs" als eigenes Wort
-                      var rePmxb   = /proxmox[- ]?backup/i;  // "proxmox-backup" / "proxmox backup"
+                      var reBackup = /backup/i;              // generic (PBS/Proxmox Backup)
+                      var rePbs    = /\bpbs\b/i;             // "pbs" as a whole word
+                      var rePmxb   = /proxmox[- ]?backup/i;  // "proxmox-backup" or "proxmox backup"
                   
                       function isBackup(e) {
                           if (!e) return false;
@@ -96,7 +97,7 @@ zabbix_export:
                           return false;
                       }
                   
-                      // 1) Filtern + Zeiten normalisieren
+                      // 1) Filter backup entries and normalise timestamps
                       var dumps = [];
                       for (var i = 0; i < dataArr.length; i++) {
                           var e = dataArr[i];
@@ -113,23 +114,21 @@ zabbix_export:
                       }
                   
                       if (!dumps.length) {
-                          // Keine als Backup erkannten Einträge im gelieferten Feed
+                          // No backup entries found in the feed
                           return JSON.stringify({ total: 0, data: [] });
                       }
                   
-                      // 2) Sortieren nach Start
+                      // 2) Sort by start time
                       dumps.sort(function(a, b) { return a._startMs - b._startMs; });
                   
-                      // 3) fehlende/leer ID -> "pve"
+                      // 3) Replace missing/empty ID with "pve"
                       for (i = 0; i < dumps.length; i++) {
                           if (dumps[i].id === null || dumps[i].id === undefined || String(dumps[i].id) === "") {
                               dumps[i].id = "pve";
                           }
                       }
                   
-                      // ===== Änderung 2: Gruppieren -> nur jüngster Lauf je id =====
-                      // 4) Gruppieren pro id, aber NICHT min/max über alle Läufe.
-                      //    Stattdessen den Datensatz mit größtem _startMs (jüngster Lauf) behalten.
+                      // 4) Group by id, keep only the most recent run per id (highest _startMs)
                       var groups = {};
                       for (i = 0; i < dumps.length; i++) {
                           var e2 = dumps[i];
@@ -149,9 +148,9 @@ zabbix_export:
                               };
                           }
                       }
-                      // ===== Ende Änderung 2 =====
+                      
                   
-                      // 5) IDs sortieren (numerisch zuerst), "pve" zuletzt
+                      // 5) Sort IDs numerically (numeric first), "pve" last
                       var ids = [];
                       for (var id in groups) { if (groups.hasOwnProperty(id)) ids.push(id); }
                       ids.sort(function(a, b) {
@@ -168,11 +167,11 @@ zabbix_export:
                           return 0;
                       });
                   
-                      // 6) Ergebnis
+                      // 6) Build result
                       var resultData = [];
                       for (i = 0; i < ids.length; i++) {
                           var g2 = groups[ids[i]];
-                          // interne Felder entfernen
+                          // Remove internal fields
                           delete g2._startMs; delete g2._endMs;
                           g2.bckpid = g2.id;
                           resultData.push(g2);
@@ -191,6 +190,202 @@ zabbix_export:
             - name: Accept
               value: application/json
           output_format: JSON
+        - uuid: 22d1df98801f47c9bee13069a57fff5d
+          name: 'Cluster name'
+          type: DEPENDENT
+          key: pve.cluster.name
+          delay: '0'
+          history: 1w
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'cluster') return d[i].name;
+                  }
+                  return 'standalone';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: pve.cluster.raw
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: 76a2011e68774f12b81ba29932d115af
+          name: 'Cluster nodes offline'
+          type: CALCULATED
+          key: pve.cluster.nodes.offline
+          delay: '60'
+          params: 'last(/{HOST.HOST}/pve.cluster.nodes.total) - last(/{HOST.HOST}/pve.cluster.nodes.online)'
+          description: 'Number of offline cluster nodes (total minus online).'
+          tags:
+            - tag: PVE
+              value: Cluster
+          triggers:
+            - uuid: 3dfb794aebe14bb89850bc56aa2f937c
+              expression: 'last(/Template Proxmox VE REST API/pve.cluster.nodes.offline)>{$CLUSTER.NODES.OFFLINE.MAX}'
+              name: '{ITEM.LASTVALUE} cluster node(s) offline'
+              priority: HIGH
+              description: 'One or more Proxmox VE cluster nodes are offline. Set {$CLUSTER.NODES.OFFLINE.MAX} to a higher value to tolerate planned maintenance.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 622d5bfdd4c946b9864a12489607b68f
+          name: 'Cluster nodes online'
+          type: DEPENDENT
+          key: pve.cluster.nodes.online
+          delay: '0'
+          history: 1w
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  var count = 0;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'node' && d[i].online === 1) count++;
+                  }
+                  return count;
+          master_item:
+            key: pve.cluster.raw
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: 4761c6d869504fc3945e27afaa3c3649
+          name: 'Cluster nodes total'
+          type: DEPENDENT
+          key: pve.cluster.nodes.total
+          delay: '0'
+          history: 1w
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'cluster') return d[i].nodes;
+                  }
+                  var count = 0;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'node') count++;
+                  }
+                  return count;
+          master_item:
+            key: pve.cluster.raw
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: 268e29161fec4b8b93d04b22b350006c
+          name: 'Cluster quorum'
+          type: DEPENDENT
+          key: pve.cluster.quorum
+          delay: '0'
+          history: 1w
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'cluster') return d[i].quorate;
+                  }
+                  return '1';
+          master_item:
+            key: pve.cluster.raw
+          tags:
+            - tag: PVE
+              value: Cluster
+          triggers:
+            - uuid: 46be8e0cb28741a1a25c826eaa7f3525
+              expression: 'last(/Template Proxmox VE REST API/pve.cluster.quorum)=0'
+              name: 'Proxmox VE cluster has lost quorum'
+              priority: DISASTER
+              description: 'The cluster is not quorate. VMs with HA policies cannot be started or migrated.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 03c32dd5287248f7bfd69065f3001e78
+          name: 'PVE cluster raw'
+          type: HTTP_AGENT
+          key: pve.cluster.raw
+          delay: '60'
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          description: 'Raw cluster status from /api2/json/cluster/status. Used as master for cluster-dependent items.'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/status'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: 53261a66a7ec426cb0d3904a2ef2807b
+          name: 'PVE cluster resources raw'
+          type: HTTP_AGENT
+          key: pve.cluster.resources.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/resources. Aggregated view of all VMs, LXC containers, storage and nodes across the cluster.'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/resources'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: b79d0bfa20d6453693c5d1a358fb76ef
+          name: 'Cluster VMs running'
+          type: DEPENDENT
+          key: pve.cluster.vms.running
+          delay: '0'
+          description: 'Number of QEMU VMs and LXC containers currently in running state across the cluster. Source: /cluster/resources.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  var count = 0;
+                  for (var i = 0; i < d.length; i++) {
+                    if ((d[i].type === 'qemu' || d[i].type === 'lxc') && d[i].status === 'running') count++;
+                  }
+                  return count;
+          master_item:
+            key: pve.cluster.resources.raw
+          tags:
+            - tag: PVE
+              value: Cluster
+        - uuid: e7b98f6d987c40f6960118af1889b717
+          name: 'Cluster VMs total'
+          type: DEPENDENT
+          key: pve.cluster.vms.total
+          delay: '0'
+          description: 'Total number of QEMU VMs and LXC containers registered in the cluster. Source: /cluster/resources.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  var count = 0;
+                  for (var i = 0; i < d.length; i++) {
+                    if (d[i].type === 'qemu' || d[i].type === 'lxc') count++;
+                  }
+                  return count;
+          master_item:
+            key: pve.cluster.resources.raw
+          tags:
+            - tag: PVE
+              value: Cluster
         - uuid: 8dc9614f15df4bd2914b15a03731dc02
           name: 'PVE CPU cores'
           type: DEPENDENT
@@ -198,6 +393,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: '!Cores'
+          description: 'Number of physical CPU cores on the PVE host. Source: /nodes/{node}/status → data.cpuinfo.cores.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -215,6 +411,7 @@ zabbix_export:
           value_type: FLOAT
           trends: '0'
           units: '%'
+          description: 'CPU utilization of the PVE host in percent (0-100). Source: /nodes/{node}/status → data.cpu * 100.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -229,7 +426,7 @@ zabbix_export:
               value: CPU
           triggers:
             - uuid: 9551ed5e07264f4a90f57a8b8f2c8530
-              expression: 'min(/Template Proxmox VE REST API/pve.cpu.utilization,300)=90'
+              expression: 'min(/Template Proxmox VE REST API/pve.cpu.utilization,300)>90'
               name: 'High CPU usage on {HOST.NAME} (>90%)'
               opdata: 'CPU utilization: {ITEM.LASTVALUE1}'
               priority: AVERAGE
@@ -240,6 +437,7 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'CPU model name string of the PVE host. Source: /nodes/{node}/status → data.cpuinfo.model.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -256,6 +454,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: '!Threads'
+          description: 'Total number of logical CPU threads (vCPUs) on the PVE host. Source: /nodes/{node}/status → data.cpuinfo.cpus.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -272,6 +471,7 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Running Linux kernel release string (e.g. 6.8.12-5-pve). Source: /nodes/{node}/status → data["current-kernel"].release.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -281,6 +481,72 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Kernel
+        - uuid: 406db2d98a024857bc7bc617c702901a
+          name: 'PVE disks raw'
+          type: HTTP_AGENT
+          key: pve.disks.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/disks/list. Used for physical disk discovery and SMART health monitoring. Requires Sys.Audit permission on the node.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var r = JSON.parse(value);
+                    if (r && r.data && Array.isArray(r.data)) return value;
+                    return '{"data":[]}';
+                  } catch(e) {
+                    return '{"data":[]}';
+                  }
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/list'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Disk
+        - uuid: 570cf6c8fa37488e8165b4ce032e7b24
+          name: 'PVE HA manager status'
+          type: DEPENDENT
+          key: pve.ha.manager.status
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Current status of the HA manager (e.g. active, maintenance). Source: /cluster/ha/status → manager_status.status.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.manager_status.status
+              error_handler: CUSTOM_VALUE
+              error_handler_params: unknown
+          master_item:
+            key: pve.ha.raw
+          tags:
+            - tag: PVE
+              value: HA
+        - uuid: 6aebfc77121a42f98a3ecca13b158dd0
+          name: 'PVE HA status raw'
+          type: HTTP_AGENT
+          key: pve.ha.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/ha/status. Used for HA manager and resource state monitoring.'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/ha/status'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: HA
         - uuid: ee746cfba83e43e0af3053d86bcb2c9c
           name: 'PVE load average (15 min)'
           type: DEPENDENT
@@ -288,6 +554,7 @@ zabbix_export:
           delay: '0'
           value_type: FLOAT
           trends: '0'
+          description: 'System load average over the last 15 minutes. Source: /nodes/{node}/status → data.loadavg[2].'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -304,6 +571,7 @@ zabbix_export:
           delay: '0'
           value_type: FLOAT
           trends: '0'
+          description: 'System load average over the last 5 minutes. Source: /nodes/{node}/status → data.loadavg[1].'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -320,6 +588,7 @@ zabbix_export:
           delay: '0'
           value_type: FLOAT
           trends: '0'
+          description: 'System load average over the last 1 minute. Source: /nodes/{node}/status → data.loadavg[0].'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -336,12 +605,13 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: unixtime
+          description: 'Current Unix timestamp on the PVE host. Source: /nodes/{node}/time → data.localtime.'
           preprocessing:
             - type: JSONPATH
               parameters:
-                - $.data.time
+                - $.data.localtime
           master_item:
-            key: pve.status
+            key: pve.time.raw
           tags:
             - tag: PVE
               value: Localtime
@@ -352,6 +622,7 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Host kernel machine architecture (e.g. x86_64). Source: /nodes/{node}/status → data["current-kernel"].machine.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -368,6 +639,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Free (available) RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.free.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -384,6 +656,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Total installed RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.total.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -400,6 +673,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Used RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.used.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -417,6 +691,7 @@ zabbix_export:
           value_type: FLOAT
           trends: '0'
           units: '!MHz'
+          description: 'CPU clock speed in MHz of the PVE host processor. Source: /nodes/{node}/status → data.cpuinfo.mhz.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -433,19 +708,39 @@ zabbix_export:
           history: 1d
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/lxc. Used as source for all LXC container dependent items and discovery rules.'
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/lxc'
           headers:
             - name: Authorization
               value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
             - name: Accept
               value: application/json
+        - uuid: 34f01ffa2b17450490d7015da7759c17
+          name: 'PVE network raw'
+          type: HTTP_AGENT
+          key: pve.nodes.network.raw
+          delay: '300'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/network. Used for host network interface discovery.'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/network'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Network
         - uuid: 9c7336fea970423989c113561052fd32
           name: 'PVE qemu raw'
           type: HTTP_AGENT
           key: pve.nodes.qemu.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/qemu?full=1. Used as source for all QEMU/KVM VM dependent items and discovery rules.'
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/qemu?full=1'
           headers:
             - name: Authorization
@@ -456,9 +751,10 @@ zabbix_export:
           name: 'PVE nodes raw'
           type: HTTP_AGENT
           key: pve.nodes.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes. Used as source for cluster node discovery and node status items.'
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes'
           headers:
@@ -473,6 +769,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Available free space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.avail.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -489,6 +786,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Total size of the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.total.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -505,6 +803,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
+          description: 'Used space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.used.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -521,6 +820,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: '!Sockets'
+          description: 'Number of physical CPU sockets on the PVE host. Source: /nodes/{node}/status → data.cpuinfo.sockets.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -534,22 +834,32 @@ zabbix_export:
           name: 'PVE status raw'
           type: HTTP_AGENT
           key: pve.status
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/status. Used as source for all PVE host dependent items (CPU, memory, disk, kernel, uptime, etc.).'
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/status'
           headers:
             - name: Authorization
               value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
             - name: Accept
               value: application/json
+          triggers:
+            - uuid: 4cc6e8941efc4a3592f6dd22f2056969
+              expression: 'nodata(/Template Proxmox VE REST API/pve.status,300)=1'
+              name: 'PVE API not reachable on {HOST.NAME}'
+              opdata: 'No data for 5 minutes'
+              priority: AVERAGE
+              description: 'The Proxmox VE REST API has not returned data for 5 minutes. Check connectivity, API token, and PVE service status.'
+              manual_close: 'YES'
         - uuid: e7ccf26004ff4d73b849ec2f0ba9f3a5
           name: 'PVE storage raw'
           type: HTTP_AGENT
           key: pve.storage.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/storage. Used as source for all storage discovery rules and dependent items.'
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/storage'
           headers:
@@ -564,10 +874,12 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Boot mode of the PVE host (e.g. efi, legacy-bios). Source: /nodes/{node}/status → data["boot-info"].mode.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data["boot-info"].mode'
+              error_handler: DISCARD_VALUE
           master_item:
             key: pve.status
           tags:
@@ -580,12 +892,14 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Secure Boot status on the PVE host. 0 = disabled, 1 = enabled. Source: /nodes/{node}/status → data["boot-info"].secureboot.'
           valuemap:
             name: 'PVE secureboot'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data["boot-info"].secureboot'
+              error_handler: DISCARD_VALUE
           master_item:
             key: pve.status
           tags:
@@ -595,9 +909,10 @@ zabbix_export:
           name: 'PVE tasks raw'
           type: HTTP_AGENT
           key: pve.tasks.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/tasks, processed by JavaScript preprocessing to deduplicate tasks (keeps most recent run per id+type pair, excludes backup tasks handled by pve.backup.raw).'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
@@ -611,21 +926,21 @@ zabbix_export:
                       var records = obj.body.data;
                       var grouped = {};
                   
-                      // Hilfsfunktion: Zeitwert → ms
-                      // ===== Änderung 1: robustes Zeit-Parsing, keine parseFloat-Falle =====
+                      // Helper: normalise timestamp value to milliseconds
+                      // Robust time parsing: numeric strings, ISO, "YYYY-MM-DD HH:mm:ss"
                       function normTime(v) {
                           if (v === null || v === undefined) return -Infinity;
                           if (typeof v === "number") return v < 1000000000000 ? v * 1000 : v;
                           if (typeof v === "string") {
                               var s = v.trim();
                   
-                              // Nur rein numerische Strings als Zahl behandeln
+                              // Treat purely numeric strings as numbers
                               if (/^\d+(\.\d+)?$/.test(s)) {
                                   var n = parseFloat(s);
                                   return n < 1000000000000 ? n * 1000 : n;
                               }
                   
-                              // "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
+                              // Parse "YYYY-MM-DD HH:mm:ss" (optional AM/PM)
                               var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*(AM|PM))?$/i);
                               if (m) {
                                   var H = parseInt(m[4], 10), ampm = (m[7] || "").toUpperCase();
@@ -633,22 +948,22 @@ zabbix_export:
                                   return Date.UTC(+m[1], +m[2]-1, +m[3], H, +m[5], +m[6]);
                               }
                   
-                              // Fallback: ISO-kompatibel parsen (Leerraum → 'T')
+                              // Fallback: parse as ISO-compatible string (Leerraum → 'T')
                               var p = Date.parse(s.replace(/\s+/, "T"));
                               return isNaN(p) ? -Infinity : p;
                           }
                           return -Infinity;
                       }
-                      // ===== Ende Änderung 1 =====
+                      
                   
-                      // Tasks verarbeiten
+                      // Process task records
                       for (var i = 0; i < records.length; i++) {
                           var e = records[i];
                           if (!e || !e.id || !e.type) continue;
                   
                           var key = e.id + "|" + e.type;
                   
-                          // Zeit normalisieren
+                          // Normalise timestamps
                           var copy = {};
                           for (var k in e) if (e.hasOwnProperty(k)) copy[k] = e[k];
                           copy._start = normTime(e.starttime || e.pstart || e.start);
@@ -660,7 +975,7 @@ zabbix_export:
                           }
                       }
                   
-                      // Ergebnisliste bauen
+                      // Build result list
                       var resultList = [];
                       for (var k in grouped) {
                           var g = grouped[k];
@@ -670,8 +985,8 @@ zabbix_export:
                           resultList.push(g);
                       }
                   
-                      // Nach numerischer ID sortieren
-                      // ===== Änderung 2: numerisch nur bei rein numerischer id, sonst lexikalisch =====
+                      // Sort by ID
+                      // Sort: numeric IDs first, then lexicographic
                       resultList.sort(function(a, b) {
                           var aNum = /^\d+$/.test(String(a.id));
                           var bNum = /^\d+$/.test(String(b.id));
@@ -680,7 +995,7 @@ zabbix_export:
                           if (!aNum && bNum) return 1;
                           return (String(a.id) || "").localeCompare(String(b.id) || "");
                       });
-                      // ===== Ende Änderung 2 =====
+                      
                   
                       obj.body.data = resultList;
                       obj.body.total = resultList.length;
@@ -698,6 +1013,24 @@ zabbix_export:
             - name: Accept
               value: application/json
           output_format: JSON
+        - uuid: 9b368584e6844582a3ad0e792bdaf408
+          name: 'PVE time raw'
+          type: HTTP_AGENT
+          key: pve.time.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/time. Used for timezone and localtime dependent items.'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/time'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Time
         - uuid: 6b6b792bf6cd4440acd22a5701f84201
           name: 'PVE timezone'
           type: DEPENDENT
@@ -705,12 +1038,13 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Timezone configured on the PVE host (e.g. Europe/Berlin). Source: /nodes/{node}/time → data.timezone.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.data.timezone
           master_item:
-            key: pve.status
+            key: pve.time.raw
           tags:
             - tag: PVE
               value: Timezone
@@ -721,6 +1055,7 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: s
+          description: 'Uptime of the PVE host in seconds since last boot. Source: /nodes/{node}/status → data.uptime.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -734,9 +1069,10 @@ zabbix_export:
           name: 'PVE user raw'
           type: HTTP_AGENT
           key: pve.user.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
+          description: 'Master item. Raw JSON from /access/users. Used as source for user discovery and account expiration monitoring.'
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/access/users'
           headers:
@@ -749,8 +1085,10 @@ zabbix_export:
           name: 'PVE version'
           type: HTTP_AGENT
           key: pve.version
+          history: '0'
           value_type: CHAR
           trends: '0'
+          description: 'Proxmox VE version string (e.g. 8.3.2). Source: /nodes/{node}/version → data.version.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -779,17 +1117,12 @@ zabbix_export:
               key: 'backup.endtime[{#BCKPID}]'
               delay: '0'
               units: unixtime
+              description: 'Unix timestamp of the last backup job end time for VM/CT {#ID}. Source: pve.backup.raw → data[bckpid].endtime.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.bckpid=="{#BCKPID}")].endtime'
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].endtime.first()'
                   error_handler: DISCARD_VALUE
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.backup.raw
               tags:
@@ -801,17 +1134,12 @@ zabbix_export:
               key: 'backup.starttime[{#BCKPID}]'
               delay: '0'
               units: unixtime
+              description: 'Unix timestamp of the last backup job start time for VM/CT {#ID}. Source: pve.backup.raw → data[bckpid].starttime.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.bckpid=="{#BCKPID}")].starttime'
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].starttime.first()'
                   error_handler: DISCARD_VALUE
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.backup.raw
               tags:
@@ -822,25 +1150,20 @@ zabbix_export:
               type: DEPENDENT
               key: 'backup.status[{#BCKPID}]'
               delay: '0'
+              description: 'Status of the last backup job for VM/CT {#ID}. 0=OK, 1=running, 2=stopped, 3=error, 4=unknown error.'
               valuemap:
                 name: 'Tasks status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.bckpid=="{#BCKPID}")].status'
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].status.first()'
                   error_handler: DISCARD_VALUE
                 - type: REGEX
                   parameters:
-                    - '(?<=^\[")(?:OK|running|stopped|error|unknown error)(?="\]$)'
+                    - '^(OK|running|stopped|error|unknown error)$'
                     - \0
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '4'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
                 - type: STR_REPLACE
                   parameters:
                     - OK
@@ -864,7 +1187,7 @@ zabbix_export:
                   value: Backup
               trigger_prototypes:
                 - uuid: 6c0aa697138548fe8407c82d28d31a4a
-                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALER:"{#ID}"}'
+                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALERT:"{#ID}"}'
                   name: 'Backup for {#ID} failed'
                   opdata: 'Backup status: {ITEM.LASTVALUE}'
                   priority: HIGH
@@ -895,6 +1218,161 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+        - uuid: b3effaa7e8414b4b80f82b301646e7a2
+          name: 'Discover disks'
+          type: DEPENDENT
+          key: discover.disks
+          delay: '0'
+          description: 'Discovers physical disks from /nodes/{node}/disks/list for SMART health monitoring.'
+          item_prototypes:
+            - uuid: 34f801ed3d4f492bb997c571addb024a
+              name: 'Disk {#DISK_DEV} health'
+              type: HTTP_AGENT
+              key: 'disk.health[{#DISK_DEV}]'
+              delay: '3600'
+              value_type: CHAR
+              trends: '0'
+              description: 'SMART health status of disk {#DISK_DEV} ({#DISK_MODEL}). Values: PASSED, FAILED. Source: /nodes/{node}/disks/smart.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.health
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: UNKNOWN
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/smart?disk={#DISK_DEV}'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: PVE
+                  value: Disk
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+              trigger_prototypes:
+                - uuid: e1ea4b0beadb4577a6b71421c12761a1
+                  expression: 'last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"PASSED"'
+                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) SMART health not PASSED on {HOST.NAME}'
+                  priority: HIGH
+                  description: 'SMART health check for disk {#DISK_DEV} returned a non-PASSED status. Immediate investigation recommended.'
+                  manual_close: 'YES'
+            - uuid: 8f6a409c8d1c40dd8ddb78d029f7dcbc
+              name: 'Disk {#DISK_DEV} size'
+              type: DEPENDENT
+              key: 'disk.size[{#DISK_DEV}]'
+              delay: '0'
+              units: Bytes
+              description: 'Total size of physical disk {#DISK_DEV} ({#DISK_MODEL}) in bytes. Source: /nodes/{node}/disks/list.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.devpath=="{#DISK_DEV}")].size.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.disks.raw
+              tags:
+                - tag: PVE
+                  value: Disk
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+            - uuid: 11439521679e47f8a1e96261a5e98e4d
+              name: 'Disk {#DISK_DEV} wearout'
+              type: HTTP_AGENT
+              key: 'disk.wearout[{#DISK_DEV}]'
+              delay: '3600'
+              value_type: FLOAT
+              trends: '0'
+              units: '%'
+              description: 'SSD wearout indicator for disk {#DISK_DEV} in percent remaining life (100% = new, 0% = worn out). Only meaningful for SSDs/NVMe. Source: /nodes/{node}/disks/smart.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.wearout
+                  error_handler: DISCARD_VALUE
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/smart?disk={#DISK_DEV}'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: PVE
+                  value: Disk
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+              trigger_prototypes:
+                - uuid: c5f1c17c33624781a843ccea415667e3
+                  expression: 'last(/Template Proxmox VE REST API/disk.wearout[{#DISK_DEV}])<{$DISK.WEAROUT.MIN}'
+                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) wearout below {$DISK.WEAROUT.MIN}% on {HOST.NAME}'
+                  priority: WARNING
+                  description: 'SSD wearout for disk {#DISK_DEV} is below threshold. Consider replacement planning.'
+                  manual_close: 'YES'
+          master_item:
+            key: pve.disks.raw
+          lld_macro_paths:
+            - lld_macro: '{#DISK_DEV}'
+              path: $.devpath
+            - lld_macro: '{#DISK_MODEL}'
+              path: $.model
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 235e7e42e382487085fdf54efa040b65
+          name: 'Discover HA resources'
+          type: HTTP_AGENT
+          key: discover.ha.resources
+          delay: '300'
+          description: 'Discovers HA-managed resources (VMs/LXC) from /cluster/ha/resources.'
+          item_prototypes:
+            - uuid: 1c9ba7d377414184b53b3ed14b57ef26
+              name: 'HA state of {#HA_SID}'
+              type: HTTP_AGENT
+              key: 'ha.resource.state[{#HA_SID}]'
+              delay: '60'
+              value_type: CHAR
+              trends: '0'
+              description: 'Current HA state of resource {#HA_SID} (e.g. started, stopped, error, freeze, ignored). Source: /cluster/ha/resources/{sid}.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.state
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: unknown
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/ha/resources/{#HA_SID}'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: PVE
+                  value: HA
+                - tag: PVE
+                  value: '{#HA_SID}'
+              trigger_prototypes:
+                - uuid: 1e1ce9abf20f4d0eb649fbfe8d50d884
+                  expression: 'last(/Template Proxmox VE REST API/ha.resource.state[{#HA_SID}])="error"'
+                  name: 'HA resource {#HA_SID} is in error state'
+                  priority: HIGH
+                  description: 'The HA-managed resource {#HA_SID} has entered error state. Check PVE HA log for details.'
+                  manual_close: 'YES'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/ha/resources'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          lld_macro_paths:
+            - lld_macro: '{#HA_SID}'
+              path: $.sid
+            - lld_macro: '{#HA_TYPE}'
+              path: $.type
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
         - uuid: 553940a5f79343cbb87e6eef7f446131
           name: 'Discover lxc'
           type: DEPENDENT
@@ -910,16 +1388,11 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: '%'
+              description: 'CPU utilization of LXC container {#VMID} in percent (0-100). Source: /nodes/{node}/lxc → data[vmid].cpu * 100.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].cpu'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].cpu.first()'
                 - type: MULTIPLIER
                   parameters:
                     - '100'
@@ -930,22 +1403,75 @@ zabbix_export:
                   value: CPU
                 - tag: LXC-Container
                   value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: 4e5c59fc6d1a4a1da537b354b2696a5d
+                  expression: 'min(/Template Proxmox VE REST API/lxc.cpuusage[{#VMID}],300)>{$LXC.CPU.HIGH:"{#VMID}"}'
+                  name: 'CPU usage of LXC {#VMID} over {$LXC.CPU.HIGH:"{#VMID}"}% for 5 minutes'
+                  priority: HIGH
+                - uuid: cce7280e51c24bd9965f4ea5eb783c87
+                  expression: 'min(/Template Proxmox VE REST API/lxc.cpuusage[{#VMID}],300)>{$LXC.CPU.WARN:"{#VMID}"}'
+                  name: 'CPU usage of LXC {#VMID} over {$LXC.CPU.WARN:"{#VMID}"}% for 5 minutes'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'CPU usage of LXC {#VMID} over {$LXC.CPU.HIGH:"{#VMID}"}% for 5 minutes'
+                      expression: 'min(/Template Proxmox VE REST API/lxc.cpuusage[{#VMID}],300)>{$LXC.CPU.HIGH:"{#VMID}"}'
+            - uuid: 392f03aa5456439e84c89e9f57ecc832
+              name: 'Disk read rate of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.diskread.rate[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              description: 'LXC disk read throughput in bytes per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].diskread.first()'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Disk
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: 13cc1ea622214e1d90f523d8ebd4935c
+              name: 'Disk write rate of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.diskwrite.rate[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              description: 'LXC disk write throughput in bytes per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].diskwrite.first()'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Disk
+                - tag: LXC-Container
+                  value: '{#VMID}'
             - uuid: 483a80bba4b74224975b0cf7e357f89a
               name: 'Disk usage {#VMID}'
               type: DEPENDENT
               key: 'lxc.disk[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Disk space used by LXC container {#VMID} in bytes (rootfs usage). Source: /nodes/{node}/lxc → data[vmid].disk.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].disk'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].disk.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -959,16 +1485,11 @@ zabbix_export:
               key: 'lxc.maxdisk[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Total disk size allocated to LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc → data[vmid].maxdisk.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxdisk'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].maxdisk.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -982,16 +1503,11 @@ zabbix_export:
               key: 'lxc.maxmem[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Maximum memory allocated to LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc → data[vmid].maxmem.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxmem'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].maxmem.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1005,16 +1521,11 @@ zabbix_export:
               key: 'lxc.maxswap[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Maximum swap space allocated to LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc → data[vmid].maxswap.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxswap'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].maxswap.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1028,18 +1539,27 @@ zabbix_export:
               key: 'lxc.memusage[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current memory usage of LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc → data[vmid].mem.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].mem'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].mem.first()'
               master_item:
                 key: pve.nodes.lxc.raw
+              tags:
+                - tag: LXC-Container
+                  value: Memory
+                - tag: LXC-Container
+                  value: '{#VMID}'
+            - uuid: c8bfad8867bb48b988c7ed00c6eebf5a
+              name: 'Memory utilization of {#VMID} (%)'
+              type: CALCULATED
+              key: 'lxc.memutil[{#VMID}]'
+              delay: '60'
+              value_type: FLOAT
+              units: '%'
+              params: 'last(/{HOST.HOST}/lxc.memusage[{#VMID}]) / last(/{HOST.HOST}/lxc.maxmem[{#VMID}]) * 100'
+              description: 'LXC memory utilization as percentage of maximum allocated memory.'
               tags:
                 - tag: LXC-Container
                   value: Memory
@@ -1052,16 +1572,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Hostname/name of LXC container {#VMID}. Source: /nodes/{node}/lxc → data[vmid].name.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].name'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].name.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1075,16 +1590,12 @@ zabbix_export:
               key: 'lxc.netin.current[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current network receive rate of LXC container {#VMID} in bytes/s (delta of cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netin'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netin.first()'
+                  error_handler: DISCARD_VALUE
                 - type: SIMPLE_CHANGE
                   parameters:
                     - ''
@@ -1101,16 +1612,12 @@ zabbix_export:
               key: 'lxc.netin[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Cumulative host-level network output (bytes received) on Proxmox host for LXC {#VMID}, since last LXC start.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netin'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netin.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1124,16 +1631,12 @@ zabbix_export:
               key: 'lxc.netout.current[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current network transmit rate of LXC container {#VMID} in bytes/s (delta of cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netout'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netout.first()'
+                  error_handler: DISCARD_VALUE
                 - type: SIMPLE_CHANGE
                   parameters:
                     - ''
@@ -1154,13 +1657,8 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netout'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netout.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1173,18 +1671,13 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.status[{#VMID}]'
               delay: '0'
+              description: 'Runtime status of LXC container {#VMID}. 0 = stopped, 1 = running, 2 = paused. Source: /nodes/{node}/lxc → data[vmid].status.'
               valuemap:
                 name: 'VM  and LXC status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].status'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].status.first()'
                 - type: STR_REPLACE
                   parameters:
                     - stopped
@@ -1208,14 +1701,14 @@ zabbix_export:
                 - uuid: ff83e8f239e246b0a1c385029fe3941d
                   expression: |
                     min(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
-                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1
+                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and min(/Template Proxmox VE REST API/lxc.status[{#VMID}],24h)=1
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1'
                   name: 'LXC {#VMID} status is stopped'
                   priority: HIGH
                   description: |
-                    To permanently suppress the “LXC stopped” trigger warning on the host, set the host macro:
-                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 – Enable the “LXC stopped” trigger. 
+                    To permanently suppress the "LXC stopped" trigger warning on the host, set the host macro:
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 - Enable the "LXC stopped" trigger. 
                     {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 will disable the alert for that item.
                   manual_close: 'YES'
             - uuid: 761b499cf31f463e86c66bf0e8d38e1e
@@ -1224,16 +1717,11 @@ zabbix_export:
               key: 'lxc.swap[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current swap usage of LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc → data[vmid].swap.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].swap'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].swap.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1248,16 +1736,11 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: s
+              description: 'Uptime of LXC container {#VMID} in seconds since last start. Source: /nodes/{node}/lxc → data[vmid].uptime.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].uptime'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].uptime.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1270,16 +1753,11 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.vcpu[{#VMID}]'
               delay: '0'
+              description: 'Number of vCPUs assigned to LXC container {#VMID}. Source: /nodes/{node}/lxc → data[vmid].cpus.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].cpus'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].cpus.first()'
               master_item:
                 key: pve.nodes.lxc.raw
               tags:
@@ -1287,6 +1765,13 @@ zabbix_export:
                   value: CPU
                 - tag: LXC-Container
                   value: '{#VMID}'
+          trigger_prototypes:
+            - uuid: 2dc3bee99506415d9461edbbdb9ce115
+              expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1 and last(/Template Proxmox VE REST API/lxc.uptime[{#VMID}])<600'
+              name: 'LXC {#VMID} has been restarted (uptime < 10 min)'
+              priority: INFO
+              description: 'LXC container was recently started or restarted.'
+              manual_close: 'YES'
           graph_prototypes:
             - uuid: 69f379a5df7a4a10aa08f507d27adb35
               name: 'LXC CPU utilization {#VMID}'
@@ -1324,6 +1809,18 @@ zabbix_export:
                   item:
                     host: 'Template Proxmox VE REST API'
                     key: 'lxc.netout.current[{#VMID}]'
+            - uuid: 04ce547c02f9405899376372dffa6aff
+              name: 'LXC Disk I/O rate {#VMID}'
+              graph_items:
+                - color: E65100
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.diskread.rate[{#VMID}]'
+                - sortorder: '1'
+                  color: 1565C0
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.diskwrite.rate[{#VMID}]'
             - uuid: d1ce123e0cda47c8b3352cac115f059e
               name: 'LXC Disk usage {#VMID}'
               yaxismax: '0'
@@ -1342,6 +1839,13 @@ zabbix_export:
                   item:
                     host: 'Template Proxmox VE REST API'
                     key: 'lxc.disk[{#VMID}]'
+            - uuid: a9871fd798ba440a8dbba4e7cd325f53
+              name: 'LXC Memory utilization % {#VMID}'
+              graph_items:
+                - color: 1565C0
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'lxc.memutil[{#VMID}]'
             - uuid: a02d03993bbb446cae8abc6124d36330
               name: 'LXC Memory utilization {#VMID}'
               graph_items:
@@ -1391,6 +1895,117 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+        - uuid: cdcb64618a174622909398a4c3f2d5d1
+          name: 'Discover network interfaces'
+          type: DEPENDENT
+          key: discover.network
+          delay: '0'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFACE_TYPE}'
+                value: '^(bridge|bond|eth|en|vlan).*'
+                formulaid: A
+              - macro: '{#IFACE}'
+                value: '{$IFACE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: 'Discovers host network interfaces from /nodes/{node}/network. Filters to relevant types (bridge, bond, eth/en*, vlan) and excludes the interface names matching {$IFACE.NOT_MATCHES}, which by default drops the per-guest interfaces Proxmox creates for VMs and containers.'
+          item_prototypes:
+            - uuid: 6ab6551bf8354a489ebbc4bb8281b9cf
+              name: 'Network interface {#IFACE} active'
+              type: DEPENDENT
+              key: 'iface.active[{#IFACE}]'
+              delay: '0'
+              description: 'Active/link state of network interface {#IFACE} on the PVE host. 1 = active, 0 = inactive.'
+              valuemap:
+                name: 'Network interface active'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.iface=="{#IFACE}")].active.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.nodes.network.raw
+              tags:
+                - tag: PVE
+                  value: Network
+                - tag: PVE
+                  value: '{#IFACE}'
+              trigger_prototypes:
+                - uuid: 9ad045fbeefa4b9db50fdae75cce9a9f
+                  expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=0 and last(/Template Proxmox VE REST API/iface.autostart[{#IFACE}])=1 and max(/Template Proxmox VE REST API/iface.active[{#IFACE}],{$IFACE.ACTIVE.WINDOW})=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=1'
+                  name: 'Network interface {#IFACE} is down on {HOST.NAME}'
+                  priority: WARNING
+                  description: 'Host network interface {#IFACE} is no longer active/up. All three conditions must hold: the interface is down, it is configured to start automatically, and it was active at least once within {$IFACE.ACTIVE.WINDOW}. Interfaces that are configured but were never actually up do not raise this trigger.'
+                  manual_close: 'YES'
+            - uuid: 9a5222d23474453985777d17eb16a70f
+              name: 'Network interface {#IFACE} autostart'
+              type: DEPENDENT
+              key: 'iface.autostart[{#IFACE}]'
+              delay: '0'
+              description: 'Configured admin state of network interface {#IFACE}. 1 = the interface has an "auto" entry in /etc/network/interfaces and is expected to be up, 0 = not configured for automatic start. If the API does not report the field at all the item falls back to 1, so that the interface down trigger keeps working and is decided by the activity condition alone.'
+              valuemap:
+                name: 'Network interface autostart'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.iface=="{#IFACE}")].autostart.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: pve.nodes.network.raw
+              tags:
+                - tag: PVE
+                  value: Network
+                - tag: PVE
+                  value: '{#IFACE}'
+            - uuid: afe0f690dd654826a7fbd90e56d485c5
+              name: 'Network interface {#IFACE} type'
+              type: DEPENDENT
+              key: 'iface.type[{#IFACE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Type/driver of network interface {#IFACE} (e.g. bridge, bond, eth). Source: /nodes/{node}/network.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.iface=="{#IFACE}")].type.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.nodes.network.raw
+              tags:
+                - tag: PVE
+                  value: Network
+                - tag: PVE
+                  value: '{#IFACE}'
+          graph_prototypes:
+            - uuid: 92d3124033794ee4ada71893d6960b9c
+              name: 'Network interface {#IFACE} status'
+              graph_items:
+                - color: 1976D2
+                  calc_fnc: ALL
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'iface.active[{#IFACE}]'
+          master_item:
+            key: pve.nodes.network.raw
+          lld_macro_paths:
+            - lld_macro: '{#IFACE_TYPE}'
+              path: $.type
+            - lld_macro: '{#IFACE}'
+              path: $.iface
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
         - uuid: 83905502b5b94a61b6ec0e5811338fcb
           name: 'Discover nodes'
           type: DEPENDENT
@@ -1406,16 +2021,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'SSL certificate fingerprint (SHA-256) of cluster node {#NODE_NAME}. Source: /nodes.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.node=="{#NODE_NAME}")].ssl_fingerprint'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.node=="{#NODE_NAME}")].ssl_fingerprint.first()'
               master_item:
                 key: pve.nodes.raw
               tags:
@@ -1427,18 +2037,13 @@ zabbix_export:
               key: 'node.status[{#NODE_NAME}]'
               delay: '0'
               trends: '0'
+              description: 'Online status of cluster node {#NODE_NAME}. 1 = online, 0 = offline. Source: /nodes → data[node].status.'
               valuemap:
                 name: 'Node status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.node=="{#NODE_NAME}")].status'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.node=="{#NODE_NAME}")].status.first()'
                 - type: STR_REPLACE
                   parameters:
                     - online
@@ -1458,9 +2063,9 @@ zabbix_export:
                   name: 'Node status {#NODE_NAME} offline'
                   priority: HIGH
                   description: |
-                    Use the following host macros to control the “Node status” trigger for each Proxmox node:
-                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1 activates the “Node status” trigger
-                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=0 deactivates (suppresses) the “Node status” trigger
+                    Use the following host macros to control the "Node status" trigger for each Proxmox node:
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1 activates the "Node status" trigger
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=0 deactivates (suppresses) the "Node status" trigger
             - uuid: 635870600dec41d382d8aab1217591e2
               name: 'Node uptime {#NODE_NAME}'
               type: DEPENDENT
@@ -1468,12 +2073,13 @@ zabbix_export:
               delay: '0'
               trends: '0'
               units: s
+              description: 'Uptime of cluster node {#NODE_NAME} in seconds. Source: /nodes → data[node].uptime.'
               valuemap:
                 name: 'Node status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.node=="{#NODE_NAME}")].uptime'
+                    - '$.data[?(@.node=="{#NODE_NAME}")].uptime.first()'
                 - type: LTRIM
                   parameters:
                     - '["'
@@ -1522,7 +2128,7 @@ zabbix_export:
             - uuid: bc762ee4ac6741bba3d7ecf96ef740c3
               name: 'Balloon minimum memory {#VMID}'
               type: DEPENDENT
-              key: 'vm.baloonmin[{#VMID}]'
+              key: 'vm.balloonmin[{#VMID}]'
               delay: '0'
               units: Bytes
               description: |
@@ -1531,15 +2137,8 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].balloon_min'
-                  error_handler: CUSTOM_VALUE
-                  error_handler_params: '0'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].balloon_min.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1550,7 +2149,7 @@ zabbix_export:
             - uuid: d828297876d94d078596f76f0da43c38
               name: 'Balloon memory {#VMID}'
               type: DEPENDENT
-              key: 'vm.baloon[{#VMID}]'
+              key: 'vm.balloon[{#VMID}]'
               delay: '0'
               units: Bytes
               description: |
@@ -1559,15 +2158,8 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].balloon'
-                  error_handler: CUSTOM_VALUE
-                  error_handler_params: '0'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].balloon.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1582,16 +2174,11 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: '%'
+              description: 'CPU utilization of VM {#VMID} in percent (0-100). Source: /nodes/{node}/qemu → data[vmid].cpu * 100.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].cpu'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].cpu.first()'
                 - type: MULTIPLIER
                   parameters:
                     - '100'
@@ -1608,8 +2195,8 @@ zabbix_export:
                   name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_AVERAGE:"{#VMID}"}% for 5 minutes'
                   priority: AVERAGE
                   description: |
-                    To permanently suppress the “CPU high” trigger warning on the host, set the host macro:
-                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=1 Enable the “VM stopped” trigger. 
+                    To permanently suppress the "CPU high" trigger warning on the host, set the host macro:
+                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=1 Enable the "VM stopped" trigger. 
                     {$CPU_USAGE_AVERAGE:"{#VMID}"}=0 will disable the alert for that item.
                   dependencies:
                     - name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
@@ -1619,9 +2206,55 @@ zabbix_export:
                   name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
                   priority: HIGH
                   description: |
-                    To permanently suppress the “CPU high” trigger warning on the host, set the host macro:
-                    {$CPU_USAGE_HIGH:"{#VMID}"}=1  Enable the “VM stopped” trigger. 
+                    To permanently suppress the "CPU high" trigger warning on the host, set the host macro:
+                    {$CPU_USAGE_HIGH:"{#VMID}"}=1  Enable the "VM stopped" trigger.
                     {$CPU_USAGE_HIGH:"{#VMID}"}=0 will disable the alert for that item.
+            - uuid: 4c6878c9c5a945a8810c1d5c3fac9c5f
+              name: 'Disk read rate of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.diskread.rate[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              description: 'QEMU VM disk read throughput in bytes per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].diskread.first()'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Disk
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 337d72d2579343e2b25561db08d5d4e4
+              name: 'Disk write rate of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.diskwrite.rate[{#VMID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              description: 'QEMU VM disk write throughput in bytes per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID})].diskwrite.first()'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Disk
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
             - uuid: afb82acd76a840a78bd57034d0312f7f
               name: 'Machine type of {#VMID}'
               type: DEPENDENT
@@ -1635,13 +2268,8 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})][''running-machine'']'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})][''running-machine''].first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1655,16 +2283,11 @@ zabbix_export:
               key: 'vm.maxmem[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Maximum memory allocated to VM {#VMID} in bytes. Source: /nodes/{node}/qemu → data[vmid].maxmem.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxmem'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].maxmem.first()'
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1678,18 +2301,27 @@ zabbix_export:
               key: 'vm.memusage[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current memory usage of VM {#VMID} in bytes (requires QEMU guest agent or ballooning). Source: /nodes/{node}/qemu → data[vmid].mem.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].mem'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].mem.first()'
               master_item:
                 key: pve.nodes.qemu.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Memory
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+            - uuid: 5cdbfa4d7fe642e78d1066b73b84f4ff
+              name: 'Memory utilization of {#VMID} (%)'
+              type: CALCULATED
+              key: 'vm.memutil[{#VMID}]'
+              delay: '60'
+              value_type: FLOAT
+              units: '%'
+              params: 'last(/{HOST.HOST}/vm.memusage[{#VMID}]) / last(/{HOST.HOST}/vm.maxmem[{#VMID}]) * 100'
+              description: 'QEMU VM memory utilization as percentage of maximum allocated memory.'
               tags:
                 - tag: QEMU/KVM-VMs
                   value: Memory
@@ -1702,16 +2334,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Name of VM {#VMID}. Source: /nodes/{node}/qemu → data[vmid].name.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].name'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].name.first()'
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1723,17 +2350,12 @@ zabbix_export:
               key: 'vm.netin.current[{#VMID}]'
               delay: '0'
               units: Bytes
-              description: 'Cumulative host-level network input (bytes received) on Proxmox host for VM {#VMID}, since last VM start.'
+              description: 'Current network receive rate of VM {#VMID} in bytes/s (delta of cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netin'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netin.first()'
+                  error_handler: DISCARD_VALUE
                 - type: SIMPLE_CHANGE
                   parameters:
                     - ''
@@ -1750,16 +2372,12 @@ zabbix_export:
               key: 'vm.netin[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Cumulative host-level network input (bytes received) on Proxmox host for VM {#VMID}, since last VM start.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netin'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netin.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1773,16 +2391,12 @@ zabbix_export:
               key: 'vm.netout.current[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Current network transmit rate of VM {#VMID} in bytes/s (delta of cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netout'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netout.first()'
+                  error_handler: DISCARD_VALUE
                 - type: SIMPLE_CHANGE
                   parameters:
                     - ''
@@ -1799,16 +2413,12 @@ zabbix_export:
               key: 'vm.netout[{#VMID}]'
               delay: '0'
               units: Bytes
+              description: 'Cumulative network bytes transmitted by VM {#VMID} since last start. Source: /nodes/{node}/qemu → data[vmid].netout.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].netout'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].netout.first()'
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1823,16 +2433,11 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: Bytes
+              description: 'Total size of the primary boot disk of VM {#VMID} in bytes. Source: /nodes/{node}/qemu → data[vmid].maxdisk. Note: actual disk usage requires guest agent.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxdisk'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].maxdisk.first()'
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1845,18 +2450,13 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.status[{#VMID}]'
               delay: '0'
+              description: 'Runtime status of VM {#VMID}. 0 = stopped, 1 = running, 2 = paused. Source: /nodes/{node}/qemu → data[vmid].status.'
               valuemap:
                 name: 'VM  and LXC status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].status'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].status.first()'
                 - type: STR_REPLACE
                   parameters:
                     - stopped
@@ -1878,14 +2478,12 @@ zabbix_export:
                   value: '{#VMID}'
               trigger_prototypes:
                 - uuid: ac085aa97edb40dcb08272e859a39e36
-                  expression: 'min(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'last(/Template Proxmox VE REST API/vm.status[{#VMID}])=1'
+                  expression: 'max(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and min(/Template Proxmox VE REST API/vm.status[{#VMID}],24h)=1'
                   name: 'VM {#VMID} status is stopped'
                   priority: HIGH
                   description: |
-                    To permanently suppress the “VM stopped” trigger warning on the host, set the host macro:
-                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 Enable the “VM stopped” trigger. 
+                    To permanently suppress the "VM stopped" trigger warning on the host, set the host macro:
+                    {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 Enable the "VM stopped" trigger. 
                     {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 Disable the alert for that item.
                   manual_close: 'YES'
             - uuid: cccaa9f83c114274bb6de7c343fa6030
@@ -1895,16 +2493,11 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: s
+              description: 'Uptime of VM {#VMID} in seconds since last start. Source: /nodes/{node}/qemu → data[vmid].uptime.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].uptime'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.vmid=={#VMID})].uptime.first()'
               master_item:
                 key: pve.nodes.qemu.raw
               tags:
@@ -1917,6 +2510,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.vcpu[{#VMID}]'
               delay: '0'
+              description: 'Number of vCPUs assigned to VM {#VMID}. Source: /nodes/{node}/qemu → data[vmid].cpus.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1934,6 +2528,13 @@ zabbix_export:
                   value: CPU
                 - tag: QEMU/KVM-VMs
                   value: '{#VMID}'
+          trigger_prototypes:
+            - uuid: 4b7ca0a0681a43a4a10eb0647292cc90
+              expression: 'last(/Template Proxmox VE REST API/vm.status[{#VMID}])=1 and last(/Template Proxmox VE REST API/vm.uptime[{#VMID}])<600'
+              name: 'VM {#VMID} has been restarted (uptime < 10 min)'
+              priority: INFO
+              description: 'VM was recently started or restarted.'
+              manual_close: 'YES'
           graph_prototypes:
             - uuid: 466cbbbcc546410880cdc89fc18496c0
               name: 'VM CPU utilization {#VMID}'
@@ -1971,6 +2572,25 @@ zabbix_export:
                   item:
                     host: 'Template Proxmox VE REST API'
                     key: 'vm.netout.current[{#VMID}]'
+            - uuid: a04ab78377214299bb04b20f8e41e0a1
+              name: 'VM Disk I/O rate {#VMID}'
+              graph_items:
+                - color: E65100
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.diskread.rate[{#VMID}]'
+                - sortorder: '1'
+                  color: 1565C0
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.diskwrite.rate[{#VMID}]'
+            - uuid: 28cab029b5e44a8f996321a5ac97c1ce
+              name: 'VM Memory utilization % {#VMID}'
+              graph_items:
+                - color: 1565C0
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'vm.memutil[{#VMID}]'
             - uuid: 4a78e07a7bf04c50b779ed61e65c39d8
               name: 'VM Memory utilization {#VMID}'
               graph_items:
@@ -2000,6 +2620,8 @@ zabbix_export:
               path: $.type
             - lld_macro: '{#VMID}'
               path: $.vmid
+            - lld_macro: '{#VM_NAME}'
+              path: $.name
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -2017,39 +2639,13 @@ zabbix_export:
               type: DEPENDENT
               key: 'storage.active[{#STORAGE_NAME}]'
               delay: '0'
+              description: 'Availability status of storage pool {#STORAGE_NAME}. 1 = active/available, 0 = inactive/not mounted.'
               valuemap:
                 name: 'Storage active status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].active'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
-              master_item:
-                key: pve.storage.raw
-              tags:
-                - tag: PVE
-                  value: Storage
-            - uuid: 8e1de775d9524b27b37ad414ce961d9b
-              name: 'Storage availble {#STORAGE_NAME}'
-              type: DEPENDENT
-              key: 'storage.avail[{#STORAGE_NAME}]'
-              delay: '0'
-              units: Bytes
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].avail'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].active.first()'
               master_item:
                 key: pve.storage.raw
               tags:
@@ -2057,13 +2653,29 @@ zabbix_export:
                   value: Storage
               trigger_prototypes:
                 - uuid: cf31e839babb4b8a90b395ad3df47023
-                  expression: 'min(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}],900)=0 and {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1'
+                  expression: 'min(/Template Proxmox VE REST API/storage.active[{#STORAGE_NAME}],900)=0 and {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1'
                   name: 'Storage [{#STORAGE_NAME}] not available'
                   priority: AVERAGE
                   description: |
-                    Use the following host macros to control the “Storage not available” trigger for each storage:
-                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage not available” trigger
-                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage not available” trigger
+                    Use the following host macros to control the "Storage not available" trigger for each storage:
+                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1 enables the "Storage not available" trigger
+                    {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the "Storage not available" trigger
+            - uuid: 8e1de775d9524b27b37ad414ce961d9b
+              name: 'Storage availble {#STORAGE_NAME}'
+              type: DEPENDENT
+              key: 'storage.avail[{#STORAGE_NAME}]'
+              delay: '0'
+              units: Bytes
+              description: 'Free space available on storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].avail.first()'
+              master_item:
+                key: pve.storage.raw
+              tags:
+                - tag: PVE
+                  value: Storage
             - uuid: 7f8d7a2cbdab48f097d46c92b870bb1b
               name: 'Storage content {#STORAGE_NAME}'
               type: DEPENDENT
@@ -2071,16 +2683,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Content types supported by storage pool {#STORAGE_NAME} (e.g. images,backup,iso). Source: /nodes/{node}/storage → data[storage].content.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].content'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].content.first()'
               master_item:
                 key: pve.storage.raw
               tags:
@@ -2093,16 +2700,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Storage backend type/driver of {#STORAGE_NAME} (e.g. dir, zfspool, lvm, nfs). Source: /nodes/{node}/storage → data[storage].type.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].type'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].type.first()'
               master_item:
                 key: pve.storage.raw
               tags:
@@ -2120,13 +2722,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].shared'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].shared.first()'
               master_item:
                 key: pve.storage.raw
               tags:
@@ -2138,16 +2734,11 @@ zabbix_export:
               key: 'storage.size[{#STORAGE_NAME}]'
               delay: '0'
               units: Bytes
+              description: 'Total capacity of storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].total'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].total.first()'
               master_item:
                 key: pve.storage.raw
               tags:
@@ -2159,49 +2750,48 @@ zabbix_export:
               key: 'storage.used[{#STORAGE_NAME}]'
               delay: '0'
               units: Bytes
+              description: 'Used space on storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].used'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.data[?(@.storage=="{#STORAGE_NAME}")].used.first()'
               master_item:
                 key: pve.storage.raw
               tags:
                 - tag: PVE
                   value: Storage
-          trigger_prototypes:
-            - uuid: 2b032af2b5d54593a4f5910d6ae3f912
-              expression: |
-                ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
-                 / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 90 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
-              name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 90%)'
-              opdata: 'Total: {ITEM.LASTVALUE1}, Available: {ITEM.LASTVALUE2}'
-              priority: AVERAGE
-              description: |
-                Use the following host macros to control the “Storage low available space” trigger for each storage:
-                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
-                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
-              dependencies:
-                - name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 95%)'
-                  expression: |
-                    ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
-                     / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 95 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
-            - uuid: 3827182fb0fe498d8e4c09401168d998
-              expression: |
-                ((last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) - last(/Template Proxmox VE REST API/storage.avail[{#STORAGE_NAME}])) 
-                 / last(/Template Proxmox VE REST API/storage.size[{#STORAGE_NAME}]) * 100) >= 95 and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1
-              name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} > 95%)'
-              opdata: 'Total: {ITEM.LASTVALUE1}, Available: {ITEM.LASTVALUE2}'
-              priority: HIGH
-              description: |
-                Use the following host macros to control the “Storage low available space” trigger for each storage:
-                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1 enables the “Storage low available space” trigger
-                {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the “Storage low available space” trigger
+            - uuid: 4f1446c1a3f1407b8b796e47b9208321
+              name: 'Storage utilization {#STORAGE_NAME} (%)'
+              type: CALCULATED
+              key: 'storage.util[{#STORAGE_NAME}]'
+              delay: '60'
+              value_type: FLOAT
+              units: '%'
+              params: 'last(/{HOST.HOST}/storage.used[{#STORAGE_NAME}]) / last(/{HOST.HOST}/storage.size[{#STORAGE_NAME}]) * 100'
+              description: 'Storage utilization as percentage of total size.'
+              tags:
+                - tag: PVE
+                  value: Storage
+              trigger_prototypes:
+                - uuid: 2b032af2b5d54593a4f5910d6ae3f912
+                  expression: 'last(/Template Proxmox VE REST API/storage.util[{#STORAGE_NAME}]) > {$STORAGE.UTIL.CRIT:"{#STORAGE_NAME}"} and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
+                  name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} >{$STORAGE.UTIL.CRIT}%)'
+                  opdata: 'Used: {ITEM.LASTVALUE1}%'
+                  priority: HIGH
+                  description: |
+                    Storage utilization exceeded the critical threshold {$STORAGE.UTIL.CRIT}%.
+                    Use context macro {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 to suppress.
+                - uuid: 3827182fb0fe498d8e4c09401168d998
+                  expression: 'last(/Template Proxmox VE REST API/storage.util[{#STORAGE_NAME}]) > {$STORAGE.UTIL.WARN:"{#STORAGE_NAME}"} and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
+                  name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} >{$STORAGE.UTIL.WARN}%)'
+                  opdata: 'Used: {ITEM.LASTVALUE1}%'
+                  priority: AVERAGE
+                  description: |
+                    Storage utilization exceeded the warning threshold {$STORAGE.UTIL.WARN}%.
+                    Use context macro {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=0 to suppress.
+                  dependencies:
+                    - name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} >{$STORAGE.UTIL.CRIT}%)'
+                      expression: 'last(/Template Proxmox VE REST API/storage.util[{#STORAGE_NAME}]) > {$STORAGE.UTIL.CRIT:"{#STORAGE_NAME}"} and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
           graph_prototypes:
             - uuid: e49e5464b78446aabd4313abefda14c1
               name: 'Storage active state {#STORAGE_NAME}'
@@ -2229,6 +2819,13 @@ zabbix_export:
                   item:
                     host: 'Template Proxmox VE REST API'
                     key: 'storage.avail[{#STORAGE_NAME}]'
+            - uuid: dc57dfa3ca394ee38c6fe9b13804d1b8
+              name: 'Storage utilization % {#STORAGE_NAME}'
+              graph_items:
+                - color: E53935
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'storage.util[{#STORAGE_NAME}]'
           master_item:
             key: pve.storage.raw
           lld_macro_paths:
@@ -2259,19 +2856,14 @@ zabbix_export:
               delay: '0'
               trends: '0'
               units: unixtime
+              description: 'Unix timestamp of the last end time for task type {#TYPE} on VM/CT {#GRPID}. Source: pve.tasks.raw.'
               valuemap:
                 name: 'Tasks status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].endtime'
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].endtime.first()'
                   error_handler: DISCARD_VALUE
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.tasks.raw
               tags:
@@ -2284,12 +2876,13 @@ zabbix_export:
               delay: '0'
               trends: '0'
               units: unixtime
+              description: 'Unix timestamp of the last start time for task type {#TYPE} on VM/CT {#GRPID}. Source: pve.tasks.raw.'
               valuemap:
                 name: 'Tasks status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].starttime'
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].starttime.first()'
                   error_handler: DISCARD_VALUE
                 - type: LTRIM
                   parameters:
@@ -2314,7 +2907,7 @@ zabbix_export:
                 2. stopped: VM/CT has been shut down.
                 3. error: General execution failure; check logs for details.
                 4. unexpected status: Returned state not anticipated by the script/API.
-                5. CT locked (disk): Container’s disk is locked (e.g. during backup or migration).
+                5. CT locked (disk): Container's disk is locked (e.g. during backup or migration).
                 6. timeout waiting on system: Operation exceeded its time limit and was aborted.
                 7. Failed to run vncproxy.: Unable to start the VNC proxy process.
                 8. unable to read tail (got 0 b): Failed to read log tail; zero bytes returned.
@@ -2325,20 +2918,14 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].status'
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].status.first()'
                   error_handler: DISCARD_VALUE
                 - type: REGEX
                   parameters:
-                    - '^\["(?:OK|running|stopped|error|unexpected status|CT is locked \(disk\)|timeout waiting on systemd|Failed to run vncproxy\.|unable to read tail \(got 0 byte\)|interrupted by signal)"\]$'
+                    - '^(OK|running|stopped|error|unexpected status|CT is locked \(disk\)|timeout waiting on systemd|Failed to run vncproxy\.|unable to read tail \(got 0 byte\)|interrupted by signal)$'
                     - \0
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '10'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
                 - type: STR_REPLACE
                   parameters:
                     - OK
@@ -2386,19 +2973,18 @@ zabbix_export:
                   value: Tasks
               trigger_prototypes:
                 - uuid: 19e5d067d25941169192a9ff6461b787
-                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALER:"{#GRPID}"}=1 and {$ENABLE_TASK_STATUS_ALERT}=1'
+                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALERT:"{#GRPID}"}=1'
                   name: 'Proxmox task {#TYPE} {#ID} failed'
                   opdata: 'Current task status: {ITEM.LASTVALUE}'
                   priority: WARNING
                   description: |
-                    Use the following host macro to control the “Proxmox task failed” trigger for each task:
-                    
-                    {$ENABLE_TASK_STATUS_ALERT:"{#GRPID}"}=1 activates the “Proxmox task failed” trigger
-                    {$ENABLE_TASK_STATUS_ALERT:"{#GRPID}"}=0 deactivates (suppresses) the “Proxmox task failed” trigger
+                    Use context macro to suppress per-task:
+                    {$ENABLE_TASK_ALERT:"{#GRPID}"}=0 suppresses this trigger for a specific task.
+                    {$ENABLE_TASK_ALERT}=0 disables all task failure alerts globally.
                   manual_close: 'YES'
           graph_prototypes:
             - uuid: 3d3673ff518e45a2979ecfbb6aa8b5e6
-              name: 'Tast status {#TYPE} {#ID}'
+              name: 'Task status {#TYPE} {#ID}'
               graph_items:
                 - color: 00897B
                   calc_fnc: ALL
@@ -2433,18 +3019,13 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Email address configured for PVE user {#USERID}. Source: /access/users.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')].email'
+                    - '$.body.data[?(@.userid==''{#USERID}'')].email.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No email address available.'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2453,19 +3034,14 @@ zabbix_export:
             - uuid: e0646641bbaf459f91c778475294cdb4
               name: 'User {#USERID} expiration date'
               type: DEPENDENT
-              key: 'user.exouration[{#USERID}]'
+              key: 'user.expiration[{#USERID}]'
               delay: '0'
               units: unixtime
+              description: 'Account expiration date/time for PVE user {#USERID} as Unix timestamp. 0 = never expires. Source: /access/users → data[userid].expire.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')].expire'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.body.data[?(@.userid==''{#USERID}'')].expire.first()'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2473,13 +3049,13 @@ zabbix_export:
                   value: '{#USERID}'
               trigger_prototypes:
                 - uuid: 749e797e101a40abb81a572dcd08bc06
-                  expression: 'fuzzytime(/Template Proxmox VE REST API/user.exouration[{#USERID}],{$USER_EXPIRE_TIME:"{#USERID}"})=1'
+                  expression: 'fuzzytime(/Template Proxmox VE REST API/user.expiration[{#USERID}],{$PVE.USER.EXPIRE.TIME:"{#USERID}"})=1'
                   name: 'User {#USERID} expires within 2 days'
                   priority: WARNING
                   description: |
-                    Use the following host macro to set the warning threshold for user expiration:
-                    {$USER_EXPIRE_TIME:"{#USERID}"}=2d → trigger fires when user {#USERID} expires within 2 days
-                    {$USER_EXPIRE_TIME:"{#USERID}"}=5d → trigger fires when user {#USERID} expires within 5 days
+                    Use the following host macro to set the warning threshold for user expiration (in seconds):
+                    {$PVE.USER.EXPIRE.TIME:"{#USERID}"}=172800 → trigger fires when user expires within 2 days
+                    {$PVE.USER.EXPIRE.TIME:"{#USERID}"}=432000 → trigger fires when user expires within 5 days
                   manual_close: 'YES'
             - uuid: 37f116aa74d3484eab60a3d3bdc07e96
               name: 'User {#USERID} first name'
@@ -2488,18 +3064,13 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'First name of PVE user {#USERID}. Source: /access/users.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')].firstname'
+                    - '$.body.data[?(@.userid==''{#USERID}'')].firstname.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No first name available.'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2512,18 +3083,13 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Last name of PVE user {#USERID}. Source: /access/users.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')].lastname'
+                    - '$.body.data[?(@.userid==''{#USERID}'')].lastname.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No last name available.'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2536,16 +3102,11 @@ zabbix_export:
               delay: '0'
               value_type: CHAR
               trends: '0'
+              description: 'Authentication realm type of PVE user {#USERID} (e.g. pam, pve). Source: /access/users.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')][''realm-type'']'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.body.data[?(@.userid==''{#USERID}'')][''realm-type''].first()'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2557,18 +3118,13 @@ zabbix_export:
               key: 'user.status[{#USERID}]'
               delay: '0'
               trends: '0'
+              description: 'Account status of PVE user {#USERID}. 1 = enabled, 0 = disabled. Source: /access/users → data[userid].enable.'
               valuemap:
                 name: 'User status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.body.data[?(@.userid==''{#USERID}'')].enable'
-                - type: LTRIM
-                  parameters:
-                    - '["'
-                - type: RTRIM
-                  parameters:
-                    - '"]'
+                    - '$.body.data[?(@.userid==''{#USERID}'')].enable.first()'
               master_item:
                 key: pve.user.raw
               tags:
@@ -2584,32 +3140,54 @@ zabbix_export:
               parameters:
                 - '$.body.data[*]'
       macros:
+        - macro: '{$CLUSTER.NODES.OFFLINE.MAX}'
+          value: '0'
+          description: 'Maximum tolerated offline cluster nodes before triggering an alert. Set to 1+ during planned maintenance.'
         - macro: '{$CPU_USAGE_AVERAGE}'
           value: '85'
           description: 'Average CPU usage threshold (%) for warning level trigger'
         - macro: '{$CPU_USAGE_HIGH}'
           value: '99'
           description: 'High CPU usage threshold (%) for warning level trigger'
-        - macro: '{$ENABLE_BACKUP_ALER}'
+        - macro: '{$DISK.WEAROUT.MIN}'
+          value: '20'
+          description: 'Minimum SSD wearout remaining (%) before triggering a warning. Default: 20%.'
+        - macro: '{$ENABLE_BACKUP_ALERT}'
           value: '1'
           description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
         - macro: '{$ENABLE_NODE_STATUS_ALERT}'
           value: '1'
           description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
-        - macro: '{$ENABLE_STORAGE_AVAILABLE_ALER}'
+        - macro: '{$ENABLE_STORAGE_AVAILABLE_ALERT}'
           value: '1'
           description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
         - macro: '{$ENABLE_STORAGE_INACTIVE_ALERT}'
           value: '1'
           description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
-        - macro: '{$ENABLE_TASK_ALER}'
+        - macro: '{$ENABLE_TASK_ALERT}'
           value: '1'
-          description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
-        - macro: '{$ENABLE_TASK_STATUS_ALERT}'
-          value: '1'
+          description: 'To enable task failure alerts set to 1. Use context macro {$ENABLE_TASK_ALERT:"{#GRPID}"}=0 to suppress alerts for individual tasks.'
         - macro: '{$ENABLE_VM_STOP_ALERT}'
           value: '1'
           description: 'To enable this trigger set to 1, to disable alerts on this trigger set value to 0'
+        - macro: '{$IFACE.ACTIVE.WINDOW}'
+          value: 7d
+          description: 'Lookback window for the network interface down trigger. The interface must have been active at least once within this period, otherwise it is treated as configured but never used and does not alert. The value must include a time unit (e.g. 7d, 24h).'
+        - macro: '{$IFACE.NOT_MATCHES}'
+          value: '^(tap|veth|fwbr|fwpr|fwln)'
+          description: 'LLD filter: host network interface names to exclude (regex). The default drops the per-guest interfaces Proxmox creates for VMs and containers, which appear and disappear together with the guest.'
+        - macro: '{$LXC.CPU.HIGH}'
+          value: '99'
+          description: 'Critical threshold for LXC CPU utilization (%) over 5 minutes.'
+        - macro: '{$LXC.CPU.WARN}'
+          value: '85'
+          description: 'Warning threshold for LXC CPU utilization (%) over 5 minutes.'
+        - macro: '{$MEMORY.UTIL.MAX}'
+          value: '90'
+          description: 'Warning threshold for VM/LXC memory utilization (%). Triggers when memory used exceeds this value.'
+        - macro: '{$PVE.USER.EXPIRE.TIME}'
+          value: '172800'
+          description: 'Seconds before user account expiration to trigger warning (default 172800 = 2 days).'
         - macro: '{$PVE_API_TOKEN}'
           type: SECRET_TEXT
           description: 'The API token secret used to authenticate with the Proxmox VE REST API.'
@@ -2618,24 +3196,167 @@ zabbix_export:
           description: 'The identifier (name) of the Proxmox VE API token.'
         - macro: '{$PVE_API_USER}'
           value: root@pam
-          description: 'The Proxmox VE username (including realm, e.g. “root@pam”) for API authentication.'
+          description: 'The Proxmox VE username (including realm, e.g. "root@pam") for API authentication.'
         - macro: '{$PVE_IP}'
           value: 192.168.10.222
           description: 'The IP address or hostname of the Proxmox VE API server.'
         - macro: '{$PVE_NODE}'
           value: pve
-          description: 'The Proxmox VE node identifier (e.g. “pve”) used in API endpoint paths.'
+          description: 'The Proxmox VE node identifier (e.g. "pve") used in API endpoint paths.'
         - macro: '{$PVE_PORT}'
           value: '8006'
           description: 'The TCP port number on which the Proxmox VE API listens (default: 8006).'
-        - macro: '{$USER_EXPIRE_TIME}'
-          value: 2d
-          description: 'Number of days before a user’s account expiration at which the trigger will fire.'
+        - macro: '{$ROOTFS.UTIL.CRIT}'
+          value: '95'
+          description: 'Critical threshold for root filesystem utilization (%).'
+        - macro: '{$ROOTFS.UTIL.WARN}'
+          value: '90'
+          description: 'Warning threshold for root filesystem utilization (%).'
+        - macro: '{$STORAGE.UTIL.CRIT}'
+          value: '90'
+          description: 'Critical threshold for storage utilization (%). Triggers when storage used exceeds this value.'
+        - macro: '{$STORAGE.UTIL.WARN}'
+          value: '80'
+          description: 'Warning threshold for storage utilization (%). Triggers when storage used exceeds this value.'
       dashboards:
         - uuid: 1da128e63dee45edb72c71b3c66161aa
-          name: 'Proxmox VE – Monitoring Dashboard'
+          name: 'Proxmox VE - Monitoring Dashboard'
           auto_start: 'NO'
           pages:
+            - name: Overview
+              widgets:
+                - type: item
+                  name: 'PVE Version'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.version
+                - type: svggraph
+                  name: 'CPU utilization'
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 0D47A1
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'PVE CPU utilization'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: OVVW1
+                - type: item
+                  name: 'Nodes online'
+                  'y': '9'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.online
+                - type: problems
+                  name: Problems
+                  'y': '12'
+                  width: '72'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: OVRPB
+                - type: item
+                  name: 'PVE Uptime'
+                  x: '18'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.uptime
+                - type: item
+                  name: 'Nodes total'
+                  x: '18'
+                  'y': '9'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.total
+                - type: item
+                  name: 'Cluster name'
+                  x: '36'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.name
+                - type: graph
+                  name: 'Memory utilization'
+                  x: '36'
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'PVE Memory utilization'
+                    - type: STRING
+                      name: reference
+                      value: OVVW2
+                - type: item
+                  name: 'VMs running'
+                  x: '36'
+                  'y': '9'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.running
+                - type: item
+                  name: 'Cluster quorum'
+                  x: '54'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.quorum
+                - type: item
+                  name: 'VMs total'
+                  x: '54'
+                  'y': '9'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.total
             - name: PVE
               widgets:
                 - type: item
@@ -2659,7 +3380,7 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: KQFTA
-                - type: piechart
+                - type: svggraph
                   name: 'Load average'
                   'y': '8'
                   width: '36'
@@ -2670,22 +3391,31 @@ zabbix_export:
                       value: 00897B
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'PVE Load Average (1 min)'
+                      value: 'PVE load average (1 min)'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '0'
                     - type: STRING
                       name: ds.1.color
                       value: 0040FF
                     - type: STRING
                       name: ds.1.items.0
-                      value: 'PVE Load Average (5 min)'
+                      value: 'PVE load average (5 min)'
+                    - type: INTEGER
+                      name: ds.1.type
+                      value: '0'
                     - type: STRING
                       name: ds.2.color
                       value: 8E24AA
                     - type: STRING
                       name: ds.2.items.0
-                      value: 'PVE Load Average (15 min)'
+                      value: 'PVE load average (15 min)'
                     - type: INTEGER
-                      name: space
-                      value: '3'
+                      name: ds.2.type
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: LDAVG
                 - type: item
                   x: '36'
                   width: '36'
@@ -2695,23 +3425,25 @@ zabbix_export:
                       value:
                         host: 'Template Proxmox VE REST API'
                         key: pve.uptime
-                - type: graph
+                - type: svggraph
+                  name: 'CPU utilization'
                   x: '36'
                   'y': '2'
                   width: '36'
                   height: '6'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: 'Template Proxmox VE REST API'
-                        key: pve.cpu.utilization
+                    - type: STRING
+                      name: ds.0.color
+                      value: 0D47A1
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'PVE CPU utilization'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '0'
                     - type: STRING
                       name: reference
                       value: AHCZQ
-                    - type: INTEGER
-                      name: source_type
-                      value: '1'
                 - type: graph
                   x: '36'
                   'y': '8'
@@ -2744,12 +3476,26 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: QJARJ
+                - type: graphprototype
+                  name: 'Storage utilization %'
+                  'y': '12'
+                  width: '72'
+                  height: '6'
+                  fields:
                     - type: INTEGER
-                      name: rows
-                      value: '2'
+                      name: columns
+                      value: '3'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Storage utilization % {#STORAGE_NAME}'
+                    - type: STRING
+                      name: reference
+                      value: STPCT
                 - type: graphprototype
                   name: 'Storage active status'
-                  'y': '12'
+                  'y': '18'
                   width: '72'
                   height: '6'
                   fields:
@@ -2819,8 +3565,36 @@ zabbix_export:
                       name: reference
                       value: LUBJD
                 - type: graphprototype
-                  name: 'VM status'
+                  name: 'Memory utilization %'
                   'y': '24'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Memory utilization % {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: VMMUP
+                - type: graphprototype
+                  name: 'Disk I/O rate'
+                  'y': '30'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'VM Disk I/O rate {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: VMDIO
+                - type: graphprototype
+                  name: 'VM status'
+                  'y': '36'
                   width: '72'
                   height: '6'
                   fields:
@@ -2918,8 +3692,36 @@ zabbix_export:
                       name: reference
                       value: CPGUH
                 - type: graphprototype
-                  name: 'LXC status'
+                  name: 'Memory utilization %'
                   'y': '36'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Memory utilization % {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: LXMUP
+                - type: graphprototype
+                  name: 'Disk I/O rate'
+                  'y': '42'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'LXC Disk I/O rate {#VMID}'
+                    - type: STRING
+                      name: reference
+                      value: LXDIO
+                - type: graphprototype
+                  name: 'LXC status'
+                  'y': '48'
                   width: '72'
                   height: '6'
                   fields:
@@ -2949,9 +3751,6 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: BCVLV
-                    - type: INTEGER
-                      name: rows
-                      value: '4'
             - name: Nodes
               widgets:
                 - type: graphprototype
@@ -2981,6 +3780,118 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: KAUFW
+            - name: Cluster
+              widgets:
+                - type: item
+                  name: 'Cluster name'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.name
+                - type: item
+                  name: 'Nodes online'
+                  'y': '3'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.online
+                - type: problems
+                  name: 'Cluster problems'
+                  'y': '6'
+                  width: '72'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: CLSTR
+                - type: item
+                  name: Quorum
+                  x: '18'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.quorum
+                - type: item
+                  name: 'Nodes total'
+                  x: '18'
+                  'y': '3'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.total
+                - type: item
+                  name: 'VMs running'
+                  x: '36'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.running
+                - type: item
+                  name: 'VMs total'
+                  x: '54'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.total
+            - name: 'HA & Disks'
+              widgets:
+                - type: graphprototype
+                  name: 'HA resource states'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '2'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Network interface {#IFACE} status'
+                    - type: STRING
+                      name: reference
+                      value: HANET
+                - type: graphprototype
+                  name: 'Host network interface status'
+                  x: '36'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '2'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        name: 'Network interface {#IFACE} status'
+                    - type: STRING
+                      name: reference
+                      value: DISKN
             - name: Tasks
               widgets:
                 - type: graphprototype
@@ -2995,13 +3906,10 @@ zabbix_export:
                       name: graphid.0
                       value:
                         host: 'Template Proxmox VE REST API'
-                        name: 'Tast status {#TYPE} {#ID}'
+                        name: 'Task status {#TYPE} {#ID}'
                     - type: STRING
                       name: reference
                       value: FTWEP
-                    - type: INTEGER
-                      name: rows
-                      value: '2'
             - name: Network
               widgets:
                 - type: graphprototype
@@ -3077,6 +3985,20 @@ zabbix_export:
               newvalue: error
             - value: '4'
               newvalue: 'unknown error'
+        - uuid: 8eaed02478a54b538161d33d26c566e5
+          name: 'Network interface active'
+          mappings:
+            - value: '0'
+              newvalue: inactive
+            - value: '1'
+              newvalue: active
+        - uuid: e9497c746f3440adb2a2ed03a9a6b8e1
+          name: 'Network interface autostart'
+          mappings:
+            - value: '0'
+              newvalue: disabled
+            - value: '1'
+              newvalue: enabled
         - uuid: dd3c4133c6ef47b5bcefc8e68eaeee27
           name: 'Node status'
           mappings:
@@ -3153,23 +4075,29 @@ zabbix_export:
       opdata: 'Current cpu average: {ITEM.LASTVALUE1}'
       priority: AVERAGE
     - uuid: d7b8381cedda4cd0bcb28053cd731ddf
-      expression: '(last(/Template Proxmox VE REST API/pve.memory.used) / last(/Template Proxmox VE REST API/pve.memory.total)) * 100 > 90'
-      name: 'High memory usage on {HOST.NAME} (>90%)'
+      expression: '(last(/Template Proxmox VE REST API/pve.memory.used) / last(/Template Proxmox VE REST API/pve.memory.total)) * 100 > {$MEMORY.UTIL.MAX}'
+      name: 'High memory usage on {HOST.NAME} (>{$MEMORY.UTIL.MAX}%)'
       opdata: 'Memory used: {ITEM.LASTVALUE1}'
       priority: AVERAGE
+    - uuid: d621a5f2dbce40c5a96d7f5573ede065
+      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > {$ROOTFS.UTIL.CRIT}'
+      name: 'High root filesystem usage on {HOST.NAME} (>{$ROOTFS.UTIL.CRIT}%)'
+      opdata: 'Disk usage: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+      priority: HIGH
     - uuid: 6ec8009a0c62481d85fb57b7eb83e6f2
-      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 90'
-      name: 'High root filesystem usage on {HOST.NAME} (>90%)'
+      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > {$ROOTFS.UTIL.WARN}'
+      name: 'High root filesystem usage on {HOST.NAME} (>{$ROOTFS.UTIL.WARN}%)'
       opdata: 'Disk usage: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
       priority: AVERAGE
       dependencies:
-        - name: 'High root filesystem usage on {HOST.NAME} (>95%)'
-          expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 95'
-    - uuid: d621a5f2dbce40c5a96d7f5573ede065
-      expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > 95'
-      name: 'High root filesystem usage on {HOST.NAME} (>95%)'
-      opdata: 'Disk usage: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
-      priority: HIGH
+        - name: 'High root filesystem usage on {HOST.NAME} (>{$ROOTFS.UTIL.CRIT}%)'
+          expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > {$ROOTFS.UTIL.CRIT}'
+    - uuid: 429391e580264ef398145055ff85100a
+      expression: 'last(/Template Proxmox VE REST API/pve.cluster.vms.running)<last(/Template Proxmox VE REST API/pve.cluster.vms.total)'
+      name: '{ITEM.LASTVALUE} of {last(/Template Proxmox VE REST API/pve.cluster.vms.total)} VMs/LXC running'
+      priority: INFO
+      description: 'One or more VMs or LXC containers are not in running state.'
+      manual_close: 'YES'
   graphs:
     - uuid: bbdef5c2775146b4ad30ac91ad877624
       name: 'Load average'
