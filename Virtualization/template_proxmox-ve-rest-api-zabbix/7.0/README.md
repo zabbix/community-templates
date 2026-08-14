@@ -1,4 +1,4 @@
-# Zabbix Template Proxmox VE REST API
+[# Zabbix Template Proxmox VE REST API
 
 This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE > 7.0). It collects host and container metrics, backup jobs, storage status, tasks, and user information, and automatically generates discovery rules for nodes, LXC containers, QEMU VMs, storage pools, running tasks, and API users.
 
@@ -123,3 +123,4 @@ This Zabbix template enables full monitoring of a Proxmox VE environment via the
 <img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/0b1d7b96-e4a2-4b65-9879-0bf9dc69270b" />  
 <img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d95a382b-00eb-439c-9250-7e0b340ec453" />  
 <img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/48d17e9c-71ae-4e27-8fbe-eb64c666a917" />
+](https://github.com/zabbix/community-templates/compare/main...Garfieldttt:community-templates:patch-11)
