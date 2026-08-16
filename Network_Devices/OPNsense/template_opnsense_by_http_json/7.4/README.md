@@ -97,7 +97,7 @@ on the firewall.
 | `{$OPNS.HA.ENABLED}` | `true` | Enables HA triggers and HA discovery. Set to `false` on standalone firewalls without an HA setup. |
 | `{$OPNS.HA.CARP.STATUS.MATCHES}` | `^(MASTER\|BACKUP)$` | Accepted CARP status regex. Override it with a VIP-address macro context to enforce `MASTER` or `BACKUP` on a node. |
 | `{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` | `1` | Minimum number of remote creator IDs expected in the synchronized state table. |
-| `{$OPNS.HA.ROLE}` | `BACKUP` | HA node role. Set to `MASTER` on the XMLRPC synchronization source or `BACKUP` on the receiving node. |
+| `{$OPNS.HA.ROLE}` | `MASTER` | HA node role. Set to `MASTER` on the XMLRPC synchronization source or `BACKUP` on the receiving node. |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
 | `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
 | `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
