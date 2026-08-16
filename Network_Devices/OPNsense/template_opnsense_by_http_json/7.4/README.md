@@ -94,9 +94,9 @@ on the firewall.
 | `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
 | `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
 | `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
-| `{$OPNS.HA.ENABLED}` | `1` | Enables HA triggers and HA discovery. Set to `0` on standalone firewalls without an HA setup. |
+| `{$OPNS.HA.ENABLED}` | `true` | Enables HA triggers and HA discovery. Set to `false` on standalone firewalls without an HA setup. |
 | `{$OPNS.HA.CARP.STATUS.MATCHES}` | `^(MASTER\|BACKUP)$` | Accepted CARP status regex. Override it with a VIP-address macro context to enforce `MASTER` or `BACKUP` on a node. |
-| `{$OPNS.HA.CONFIG_SYNC.REQUIRED}` | `0` | Set to `1` on the XMLRPC synchronization source; keep `0` on the backup node because configuration sync is one-way. |
+| `{$OPNS.HA.CONFIG_SYNC.REQUIRED}` | `false` | Set to `true` on the XMLRPC synchronization source; keep `false` on the backup node because configuration sync is one-way. |
 | `{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` | `1` | Minimum number of remote creator IDs expected in the synchronized state table. |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
 | `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
