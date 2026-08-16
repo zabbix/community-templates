@@ -85,8 +85,8 @@ on the firewall.
 
 | Macro | Default Value | Description |
 |-------|---------------|-------------|
-| `{$OPNS.KEY}` | *(empty)* | OPNsense API key. **Required.** |
-| `{$OPNS.SECRET}` | *(empty)* | OPNsense API secret. **Required.** |
+| `{$OPNS.KEY}` | *(empty)* | OPNsense API key used as the HTTP Basic authentication username. **Required.** |
+| `{$OPNS.SECRET}` | *(empty, secret text)* | OPNsense API secret used as the HTTP Basic authentication password. **Required.** |
 | `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
 | `{$OPNS.CRON.JOB.MATCHES}` | `.+` | Regex filter for cron job descriptions to discover. |
 | `{$OPNS.CRON.JOB.NOT_MATCHES}` | `^$` | Regex filter for cron job descriptions to exclude from discovery. |
