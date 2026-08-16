@@ -122,7 +122,7 @@ on the firewall.
 | System Uptime | `opns.system.uptime` | Dependent | – | Uptime converted to seconds. Displayed in Zabbix uptime format. |
 | Total Memory | `opns.memory.total` | Dependent | – | Total physical memory in bytes. |
 | Used Memory | `opns.memory.used` | Dependent | – | Used memory in bytes. |
-| ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. |
+| ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. Returns `0` when ARC data is absent, for example on UFS systems. |
 | Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
 | Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
 | Firmware update status | `opns.firmware.update.status` | Dependent | – | Firmware update status (`none`, `update`, `upgrade`, or `error`). |
