@@ -4,8 +4,8 @@
 
 This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
 It collects data about system resources (CPU, memory, disk, uptime), configured cron jobs, firewall states and actions,
-gateway health, network interfaces, CARP high-availability status, WireGuard peers, and UPS status
-via NUT (Network UPS Tools).
+gateway health, network interfaces, CARP, pfsync and XMLRPC high-availability status, WireGuard peers,
+and UPS status via NUT (Network UPS Tools).
 
 The template uses OPNsense API key/secret authentication and requires no agent installation
 on the firewall.
@@ -25,6 +25,8 @@ on the firewall.
   - `diagnostics/traffic`
   - `routes/gateway`
   - `core/firmware`
+  - `core/hasync`
+  - `core/hasync_status`
   - `cron/settings`
   - `nut/diagnostics`
   - `ipsec/sessions/searchPhase(1|2)` 
@@ -40,8 +42,10 @@ on the firewall.
 | page-status-trafficgraph               | Reporting: Traffic                        |
 | page-system-firmware-manualupdate      | System: Firmware                          |
 | page-system-cron                       | System: Settings: Cron                    |
+| page-system-hasync                     | System: High Availability                 |
 | page-system-gateways                   | System: Gateways                          |
 | page-system-login-logout               | Lobby: Dashboard                          |
+| page-status-habackup                    | Status: HA backup                         |
 | page-status-ipsec | Status: IPsec |
 | page-wireguard-diagnostics | VPN: WireGuard: Status |
 
@@ -90,6 +94,9 @@ on the firewall.
 | `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
 | `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
 | `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
+| `{$OPNS.HA.CARP.STATUS.MATCHES}` | `^(MASTER\|BACKUP)$` | Accepted CARP status regex. Override it with a VIP-address macro context to enforce `MASTER` or `BACKUP` on a node. |
+| `{$OPNS.HA.CONFIG_SYNC.REQUIRED}` | `0` | Set to `1` on the XMLRPC synchronization source; keep `0` on the backup node because configuration sync is one-way. |
+| `{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` | `1` | Minimum number of remote creator IDs expected in the synchronized state table. |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
 | `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
 | `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
@@ -132,6 +139,25 @@ on the firewall.
 | Firewall states current | `opns.fw.states.current` | Dependent | Current number of active firewall states. |
 | Firewall states max | `opns.fw.states.max` | Dependent | Maximum number of allowed firewall states. |
 | States table utilization in % | `opns.states.util` | Calculated | Percentage of the state table currently in use. |
+
+### High Availability Items
+
+| Name | Key | Description |
+|------|-----|-------------|
+| CARP VIP count | `opns.ha.carp.vip.count` | Number of configured CARP-mode VIPs. |
+| CARP is allowed | `opns.ha.carp.allowed` | Global CARP enable state. |
+| CARP maintenance mode | `opns.ha.carp.maintenance` | Persistent CARP maintenance state. |
+| CARP demotion level | `opns.ha.carp.demotion` | Current CARP demotion counter. |
+| CARP status message | `opns.ha.carp.status_message` | Global warning text reported by OPNsense. |
+| HA pfsync is configured | `opns.ha.pfsync.configured` | Whether a pfsync interface is configured. |
+| HA pfsync interface/peer/version/defer | `opns.ha.pfsync.*` | Effective state-synchronization configuration. |
+| HA pfsync remote node count | `opns.ha.pfsync.remote.count` | Remote creator IDs currently visible in the PF state table. |
+| HA configuration synchronization is configured | `opns.ha.config_sync.configured` | Whether an XMLRPC synchronization target is configured. |
+| HA configuration synchronization target | `opns.ha.config_sync.target` | Configured XMLRPC peer address. |
+| HA configuration synchronization items | `opns.ha.config_sync.items` | Configuration sections selected for XMLRPC synchronization. |
+| HA peer is reachable through XMLRPC | `opns.ha.peer.reachable` | Result of an XMLRPC firmware-version probe to the configured peer. |
+| HA peer firmware/base/kernel version | `opns.ha.peer.version*` | Versions returned by the peer. |
+| HA peer firmware version matches | `opns.ha.peer.version.match` | Whether local and remote OPNsense core versions match. |
 
 ### UPS Items (NUT)
 
@@ -186,6 +212,10 @@ items and discovery rules.
 | RAW Firewall Interfaces | `opns.raw.fw.interface.stat` | 1m | `/api/diagnostics/firewall/pf_statistics/interfaces` |
 | RAW Interfaces | `opns.raw.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
 | RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
+| RAW HA Settings | `opns.raw.ha.settings` | 5m | `/api/core/hasync/get` *(credentials are removed during preprocessing)* |
+| RAW HA pfsync Nodes | `opns.raw.ha.pfsync.nodes` | 1m | `/api/diagnostics/interface/get_pfsync_nodes` |
+| RAW HA Peer Version | `opns.raw.ha.peer.version` | 5m | `/api/core/hasync_status/version` |
+| RAW HA Peer Services | `opns.raw.ha.peer.services` | 5m | `/api/core/hasync_status/services` |
 | RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
 | RAW Firmware Status | `opns.raw.firmware.status` | 1d | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
 | RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
@@ -216,6 +246,23 @@ items and discovery rules.
 | High Load on UPS Battery | **Average** | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%). |
 | Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning** | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%). |
 | Remaining battery runtime is low | **High** | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
+
+### High Availability Triggers
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| CARP is disabled | **High** | Global CARP operation is disabled while CARP VIPs exist. |
+| CARP persistent maintenance mode is active | **Warning** | The node remains in persistent maintenance mode. |
+| CARP demotion level is elevated | **Warning** | A positive demotion level can prevent promotion to MASTER. |
+| CARP reports a status warning | **Warning** | OPNsense returned a global CARP warning message. |
+| CARP status changed for VIP {#CARP.ADDRESS} | **High** | A CARP failover or failback occurred. |
+| CARP status is unexpected for VIP {#CARP.ADDRESS} | **High** | The status does not match `{$OPNS.HA.CARP.STATUS.MATCHES:"{#CARP.ADDRESS}"}`. |
+| HA state synchronization is not configured | **Warning** | CARP VIPs exist, but pfsync is disabled. |
+| No remote pfsync state creator is visible | **Warning** | Fewer remote creator IDs than configured were seen for 10 minutes. |
+| HA configuration synchronization is not configured | **Warning** | The node is marked as XMLRPC synchronization source, but no target is configured. |
+| HA peer is not reachable through XMLRPC | **High** | The configured XMLRPC peer did not answer for 10 minutes. |
+| HA peer firmware version differs | **Warning** | Local and remote OPNsense core versions differ. |
+| HA peer service […] is not running | **High** | A checkable service reported by the HA peer is stopped. |
 
 ### WireGuard Triggers
 
@@ -328,27 +375,48 @@ not per-run exit codes; this discovery therefore does not assert that a command 
 |----------|-------|
 | Key | `opns.interface.carp.discovery` |
 | Type | Dependent (master: `opns.raw.interfaces.carp`) |
-| LLD Macro | `{#OPNS.INTERFACE.NAME}` → `$.interface` |
+| LLD Macros | `{#CARP.ADDRESS}`, `{#CARP.INTERFACE}`, `{#CARP.VHID}`, `{#CARP.MODE}` |
+| Filter | CARP-mode VIPs only; IP aliases are excluded |
 | Keep lost resources | 1d |
 
 **Item Prototypes:**
 
 | Name | Key | Description |
 |------|-----|-------------|
-| Carp Status of {#OPNS.INTERFACE.NAME} | `opns.carp.status[{#OPNS.INTERFACE.NAME}]` | CARP status of the VIP (MASTER, BACKUP, INIT). Uses discard unchanged heartbeat (2h). |
+| CARP VIP {#CARP.ADDRESS} (…): Advertisement base | `opns.carp.advbase["{#CARP.ADDRESS}"]` | CARP advertisement base interval. |
+| CARP VIP {#CARP.ADDRESS} (…): Advertisement skew | `opns.carp.advskew["{#CARP.ADDRESS}"]` | CARP advertisement skew used in role election. |
+| CARP VIP {#CARP.ADDRESS} (…): Status | `opns.carp.status["{#CARP.ADDRESS}"]` | CARP status of the individual VIP (MASTER, BACKUP, INIT, DISABLED). Uses discard unchanged heartbeat (2h). |
 
 **Trigger Prototypes:**
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| Carp Status Changed on {#OPNS.INTERFACE.NAME} | **High** | CARP status changed – indicates a failover event. |
+| CARP status changed for VIP {#CARP.ADDRESS} | **High** | CARP status changed – indicates a failover or failback event. |
+| CARP status is unexpected for VIP {#CARP.ADDRESS} | **High** | Status does not match the accepted regex. |
 
 > **Note:** If no CARP interfaces are configured, the discovery returns a custom error and
 > no items are created.
 
 ---
 
-### 6. Interface Stats Discovery
+### 6. HA Peer Service Discovery
+
+Discovers checkable services returned by `/api/core/hasync_status/services` and raises a high-severity
+problem when a remote service remains stopped for 10 minutes. Services marked `nocheck` by OPNsense
+are excluded.
+
+---
+
+### 7. HA pfsync Node Discovery
+
+Discovers creator IDs present in the PF state table and records whether each ID belongs to the local
+node. The aggregate remote-node trigger is evidence-based: a quiet HA peer that has created no
+currently retained states may not appear even when pfsync transport itself is functional. Adjust
+`{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` if this signal is not appropriate for the installation.
+
+---
+
+### 8. Interface Stats Discovery
 
 | Property | Value |
 |----------|-------|
@@ -390,7 +458,7 @@ not per-run exit codes; this discovery therefore does not assert that a command 
 
 ---
 
-### 7. WireGuard Instance Discovery
+### 9. WireGuard Instance Discovery
 
 | Property | Value |
 |----------|-------|
@@ -416,7 +484,7 @@ not per-run exit codes; this discovery therefore does not assert that a command 
 
 ---
 
-### 8. WireGuard Peer Discovery
+### 10. WireGuard Peer Discovery
 
 | Property | Value |
 |----------|-------|

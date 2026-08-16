@@ -11,7 +11,7 @@ zabbix_export:
       name: 'OPNsense by HTTP-JSON'
       vendor:
         name: 'community'
-        version: '0.31'
+        version: '0.32'
       groups:
         - name: 'Templates/Network devices'
         - name: 'Templates/Operating systems'
@@ -452,6 +452,368 @@ zabbix_export:
           tags:
             - tag: component
               value: firmware
+        - uuid: 4d04720c72f4411fa5f7cd99cfad7f17
+          name: 'CARP VIP count'
+          type: DEPENDENT
+          key: opns.ha.carp.vip.count
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var rows = data.rows || [];
+                  var count = 0;
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].mode === 'carp') {
+                          count++;
+                      }
+                  }
+                  return count;
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: ha
+        - uuid: fd79a86e76414ca38d4a45f6d18ae9ae
+          name: 'CARP is allowed'
+          type: DEPENDENT
+          key: opns.ha.carp.allowed
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.carp.allow
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 7b99dad942d84c008e9531820d238976
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.carp.allowed)=0 and last(/OPNsense by HTTP-JSON/opns.ha.carp.vip.count)>0'
+              name: 'CARP is disabled'
+              opdata: 'Allowed: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'CARP is temporarily disabled while CARP VIPs are configured.'
+        - uuid: 02db0d1b85944f2d9ea3f6770ad541d7
+          name: 'CARP demotion level'
+          type: DEPENDENT
+          key: opns.ha.carp.demotion
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.carp.demotion
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 989105f92053419d996862be22081fb2
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.carp.demotion)>0 and last(/OPNsense by HTTP-JSON/opns.ha.carp.maintenance)=0'
+              name: 'CARP demotion level is elevated'
+              opdata: 'Demotion: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'A positive CARP demotion level can prevent this node from becoming MASTER.'
+        - uuid: 88ee4fc92c53488d97af604cd4417736
+          name: 'CARP maintenance mode'
+          type: DEPENDENT
+          key: opns.ha.carp.maintenance
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.carp.maintenancemode
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: f0fd244461ef43aa88473dc80c4dcae2
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.carp.maintenance)=1 and last(/OPNsense by HTTP-JSON/opns.ha.carp.vip.count)>0'
+              name: 'CARP persistent maintenance mode is active'
+              opdata: 'Maintenance: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The firewall is in persistent CARP maintenance mode.'
+        - uuid: 78fd1b3810a540aab653fb0642a1231e
+          name: 'CARP status message'
+          type: DEPENDENT
+          key: opns.ha.carp.status_message
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return data.carp && data.carp.status_msg ? data.carp.status_msg : 'OK';
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: d12b75ec9a8e4886a967dd0153c2bc82
+              expression: 'find(/OPNsense by HTTP-JSON/opns.ha.carp.status_message,#1,"ne","OK")=1'
+              name: 'CARP reports a status warning'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: WARNING
+              description: 'OPNsense reports a global CARP status warning.'
+        - uuid: 3dc8ff18a02d4f069cd3ef5a9ec5702b
+          name: 'HA configuration synchronization is configured'
+          type: DEPENDENT
+          key: opns.ha.config_sync.configured
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return data.xmlrpc_configured;
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 62c414e49433480c8671aab366016e62
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.config_sync.configured)=0 and {$OPNS.HA.CONFIG_SYNC.REQUIRED}=1'
+              name: 'HA configuration synchronization is not configured'
+              priority: WARNING
+              description: 'This node is designated as the XMLRPC synchronization source, but no target is configured.'
+        - uuid: 014669b71d5d4d208ee8e6db15385f8c
+          name: 'HA configuration synchronization items'
+          type: DEPENDENT
+          key: opns.ha.config_sync.items
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return JSON.stringify(data.sync_items || {});
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: a77c006dc95f4a8da5a3b192f2ae64cd
+          name: 'HA configuration synchronization target'
+          type: DEPENDENT
+          key: opns.ha.config_sync.target
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.xmlrpc_target
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: c6fb744b4bab40d2a247054f56dad10c
+          name: 'HA peer is reachable through XMLRPC'
+          type: DEPENDENT
+          key: opns.ha.peer.reachable
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.reachable
+          master_item:
+            key: opns.raw.ha.peer.version
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 9afd9d8b95564e6fb965150bf3f12471
+              expression: 'max(/OPNsense by HTTP-JSON/opns.ha.peer.reachable,10m)=0 and last(/OPNsense by HTTP-JSON/opns.ha.config_sync.configured)=1'
+              name: 'HA peer is not reachable through XMLRPC'
+              opdata: 'Reachable: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The configured HA peer did not answer the OPNsense XMLRPC version probe.'
+        - uuid: 7658876fcb864b02b77019a1ff8c5db4
+          name: 'HA peer firmware version'
+          type: DEPENDENT
+          key: opns.ha.peer.version
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.remote_firmware
+          master_item:
+            key: opns.raw.ha.peer.version
+          tags:
+            - tag: component
+              value: ha
+        - uuid: 1ccf5cf49f33450391225bd4461733d0
+          name: 'HA peer base version'
+          type: DEPENDENT
+          key: opns.ha.peer.version.base
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.remote_base
+          master_item:
+            key: opns.raw.ha.peer.version
+          tags:
+            - tag: component
+              value: ha
+        - uuid: efcc2a309ca94a9686b96025455236ff
+          name: 'HA peer kernel version'
+          type: DEPENDENT
+          key: opns.ha.peer.version.kernel
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.remote_kernel
+          master_item:
+            key: opns.raw.ha.peer.version
+          tags:
+            - tag: component
+              value: ha
+        - uuid: d05fc49a5ef948a78eb0beaa609b62ad
+          name: 'HA peer firmware version matches'
+          type: DEPENDENT
+          key: opns.ha.peer.version.match
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version_match
+          master_item:
+            key: opns.raw.ha.peer.version
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: e86ded9d3f9c4cbf89d9045c3a8d2349
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.peer.version.match)=0 and last(/OPNsense by HTTP-JSON/opns.ha.peer.reachable)=1 and last(/OPNsense by HTTP-JSON/opns.ha.config_sync.configured)=1'
+              name: 'HA peer firmware version differs'
+              opdata: 'Versions match: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The local and remote OPNsense core firmware versions differ.'
+        - uuid: ca7f5c0fb792497bbc19f11f1e113e21
+          name: 'HA pfsync is configured'
+          type: DEPENDENT
+          key: opns.ha.pfsync.configured
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  return data.pfsync_configured;
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 8b6159b16d494e0c88963fe23fe1d2ec
+              expression: 'last(/OPNsense by HTTP-JSON/opns.ha.pfsync.configured)=0 and last(/OPNsense by HTTP-JSON/opns.ha.carp.vip.count)>0'
+              name: 'HA state synchronization is not configured'
+              priority: WARNING
+              description: 'CARP VIPs exist, but no pfsync interface is configured.'
+        - uuid: 3ab0bfbae06f4e698075acded4cefb3c
+          name: 'HA pfsync interface'
+          type: DEPENDENT
+          key: opns.ha.pfsync.interface
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pfsync_interface
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: c33587bb48bb4a37ab4613dfbc5bd641
+          name: 'HA pfsync peer IP'
+          type: DEPENDENT
+          key: opns.ha.pfsync.peer_ip
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pfsync_peer_ip
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: 2e460a58e56b4d7db4fc788048ad487c
+          name: 'HA pfsync protocol version'
+          type: DEPENDENT
+          key: opns.ha.pfsync.version
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pfsync_version
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: fb2213a0be0041f49fe81c0e3372822e
+          name: 'HA pfsync defer'
+          type: DEPENDENT
+          key: opns.ha.pfsync.defer
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pfsync_defer
+          master_item:
+            key: opns.raw.ha.settings
+          tags:
+            - tag: component
+              value: ha
+        - uuid: 96ba168a8aad49e58c386a4122aef0b5
+          name: 'HA pfsync remote node count'
+          type: DEPENDENT
+          key: opns.ha.pfsync.remote.count
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var rows = data.rows || [];
+                  var count = 0;
+                  for (var i = 0; i < rows.length; i++) {
+                      if (String(rows[i].this) !== '1') {
+                          count++;
+                      }
+                  }
+                  return count;
+          master_item:
+            key: opns.raw.ha.pfsync.nodes
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: bf106f6872b442a288a57fc4002e1687
+              expression: 'max(/OPNsense by HTTP-JSON/opns.ha.pfsync.remote.count,10m)<{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN} and last(/OPNsense by HTTP-JSON/opns.ha.pfsync.configured)=1'
+              name: 'No remote pfsync state creator is visible'
+              opdata: 'Remote creators: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'No state created by a remote pfsync node has been observed during the last 10 minutes.'
         - uuid: 9c1d61a643634b55b292644b9cac92ca
           name: 'Cron job count'
           type: DEPENDENT
@@ -612,6 +974,111 @@ zabbix_export:
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
           url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_vip_status'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: dfee8ebcd7fe4fb78940c353f35a07f7
+          name: 'RAW HA Peer Services'
+          type: HTTP_AGENT
+          key: opns.raw.ha.peer.services
+          delay: 5m
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/hasync_status/services'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: a0f4b127717f454da607d6c127738db2
+          name: 'RAW HA Peer Version'
+          type: HTTP_AGENT
+          key: opns.raw.ha.peer.version
+          delay: 5m
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data;
+                  try {
+                      data = JSON.parse(value);
+                  } catch (e) {
+                      return JSON.stringify({
+                          reachable: 0,
+                          version_match: 0,
+                          remote_firmware: 'unavailable',
+                          remote_base: 'unavailable',
+                          remote_kernel: 'unavailable',
+                          message: 'Invalid JSON response'
+                      });
+                  }
+                  var result = {
+                      reachable: 0,
+                      version_match: 0,
+                      remote_firmware: 'unavailable',
+                      remote_base: 'unavailable',
+                      remote_kernel: 'unavailable',
+                      message: data.message || ''
+                  };
+                  if (data.response && data.response.firmware && data.response.firmware.version) {
+                      result.reachable = 1;
+                      result.remote_firmware = data.response.firmware.version;
+                      result.remote_base = data.response.base && data.response.base.version ? data.response.base.version : 'unavailable';
+                      result.remote_kernel = data.response.kernel && data.response.kernel.version ? data.response.kernel.version : 'unavailable';
+                      result.version_match = data.response.firmware._my_version === data.response.firmware.version ? 1 : 0;
+                  }
+                  return JSON.stringify(result);
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/hasync_status/version'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: aa07e9c770ab4497929d15b6d5e4b55c
+          name: 'RAW HA Settings'
+          type: HTTP_AGENT
+          key: opns.raw.ha.settings
+          delay: 5m
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var settings = data.hasync || {};
+                  return JSON.stringify({
+                      pfsync_configured: settings.pfsyncinterface ? 1 : 0,
+                      pfsync_interface: settings.pfsyncinterface || 'disabled',
+                      pfsync_peer_ip: settings.pfsyncpeerip || 'multicast',
+                      pfsync_version: settings.pfsyncversion || 'unknown',
+                      pfsync_defer: settings.pfsyncdefer || '0',
+                      xmlrpc_configured: settings.synchronizetoip ? 1 : 0,
+                      xmlrpc_target: settings.synchronizetoip || 'not configured',
+                      verify_peer: settings.verifypeer || '0',
+                      sync_items: settings.syncitems || {}
+                  });
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/hasync/get'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: e05193c2e24641f8aca0dde2219b0fb5
+          name: 'RAW HA pfsync Nodes'
+          type: HTTP_AGENT
+          key: opns.raw.ha.pfsync.nodes
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_pfsync_nodes'
           tags:
             - tag: component
               value: raw
@@ -1207,39 +1674,183 @@ zabbix_export:
           name: 'Interface CARP Discovery'
           type: DEPENDENT
           key: opns.interface.carp.discovery
+          filter:
+            conditions:
+              - macro: '{#CARP.MODE}'
+                value: ^carp$
           lifetime: 1d
           item_prototypes:
-            - uuid: bcd3129d95bc4fec85eef33485aa454d
-              name: 'Carp Status of {#OPNS.INTERFACE.NAME}'
+            - uuid: 4819d62a4cba47a0b649e3dd1ab853e5
+              name: 'CARP VIP {#CARP.ADDRESS} ({#CARP.INTERFACE}, VHID {#CARP.VHID}): Advertisement base'
               type: DEPENDENT
-              key: 'opns.carp.status[{#OPNS.INTERFACE.NAME}]'
+              key: 'opns.carp.advbase["{#CARP.ADDRESS}"]'
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rows[?(@.subnet == "{#CARP.ADDRESS}")].advbase.first()'
+              master_item:
+                key: opns.raw.interfaces.carp
+              tags:
+                - tag: component
+                  value: ha
+                - tag: interface
+                  value: '{#CARP.INTERFACE}'
+                - tag: vhid
+                  value: '{#CARP.VHID}'
+            - uuid: 38282b54fd7d48558f9662a7cdaa2b0b
+              name: 'CARP VIP {#CARP.ADDRESS} ({#CARP.INTERFACE}, VHID {#CARP.VHID}): Advertisement skew'
+              type: DEPENDENT
+              key: 'opns.carp.advskew["{#CARP.ADDRESS}"]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rows[?(@.subnet == "{#CARP.ADDRESS}")].advskew.first()'
+              master_item:
+                key: opns.raw.interfaces.carp
+              tags:
+                - tag: component
+                  value: ha
+                - tag: interface
+                  value: '{#CARP.INTERFACE}'
+                - tag: vhid
+                  value: '{#CARP.VHID}'
+            - uuid: bcd3129d95bc4fec85eef33485aa454d
+              name: 'CARP VIP {#CARP.ADDRESS} ({#CARP.INTERFACE}, VHID {#CARP.VHID}): Status'
+              type: DEPENDENT
+              key: 'opns.carp.status["{#CARP.ADDRESS}"]'
               value_type: TEXT
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$..[?(@.["interface"] == "{#OPNS.INTERFACE.NAME}")].["status"].first()'
+                    - '$.rows[?(@.subnet == "{#CARP.ADDRESS}")].status.first()'
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 2h
               master_item:
                 key: opns.raw.interfaces.carp
+              tags:
+                - tag: component
+                  value: ha
+                - tag: interface
+                  value: '{#CARP.INTERFACE}'
+                - tag: vhid
+                  value: '{#CARP.VHID}'
               trigger_prototypes:
                 - uuid: e5f549c43e8c4e99a0babe831f84bc4e
-                  expression: 'change(/OPNsense by HTTP-JSON/opns.carp.status[{#OPNS.INTERFACE.NAME}])<>0'
-                  name: 'Carp Status Changed on {#OPNS.INTERFACE.NAME}'
-                  opdata: '{#OPNS.INTERFACE.NAME}: {ITEM.LASTVALUE}'
+                  expression: 'change(/OPNsense by HTTP-JSON/opns.carp.status["{#CARP.ADDRESS}"])<>0'
+                  name: 'CARP status changed for VIP {#CARP.ADDRESS}'
+                  opdata: '{#CARP.ADDRESS}: {ITEM.LASTVALUE}'
                   priority: HIGH
+                  description: 'The CARP role changed, indicating a failover or failback event.'
+                - uuid: c53ed53917d349c696702b8c5ddadae0
+                  expression: 'find(/OPNsense by HTTP-JSON/opns.carp.status["{#CARP.ADDRESS}"],#1,"regexp","{$OPNS.HA.CARP.STATUS.MATCHES:\"{#CARP.ADDRESS}\"}")=0'
+                  name: 'CARP status is unexpected for VIP {#CARP.ADDRESS}'
+                  opdata: 'Status: {ITEM.LASTVALUE}'
+                  priority: HIGH
+                  description: 'The CARP VIP status does not match the accepted status regex. Use a macro context for the VIP address to enforce MASTER or BACKUP on a specific node.'
           master_item:
             key: opns.raw.interfaces.carp
           lld_macro_paths:
-            - lld_macro: '{#OPNS.INTERFACE.NAME}'
+            - lld_macro: '{#CARP.ADDRESS}'
+              path: $.subnet
+            - lld_macro: '{#CARP.INTERFACE}'
               path: $.interface
+            - lld_macro: '{#CARP.MODE}'
+              path: $.mode
+            - lld_macro: '{#CARP.VHID}'
+              path: $.vhid
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.rows[*]'
               error_handler: CUSTOM_ERROR
               error_handler_params: 'Could not locate any defined CARP interfaces.'
+        - uuid: b8869284c47740a79fb1f84519f4735c
+          name: 'HA Peer Service Discovery'
+          type: DEPENDENT
+          key: opns.ha.peer.service.discovery
+          filter:
+            conditions:
+              - macro: '{#HA.SERVICE.NOCHECK}'
+                value: ^1$
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1d
+          item_prototypes:
+            - uuid: e9cd5bad26a74fd3a941d82c5123f572
+              name: 'HA peer service [{#HA.SERVICE.DESCRIPTION}]: Status'
+              type: DEPENDENT
+              key: 'opns.ha.peer.service.status["{#HA.SERVICE.UID}"]'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = data.rows || [];
+                      for (var i = 0; i < rows.length; i++) {
+                          if (rows[i].uid === '{#HA.SERVICE.UID}') {
+                              var status = String(rows[i].status).toLowerCase();
+                              return status === '1' || status === 'true' ? 1 : 0;
+                          }
+                      }
+                      throw 'HA peer service {#HA.SERVICE.UID} not found';
+              master_item:
+                key: opns.raw.ha.peer.services
+              tags:
+                - tag: component
+                  value: ha
+                - tag: service
+                  value: '{#HA.SERVICE.NAME}'
+              trigger_prototypes:
+                - uuid: 454f69e9878a42ffafda4fd8a9b6693c
+                  expression: 'max(/OPNsense by HTTP-JSON/opns.ha.peer.service.status["{#HA.SERVICE.UID}"],10m)=0 and last(/OPNsense by HTTP-JSON/opns.ha.config_sync.configured)=1'
+                  name: 'HA peer service [{#HA.SERVICE.DESCRIPTION}] is not running'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'A monitored service on the configured HA peer is stopped.'
+          master_item:
+            key: opns.raw.ha.peer.services
+          lld_macro_paths:
+            - lld_macro: '{#HA.SERVICE.DESCRIPTION}'
+              path: $.description
+            - lld_macro: '{#HA.SERVICE.NAME}'
+              path: $.name
+            - lld_macro: '{#HA.SERVICE.NOCHECK}'
+              path: $.nocheck
+            - lld_macro: '{#HA.SERVICE.UID}'
+              path: $.uid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
+        - uuid: 953017b50e5c42108b22753aa77226fa
+          name: 'HA pfsync Node Discovery'
+          type: DEPENDENT
+          key: opns.ha.pfsync.node.discovery
+          lifetime: 1d
+          item_prototypes:
+            - uuid: 7304beffbccb4ab694049936ba047273
+              name: 'pfsync state creator [{#PFSYNC.CREATORID}]: Local node'
+              type: DEPENDENT
+              key: 'opns.ha.pfsync.node.local["{#PFSYNC.CREATORID}"]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rows[?(@.creatorid == "{#PFSYNC.CREATORID}")].this.first()'
+              master_item:
+                key: opns.raw.ha.pfsync.nodes
+              tags:
+                - tag: component
+                  value: ha
+          master_item:
+            key: opns.raw.ha.pfsync.nodes
+          lld_macro_paths:
+            - lld_macro: '{#PFSYNC.CREATORID}'
+              path: $.creatorid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
         - uuid: 9941458d7de1441e950799233705bdbe
           name: 'Interface Stats Discovery'
           type: DEPENDENT
@@ -2264,6 +2875,15 @@ zabbix_export:
           value: '50'
         - macro: '{$OPNS.GW.MIN.PACKET.LOSS}'
           value: '10'
+        - macro: '{$OPNS.HA.CARP.STATUS.MATCHES}'
+          value: ^(MASTER|BACKUP)$
+          description: 'Accepted CARP status regex. Use a macro context with the VIP address to enforce a node-specific role.'
+        - macro: '{$OPNS.HA.CONFIG_SYNC.REQUIRED}'
+          value: '0'
+          description: 'Set to 1 on the HA synchronization source to require an XMLRPC target. Keep 0 on the backup node.'
+        - macro: '{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}'
+          value: '1'
+          description: 'Minimum number of remote creator IDs expected in the synchronized state table.'
         - macro: '{$OPNS.KEY}'
         - macro: '{$OPNS.LICENSE.EXPIRY.WARN}'
           value: '30'
@@ -2350,7 +2970,7 @@ zabbix_export:
                   fields:
                     - type: STRING
                       name: items.0
-                      value: 'Carp Status of *'
+                      value: 'CARP VIP *: Status'
                     - type: STRING
                       name: primary_label
                       value: '{ITEM.NAME}'
