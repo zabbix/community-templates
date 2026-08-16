@@ -96,8 +96,8 @@ on the firewall.
 | `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
 | `{$OPNS.HA.ENABLED}` | `true` | Enables HA triggers and HA discovery. Set to `false` on standalone firewalls without an HA setup. |
 | `{$OPNS.HA.CARP.STATUS.MATCHES}` | `^(MASTER\|BACKUP)$` | Accepted CARP status regex. Override it with a VIP-address macro context to enforce `MASTER` or `BACKUP` on a node. |
-| `{$OPNS.HA.CONFIG_SYNC.REQUIRED}` | `false` | Set to `true` on the XMLRPC synchronization source; keep `false` on the backup node because configuration sync is one-way. |
 | `{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` | `1` | Minimum number of remote creator IDs expected in the synchronized state table. |
+| `{$OPNS.HA.ROLE}` | `BACKUP` | HA node role. Set to `MASTER` on the XMLRPC synchronization source or `BACKUP` on the receiving node. |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
 | `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
 | `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
@@ -260,7 +260,7 @@ items and discovery rules.
 | CARP status is unexpected for VIP {#CARP.ADDRESS} | **High** | The status does not match `{$OPNS.HA.CARP.STATUS.MATCHES:"{#CARP.ADDRESS}"}`. |
 | HA state synchronization is not configured | **Warning** | CARP VIPs exist, but pfsync is disabled. |
 | No remote pfsync state creator is visible | **Warning** | Fewer remote creator IDs than configured were seen for 10 minutes. |
-| HA configuration synchronization is not configured | **Warning** | The node is marked as XMLRPC synchronization source, but no target is configured. |
+| HA configuration synchronization is not configured | **Warning** | The node role is `MASTER`, but no XMLRPC synchronization target is configured. |
 | HA peer is not reachable through XMLRPC | **High** | The configured XMLRPC peer did not answer for 10 minutes. |
 | HA peer firmware version differs | **Warning** | Local and remote OPNsense core versions differ. |
 | HA peer service […] is not running | **High** | A checkable service reported by the HA peer is stopped. |
