@@ -10,8 +10,8 @@ zabbix_export:
       template: 'OPNsense by HTTP-JSON'
       name: 'OPNsense by HTTP-JSON'
       vendor:
-        name: 'community'
-        version: '0.30'
+        name: community
+        version: '0.31'
       groups:
         - name: 'Templates/Network devices'
         - name: 'Templates/Operating systems'
@@ -20,6 +20,7 @@ zabbix_export:
           name: 'UPS Battery Charge'
           type: DEPENDENT
           key: nut.battery.charge
+          delay: '0'
           units: '%'
           preprocessing:
             - type: JSONPATH
@@ -37,6 +38,7 @@ zabbix_export:
           name: 'UPS Battery Load'
           type: DEPENDENT
           key: nut.battery.load
+          delay: '0'
           units: '%'
           preprocessing:
             - type: JSONPATH
@@ -54,6 +56,7 @@ zabbix_export:
           name: 'UPS Battery Runtime'
           type: DEPENDENT
           key: nut.battery.runtime
+          delay: '0'
           units: s
           preprocessing:
             - type: JSONPATH
@@ -71,6 +74,7 @@ zabbix_export:
           name: 'UPS Input Frequency'
           type: DEPENDENT
           key: nut.input.frequency
+          delay: '0'
           units: Hz
           preprocessing:
             - type: JSONPATH
@@ -82,6 +86,7 @@ zabbix_export:
           name: 'UPS Input Voltage'
           type: DEPENDENT
           key: nut.input.voltage
+          delay: '0'
           units: V
           preprocessing:
             - type: JSONPATH
@@ -93,7 +98,9 @@ zabbix_export:
           name: 'UPS Model'
           type: DEPENDENT
           key: nut.model
+          delay: '0'
           value_type: TEXT
+          trends: '0'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -104,6 +111,7 @@ zabbix_export:
           name: 'UPS Output Voltage'
           type: DEPENDENT
           key: nut.output.voltage
+          delay: '0'
           units: V
           preprocessing:
             - type: JSONPATH
@@ -115,7 +123,9 @@ zabbix_export:
           name: 'UPS Status'
           type: DEPENDENT
           key: nut.status
+          delay: '0'
           value_type: TEXT
+          trends: '0'
           description: |
             OL = On Line = UPS is powered by mains electricity, supplying power to connected devices.
             OB = On Battery = UPS is running on battery power due to mains failure.
@@ -153,6 +163,7 @@ zabbix_export:
           name: 'CPU load'
           type: DEPENDENT
           key: opns.cpu.load
+          delay: '0'
           history: 1d
           value_type: FLOAT
           preprocessing:
@@ -171,10 +182,120 @@ zabbix_export:
               name: 'CPU load is high'
               opdata: '{ITEM.LASTVALUE}'
               priority: WARNING
+        - uuid: 6ebbcee115654039a5735c835bbdaa78
+          name: 'Firmware update count'
+          type: DEPENDENT
+          key: opns.firmware.update.count
+          delay: '0'
+          history: 30d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  if (data.status !== 'update' && data.status !== 'upgrade') {
+                      return 0;
+                  }
+                  if (data.all_packages) {
+                      return Object.keys(data.all_packages).length;
+                  }
+                  if (data.all_sets) {
+                      return Object.keys(data.all_sets).length;
+                  }
+                  return 0;
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: daba216c1e654377982db23dfad0b0a0
+          name: 'Firmware update packages'
+          type: DEPENDENT
+          key: opns.firmware.update.packages
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var packages = data.all_packages || data.all_sets || {};
+                  var result = [];
+                  Object.keys(packages).sort().forEach(function (name) {
+                      var pkg = packages[name];
+                      result.push(pkg.name + ': ' + pkg.old + ' -> ' + pkg.new + ' (' + pkg.reason + ')');
+                  });
+                  return result.join('\n');
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: c38e9bd38f2749839673580d91239005
+          name: 'Firmware update requires reboot'
+          type: DEPENDENT
+          key: opns.firmware.update.reboot
+          delay: '0'
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status_reboot
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+        - uuid: ec1dbbdb46a1445f9c5595ab24a76083
+          name: 'Firmware update status'
+          type: DEPENDENT
+          key: opns.firmware.update.status
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
+          triggers:
+            - uuid: a5755520c5e2491cb9b44cd9d1f438af
+              expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"eq","error")=1'
+              name: 'OPNsense firmware update check failed'
+              opdata: '{ITEM.LASTVALUE}'
+              priority: WARNING
+              description: 'The OPNsense firmware update check returned an error.'
+        - uuid: 68ad33be2ee3422c8b711a243a860ca5
+          name: 'Firmware update status message'
+          type: DEPENDENT
+          key: opns.firmware.update.status_msg
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status_msg
+          master_item:
+            key: opns.raw.firmware.status
+          tags:
+            - tag: component
+              value: firmware
         - uuid: e525a08df2e24efea29f8b9ceb1cd48a
           name: 'Firewall states current'
           type: DEPENDENT
           key: opns.fw.states.current
+          delay: '0'
           history: 1d
           preprocessing:
             - type: JSONPATH
@@ -189,6 +310,7 @@ zabbix_export:
           name: 'Firewall states max'
           type: DEPENDENT
           key: opns.fw.states.max
+          delay: '0'
           history: 1d
           preprocessing:
             - type: JSONPATH
@@ -206,6 +328,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           status: DISABLED
           authtype: BASIC
           username: '{$OPNS.KEY}'
@@ -225,6 +348,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           status: DISABLED
           authtype: BASIC
           username: '{$OPNS.KEY}'
@@ -237,28 +361,11 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: 7945ce5b7e174b9e8f6ea6da6dd64060
-          name: 'RAW WireGuard'
-          type: HTTP_AGENT
-          key: opns.wireguard.raw
-          delay: 1m
-          history: 1d
-          value_type: TEXT
-          authtype: BASIC
-          username: '{$OPNS.KEY}'
-          password: '{$OPNS.SECRET}'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.rows
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/wireguard/service/show'
-          tags:
-            - tag: component
-              value: raw
         - uuid: f8800baa079b46f485a049ee02d61b57
           name: 'ARC Memory'
           type: DEPENDENT
           key: opns.memory.arc
+          delay: '0'
           history: 1d
           units: B
           preprocessing:
@@ -271,6 +378,7 @@ zabbix_export:
           name: 'Total Memory'
           type: DEPENDENT
           key: opns.memory.total
+          delay: '0'
           history: 1d
           units: B
           preprocessing:
@@ -283,6 +391,7 @@ zabbix_export:
           name: 'Used Memory'
           type: DEPENDENT
           key: opns.memory.used
+          delay: '0'
           history: 1d
           units: B
           preprocessing:
@@ -310,6 +419,7 @@ zabbix_export:
           name: 'Licensed until'
           type: DEPENDENT
           key: opns.product.licenseuntil
+          delay: '0'
           trends: '0'
           preprocessing:
             - type: JSONPATH
@@ -341,117 +451,6 @@ zabbix_export:
               name: 'OPNSense Business License expires soon'
               event_name: 'OPNSense Business License expires soon (less than {$OPNS.LICENSE.EXPIRY.WARN} days)'
               priority: AVERAGE
-        - uuid: 6ebbcee115654039a5735c835bbdaa78
-          name: 'Firmware update count'
-          type: DEPENDENT
-          key: opns.firmware.update.count
-          history: 30d
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var data = JSON.parse(value);
-                  if (data.status !== 'update' && data.status !== 'upgrade') {
-                      return 0;
-                  }
-                  if (data.all_packages) {
-                      return Object.keys(data.all_packages).length;
-                  }
-                  if (data.all_sets) {
-                      return Object.keys(data.all_sets).length;
-                  }
-                  return 0;
-          master_item:
-            key: opns.raw.firmware.status
-          tags:
-            - tag: component
-              value: firmware
-        - uuid: daba216c1e654377982db23dfad0b0a0
-          name: 'Firmware update packages'
-          type: DEPENDENT
-          key: opns.firmware.update.packages
-          history: 30d
-          value_type: TEXT
-          trends: '0'
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var data = JSON.parse(value);
-                  var packages = data.all_packages || data.all_sets || {};
-                  var result = [];
-                  Object.keys(packages).sort().forEach(function (name) {
-                      var pkg = packages[name];
-                      result.push(pkg.name + ': ' + pkg.old + ' -> ' + pkg.new + ' (' + pkg.reason + ')');
-                  });
-                  return result.join('\n');
-          master_item:
-            key: opns.raw.firmware.status
-          tags:
-            - tag: component
-              value: firmware
-        - uuid: c38e9bd38f2749839673580d91239005
-          name: 'Firmware update requires reboot'
-          type: DEPENDENT
-          key: opns.firmware.update.reboot
-          history: 30d
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.status_reboot
-              error_handler: CUSTOM_VALUE
-              error_handler_params: '0'
-          master_item:
-            key: opns.raw.firmware.status
-          tags:
-            - tag: component
-              value: firmware
-        - uuid: ec1dbbdb46a1445f9c5595ab24a76083
-          name: 'Firmware update status'
-          type: DEPENDENT
-          key: opns.firmware.update.status
-          history: 30d
-          value_type: TEXT
-          trends: '0'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.status
-          master_item:
-            key: opns.raw.firmware.status
-          tags:
-            - tag: component
-              value: firmware
-          triggers:
-            - uuid: 6003bfd5a8f44a6d9a04f08de932fef1
-              expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"regexp","^(update|upgrade)$")=1 and last(/OPNsense by HTTP-JSON/opns.firmware.update.count)>0'
-              name: 'OPNsense firmware updates are available'
-              event_name: 'OPNsense firmware updates are available ({ITEM.LASTVALUE})'
-              opdata: 'Updates: {ITEM.LASTVALUE2}'
-              priority: INFO
-              description: 'A firmware update or major upgrade is available.'
-            - uuid: a5755520c5e2491cb9b44cd9d1f438af
-              expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"eq","error")=1'
-              name: 'OPNsense firmware update check failed'
-              opdata: '{ITEM.LASTVALUE}'
-              priority: WARNING
-              description: 'The OPNsense firmware update check returned an error.'
-        - uuid: 68ad33be2ee3422c8b711a243a860ca5
-          name: 'Firmware update status message'
-          type: DEPENDENT
-          key: opns.firmware.update.status_msg
-          history: 30d
-          value_type: TEXT
-          trends: '0'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.status_msg
-          master_item:
-            key: opns.raw.firmware.status
-          tags:
-            - tag: component
-              value: firmware
         - uuid: 164f961df24a445aa57872068e5a1f99
           name: 'RAW Disk'
           type: HTTP_AGENT
@@ -459,6 +458,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -512,12 +512,29 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: d50283b96ba64d769fbd744e9a71f327
+          name: 'RAW Firmware Status'
+          type: HTTP_AGENT
+          key: opns.raw.firmware.status
+          delay: 1d
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/status'
+          request_method: POST
+          tags:
+            - tag: component
+              value: raw
         - uuid: b8a1ea18da234409af64be5edef3115a
           name: 'RAW Firewallaction'
           type: HTTP_AGENT
           key: opns.raw.fw.action
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -531,6 +548,7 @@ zabbix_export:
           key: opns.raw.fw.interface.stat
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -544,6 +562,7 @@ zabbix_export:
           key: opns.raw.fw.states
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -557,6 +576,7 @@ zabbix_export:
           key: opns.raw.gateway.status
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -580,6 +600,7 @@ zabbix_export:
           key: opns.raw.interfaces.carp
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -593,6 +614,7 @@ zabbix_export:
           key: opns.raw.interfaces.stat
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -614,6 +636,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -628,6 +651,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -642,6 +666,7 @@ zabbix_export:
           delay: 30m
           history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
@@ -649,18 +674,80 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: d50283b96ba64d769fbd744e9a71f327
-          name: 'RAW Firmware Status'
+        - uuid: e905ad319c8a402aaef8097eb2b6d5f3
+          name: 'RAW Trust - Certificates'
           type: HTTP_AGENT
-          key: opns.raw.firmware.status
-          delay: 1d
-          history: 7d
+          key: opns.raw.trust.certificates
+          delay: 5m
+          history: 1d
           value_type: TEXT
+          trends: '0'
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          request_method: POST
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/status'
+          description: |
+            Needs permission:
+            System: Certificate Manager
+            
+            Warning:
+            This permission also allows retrieval of key material!
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[*].*'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // The API doesn't allow filtering for fields.
+                  // To avoid saving key material we only return fields we want.
+                  // This also means if the API may return problematic fields in the future we still filter it.
+                  var certificateList = JSON.parse(value);
+                  
+                  var allowedFieldsArray = [
+                      "descr",
+                      "%caref",
+                      "key_type",
+                      "%key_type",
+                      "digest",
+                      "%digest",
+                      "cert_type",
+                      "%cert_type",
+                      "lifetime",
+                      "city",
+                      "state",
+                      "organization",
+                      "organizationalunit",
+                      "country",
+                      "email",
+                      "commonname",
+                      "ocsp_uri",
+                      "altnames_dns",
+                      "altnames_ip",
+                      "altnames_uri",
+                      "altnames_email",
+                      "rfc3280_purpose",
+                      "in_use",
+                      "is_user",
+                      "name",
+                      "valid_from",
+                      "valid_to"
+                  ];
+                  
+                  var filteredCertificateList = certificateList.map(function(singleCert) {
+                  
+                      var filteredCert = {};
+                  
+                      allowedFieldsArray.forEach(function(allowedField) {
+                          if (singleCert.hasOwnProperty(allowedField)) {
+                              filteredCert[allowedField] = singleCert[allowedField];
+                          }
+                      });
+                  
+                      return filteredCert;
+                  });
+                  
+                  return JSON.stringify(filteredCertificateList);
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/trust/cert/search/'
           tags:
             - tag: component
               value: raw
@@ -687,6 +774,7 @@ zabbix_export:
           name: 'System Uptime'
           type: DEPENDENT
           key: opns.system.uptime
+          delay: '0'
           history: 1d
           value_type: FLOAT
           units: uptime
@@ -732,6 +820,7 @@ zabbix_export:
           delay: 5m
           history: 1d
           value_type: TEXT
+          trends: '0'
           status: DISABLED
           authtype: BASIC
           username: '{$OPNS.KEY}'
@@ -759,31 +848,56 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 7945ce5b7e174b9e8f6ea6da6dd64060
+          name: 'RAW WireGuard'
+          type: HTTP_AGENT
+          key: opns.wireguard.raw
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/wireguard/service/show'
+          tags:
+            - tag: component
+              value: raw
       discovery_rules:
         - uuid: 42db664817fa4d23803fe5be9eb4e0a1
           name: 'Disk Discovery'
           type: DEPENDENT
           key: opns.disk.discovery
+          delay: '0'
           filter:
             conditions:
               - macro: '{#FSNAME}'
                 value: '{$OPNS.FS.FSNAME.MATCHES}'
+                formulaid: A
               - macro: '{#FSNAME}'
                 value: '{$OPNS.FS.FSNAME.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
+                formulaid: B
               - macro: '{#FSTYPE}'
                 value: '{$OPNS.FS.FSTYPE.MATCHES}'
+                formulaid: C
               - macro: '{#FSTYPE}'
                 value: '{$OPNS.FS.FSTYPE.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
+                formulaid: D
           lifetime: 1h
           item_prototypes:
             - uuid: 11fb9d381cda40c69274a77ae38679df
               name: 'FS [{#FSNAME}]: Get data'
               type: DEPENDENT
               key: 'opns.disk.data[{#FSNAME},data]'
+              delay: '0'
               history: 1h
               value_type: TEXT
+              trends: '0'
               description: 'Intermediate data of `{#FSNAME}` filesystem.'
               preprocessing:
                 - type: JSONPATH
@@ -804,6 +918,7 @@ zabbix_export:
               name: 'FS [{#FSNAME}]: Space: Available'
               type: DEPENDENT
               key: 'opns.disk.size[{#FSNAME},available]'
+              delay: '0'
               units: B
               preprocessing:
                 - type: JSONPATH
@@ -822,6 +937,7 @@ zabbix_export:
               name: 'FS [{#FSNAME}]: Space: Used, in %'
               type: DEPENDENT
               key: 'opns.disk.size[{#FSNAME},pused]'
+              delay: '0'
               units: B
               preprocessing:
                 - type: JSONPATH
@@ -875,6 +991,7 @@ zabbix_export:
               name: 'FS [{#FSNAME}]: Space: Total'
               type: DEPENDENT
               key: 'opns.disk.size[{#FSNAME},total]'
+              delay: '0'
               units: B
               preprocessing:
                 - type: JSONPATH
@@ -893,6 +1010,7 @@ zabbix_export:
               name: 'FS [{#FSNAME}]: Space: Used'
               type: DEPENDENT
               key: 'opns.disk.size[{#FSNAME},used]'
+              delay: '0'
               units: B
               preprocessing:
                 - type: JSONPATH
@@ -922,12 +1040,14 @@ zabbix_export:
           name: 'FW Action Discovery'
           type: DEPENDENT
           key: opns.fw.action.discovery
+          delay: '0'
           lifetime: 1h
           item_prototypes:
             - uuid: 3d794da1ea9448158f5786bf264ad1a3
               name: 'Firewall action {#FWACTION}'
               type: DEPENDENT
               key: 'opns.fw.action[{#FWACTION}]'
+              delay: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -955,13 +1075,16 @@ zabbix_export:
           name: 'Gateway Discovery'
           type: DEPENDENT
           key: opns.gateway.discovery
+          delay: '0'
           lifetime: 1h
           item_prototypes:
             - uuid: 2d01c25c7c2845858b675aa10a7b3f98
               name: 'Gateway Address {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.address[{#GWSTATUSNAME}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -975,6 +1098,7 @@ zabbix_export:
               name: 'Gateway RTT {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.delay[{#GWSTATUSNAME}]'
+              delay: '0'
               value_type: FLOAT
               units: ms
               preprocessing:
@@ -998,6 +1122,7 @@ zabbix_export:
               name: 'Gateway loss {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.loss[{#GWSTATUSNAME}]'
+              delay: '0'
               value_type: FLOAT
               units: '%'
               preprocessing:
@@ -1040,7 +1165,9 @@ zabbix_export:
               name: 'Gateway Status {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.status[{#GWSTATUSNAME}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1054,6 +1181,7 @@ zabbix_export:
               name: 'Gateway RTTd {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.stddev[{#GWSTATUSNAME}]'
+              delay: '0'
               value_type: FLOAT
               units: ms
               preprocessing:
@@ -1088,13 +1216,16 @@ zabbix_export:
           name: 'Interface CARP Discovery'
           type: DEPENDENT
           key: opns.interface.carp.discovery
+          delay: '0'
           lifetime: 1d
           item_prototypes:
             - uuid: bcd3129d95bc4fec85eef33485aa454d
               name: 'Carp Status of {#OPNS.INTERFACE.NAME}'
               type: DEPENDENT
               key: 'opns.carp.status[{#OPNS.INTERFACE.NAME}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1125,11 +1256,13 @@ zabbix_export:
           name: 'Interface Stats Discovery'
           type: DEPENDENT
           key: opns.interface.stats.discovery
+          delay: '0'
           item_prototypes:
             - uuid: 789203e62ec945f59354f25145cf1332
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Bytes received'
               type: DEPENDENT
               key: 'opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1137,6 +1270,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["bytes received"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1150,6 +1285,7 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Bytes transmitted'
               type: DEPENDENT
               key: 'opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1157,6 +1293,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["bytes transmitted"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1170,12 +1308,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: collisions'
               type: DEPENDENT
               key: 'opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["collisions"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
@@ -1192,6 +1333,7 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked bytes INv4'
               type: DEPENDENT
               key: 'opns.interface.fw.bytes.blockin.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1199,6 +1341,8 @@ zabbix_export:
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in4_block_bytes"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1214,6 +1358,7 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked bytes OUTv4'
               type: DEPENDENT
               key: 'opns.interface.fw.bytes.blockout.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1221,6 +1366,8 @@ zabbix_export:
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out4_block_bytes"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1236,6 +1383,7 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed bytes INv4'
               type: DEPENDENT
               key: 'opns.interface.fw.bytes.passin.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1243,6 +1391,8 @@ zabbix_export:
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in4_pass_bytes"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1258,6 +1408,7 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed bytes OUTv4'
               type: DEPENDENT
               key: 'opns.interface.fw.bytes.passout.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1265,6 +1416,8 @@ zabbix_export:
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out4_pass_bytes"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1280,12 +1433,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked packets INv4'
               type: DEPENDENT
               key: 'opns.interface.fw.packets.blockin.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in4_block_packets"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1301,12 +1457,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked packets OUTv4'
               type: DEPENDENT
               key: 'opns.interface.fw.packets.blockout.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out4_block_packets"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1322,12 +1481,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed packets INv4'
               type: DEPENDENT
               key: 'opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in4_pass_packets"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1343,12 +1505,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed packets OUTv4'
               type: DEPENDENT
               key: 'opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out4_pass_packets"]'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.fw.interface.stat
               tags:
@@ -1364,12 +1529,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: input queue drops'
               type: DEPENDENT
               key: 'opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["input queue drops"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
@@ -1386,12 +1554,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: multicasts received'
               type: DEPENDENT
               key: 'opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["multicasts received"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1405,12 +1576,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: output errors'
               type: DEPENDENT
               key: 'opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["output errors"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1424,12 +1598,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets received'
               type: DEPENDENT
               key: 'opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["packets received"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1443,12 +1620,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets transmitted'
               type: DEPENDENT
               key: 'opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["packets transmitted"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.raw.interfaces.stat
               tags:
@@ -1462,12 +1642,15 @@ zabbix_export:
               name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: packets for unknown protocol'
               type: DEPENDENT
               key: 'opns.interface.packets.unknown.protocol[{#OPNS.INTERFACE.DEVICE}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["packets for unknown protocol"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
@@ -1487,302 +1670,17 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#OPNS.INTERFACE.NAME}'
               path: $.name
-        - uuid: 36c000378e754ccb9475fa047160fd8f
-          name: 'WireGuard Instance Discovery'
-          type: DEPENDENT
-          key: opns.wireguard.instance.discovery
-          filter:
-            conditions:
-              - macro: '{#WG.INSTANCE}'
-                value: '{$OPNS.WG.INSTANCE.MATCHES}'
-              - macro: '{#WG.INSTANCE}'
-                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
-                operator: NOT_MATCHES_REGEX
-          lifetime: 1h
-          item_prototypes:
-            - uuid: 5946da75329d435b93d24a25ed70d5ff
-              name: 'WireGuard instance {#WG.INSTANCE}: status'
-              type: DEPENDENT
-              key: 'opns.wireguard.instance.status[{#WG.IF}]'
-              value_type: TEXT
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.if == "{#WG.IF}")].status.first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.INSTANCE}'
-                - tag: interface
-                  value: '{#WG.IF}'
-              trigger_prototypes:
-                - uuid: 290408665fab4886ab6d4ef2c35bda65
-                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.instance.status[{#WG.IF}],5m,"eq","up")=0'
-                  name: 'WireGuard instance {#WG.INSTANCE} is down'
-                  priority: HIGH
-            - uuid: 9b6b1a92c9384e8ea4d3302fb701f494
-              name: 'WireGuard instance {#WG.INSTANCE}: listen port'
-              type: DEPENDENT
-              key: 'opns.wireguard.instance.listen_port[{#WG.IF}]'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.if == "{#WG.IF}")].["listen-port"].first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.INSTANCE}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: 5a01a56577a74926a311bbdcff64543f
-              name: 'WireGuard instance {#WG.INSTANCE}: public key'
-              type: DEPENDENT
-              key: 'opns.wireguard.instance.public_key[{#WG.IF}]'
-              value_type: TEXT
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.if == "{#WG.IF}")].["public-key"].first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.INSTANCE}'
-                - tag: interface
-                  value: '{#WG.IF}'
-          master_item:
-            key: opns.wireguard.raw
-          lld_macro_paths:
-            - lld_macro: '{#WG.IF}'
-              path: $.if
-            - lld_macro: '{#WG.INSTANCE}'
-              path: $.name
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var rows = JSON.parse(value);
-                  var instances = [];
-                  for (var i = 0; i < rows.length; i++) {
-                      if (rows[i].type === 'interface') {
-                          if (rows[i].name === '') {
-                              rows[i].name = rows[i].if;
-                          }
-                          instances.push(rows[i]);
-                      }
-                  }
-                  return JSON.stringify(instances);
-        - uuid: 3f23060d61274c6d9beb2087f259bd54
-          name: 'WireGuard Peer Discovery'
-          type: DEPENDENT
-          key: opns.wireguard.peer.discovery
-          filter:
-            conditions:
-              - macro: '{#WG.NAME}'
-                value: '{$OPNS.WG.PEER.MATCHES}'
-              - macro: '{#WG.NAME}'
-                value: '{$OPNS.WG.PEER.NOT_MATCHES}'
-                operator: NOT_MATCHES_REGEX
-              - macro: '{#WG.IFNAME}'
-                value: '{$OPNS.WG.INSTANCE.MATCHES}'
-              - macro: '{#WG.IFNAME}'
-                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
-                operator: NOT_MATCHES_REGEX
-          lifetime: 1h
-          item_prototypes:
-            - uuid: 7397099101c74754bc0d639b37b8bbc9
-              name: 'WireGuard peer {#WG.NAME}: status'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.status["{#WG.PUBKEY}"]'
-              value_type: TEXT
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["peer-status"].first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-              trigger_prototypes:
-                - uuid: bbb8926ace0b483fa7d397703e47d4d2
-                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0'
-                  name: 'WireGuard peer {#WG.NAME} is not online'
-                  priority: HIGH
-                  description: 'WireGuard peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
-            - uuid: c373db13af244a14b21d582905d4dfa4
-              name: 'WireGuard peer {#WG.NAME}: latest handshake age'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]'
-              units: s
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake-age"].first()'
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      if (value === null || value === '' || value === 'null') {
-                          return 0;
-                      }
-                      return value;
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: 5c886d9ab9bf4569acd058a1f060d306
-              name: 'WireGuard peer {#WG.NAME}: latest handshake'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]'
-              units: unixtime
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake"].first()'
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      if (value === null || value === '' || value === 'null') {
-                          return 0;
-                      }
-                      return value;
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: d1c0192b3c194c73be8cb62a8635de5e
-              name: 'WireGuard peer {#WG.NAME}: endpoint'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]'
-              value_type: TEXT
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].endpoint.first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: e58a63a78b5249f0b579dd0cbd82c0f3
-              name: 'WireGuard peer {#WG.NAME}: bytes received'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]'
-              units: B
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: 4fa44cf6d91b4d7595bedb07cdfe480a
-              name: 'WireGuard peer {#WG.NAME}: bytes received per second'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]'
-              value_type: FLOAT
-              units: Bps
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
-                - type: CHANGE_PER_SECOND
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: e74a5d5c709a4ff7932195f5a7d1728b
-              name: 'WireGuard peer {#WG.NAME}: bytes sent'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]'
-              units: B
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-            - uuid: df146ef2cc8b4ea59da11b0516befbfe
-              name: 'WireGuard peer {#WG.NAME}: bytes sent per second'
-              type: DEPENDENT
-              key: 'opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]'
-              value_type: FLOAT
-              units: Bps
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
-                - type: CHANGE_PER_SECOND
-              master_item:
-                key: opns.wireguard.raw
-              tags:
-                - tag: WireGuard
-                  value: '{#WG.NAME}'
-                - tag: interface
-                  value: '{#WG.IF}'
-          master_item:
-            key: opns.wireguard.raw
-          lld_macro_paths:
-            - lld_macro: '{#WG.IF}'
-              path: $.if
-            - lld_macro: '{#WG.IFNAME}'
-              path: $.ifname
-            - lld_macro: '{#WG.NAME}'
-              path: $.name
-            - lld_macro: '{#WG.PUBKEY}'
-              path: $.public_key
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var rows = JSON.parse(value);
-                  var peers = [];
-                  for (var i = 0; i < rows.length; i++) {
-                      if (rows[i].type === 'peer') {
-                          rows[i].public_key = rows[i]['public-key'];
-                          if (rows[i].ifname === '' || rows[i].ifname === null) {
-                              rows[i].ifname = rows[i].if;
-                          }
-                          if (rows[i].name === '') {
-                              rows[i].name = rows[i]['public-key'];
-                          }
-                          peers.push(rows[i]);
-                      }
-                  }
-                  return JSON.stringify(peers);
         - uuid: e53f5f66e0db470b9e1b6bd32384d070
           name: 'IPsec Phase1 Discovery'
           type: DEPENDENT
           key: opns.ipsec.phase1.discovery
+          delay: '0'
           item_prototypes:
             - uuid: ffa45f7dfdcd44c685de761513189f6d
               name: '{#IPSECDESC} bytes per second in'
               type: DEPENDENT
               key: 'opn.ipsecph1.bytes.in.second[{#IPSECDESC}]'
+              delay: '0'
               value_type: FLOAT
               trends: '0'
               units: Bps
@@ -1791,6 +1689,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["bytes-in"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase1.raw
               tags:
@@ -1804,6 +1704,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes-in total'
               type: DEPENDENT
               key: 'opn.ipsecph1.bytes.in.total[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: B
               preprocessing:
@@ -1823,6 +1724,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes per second out'
               type: DEPENDENT
               key: 'opn.ipsecph1.bytes.out.second[{#IPSECDESC}]'
+              delay: '0'
               value_type: FLOAT
               trends: '0'
               units: Bps
@@ -1831,6 +1733,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["bytes-out"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase1.raw
               tags:
@@ -1844,6 +1748,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes-out total'
               type: DEPENDENT
               key: 'opn.ipsecph1.bytes.out.total[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: B
               preprocessing:
@@ -1863,7 +1768,9 @@ zabbix_export:
               name: '{#IPSECDESC} connected'
               type: DEPENDENT
               key: 'opn.ipsecph1.connected[{#IPSECDESC}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1886,7 +1793,9 @@ zabbix_export:
               name: '{#IPSECDESC} lcoaladdress'
               type: DEPENDENT
               key: 'opn.ipsecph1.localaddress[{#IPSECDESC}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1916,11 +1825,13 @@ zabbix_export:
           name: 'IPsec Phase2 Discovery'
           type: DEPENDENT
           key: opns.ipsec.phase2.discovery
+          delay: '0'
           item_prototypes:
             - uuid: d97aa8c0e15040c584585e005c00b554
               name: '{#IPSECDESC} bytes-in per second'
               type: DEPENDENT
               key: 'opn.ipsecph2.bytes.in.second[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1928,6 +1839,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["bytes-in"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase2.raw
               tags:
@@ -1941,6 +1854,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes-in'
               type: DEPENDENT
               key: 'opn.ipsecph2.bytes.in[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: B
               preprocessing:
@@ -1960,6 +1874,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes-out per second'
               type: DEPENDENT
               key: 'opn.ipsecph2.bytes.out.second[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: Bps
               preprocessing:
@@ -1967,6 +1882,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["bytes-out"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase2.raw
               tags:
@@ -1980,6 +1897,7 @@ zabbix_export:
               name: '{#IPSECDESC} bytes-out'
               type: DEPENDENT
               key: 'opn.ipsecph2.bytes.out[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: B
               preprocessing:
@@ -1999,7 +1917,9 @@ zabbix_export:
               name: '{#IPSECDESC} mode'
               type: DEPENDENT
               key: 'opn.ipsecph2.mode[{#IPSECDESC}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2017,6 +1937,7 @@ zabbix_export:
               name: '{#IPSECDESC} packets-in per second'
               type: DEPENDENT
               key: 'opn.ipsecph2.packets.in.second[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: P/s
               preprocessing:
@@ -2024,6 +1945,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["packets-in"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase2.raw
               tags:
@@ -2037,6 +1960,7 @@ zabbix_export:
               name: '{#IPSECDESC} packets-in'
               type: DEPENDENT
               key: 'opn.ipsecph2.packets.in[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
@@ -2055,6 +1979,7 @@ zabbix_export:
               name: '{#IPSECDESC} packets-out per second'
               type: DEPENDENT
               key: 'opn.ipsecph2.packets.out.second[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               units: P/s
               preprocessing:
@@ -2062,6 +1987,8 @@ zabbix_export:
                   parameters:
                     - '$..[?(@.["name"] == "{#IPSECNAME}")].["packets-out"].first()'
                 - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
               master_item:
                 key: opns.ipsec.phase2.raw
               tags:
@@ -2075,6 +2002,7 @@ zabbix_export:
               name: '{#IPSECDESC} packets-out'
               type: DEPENDENT
               key: 'opn.ipsecph2.packets.out[{#IPSECDESC}]'
+              delay: '0'
               trends: '0'
               preprocessing:
                 - type: JSONPATH
@@ -2093,7 +2021,9 @@ zabbix_export:
               name: '{#IPSECDESC} state'
               type: DEPENDENT
               key: 'opn.ipsecph2.state[{#IPSECDESC}]'
+              delay: '0'
               value_type: TEXT
+              trends: '0'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2114,6 +2044,422 @@ zabbix_export:
               path: $.phase2desc
             - lld_macro: '{#IPSECNAME}'
               path: $.name
+        - uuid: fc1eb6072f754528829cad74ae0e3df3
+          name: 'Certificates discovery'
+          type: DEPENDENT
+          key: opns.trust.certificates.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 1024f69ff1984a4abbdba3855e44ac63
+              name: '{#DESCRIPTION} commonname'
+              type: DEPENDENT
+              key: 'opns.trust.certificates.discovery.commonname[{#DESCRIPTION}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.descr=="{#DESCRIPTION}" && @["commonname"] != "")].[''commonname''].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.raw.trust.certificates
+              tags:
+                - tag: component
+                  value: trust_certificates
+            - uuid: 6c965a3e5798479ba84bbcef2911c9a4
+              name: '{#DESCRIPTION} is in use'
+              type: DEPENDENT
+              key: 'opns.trust.certificates.discovery.in_use[{#DESCRIPTION}]'
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: Boolean
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.descr=="{#DESCRIPTION}" && @["in_use"] != "")].[''in_use''].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.raw.trust.certificates
+              tags:
+                - tag: component
+                  value: trust_certificates
+            - uuid: f0cfc3507b084a17913126513b35101d
+              name: '{#DESCRIPTION} is user'
+              type: DEPENDENT
+              key: 'opns.trust.certificates.discovery.is_user[{#DESCRIPTION}]'
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: Boolean
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.descr=="{#DESCRIPTION}" && @["is_user"] != "")].[''is_user''].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.raw.trust.certificates
+              tags:
+                - tag: component
+                  value: trust_certificates
+            - uuid: cc1f7e709919445387fe995d0a5e560e
+              name: '{#DESCRIPTION} valid from'
+              type: DEPENDENT
+              key: 'opns.trust.certificates.discovery.valid_from[{#DESCRIPTION}]'
+              delay: '0'
+              trends: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.descr=="{#DESCRIPTION}" && @["valid_from"] != "")].[''valid_from''].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.raw.trust.certificates
+              tags:
+                - tag: component
+                  value: trust_certificates
+            - uuid: 704c9c4b132244c49a78988d314413b3
+              name: '{#DESCRIPTION} valid to'
+              type: DEPENDENT
+              key: 'opns.trust.certificates.discovery.valid_to[{#DESCRIPTION}]'
+              delay: '0'
+              trends: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.descr=="{#DESCRIPTION}" && @["valid_to"] != "")].[''valid_to''].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.raw.trust.certificates
+              tags:
+                - tag: component
+                  value: trust_certificates
+          master_item:
+            key: opns.raw.trust.certificates
+          lld_macro_paths:
+            - lld_macro: '{#DESCRIPTION}'
+              path: $..descr.first()
+            - lld_macro: '{#OPNS.INTERFACE.DEVICE}'
+              path: $.device
+            - lld_macro: '{#OPNS.INTERFACE.NAME}'
+              path: $.name
+        - uuid: 36c000378e754ccb9475fa047160fd8f
+          name: 'WireGuard Instance Discovery'
+          type: DEPENDENT
+          key: opns.wireguard.instance.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#WG.INSTANCE}'
+                value: '{$OPNS.WG.INSTANCE.MATCHES}'
+                formulaid: A
+              - macro: '{#WG.INSTANCE}'
+                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          lifetime: 1h
+          item_prototypes:
+            - uuid: 9b6b1a92c9384e8ea4d3302fb701f494
+              name: 'WireGuard instance {#WG.INSTANCE}: listen port'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.listen_port[{#WG.IF}]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].["listen-port"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+            - uuid: 5a01a56577a74926a311bbdcff64543f
+              name: 'WireGuard instance {#WG.INSTANCE}: public key'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.public_key[{#WG.IF}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].["public-key"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+            - uuid: 5946da75329d435b93d24a25ed70d5ff
+              name: 'WireGuard instance {#WG.INSTANCE}: status'
+              type: DEPENDENT
+              key: 'opns.wireguard.instance.status[{#WG.IF}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#WG.IF}")].status.first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.INSTANCE}'
+              trigger_prototypes:
+                - uuid: 290408665fab4886ab6d4ef2c35bda65
+                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.instance.status[{#WG.IF}],5m,"eq","up")=0'
+                  name: 'WireGuard instance {#WG.INSTANCE} is down'
+                  priority: HIGH
+          master_item:
+            key: opns.wireguard.raw
+          lld_macro_paths:
+            - lld_macro: '{#WG.IF}'
+              path: $.if
+            - lld_macro: '{#WG.INSTANCE}'
+              path: $.name
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var instances = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'interface') {
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i].if;
+                          }
+                          instances.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(instances);
+        - uuid: 3f23060d61274c6d9beb2087f259bd54
+          name: 'WireGuard Peer Discovery'
+          type: DEPENDENT
+          key: opns.wireguard.peer.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#WG.IFNAME}'
+                value: '{$OPNS.WG.INSTANCE.MATCHES}'
+                formulaid: A
+              - macro: '{#WG.IFNAME}'
+                value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#WG.NAME}'
+                value: '{$OPNS.WG.PEER.MATCHES}'
+                formulaid: C
+              - macro: '{#WG.NAME}'
+                value: '{$OPNS.WG.PEER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: D
+          lifetime: 1h
+          item_prototypes:
+            - uuid: d1c0192b3c194c73be8cb62a8635de5e
+              name: 'WireGuard peer {#WG.NAME}: endpoint'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].endpoint.first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: 5c886d9ab9bf4569acd058a1f060d306
+              name: 'WireGuard peer {#WG.NAME}: latest handshake'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]'
+              delay: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: c373db13af244a14b21d582905d4dfa4
+              name: 'WireGuard peer {#WG.NAME}: latest handshake age'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]'
+              delay: '0'
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["latest-handshake-age"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: 7397099101c74754bc0d639b37b8bbc9
+              name: 'WireGuard peer {#WG.NAME}: status'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.status["{#WG.PUBKEY}"]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["peer-status"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+              trigger_prototypes:
+                - uuid: bbb8926ace0b483fa7d397703e47d4d2
+                  expression: 'find(/OPNsense by HTTP-JSON/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0'
+                  name: 'WireGuard peer {#WG.NAME} is not online'
+                  priority: HIGH
+                  description: 'WireGuard peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
+            - uuid: 4fa44cf6d91b4d7595bedb07cdfe480a
+              name: 'WireGuard peer {#WG.NAME}: bytes received per second'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: e58a63a78b5249f0b579dd0cbd82c0f3
+              name: 'WireGuard peer {#WG.NAME}: bytes received'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]'
+              delay: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-rx"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: df146ef2cc8b4ea59da11b0516befbfe
+              name: 'WireGuard peer {#WG.NAME}: bytes sent per second'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+            - uuid: e74a5d5c709a4ff7932195f5a7d1728b
+              name: 'WireGuard peer {#WG.NAME}: bytes sent'
+              type: DEPENDENT
+              key: 'opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]'
+              delay: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#WG.PUBKEY}")].["transfer-tx"].first()'
+              master_item:
+                key: opns.wireguard.raw
+              tags:
+                - tag: interface
+                  value: '{#WG.IF}'
+                - tag: WireGuard
+                  value: '{#WG.NAME}'
+          master_item:
+            key: opns.wireguard.raw
+          lld_macro_paths:
+            - lld_macro: '{#WG.IFNAME}'
+              path: $.ifname
+            - lld_macro: '{#WG.IF}'
+              path: $.if
+            - lld_macro: '{#WG.NAME}'
+              path: $.name
+            - lld_macro: '{#WG.PUBKEY}'
+              path: $.public_key
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var peers = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'peer') {
+                          rows[i].public_key = rows[i]['public-key'];
+                          if (rows[i].ifname === '' || rows[i].ifname === null) {
+                              rows[i].ifname = rows[i].if;
+                          }
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i]['public-key'];
+                          }
+                          peers.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(peers);
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
@@ -2151,12 +2497,12 @@ zabbix_export:
           description: 'Remaining battery runtime in seconds'
         - macro: '{$OPNS.NUT.HIGH.LOAD}'
           value: '80'
-        - macro: '{$OPNS.SECRET}'
-        - macro: '{$OPNS.STATE.TABLE.UTIL.MAX}'
-          value: '90'
         - macro: '{$OPNS.PORT}'
           value: '443'
           description: 'HTTPS API Port'
+        - macro: '{$OPNS.SECRET}'
+        - macro: '{$OPNS.STATE.TABLE.UTIL.MAX}'
+          value: '90'
         - macro: '{$OPNS.WG.INSTANCE.MATCHES}'
           value: .+
           description: 'Regex filter for WireGuard instance discovery. Can be overridden on the host or linked template level.'
@@ -2339,3 +2685,19 @@ zabbix_export:
                     - type: INTEGER
                       name: righty
                       value: '0'
+      valuemaps:
+        - uuid: d8cb56d6bfd24ad4a5b7837a74b5cf21
+          name: Boolean
+          mappings:
+            - value: '1'
+              newvalue: 'Yes'
+            - value: '0'
+              newvalue: 'No'
+  triggers:
+    - uuid: 6003bfd5a8f44a6d9a04f08de932fef1
+      expression: 'find(/OPNsense by HTTP-JSON/opns.firmware.update.status,#1,"regexp","^(update|upgrade)$")=1 and last(/OPNsense by HTTP-JSON/opns.firmware.update.count)>0'
+      name: 'OPNsense firmware updates are available'
+      event_name: 'OPNsense firmware updates are available ({ITEM.LASTVALUE})'
+      opdata: 'Updates: {ITEM.LASTVALUE2}'
+      priority: INFO
+      description: 'A firmware update or major upgrade is available.'
