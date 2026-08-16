@@ -11,7 +11,7 @@ zabbix_export:
       name: 'OPNsense by HTTP-JSON'
       vendor:
         name: 'community'
-        version: '0.30'
+        version: '0.31'
       groups:
         - name: 'Templates/Network devices'
         - name: 'Templates/Operating systems'
@@ -452,6 +452,34 @@ zabbix_export:
           tags:
             - tag: component
               value: firmware
+        - uuid: 9c1d61a643634b55b292644b9cac92ca
+          name: 'Cron job count'
+          type: DEPENDENT
+          key: opns.cron.job.count
+          history: 30d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+          master_item:
+            key: opns.raw.cron.jobs
+          tags:
+            - tag: component
+              value: cron
+        - uuid: 79739b6c18ab4e3a8fc484d7aa0c1efb
+          name: 'RAW Cron Jobs'
+          type: HTTP_AGENT
+          key: opns.raw.cron.jobs
+          delay: 5m
+          history: 1d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/cron/settings/searchJobs'
+          tags:
+            - tag: component
+              value: raw
         - uuid: 164f961df24a445aa57872068e5a1f99
           name: 'RAW Disk'
           type: HTTP_AGENT
@@ -760,6 +788,97 @@ zabbix_export:
             - tag: component
               value: raw
       discovery_rules:
+        - uuid: 9be88752e6114e32b72109b70d5fe671
+          name: 'Cron Job Discovery'
+          type: DEPENDENT
+          key: opns.cron.job.discovery
+          filter:
+            conditions:
+              - macro: '{#CRON.DESCRIPTION}'
+                value: '{$OPNS.CRON.JOB.MATCHES}'
+              - macro: '{#CRON.DESCRIPTION}'
+                value: '{$OPNS.CRON.JOB.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1d
+          item_prototypes:
+            - uuid: a33322937cf84f81b381c85fa8d3f44f
+              name: 'Cron job [{#CRON.DESCRIPTION}]: Command'
+              type: DEPENDENT
+              key: 'opns.cron.job.command[{#CRON.UUID}]'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rows[?(@.uuid == "{#CRON.UUID}")].command.first()'
+              master_item:
+                key: opns.raw.cron.jobs
+              tags:
+                - tag: component
+                  value: cron
+                - tag: origin
+                  value: '{#CRON.ORIGIN}'
+            - uuid: 5e373f6096a547de9e2b3829e19e320b
+              name: 'Cron job [{#CRON.DESCRIPTION}]: Enabled'
+              type: DEPENDENT
+              key: 'opns.cron.job.enabled[{#CRON.UUID}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rows[?(@.uuid == "{#CRON.UUID}")].enabled.first()'
+              master_item:
+                key: opns.raw.cron.jobs
+              tags:
+                - tag: component
+                  value: cron
+                - tag: origin
+                  value: '{#CRON.ORIGIN}'
+              trigger_prototypes:
+                - uuid: c9f937bc3a514fe5a69708a2f57a3269
+                  expression: 'last(/OPNsense by HTTP-JSON/opns.cron.job.enabled[{#CRON.UUID}])=0'
+                  name: 'Cron job [{#CRON.DESCRIPTION}] is disabled'
+                  opdata: 'Enabled: {ITEM.LASTVALUE}'
+                  priority: WARNING
+                  description: 'The configured OPNsense cron job is disabled.'
+            - uuid: 8bbf255d75c34404b3a83b0fdf1c1139
+              name: 'Cron job [{#CRON.DESCRIPTION}]: Schedule'
+              type: DEPENDENT
+              key: 'opns.cron.job.schedule[{#CRON.UUID}]'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var rows = data.rows || [];
+                      for (var i = 0; i < rows.length; i++) {
+                          if (rows[i].uuid === '{#CRON.UUID}') {
+                              return [rows[i].minutes, rows[i].hours, rows[i].days,
+                                  rows[i].months, rows[i].weekdays].join(' ');
+                          }
+                      }
+                      throw 'Cron job {#CRON.UUID} not found';
+              master_item:
+                key: opns.raw.cron.jobs
+              tags:
+                - tag: component
+                  value: cron
+                - tag: origin
+                  value: '{#CRON.ORIGIN}'
+          master_item:
+            key: opns.raw.cron.jobs
+          lld_macro_paths:
+            - lld_macro: '{#CRON.DESCRIPTION}'
+              path: $.description
+            - lld_macro: '{#CRON.ORIGIN}'
+              path: $.origin
+            - lld_macro: '{#CRON.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
         - uuid: 42db664817fa4d23803fe5be9eb4e0a1
           name: 'Disk Discovery'
           type: DEPENDENT
@@ -2117,6 +2236,12 @@ zabbix_export:
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
+        - macro: '{$OPNS.CRON.JOB.MATCHES}'
+          value: .+
+          description: 'Regex filter for cron job descriptions to discover. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.CRON.JOB.NOT_MATCHES}'
+          value: ^$
+          description: 'Regex filter for cron job descriptions to exclude from discovery. Can be overridden on the host or linked template level.'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
           value: .+
           description: 'Used for filesystem discovery. Can be overridden on the host or linked template level.'

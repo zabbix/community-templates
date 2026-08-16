@@ -3,7 +3,7 @@
 ## Overview
 
 This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
-It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions,
+It collects data about system resources (CPU, memory, disk, uptime), configured cron jobs, firewall states and actions,
 gateway health, network interfaces, CARP high-availability status, WireGuard peers, and UPS status
 via NUT (Network UPS Tools).
 
@@ -25,6 +25,7 @@ on the firewall.
   - `diagnostics/traffic`
   - `routes/gateway`
   - `core/firmware`
+  - `cron/settings`
   - `nut/diagnostics`
   - `ipsec/sessions/searchPhase(1|2)` 
   - `wireguard/service/show`
@@ -38,6 +39,7 @@ on the firewall.
 | page-status-carp                       | Interfaces: Virtual IPs: Status           |
 | page-status-trafficgraph               | Reporting: Traffic                        |
 | page-system-firmware-manualupdate      | System: Firmware                          |
+| page-system-cron                       | System: Settings: Cron                    |
 | page-system-gateways                   | System: Gateways                          |
 | page-system-login-logout               | Lobby: Dashboard                          |
 | page-status-ipsec | Status: IPsec |
@@ -82,6 +84,8 @@ on the firewall.
 | `{$OPNS.KEY}` | *(empty)* | OPNsense API key. **Required.** |
 | `{$OPNS.SECRET}` | *(empty)* | OPNsense API secret. **Required.** |
 | `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
+| `{$OPNS.CRON.JOB.MATCHES}` | `.+` | Regex filter for cron job descriptions to discover. |
+| `{$OPNS.CRON.JOB.NOT_MATCHES}` | `^$` | Regex filter for cron job descriptions to exclude from discovery. |
 | `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Maximum memory utilization (%) before triggering an alert. |
 | `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
 | `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
@@ -119,6 +123,7 @@ on the firewall.
 | Firmware update count | `opns.firmware.update.count` | Dependent | – | Number of available firmware package or set updates. |
 | Firmware update packages | `opns.firmware.update.packages` | Dependent | – | List of available package or set updates. |
 | Firmware update requires reboot | `opns.firmware.update.reboot` | Dependent | – | Returns `1` when the available firmware update requires a reboot. |
+| Cron job count | `opns.cron.job.count` | Dependent | – | Number of configured OPNsense cron jobs. |
 
 ### Firewall Items
 
@@ -174,6 +179,7 @@ items and discovery rules.
 | RAW Load | `opns.raw.load` | 5m | `/api/diagnostics/system/system_time` |
 | RAW Memorystatus | `opns.raw.memory.status` | 5m | `/api/diagnostics/system/systemResources` |
 | RAW Disk | `opns.raw.disk` | 5m | `/api/diagnostics/system/system_disk` |
+| RAW Cron Jobs | `opns.raw.cron.jobs` | 5m | `/api/cron/settings/searchJobs` |
 | RAW Gatewaystatus | `opns.raw.gateway.status` | 1m | `/api/routes/gateway/status` |
 | RAW Firewall States | `opns.raw.fw.states` | 1m | `/api/diagnostics/firewall/pfStates` |
 | RAW Firewallaction | `opns.raw.fw.action` | 1m | `/api/diagnostics/firewall/stats?group_by=action` |
@@ -199,6 +205,7 @@ items and discovery rules.
 | OPNsense firmware update check failed | **Warning** | Firmware update check returned `error`. |
 | State table usage is high | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
 | {HOST.NAME} has been restarted | **Info** | System uptime is less than 600 seconds (10 minutes). |
+| Cron job [{#CRON.DESCRIPTION}] is disabled | **Warning** | A discovered OPNsense cron job is disabled. |
 
 ### UPS Triggers
 
@@ -219,7 +226,22 @@ items and discovery rules.
 
 ## Discovery Rules
 
-### 1. Disk Discovery
+### 1. Cron Job Discovery
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.cron.job.discovery` |
+| Type | Dependent (master: `opns.raw.cron.jobs`) |
+| Filters | `{#CRON.DESCRIPTION}` configurable via macros |
+| Keep lost resources | 1d |
+
+Each configured job exposes its enabled state, configd command, and five-field cron schedule. A
+warning is raised when a discovered job is disabled. The OPNsense Cron API exposes configuration,
+not per-run exit codes; this discovery therefore does not assert that a command completed successfully.
+
+---
+
+### 2. Disk Discovery
 
 | Property | Value |
 |----------|-------|
@@ -247,7 +269,7 @@ items and discovery rules.
 
 ---
 
-### 2. Gateway Discovery
+### 3. Gateway Discovery
 
 | Property | Value |
 |----------|-------|
@@ -277,7 +299,7 @@ items and discovery rules.
 
 ---
 
-### 3. FW Action Discovery
+### 4. FW Action Discovery
 
 | Property | Value |
 |----------|-------|
@@ -300,7 +322,7 @@ items and discovery rules.
 
 ---
 
-### 4. Interface CARP Discovery
+### 5. Interface CARP Discovery
 
 | Property | Value |
 |----------|-------|
@@ -326,7 +348,7 @@ items and discovery rules.
 
 ---
 
-### 5. Interface Stats Discovery
+### 6. Interface Stats Discovery
 
 | Property | Value |
 |----------|-------|
@@ -368,7 +390,7 @@ items and discovery rules.
 
 ---
 
-### 6. WireGuard Instance Discovery
+### 7. WireGuard Instance Discovery
 
 | Property | Value |
 |----------|-------|
@@ -394,7 +416,7 @@ items and discovery rules.
 
 ---
 
-### 7. WireGuard Peer Discovery
+### 8. WireGuard Peer Discovery
 
 | Property | Value |
 |----------|-------|
