@@ -217,7 +217,7 @@ items and discovery rules.
 | RAW HA Peer Version | `opns.raw.ha.peer.version` | 5m | `/api/core/hasync_status/version` |
 | RAW HA Peer Services | `opns.raw.ha.peer.services` | 5m | `/api/core/hasync_status/services` |
 | RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
-| RAW Firmware Status | `opns.raw.firmware.status` | 1d | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
+| RAW Firmware Status | `opns.raw.firmware.status` | 6h | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
 | RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
 | RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
 
