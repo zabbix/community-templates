@@ -1,125 +1,223 @@
 # Zabbix Template Proxmox VE REST API
 
-This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE > 7.0). It collects host and container metrics, backup jobs, storage status, tasks, and user information, and automatically generates discovery rules for nodes, LXC containers, QEMU VMs, storage pools, running tasks, and API users.
+This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE 7.0+). No Zabbix agent is required inside VMs or on the PVE host. It collects host and cluster metrics, VM and LXC container data, backup jobs, storage status, tasks, network interfaces, HA resources, disk health, and user accounts.
+
+Works on standalone single-node setups as well as full clusters.
 
 ---
 
 ## Requirements
 
-- **Zabbix Server** version 7.0 or higher  
-- **HTTP Agent** module enabled on the Zabbix server  
-- Proxmox VE API token with read permissions for Nodes, Tasks, Storage, LXC, QEMU, and Access  
-- Host macros defined on the Zabbix host object (see “Macros” section)
-  
-## 1. Create the Zabbix API User
-
-1. **Log in**  
-   - Open the Proxmox web interface.
-
-2. **Create the user**  
-   - **Datacenter → Permissions → Users → Add**  
-   - **User:** `zabbix@pam`, set a strong **Password** → **Add**
-
-3. **Assign read-only role to the user**  
-   - **Datacenter → Permissions → Add → User Permission**  
-     - **Path:** `/` · **User:** `zabbix@pam` · **Role:** `PVEAuditor` → **Add**
-
-4. **Create an API token — Privilege Separation: disabled**  
-   - **Datacenter → Permissions → API Tokens → Add**  
-     - **User:** `zabbix@pam` · **Token ID:** e.g. `Zabbix` · **Privilege Separation:** **disabled** → **Create**
+- Zabbix Server 7.0 or higher
+- Proxmox VE 7.0 or higher
+- API token with read permissions (see setup below)
 
 ---
 
-## 2. Create the API Token with Privilege Separation
+## 1. Create the API Token
 
-1. **Generate the token**  
-   - Go to **Datacenter → API Tokens** → **Add**  
-     - **User:** `zabbix@pam`  
-     - **Token ID:** `Zabbix`  
-   - Click **Add** and note the **Token Secret**.
+### Option A, Without Privilege Separation (recommended, simpler)
 
-2. **Grant token-specific permission**  
-   - Go to **Datacenter → Permissions** → **Add**  
-     - **Type:** **API Token**  
-     - **Path:** `/`
-     - **User/Group/API Token:** `Zabbix@pam!zabbix`  
-     - **Role:** `PVEAuditor`
-     - **Propagate:**  
-   - Click **Add**.
+1. **Create a user** (skip if using `root@pam`)
+   - **Datacenter → Permissions → Users → Add**
+   - User: `zabbix@pam`, set a password → **Add**
 
-## Installation
+2. **Assign read-only role to the user**
+   - **Datacenter → Permissions → Add → User Permission**
+   - Path: `/` · User: `zabbix@pam` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
 
-1. Download the template `Template Proxmox VE REST API.yaml`.  
-2. In the Zabbix web interface, go to **Configuration → Templates → Import** and import the template.  
-3. Create a new host:  
-   - Go to **Configuration → Hosts → Create host**  
-   - Enter a **Host name** (e.g. `proxmox01`)  
-   - Assign the template **Template Proxmox VE REST API**  
-   - Set the appropriate **Group** (e.g. `Linux servers`)  
-   - Leave the **Interfaces** section empty (the template uses the API, not an agent)  
-4. Configure the required host macros (see the “Macros” section of the documentation).
+3. **Create the API token**
+   - **Datacenter → Permissions → API Tokens → Add**
+   - User: `zabbix@pam` · Token ID: `Zabbix` · **Privilege Separation: disabled** → **Add**
+   - **Copy the token secret, it is shown only once.**
 
-## Usage
+The token inherits all permissions from the user. Header format:
+```
+PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
+```
 
-1. Create an API token on the Proxmox host.  
-2. Add or select the host in Zabbix.  
-3. Assign the “Template Proxmox VE REST API” to the host.  
-4. Configure macros on the host’s Template tab (API credentials, node name, etc.).  
-5. Enable monitoring and check initial metrics under **Monitoring → Latest data**.
+---
 
-## Macros
+### Option B, With Privilege Separation (granular, more secure)
 
-### Required Macros
+1. Follow steps 1-2 from Option A.
 
-| Macro                   | Example Value      | Description                                          |
-|-------------------------|--------------------|------------------------------------------------------|
-| `{$PVE_IP}`             | `192.168.1.1`      | IP address or hostname of the Proxmox VE API server  |
-| `{$PVE_PORT}`           | `8006`             | TCP port of the Proxmox API (default: 8006)          |
-| `{$PVE_NODE}`           | `pve`              | Identifier of the Proxmox node                       |
-| `{$PVE_API_USER}`       | `root@pam`         | API username including realm                         |
-| `{$PVE_API_TOKEN_ID}`   | `Zabbix`           | Name/ID of the API token                             |
-| `{$PVE_API_TOKEN}`      | **SECRET_TEXT**    | API token (store as a secret macro on the host)      |
+2. **Create the API token**
+   - **Datacenter → Permissions → API Tokens → Add**
+   - User: `zabbix@pam` · Token ID: `Zabbix` · **Privilege Separation: enabled** → **Add**
 
-### Optional Trigger Macros
+3. **Grant permission to the token explicitly**
+   - **Datacenter → Permissions → Add → API Token Permission**
+   - Path: `/` · Token: `zabbix@pam!Zabbix` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
 
-| Macro                             | Example Value | Description                                                             |
-|-----------------------------------|---------------|-------------------------------------------------------------------------|
-| `{$ENABLE_BACKUP_ALERT}`          | `1`           | 1 = enable backup trigger, 0 = disable                                 |
-| `{$ENABLE_NODE_STATUS_ALERT}`     | `1`           | 1 = enable node offline trigger, 0 = disable                           |
-| `{$ENABLE_STORAGE_AVAILABLE_ALERT}`   | `1`       | 1 = enable low-space trigger, 0 = disable                              |
-| `{$ENABLE_STORAGE_INACTIVE_ALERT}`    | `1`       | 1 = enable inactive storage trigger, 0 = disable                       |
-| `{$ENABLE_TASK_ALERT}`            | `1`           | 1 = enable task failure trigger, 0 = disable                           |
-| `{$ENABLE_TASK_STATUS_ALERT}`     | `1`           | 1 = enable general task status trigger, 0 = disable                   |
-| `{$ENABLE_VM_STOP_ALERT}`         | `1`           | 1 = enable VM/LXC stop trigger, 0 = disable                            |
-| `{$USER_EXPIRE_TIME}`             | `2d`          | Lead time (in days) for user-expiry trigger warning                    |
+> **Note for disk monitoring:** `/nodes/{node}/disks/list` requires the `Sys.Audit` privilege. `PVEAuditor` includes this privilege. If disk items show "not supported", verify that the role is applied with **Propagate** enabled and that the token has the correct path `/`.
 
-## Contents of the Template
+---
 
-### 2. Discovery Rules
+## 2. Installation
 
-| Discovery Rule       | Description                                                 |
-|----------------------|-------------------------------------------------------------|
-| **discover.nodes**   | Automatic detection of all Proxmox nodes                    |
-| **discover.lxc**     | Detection of all LXC containers on the host                 |
-| **discover.qemu**    | Detection of all QEMU/KVM VMs with LLD macros               |
-| **discover.storage** | Listing of all storage pools and their status               |
-| **discover.backup**  | Grouping and formatting of VZDUMP backup jobs               |
-| **discover.tasks**   | Monitoring of all running tasks (excluding VZDUMP)          |
-| **discover.users**   | Detection of all users and their expiration dates           |
+1. Download `template_proxmox-ve-rest-api.yaml`
+2. In Zabbix: **Data collection → Templates → Import**
+3. Create a new host:
+   - **Data collection → Hosts → Create host**
+   - Host name: e.g. `proxmox01`
+   - Template: `Template Proxmox VE REST API`
+   - Group: e.g. `Virtual machines`
+   - Interfaces: leave empty (template uses HTTP agent, no Zabbix agent needed)
+4. Set the required macros on the host (see below)
 
-### 3. Trigger Prototypes
+---
 
-- Backup failure  
-- Node offline  
-- Low storage & inactive storage  
-- Task failure  
-- VM/LXC stopped  
-- User expiration (warning at configured lead time)
+## 3. Macros
 
-### Screenshots
+### Required
 
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d41f3f60-8220-4326-a2c2-6f28f1ffae57" />  
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/9d4975cd-bf00-4f17-a92f-a67c3d66f162" />  
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/0b1d7b96-e4a2-4b65-9879-0bf9dc69270b" />  
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d95a382b-00eb-439c-9250-7e0b340ec453" />  
+| Macro | Example | Description |
+|-------|---------|-------------|
+| `{$PVE_IP}` | `192.168.1.10` | IP address or hostname of the PVE server |
+| `{$PVE_PORT}` | `8006` | API port (default: 8006) |
+| `{$PVE_NODE}` | `pve` | Node name as shown in PVE (Datacenter → Node) |
+| `{$PVE_API_USER}` | `zabbix@pam` | API user including realm |
+| `{$PVE_API_TOKEN_ID}` | `Zabbix` | Token ID |
+| `{$PVE_API_TOKEN}` | *(secret)* | Token secret, set as **Secret text** macro type |
+
+### Threshold Macros
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$CPU_USAGE_AVERAGE}` | `85` | CPU warning threshold (%) |
+| `{$CPU_USAGE_HIGH}` | `99` | CPU critical threshold (%) |
+| `{$LXC.CPU.WARN}` | `85` | LXC CPU warning threshold (%) |
+| `{$LXC.CPU.HIGH}` | `99` | LXC CPU critical threshold (%) |
+| `{$MEMORY.UTIL.MAX}` | `90` | Memory warning threshold (%) |
+| `{$ROOTFS.UTIL.WARN}` | `90` | Root filesystem warning threshold (%) |
+| `{$ROOTFS.UTIL.CRIT}` | `95` | Root filesystem critical threshold (%) |
+| `{$STORAGE.UTIL.WARN}` | `80` | Storage pool warning threshold (%) |
+| `{$STORAGE.UTIL.CRIT}` | `90` | Storage pool critical threshold (%) |
+| `{$CLUSTER.NODES.OFFLINE.MAX}` | `0` | Max. tolerated offline nodes (raise during maintenance) |
+| `{$DISK.WEAROUT.MIN}` | `20` | Min. SSD wearout remaining before warning (%) |
+| `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days) |
+| `{$VM.CPU.UTIL.LOW}` | `5` | CPU over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
+| `{$VM.MEM.UTIL.LOW}` | `20` | RAM over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
+
+### Alert Enable/Disable Macros
+
+Set to `0` to suppress a trigger globally. Supports context macros for per-instance suppression.
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$ENABLE_BACKUP_ALERT}` | `1` | Backup failure trigger |
+| `{$ENABLE_NODE_STATUS_ALERT}` | `1` | Node offline trigger |
+| `{$ENABLE_STORAGE_AVAILABLE_ALERT}` | `1` | Storage high usage trigger |
+| `{$ENABLE_STORAGE_INACTIVE_ALERT}` | `1` | Storage inactive trigger |
+| `{$ENABLE_TASK_ALERT}` | `1` | Task failure trigger |
+| `{$ENABLE_VM_STOP_ALERT}` | `1` | VM/LXC stopped trigger |
+
+---
+
+## 4. Discovery Rules
+
+| Rule | Source | Discovers |
+|------|--------|-----------|
+| `discover.lxc` | `/cluster/resources` | LXC containers on every node, with CPU, memory, disk, network metrics |
+| `discover.qemu` | `/cluster/resources` | QEMU/KVM VMs on every node, with CPU, memory, disk, network metrics |
+| `discover.nodes` | `/nodes` | Cluster nodes with status and uptime |
+| `discover.storage` | `/nodes/{node}/storage` | Storage pools with capacity and active status |
+| `discover.backup` | `/nodes/{node}/tasks` | Backup jobs (vzdump/PBS), grouped by VM, most recent run |
+| `discover.tasks` | `/nodes/{node}/tasks` | Non-backup tasks, deduplicated per type |
+| `discover.users` | `/access/users` | PVE user accounts with expiration monitoring |
+| `discover.network` | `/nodes/{node}/network` | Host network interfaces (bridge, bond, eth, vlan) |
+| `discover.ha.resources` | `/cluster/ha/status/current` | HA-protected VMs and containers |
+| `discover.disks` | `/nodes/{node}/disks/list` | Physical disks with SMART health and wearout |
+
+---
+
+## 5. Triggers
+
+### Host-Level
+
+| Trigger | Severity | Description |
+|---------|----------|-------------|
+| PVE API not reachable | Average | No data from API for 5 minutes |
+| High CPU usage (>90%) | Average | PVE host CPU sustained high |
+| High load average | Average | Load average ≥ number of CPUs |
+| High memory usage | Average | Configurable via `{$MEMORY.UTIL.MAX}` |
+| High root filesystem usage | Average / High | Two-level: warn and critical |
+| Cluster lost quorum | Disaster | Only fires on actual clusters, not standalone nodes |
+| Cluster nodes offline | High | Configurable tolerance via `{$CLUSTER.NODES.OFFLINE.MAX}` |
+| VMs/LXC not all running | Info | Cluster-wide: running count < total count |
+
+### VM / LXC Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| CPU over threshold for 5 minutes | Average / High |
+| Memory utilization over threshold | Warning |
+| VM/LXC stopped | High |
+| VM/LXC restarted (uptime < 10 min) | Info |
+| RAM under-provisioned (>90% for 5 min) | Warning |
+| RAM over-provisioned (<20% avg for 24h) | Info |
+| CPU over-provisioned (<5% avg for 24h) | Info |
+
+### Storage Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| Storage inactive/unavailable | Average |
+| Storage usage over warning threshold | Average |
+| Storage usage over critical threshold | High |
+
+### Other Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| Backup failed | High |
+| Task failed | Warning |
+| User account expiring within 2 days | Warning |
+| Node offline | High |
+| Network interface down | Warning |
+| HA resource in error state | High |
+| Disk SMART health not PASSED | High |
+| SSD wearout below threshold | Warning |
+
+---
+
+## 6. Dashboard
+
+The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard"** with the following pages:
+
+| Page | Contents |
+|------|----------|
+| Overview | Version, Uptime, CPU%, Memory%, Cluster status, VMs running/total, active Problems |
+| PVE | RootFS graph, Load Average (time-series), CPU and Memory graphs |
+| Storage | Utilization pie charts, usage % trend, active status |
+| QEMU/KVM-VMs | CPU, memory, disk I/O, network, status per VM |
+| LXC - Container | CPU, memory, swap, disk I/O, network, status per container |
+| Backup | Backup status per VM |
+| Nodes | Node status and uptime |
+| Cluster | Cluster name, quorum, nodes online/total, VMs running/total, problems |
+| HA & Disks | Network interface status, HA resource states |
+| Tasks | Task status per type |
+| Network | VM and LXC network I/O (current and cumulative) |
+
+---
+
+## 7. Notes
+
+- **Cluster support:** Guest discovery and all guest metrics come from `/cluster/resources`, so VMs and containers on every node are monitored from a single Zabbix host and a live migration does not break their items. Each guest carries a `{#NODE}` macro and a `Node of <vmid>` item, and an informational trigger fires when that value changes. Five guest values are not part of `/cluster/resources` and are still read from the node given by `{$PVE_NODE}`: QEMU balloon size, balloon minimum and machine type, plus LXC swap and maximum swap. For guests on other nodes these five stay empty instead of turning unsupported.
+- **Node-scoped data:** Disks, host network interfaces, storage, tasks, time, version and host status are read per node from `{$PVE_NODE}`. To monitor several nodes in that depth, add one Zabbix host per PVE node with its own `{$PVE_NODE}`.
+- **Single-node without cluster:** Fully supported. `pve.cluster.quorum` returns `1` and `pve.cluster.name` returns `standalone`, the quorum-lost trigger will not fire.
+- **Disk monitoring:** Requires `Sys.Audit` privilege. If disk items show "not supported", check that the API token role is applied with Propagate enabled at path `/`.
+- **HA monitoring:** Only relevant if PVE HA is configured. If no HA resources exist, discovery returns nothing and the rule stays supported. HA data is read from `/cluster/ha/status/current`, which carries the CRM master status and one entry per HA-managed service. The plain `/cluster/ha/status` path is a directory index only and returns no status data.
+- **SSD wearout:** Read from `/nodes/{node}/disks/list`, not from the SMART endpoint, which does not return this value. Disks that report a non-numeric wearout, such as rotating disks, are discarded instead of turning the item unsupported.
+- **CPU temperatures:** Not available through the PVE REST API. Requires an agent or custom script.
+
+---
+
+## Screenshots
+
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d41f3f60-8220-4326-a2c2-6f28f1ffae57" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/9d4975cd-bf00-4f17-a92f-a67c3d66f162" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/0b1d7b96-e4a2-4b65-9879-0bf9dc69270b" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d95a382b-00eb-439c-9250-7e0b340ec453" />
 <img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/48d17e9c-71ae-4e27-8fbe-eb64c666a917" />
