@@ -146,7 +146,7 @@ on the firewall.
 |------|-----|-------------|
 | CARP VIP count | `opns.ha.carp.vip.count` | Number of configured CARP-mode VIPs. |
 | CARP is allowed | `opns.ha.carp.allowed` | Global CARP enable state. |
-| CARP maintenance mode | `opns.ha.carp.maintenance` | Persistent CARP maintenance state. |
+| CARP maintenance mode | `opns.ha.carp.maintenance` | Persistent CARP maintenance state (`0` = inactive, `1` = active). |
 | CARP demotion level | `opns.ha.carp.demotion` | Current CARP demotion counter. |
 | CARP status message | `opns.ha.carp.status_message` | Global warning text reported by OPNsense. |
 | HA pfsync is configured | `opns.ha.pfsync.configured` | Whether a pfsync interface is configured. |
