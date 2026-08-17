@@ -1,186 +1,223 @@
-# Community template with the additions from this repository
+# Zabbix Template Proxmox VE REST API
 
-`template_opnsense_by_http_json-7.4-extended.yaml` is the Zabbix community template
-`Network_Devices/OPNsense/template_opnsense_by_http_json/7.4` with the parts of
-`../opnsense-by-http-api.yaml` added that it does not already cover.
+This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE 7.0+). No Zabbix agent is required inside VMs or on the PVE host. It collects host and cluster metrics, VM and LXC container data, backup jobs, storage status, tasks, network interfaces, HA resources, disk health, and user accounts.
 
-Template name, template UUID and the vendor block are unchanged, so importing this file
-updates an existing `OPNsense by HTTP-JSON` instead of creating a second template. Everything
-added carries fresh UUIDs, so the original `OPNsense by HTTP API` template can stay imported
-next to it.
+Works on standalone single-node setups as well as full clusters.
 
-Of the community part, every item, discovery rule, trigger and macro is untouched byte for
-byte. Two things are deliberately not: four URLs are corrected and the dashboard is rebuilt,
-both documented below and both enforced by `check.py`, which fails if anything else changes.
+---
 
-Pinned upstream copy: `upstream-7.4.yaml`, blob `b5303cdd47311eb2463a9cf4183e1b09f1e9ab4e`.
+## Requirements
 
-## Rebuilding
+- Zabbix Server 7.0 or higher
+- Proxmox VE 7.0 or higher
+- API token with read permissions (see setup below)
 
-```sh
-python3 merged/build.py    # splices the additions into the pinned upstream copy
-python3 merged/check.py    # proves nothing else changed and validates the result
+---
+
+## 1. Create the API Token
+
+### Option A, Without Privilege Separation (recommended, simpler)
+
+1. **Create a user** (skip if using `root@pam`)
+   - **Datacenter → Permissions → Users → Add**
+   - User: `zabbix@pam`, set a password → **Add**
+
+2. **Assign read-only role to the user**
+   - **Datacenter → Permissions → Add → User Permission**
+   - Path: `/` · User: `zabbix@pam` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
+
+3. **Create the API token**
+   - **Datacenter → Permissions → API Tokens → Add**
+   - User: `zabbix@pam` · Token ID: `Zabbix` · **Privilege Separation: disabled** → **Add**
+   - **Copy the token secret, it is shown only once.**
+
+The token inherits all permissions from the user. Header format:
+```
+PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 ```
 
-`check.py` diffs the result against the pinned copy up to the dashboard block and fails if
-any upstream line there was deleted or changed rather than only inserted, apart from the four
-declared corrections. It re-applies the correction list itself, so a fifth one cannot slip in.
-For the rebuilt dashboard it checks that the uuid and name still match upstream and reports
-which of the old widget sources are not reused verbatim. It also verifies UUIDs, master item
-links, calculated formulas, trigger expressions, macro definitions, value map references and
-that every dashboard widget points at an item that exists.
+---
 
-To pick up a new upstream release, replace `upstream-7.4.yaml` and run both scripts again.
+### Option B, With Privilege Separation (granular, more secure)
 
-`build.py --upstream` additionally writes `upstream-pr/template_opnsense_by_http_json.yaml`,
-the same result with the vendor version bumped to `0.31`, for a pull request against
-`zabbix/community-templates`. `upstream-pr/PR.md` has the steps and the commit message.
+1. Follow steps 1-2 from Option A.
 
-`verify_live.py` queries a real firewall with the monitoring API key and replays every added
-preprocessing chain, including the JavaScript steps:
+2. **Create the API token**
+   - **Datacenter → Permissions → API Tokens → Add**
+   - User: `zabbix@pam` · Token ID: `Zabbix` · **Privilege Separation: enabled** → **Add**
 
-```sh
-OPNS_KEY=... OPNS_SECRET=... python3 merged/verify_live.py --host 192.168.10.254
-```
+3. **Grant permission to the token explicitly**
+   - **Datacenter → Permissions → Add → API Token Permission**
+   - Path: `/` · Token: `zabbix@pam!Zabbix` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
 
-## Corrections to the community template
+> **Note for disk monitoring:** `/nodes/{node}/disks/list` requires the `Sys.Audit` privilege. `PVEAuditor` includes this privilege. If disk items show "not supported", verify that the role is applied with **Propagate** enabled and that the token has the correct path `/`.
 
-Four URLs are corrected. They are the only upstream lines this build changes, they are
-declared in one list in `build.py`, and `check.py` fails if that list grows silently.
+---
 
-| Item | Was | Now | Why |
-|------|-----|-----|-----|
-| `opns.raw.fw.states` | `diagnostics/firewall/pfStates` | `diagnostics/firewall/pf_states` | HTTP 403 for every non administrator key |
-| `opns.raw.memory.status` | `diagnostics/system/systemResources` | `diagnostics/system/system_resources` | same |
-| `opns.ipsec.phase1.raw` | `https://{HOST.IP}/api/...` | `https://{HOST.IP}:{$OPNS.PORT}/api/...` | pinned to 443, ignoring the port macro |
-| `opns.ipsec.phase2.raw` | `https://{HOST.IP}/api/...` | `https://{HOST.IP}:{$OPNS.PORT}/api/...` | same |
+## 2. Installation
 
-The first two are the interesting ones. OPNsense routes both spellings to the same
-controller action (`Router.php` builds the action name with
-`lcfirst(str_replace('_', '', ucwords($element, '_')))`), so an administrator key never sees
-a problem. The privilege patterns, however, are `api/diagnostics/firewall/pf_states` and
-`api/diagnostics/system/system_resources`, both exact rather than wildcards, and `ACL.php`
-matches them with `preg_match` without the `i` modifier. A monitoring user with the
-Lobby: Dashboard privilege therefore gets HTTP 403 on the camelCase spelling, which takes
-out the firewall state items, the state table utilization and all memory items.
+1. Download `template_proxmox-ve-rest-api.yaml`
+2. In Zabbix: **Data collection → Templates → Import**
+3. Create a new host:
+   - **Data collection → Hosts → Create host**
+   - Host name: e.g. `proxmox01`
+   - Template: `Template Proxmox VE REST API`
+   - Group: e.g. `Virtual machines`
+   - Interfaces: leave empty (template uses HTTP agent, no Zabbix agent needed)
+4. Set the required macros on the host (see below)
 
-## What was added
+---
 
-67 items (14 of them HTTP agent masters), 5 discovery rules with 8 item prototypes,
-23 triggers, 4 trigger prototypes, 1 graph prototype, 12 macros and 4 value maps.
+## 3. Macros
 
-| Area | Endpoint |
+### Required
+
+| Macro | Example | Description |
+|-------|---------|-------------|
+| `{$PVE_IP}` | `192.168.1.10` | IP address or hostname of the PVE server |
+| `{$PVE_PORT}` | `8006` | API port (default: 8006) |
+| `{$PVE_NODE}` | `pve` | Node name as shown in PVE (Datacenter → Node) |
+| `{$PVE_API_USER}` | `zabbix@pam` | API user including realm |
+| `{$PVE_API_TOKEN_ID}` | `Zabbix` | Token ID |
+| `{$PVE_API_TOKEN}` | *(secret)* | Token secret, set as **Secret text** macro type |
+
+### Threshold Macros
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$CPU_USAGE_AVERAGE}` | `85` | CPU warning threshold (%) |
+| `{$CPU_USAGE_HIGH}` | `99` | CPU critical threshold (%) |
+| `{$LXC.CPU.WARN}` | `85` | LXC CPU warning threshold (%) |
+| `{$LXC.CPU.HIGH}` | `99` | LXC CPU critical threshold (%) |
+| `{$MEMORY.UTIL.MAX}` | `90` | Memory warning threshold (%) |
+| `{$ROOTFS.UTIL.WARN}` | `90` | Root filesystem warning threshold (%) |
+| `{$ROOTFS.UTIL.CRIT}` | `95` | Root filesystem critical threshold (%) |
+| `{$STORAGE.UTIL.WARN}` | `80` | Storage pool warning threshold (%) |
+| `{$STORAGE.UTIL.CRIT}` | `90` | Storage pool critical threshold (%) |
+| `{$CLUSTER.NODES.OFFLINE.MAX}` | `0` | Max. tolerated offline nodes (raise during maintenance) |
+| `{$DISK.WEAROUT.MIN}` | `20` | Min. SSD wearout remaining before warning (%) |
+| `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days) |
+| `{$VM.CPU.UTIL.LOW}` | `5` | CPU over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
+| `{$VM.MEM.UTIL.LOW}` | `20` | RAM over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
+
+### Alert Enable/Disable Macros
+
+Set to `0` to suppress a trigger globally. Supports context macros for per-instance suppression.
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$ENABLE_BACKUP_ALERT}` | `1` | Backup failure trigger |
+| `{$ENABLE_NODE_STATUS_ALERT}` | `1` | Node offline trigger |
+| `{$ENABLE_STORAGE_AVAILABLE_ALERT}` | `1` | Storage high usage trigger |
+| `{$ENABLE_STORAGE_INACTIVE_ALERT}` | `1` | Storage inactive trigger |
+| `{$ENABLE_TASK_ALERT}` | `1` | Task failure trigger |
+| `{$ENABLE_VM_STOP_ALERT}` | `1` | VM/LXC stopped trigger |
+
+---
+
+## 4. Discovery Rules
+
+| Rule | Source | Discovers |
+|------|--------|-----------|
+| `discover.lxc` | `/cluster/resources` | LXC containers on every node, with CPU, memory, disk, network metrics |
+| `discover.qemu` | `/cluster/resources` | QEMU/KVM VMs on every node, with CPU, memory, disk, network metrics |
+| `discover.nodes` | `/nodes` | Cluster nodes with status and uptime |
+| `discover.storage` | `/nodes/{node}/storage` | Storage pools with capacity and active status |
+| `discover.backup` | `/nodes/{node}/tasks` | Backup jobs (vzdump/PBS), grouped by VM, most recent run |
+| `discover.tasks` | `/nodes/{node}/tasks` | Non-backup tasks, deduplicated per type |
+| `discover.users` | `/access/users` | PVE user accounts with expiration monitoring |
+| `discover.network` | `/nodes/{node}/network` | Host network interfaces (bridge, bond, eth, vlan) |
+| `discover.ha.resources` | `/cluster/ha/status/current` | HA-protected VMs and containers |
+| `discover.disks` | `/nodes/{node}/disks/list` | Physical disks with SMART health and wearout |
+
+---
+
+## 5. Triggers
+
+### Host-Level
+
+| Trigger | Severity | Description |
+|---------|----------|-------------|
+| PVE API not reachable | Average | No data from API for 5 minutes |
+| High CPU usage (>90%) | Average | PVE host CPU sustained high |
+| High load average | Average | Load average ≥ number of CPUs |
+| High memory usage | Average | Configurable via `{$MEMORY.UTIL.MAX}` |
+| High root filesystem usage | Average / High | Two-level: warn and critical |
+| Cluster lost quorum | Disaster | Only fires on actual clusters, not standalone nodes |
+| Cluster nodes offline | High | Configurable tolerance via `{$CLUSTER.NODES.OFFLINE.MAX}` |
+| VMs/LXC not all running | Info | Cluster-wide: running count < total count |
+
+### VM / LXC Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| CPU over threshold for 5 minutes | Average / High |
+| Memory utilization over threshold | Warning |
+| VM/LXC stopped | High |
+| VM/LXC restarted (uptime < 10 min) | Info |
+| RAM under-provisioned (>90% for 5 min) | Warning |
+| RAM over-provisioned (<20% avg for 24h) | Info |
+| CPU over-provisioned (<5% avg for 24h) | Info |
+
+### Storage Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| Storage inactive/unavailable | Average |
+| Storage usage over warning threshold | Average |
+| Storage usage over critical threshold | High |
+
+### Other Prototypes
+
+| Trigger | Severity |
+|---------|----------|
+| Backup failed | High |
+| Task failed | Warning |
+| User account expiring within 2 days | Warning |
+| Node offline | High |
+| Network interface down | Warning |
+| HA resource in error state | High |
+| Disk SMART health not PASSED | High |
+| SSD wearout below threshold | Warning |
+
+---
+
+## 6. Dashboard
+
+The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard"** with the following pages:
+
+| Page | Contents |
 |------|----------|
-| Processor utilization, split into user, system and interrupt | `diagnostics/activity/get_activity` |
-| Core count, and load per core derived from it | `diagnostics/cpu_usage/getCPUType` |
-| pf table entries against the configured ceiling | `firewall/alias/get_table_size` |
-| Clock synchronization, offset, stratum, reachable peers | `ntpd/service/status` |
-| Kernel network memory, mbuf clusters and denied requests | `diagnostics/interface/get_memory_statistics` |
-| netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
-| IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
-| Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
-| pf counters, state table rates, source nodes, SYN floods | `diagnostics/firewall/pf_statistics/info` |
-| pf source node limit | `diagnostics/firewall/pf_statistics/memory` |
-| Service run state, discovered | `core/service/search` |
-| Swap per device, discovered | `diagnostics/system/system_swap` |
-| Temperature per sensor, discovered | `diagnostics/system/system_temperature` |
-| Inbound errors and link state per interface, discovered | `diagnostics/interface/get_interface_statistics` |
+| Overview | Version, Uptime, CPU%, Memory%, Cluster status, VMs running/total, active Problems |
+| PVE | RootFS graph, Load Average (time-series), CPU and Memory graphs |
+| Storage | Utilization pie charts, usage % trend, active status |
+| QEMU/KVM-VMs | CPU, memory, disk I/O, network, status per VM |
+| LXC - Container | CPU, memory, swap, disk I/O, network, status per container |
+| Backup | Backup status per VM |
+| Nodes | Node status and uptime |
+| Cluster | Cluster name, quorum, nodes online/total, VMs running/total, problems |
+| HA & Disks | Network interface status, HA resource states |
+| Tasks | Task status per type |
+| Network | VM and LXC network I/O (current and cumulative) |
 
-Seven more items ride along on masters the community template already polls, so they cost no
-extra request: the configuration change timestamp and load average over 5 and 15 minutes from
-`opns.raw.load`, the blocked share of the firewall log from `opns.raw.fw.action`, the CARP
-demotion factor and maintenance mode from `opns.raw.interfaces.carp`, and the OPNsense version
-from `opns.raw.product.info`.
+---
 
-Interface inbound errors and link state come with their own discovery rule rather than as
-extra prototypes on the community interface discovery, because that rule stays untouched.
-Both rules discover the same interfaces, but no metric exists twice.
+## 7. Notes
 
-Left out because the community template already covers it: memory, uptime, filesystems,
-gateways, interface traffic and counters, per interface pf block counters, CARP status per
-address, IPsec, WireGuard, pf state table current and limit, and pending updates.
+- **Cluster support:** Guest discovery and all guest metrics come from `/cluster/resources`, so VMs and containers on every node are monitored from a single Zabbix host and a live migration does not break their items. Each guest carries a `{#NODE}` macro and a `Node of <vmid>` item, and an informational trigger fires when that value changes. Five guest values are not part of `/cluster/resources` and are still read from the node given by `{$PVE_NODE}`: QEMU balloon size, balloon minimum and machine type, plus LXC swap and maximum swap. For guests on other nodes these five stay empty instead of turning unsupported.
+- **Node-scoped data:** Disks, host network interfaces, storage, tasks, time, version and host status are read per node from `{$PVE_NODE}`. To monitor several nodes in that depth, add one Zabbix host per PVE node with its own `{$PVE_NODE}`.
+- **Single-node without cluster:** Fully supported. `pve.cluster.quorum` returns `1` and `pve.cluster.name` returns `standalone`, the quorum-lost trigger will not fire.
+- **Disk monitoring:** Requires `Sys.Audit` privilege. If disk items show "not supported", check that the API token role is applied with Propagate enabled at path `/`.
+- **HA monitoring:** Only relevant if PVE HA is configured. If no HA resources exist, discovery returns nothing and the rule stays supported. HA data is read from `/cluster/ha/status/current`, which carries the CRM master status and one entry per HA-managed service. The plain `/cluster/ha/status` path is a directory index only and returns no status data.
+- **SSD wearout:** Read from `/nodes/{node}/disks/list`, not from the SMART endpoint, which does not return this value. Disks that report a non-numeric wearout, such as rotating disks, are discarded instead of turning the item unsupported.
+- **CPU temperatures:** Not available through the PVE REST API. Requires an agent or custom script.
 
-## Dashboard
+---
 
-The `OPNsense Info` dashboard is rebuilt, keeping its uuid and name so an import updates it
-rather than adding a second one. Three defects made that worth doing:
+## Screenshots
 
-- the CPU load widget sets `Show=5`, which Zabbix 7.0 refuses outright with
-  `Invalid parameter "Show/5": value must be one of 1, 2, 3, 4`
-- both pie charts plot a total against a part of that same total, so "used" is drawn as a
-  slice of "total plus used" and always looks about half its real size
-- the pages use 41, 45 and 55 of the 72 grid columns, so everything sits in the left two
-  thirds, and `Gateway RTT*` also matches `Gateway RTTd`, mixing round trip time into one
-  graph with its own standard deviation
-
-Everything the old pages showed is still shown. The two pie charts are replaced by the
-utilization gauges that state the same fact correctly, and the page name typo `Inerfaces`
-is gone. The UPS, WireGuard and IPsec items that ship with the template but appeared on no
-page now have one.
-
-| Page | Shows |
-|------|-------|
-| Overview | Memory, state table, processor and load per core as gauges, six tiles from CPU load to state limit, firewall actions over time, CARP status, and all filesystems as a honeycomb |
-| Packet filter | State table, source tracking and pf table utilization, twelve tiles from states in use to source limit hits, state table churn and searches, rule matches against evaluations, drops and limit hits, malformed packets |
-| Interfaces | Link state per interface, traffic, blocked and passed bytes side by side, and inbound errors, output errors, queue drops and collisions in one graph |
-| Gateways | Status honeycomb, round trip time and packet loss side by side, deviation below |
-| VPN | WireGuard peers and instances, peer traffic, IPsec phase 1 tunnels and phase 2 traffic |
-| System | Processor, memory and load per core, uptime, version, cores, configuration change timestamp, both load averages, processor utilization split into user, system and interrupt, load average over time, temperature and swap honeycombs |
-| Kernel and protocols | mbuf utilization, clusters in use, denied requests, netisr drops, kernel network memory and netisr drops per protocol, IP and TCP error rates |
-| Services, clock and power | Every service as a honeycomb, clock synchronization, offset, stratum and reachable peers, CARP demotion and maintenance, UPS battery, status, load and runtime, clock offset and UPS voltage over time |
-
-Layout, colours and thresholds live in `dashboard.py`. The grid is 72 columns wide. Every
-widget type and field name used there already occurs in a dashboard that imports into a
-running Zabbix 7.0, so none of it is guessed, and `check.py` resolves all 110 item
-references before the file is ever imported.
-
-## Privileges on the OPNsense monitoring user
-
-Measured against a live OPNsense 26.7 with a restricted key, not read off the documentation.
-
-The added endpoints need these on top of what the community template already required. Only
-the last one grants more than reading, and without it the service discovery simply stays
-empty:
-
-| Privilege in the GUI | Internal ID | Needed for | Read only |
-|----------------------|-------------|------------|-----------|
-| Lobby: Dashboard | `page-system-login-logout` | swap, temperature, core count, load average, configuration change timestamp | yes |
-| Diagnostics: Netstat | `page-diagnostics-netstat` | interface errors and link state, mbuf pool, netisr queues, protocol errors | yes |
-| Diagnostics: Firewall statistics | `page-diagnostics-pf-info` | pf counters, source tracking, ruleset | yes |
-| Diagnostics: System Activity | `page-diagnostics-system-activity` | processor utilization | yes |
-| Status: NTP | `page-status-ntp` | clock synchronization | yes |
-| Diagnostics: Logs: Firewall: Summary View | `page-diagnostics-logs-firewall-summary` | blocked share of the firewall log | yes |
-| Firewall: Aliases | `page-firewall-aliases` | pf table entry usage, also exposes every alias content | yes |
-| Status: Services | `page-status-services` | service run state | **no**, permits starting and stopping services |
-
-Two more are needed by items the community template already had, and are easy to miss
-because the symptom is an HTTP 403 on a raw item rather than on the item you are looking at:
-
-| Privilege in the GUI | Internal ID | Without it |
-|----------------------|-------------|------------|
-| System: Firmware | `page-system-firmware-manualupdate` | the five firmware update items, the business license item and the OPNsense version stay unsupported. Its pattern is `api/core/firmware/*`, which also covers reboot, poweroff, install and remove, so this one is **not** read only |
-| Reporting: Traffic | `page-status-trafficgraph` | the whole community interface discovery stays empty, so no traffic, no counters, no per interface pf block counters. Read only |
-
-The version item is fed from `core/firmware/info` rather than `system_information`, so it
-needs System: Firmware. If you would rather not grant that privilege, source the version and
-the pending update indicator from `diagnostics/system/system_information` instead, which
-Lobby: Dashboard covers; both items exist in `../opnsense-by-http-api.yaml`.
-
-## Added macros
-
-All of them are thresholds with usable defaults, none has to be set.
-
-| Macro | Default | Purpose |
-|-------|---------|---------|
-| `{$OPNS.CPU.UTIL.WARN}` | 85 | Processor utilization counting as high, over ten minutes |
-| `{$OPNS.LOAD.AVG5.WARN}` | 4 | Absolute five minute load average counting as high |
-| `{$OPNS.LOAD.PERCORE.WARN}` | 1 | Load per core counting as high, 1 means the cores are saturated |
-| `{$OPNS.MBUF.UTIL.WARN}` | 80 | Share of the mbuf cluster limit counting as filling up |
-| `{$OPNS.NTP.OFFSET.WARN}` | 100 | Clock offset in milliseconds counting as high |
-| `{$OPNS.PF.SRCNODES.UTIL.CRIT}` | 90 | Source tracking table fill level counting as critical |
-| `{$OPNS.PF.TABLES.UTIL.WARN}` | 80 | Share of the pf table entry budget counting as filling up |
-| `{$OPNS.SWAP.UTIL.WARN}` | 5 | Swap in use counting as a problem, per device via context |
-| `{$OPNS.TEMP.CRIT}` | 80 | Sensor temperature in degrees Celsius, per sensor via context |
-| `{$OPNS.IF.CONTROL}` | 1 | Set to 0, per interface via context, to silence the down trigger |
-| `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from the added discovery |
-| `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d41f3f60-8220-4326-a2c2-6f28f1ffae57" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/9d4975cd-bf00-4f17-a92f-a67c3d66f162" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/0b1d7b96-e4a2-4b65-9879-0bf9dc69270b" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d95a382b-00eb-439c-9250-7e0b340ec453" />
+<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/48d17e9c-71ae-4e27-8fbe-eb64c666a917" />
