@@ -54,6 +54,7 @@ sensors, and processor utilization split into user, system and interrupt time.
 | page-system-login-logout               | Lobby: Dashboard                          |
 | page-status-ipsec | Status: IPsec |
 | page-wireguard-diagnostics | VPN: WireGuard: Status |
+| page-nut | Nut |
 | page-diagnostics-netstat | Diagnostics: Netstat |
 | page-diagnostics-system-activity | Diagnostics: System Activity |
 | page-firewall-aliases | Firewall: Aliases |
@@ -67,6 +68,11 @@ Most of these are read only. Three are worth a conscious decision before grantin
 | page-system-firmware-manualupdate | matches `api/core/firmware/*`, which includes reboot, poweroff, install and remove |
 | page-status-services | permits starting and stopping services. Without it the service discovery simply stays empty |
 | page-firewall-aliases | read only, but the same endpoints expose the contents of every alias |
+
+`page-nut` was missing from this table. It comes from the NUT plugin rather than from the
+core, its patterns are `ui/nut/*` and `api/nut/*`, and without it the UPS master returns
+HTTP 403 even after you enable the item as the setup section asks. It is only needed if you
+monitor a UPS.
 
 Two of them are easy to miss because the symptom appears on a raw item rather than on the
 item you are looking for. Without `page-system-firmware-manualupdate` the firmware update
