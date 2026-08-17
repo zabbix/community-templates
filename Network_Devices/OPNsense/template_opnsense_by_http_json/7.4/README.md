@@ -1,460 +1,186 @@
-# OPNsense by HTTP-JSON
-
-## Overview
-
-This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
-It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions,
-gateway health, network interfaces, CARP high-availability status, WireGuard peers, and UPS status
-via NUT (Network UPS Tools).
-
-The template uses OPNsense API key/secret authentication and requires no agent installation
-on the firewall.
-
-## Requirements
-
-- **Zabbix version**: 7.4 or higher
-- **OPNsense version**: Tested with OPNsense 26.x+ (any version providing the used API endpoints)
-- An **API key and secret** created on the OPNsense appliance
-  (System → Access → Users → API keys)
-- The Zabbix server/proxy must have **HTTPS access** to the OPNsense web interface
-  (port 443 by default)
-- The API user needs read access to the following OPNsense API modules:
-  - `diagnostics/system`
-  - `diagnostics/firewall`
-  - `diagnostics/interface`
-  - `diagnostics/traffic`
-  - `routes/gateway`
-  - `core/firmware`
-  - `nut/diagnostics`
-  - `ipsec/sessions/searchPhase(1|2)` 
-  - `wireguard/service/show`
-  
-### Permissions
-
-| Privilege ID                            | UI Name                                   |
-| -------------------------------------- | ----------------------------------------- |
-| page-diagnostics-logs-firewall-summary | Diagnostics: Logs: Firewall: Summary View |
-| page-diagnostics-pf-info               | Diagnostics: Firewall statistics          |
-| page-status-carp                       | Interfaces: Virtual IPs: Status           |
-| page-status-trafficgraph               | Reporting: Traffic                        |
-| page-system-firmware-manualupdate      | System: Firmware                          |
-| page-system-gateways                   | System: Gateways                          |
-| page-system-login-logout               | Lobby: Dashboard                          |
-| page-status-ipsec | Status: IPsec |
-| page-wireguard-diagnostics | VPN: WireGuard: Status |
-
-
-
-## Setup
-
-1. [**Create an API key** on OPNsense](https://docs.opnsense.org/development/how-tos/api.html#creating-keys):
-   - Navigate to **System → Access → Users**
-   - Select or create a user and click the **+** icon under *API keys*
-   - Download the `apikey.txt` file – it contains the **key** and the **secret**
-
-2. **Import the template** into Zabbix:
-   - Go to **Data collection → Templates → Import** and upload the YAML file
-
-3. **Link the template** to a host:
-   - Set the host's **IP/DNS** to the OPNsense management address
-   - Link the template `OPNsense by HTTP-JSON`
-
-4. **Configure the required macros** on the host:
-   - `{$OPNS.KEY}` – Your OPNsense API key
-   - `{$OPNS.SECRET}` – Your OPNsense API secret
-
-5. **Verify connectivity**:
-   - After a few minutes check that the item `RAW Gatewaystatus` is receiving data
-
-6. **UPS Monitoring (optional)**:
-   - The UPS items are **disabled by default** (`RAW UPS` item has status `DISABLED`)
-   - Enable the item `RAW UPS` on the host if a UPS is connected and managed by NUT on OPNsense
-   - See the [UPS Monitoring](#ups-monitoring-nut) section below for details
-
-
-> **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be
-> configured to skip certificate verification for HTTP agent items.
-
-## Macros Used
-
-| Macro | Default Value | Description |
-|-------|---------------|-------------|
-| `{$OPNS.KEY}` | *(empty)* | OPNsense API key. **Required.** |
-| `{$OPNS.SECRET}` | *(empty)* | OPNsense API secret. **Required.** |
-| `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
-| `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Maximum memory utilization (%) before triggering an alert. |
-| `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
-| `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
-| `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
-| `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
-| `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
-| `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
-| `{$OPNS.FS.FSTYPE.MATCHES}` | `^(btrfs\|ext2\|ext3\|ext4\|reiser\|xfs\|ffs\|ufs\|jfs\|jfs2\|vxfs\|hfs\|apfs\|refs\|ntfs\|fat32\|zfs)$` | Regex filter for filesystem discovery – included filesystem types. |
-| `{$OPNS.FS.FSTYPE.NOT_MATCHES}` | `^\s$` | Regex filter for filesystem discovery – excluded filesystem types. |
-| `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Warning threshold for filesystem space utilization (%). |
-| `{$OPNS.FS.PUSED.MAX.CRIT}` | `95` | Critical threshold for filesystem space utilization (%). |
-| `{$OPNS.NUT.BAT.LOW}` | `30` | Battery charge (%) below which a warning is triggered. |
-| `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining battery runtime (seconds) below which an alert is triggered. |
-| `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load (%) above which a warning is triggered. |
-| `{$OPNS.WG.INSTANCE.MATCHES}` | `.+` | Regex filter for WireGuard instances to discover. |
-| `{$OPNS.WG.INSTANCE.NOT_MATCHES}` | `^$` | Regex filter for WireGuard instances to exclude from discovery. |
-| `{$OPNS.WG.PEER.MATCHES}` | `.+` | Regex filter for WireGuard peers to discover. |
-| `{$OPNS.WG.PEER.NOT_MATCHES}` | `^$` | Regex filter for WireGuard peers to exclude from discovery. |
-
-## Items Collected
-
-### System Items
-
-| Name | Key | Type | Update Interval | Description |
-|------|-----|------|-----------------|-------------|
-| CPU load | `opns.cpu.load` | Dependent | – | System load average (1 min). |
-| System Uptime | `opns.system.uptime` | Dependent | – | Uptime converted to seconds. Displayed in Zabbix uptime format. |
-| Total Memory | `opns.memory.total` | Dependent | – | Total physical memory in bytes. |
-| Used Memory | `opns.memory.used` | Dependent | – | Used memory in bytes. |
-| ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. |
-| Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
-| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
-| Firmware update status | `opns.firmware.update.status` | Dependent | – | Firmware update status (`none`, `update`, `upgrade`, or `error`). |
-| Firmware update status message | `opns.firmware.update.status_msg` | Dependent | – | Human-readable firmware update status message. |
-| Firmware update count | `opns.firmware.update.count` | Dependent | – | Number of available firmware package or set updates. |
-| Firmware update packages | `opns.firmware.update.packages` | Dependent | – | List of available package or set updates. |
-| Firmware update requires reboot | `opns.firmware.update.reboot` | Dependent | – | Returns `1` when the available firmware update requires a reboot. |
-
-### Firewall Items
-
-| Name | Key | Type | Description |
-|------|-----|------|-------------|
-| Firewall states current | `opns.fw.states.current` | Dependent | Current number of active firewall states. |
-| Firewall states max | `opns.fw.states.max` | Dependent | Maximum number of allowed firewall states. |
-| States table utilization in % | `opns.states.util` | Calculated | Percentage of the state table currently in use. |
-
-### UPS Items (NUT)
-
-> These items are only active when `RAW UPS` is enabled on the host.
-
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| UPS Battery Charge | `nut.battery.charge` | % | Current battery charge level. |
-| UPS Battery Runtime | `nut.battery.runtime` | s | Estimated remaining battery runtime in seconds. |
-| UPS Battery Load | `nut.battery.load` | % | Current load on the UPS in percent. |
-| UPS Input Voltage | `nut.input.voltage` | V | Input (mains) voltage. |
-| UPS Input Frequency | `nut.input.frequency` | Hz | Input (mains) frequency. |
-| UPS Output Voltage | `nut.output.voltage` | V | Output voltage supplied to connected devices. |
-| UPS Status | `nut.status` | Text | Current UPS status code (e.g. `OL`, `OB`, `LB`). See status codes below. |
-| UPS Model | `nut.model` | Text | UPS model name as reported by NUT. |
-
-#### UPS Status Codes
-
-| Code | Meaning | Description |
-|------|---------|-------------|
-| `OL` | On Line | UPS is powered by mains electricity, supplying power to connected devices. |
-| `OB` | On Battery | UPS is running on battery power due to a mains failure. |
-| `LB` | Low Battery | Battery charge is critically low. UPS will shut down soon. |
-| `RB` | Replace Battery | Battery needs replacement due to age or health issues. |
-| `HB` | High Battery | Battery is fully charged (rare). |
-| `CHRG` | Charging | Battery is currently being charged. |
-| `DISCHRG` | Discharging | Battery is actively discharging (more specific than `OB`). |
-| `OVER` | Overload | UPS load exceeds its rated capacity. |
-| `ALARM` | Alarm Active | UPS has triggered an internal alarm (e.g. overload or battery fault). |
-| `CAL` | Calibrating | UPS is performing a battery runtime calibration. |
-| `COMMLOST` | Communication Lost | Communication between NUT and the UPS device is lost. |
-| `OFF` | Off | UPS output is turned off. |
-| `TRIM` | Trim | Input voltage is too high; UPS is stepping it down (buck). |
-| `BOOST` | Boost | Input voltage is too low; UPS is stepping it up. |
-| `TEST` | Self-Test | UPS is performing an automatic self-test. |
-| `SYNC` | Synchronizing | UPS is synchronizing with the mains frequency (rare). |
-
-### Raw Data Items
-
-These items fetch raw JSON from the OPNsense API and serve as master items for dependent
-items and discovery rules.
-
-| Name | Key | Update Interval | API Endpoint |
-|------|-----|-----------------|--------------|
-| RAW Load | `opns.raw.load` | 5m | `/api/diagnostics/system/system_time` |
-| RAW Memorystatus | `opns.raw.memory.status` | 5m | `/api/diagnostics/system/systemResources` |
-| RAW Disk | `opns.raw.disk` | 5m | `/api/diagnostics/system/system_disk` |
-| RAW Gatewaystatus | `opns.raw.gateway.status` | 1m | `/api/routes/gateway/status` |
-| RAW Firewall States | `opns.raw.fw.states` | 1m | `/api/diagnostics/firewall/pfStates` |
-| RAW Firewallaction | `opns.raw.fw.action` | 1m | `/api/diagnostics/firewall/stats?group_by=action` |
-| RAW Firewall Interfaces | `opns.raw.fw.interface.stat` | 1m | `/api/diagnostics/firewall/pf_statistics/interfaces` |
-| RAW Interfaces | `opns.raw.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
-| RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
-| RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
-| RAW Firmware Status | `opns.raw.firmware.status` | 1d | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
-| RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
-| RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
-
-## Triggers
-
-### System Triggers
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| No data from OPNsense | **High** | No data received from `opns.raw.gateway.status` for 5 minutes – API is unreachable. |
-| CPU load is high | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes. |
-| Memory utilization is high | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes. |
-| OPNSense Business License expires soon | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
-| OPNsense firmware updates are available | **Info** | Firmware update status is `update` or `upgrade` and at least one update is available. |
-| OPNsense firmware update check failed | **Warning** | Firmware update check returned `error`. |
-| State table usage is high | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
-| {HOST.NAME} has been restarted | **Info** | System uptime is less than 600 seconds (10 minutes). |
-
-### UPS Triggers
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| UPS on Battery | **High** | UPS status contains `OB` – mains power has failed. |
-| Battery low | **Disaster** | UPS status contains `LB` – battery is critically low and shutdown is imminent. |
-| High Load on UPS Battery | **Average** | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%). |
-| Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning** | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%). |
-| Remaining battery runtime is low | **High** | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
-
-### WireGuard Triggers
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
-| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. OPNsense marks peers online when the latest handshake is not older than 300 seconds. |
-
-## Discovery Rules
-
-### 1. Disk Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.disk.discovery` |
-| Type | Dependent (master: `opns.raw.disk`) |
-| Filters | `{#FSNAME}` and `{#FSTYPE}` configurable via macros |
-| Keep lost resources | 1h |
-
-**Item Prototypes:**
-
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| FS [{#FSNAME}]: Get data | `opns.disk.data[{#FSNAME},data]` | – | Raw JSON for the filesystem (intermediate item). |
-| FS [{#FSNAME}]: Space: Total | `opns.disk.size[{#FSNAME},total]` | B | Total filesystem size in bytes. |
-| FS [{#FSNAME}]: Space: Used | `opns.disk.size[{#FSNAME},used]` | B | Used space in bytes. |
-| FS [{#FSNAME}]: Space: Available | `opns.disk.size[{#FSNAME},available]` | B | Available space in bytes. |
-| FS [{#FSNAME}]: Space: Used, in % | `opns.disk.size[{#FSNAME},pused]` | % | Used space as a percentage. |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| OPNsense: FS [{#FSNAME}]: Space is low | **Warning** | Used space exceeds `{$OPNS.FS.PUSED.MAX.WARN}` % (default: 90%). |
-| OPNsense: FS [{#FSNAME}]: Space is critically low | **Average** | Used space exceeds `{$OPNS.FS.PUSED.MAX.CRIT}` % (default: 95%). |
-
----
-
-### 2. Gateway Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.gateway.discovery` |
-| Type | Dependent (master: `opns.raw.gateway.status`) |
-| LLD Macro | `{#GWSTATUSNAME}` → `$.name` |
-| Keep lost resources | 1h |
-
-**Item Prototypes:**
-
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| Gateway Address {#GWSTATUSNAME} | `opns.gw.status.address[{#GWSTATUSNAME}]` | – | Gateway IP address. |
-| Gateway Status {#GWSTATUSNAME} | `opns.gw.status.status[{#GWSTATUSNAME}]` | – | Translated status string (e.g. "Online"). |
-| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time. Returns 9999 if monitoring is disabled. |
-| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | RTT standard deviation. Returns 9999 if monitoring is disabled. |
-| Gateway loss {#GWSTATUSNAME} | `opns.gw.status.loss[{#GWSTATUSNAME}]` | % | Packet loss percentage. Returns 9999 if monitoring is disabled. |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense. |
-
----
-
-### 3. FW Action Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.fw.action.discovery` |
-| Type | Dependent (master: `opns.raw.fw.action`) |
-| LLD Macro | `{#FWACTION}` → `$.label` |
-| Keep lost resources | 1h |
-
-**Item Prototypes:**
-
-| Name | Key | Description |
-|------|-----|-------------|
-| Firewall action {#FWACTION} | `opns.fw.action[{#FWACTION}]` | Counter for the discovered firewall action (e.g. pass, block, match). |
-
-**Graph Prototypes:**
-
-| Name | Description |
-|------|-------------|
-| OPNSense Action Graph {#FWACTION} | Graph showing firewall action counts per discovered action type. |
-
----
-
-### 4. Interface CARP Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.interface.carp.discovery` |
-| Type | Dependent (master: `opns.raw.interfaces.carp`) |
-| LLD Macro | `{#OPNS.INTERFACE.NAME}` → `$.interface` |
-| Keep lost resources | 1d |
-
-**Item Prototypes:**
-
-| Name | Key | Description |
-|------|-----|-------------|
-| Carp Status of {#OPNS.INTERFACE.NAME} | `opns.carp.status[{#OPNS.INTERFACE.NAME}]` | CARP status of the VIP (MASTER, BACKUP, INIT). Uses discard unchanged heartbeat (2h). |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| Carp Status Changed on {#OPNS.INTERFACE.NAME} | **High** | CARP status changed – indicates a failover event. |
-
-> **Note:** If no CARP interfaces are configured, the discovery returns a custom error and
-> no items are created.
-
----
-
-### 5. Interface Stats Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.interface.stats.discovery` |
-| Type | Dependent (master: `opns.raw.interfaces.stat`) |
-| LLD Macros | `{#OPNS.INTERFACE.DEVICE}` → `$.device`, `{#OPNS.INTERFACE.NAME}` → `$.name` |
-
-**Item Prototypes – Traffic:**
-
-| Name | Key | Unit |
-|------|-----|------|
-| …Bytes received | `opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …Bytes transmitted | `opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …packets received | `opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …packets transmitted | `opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …multicasts received | `opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]` | – |
-
-**Item Prototypes – Errors & Drops:**
-
-| Name | Key |
-|------|-----|
-| …collisions | `opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]` |
-| …input queue drops | `opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]` |
-| …output errors | `opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]` |
-| …packets for unknown protocol | `opns.interface.packets.unknown.protocol[{#OPNS.INTERFACE.DEVICE}]` |
-
-**Item Prototypes – Firewall per Interface (IPv4):**
-
-| Name | Key | Unit |
-|------|-----|------|
-| …blocked bytes INv4 | `opns.interface.fw.bytes.blockin.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …blocked bytes OUTv4 | `opns.interface.fw.bytes.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …passed bytes INv4 | `opns.interface.fw.bytes.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …passed bytes OUTv4 | `opns.interface.fw.bytes.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …blocked packets INv4 | `opns.interface.fw.packets.blockin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …blocked packets OUTv4 | `opns.interface.fw.packets.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …passed packets INv4 | `opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …passed packets OUTv4 | `opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-
----
-
-### 6. WireGuard Instance Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.wireguard.instance.discovery` |
-| Type | Dependent (master: `opns.wireguard.raw`) |
-| LLD Macros | `{#WG.IF}` → `$.if`, `{#WG.INSTANCE}` → `$.name` |
-| Filters | `{#WG.INSTANCE}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
-| Keep lost resources | 1h |
-
-**Item Prototypes:**
-
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| WireGuard instance {#WG.INSTANCE}: status | `opns.wireguard.instance.status[{#WG.IF}]` | – | Interface status reported by OPNsense (`up` or `down`). |
-| WireGuard instance {#WG.INSTANCE}: listen port | `opns.wireguard.instance.listen_port[{#WG.IF}]` | – | WireGuard listen port. |
-| WireGuard instance {#WG.INSTANCE}: public key | `opns.wireguard.instance.public_key[{#WG.IF}]` | – | Instance public key. |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
-
----
-
-### 7. WireGuard Peer Discovery
-
-| Property | Value |
-|----------|-------|
-| Key | `opns.wireguard.peer.discovery` |
-| Type | Dependent (master: `opns.wireguard.raw`) |
-| LLD Macros | `{#WG.PUBKEY}` → `$.public_key`, `{#WG.NAME}` → `$.name`, `{#WG.IF}` → `$.if`, `{#WG.IFNAME}` → `$.ifname` |
-| Filters | `{#WG.NAME}` configurable via `{$OPNS.WG.PEER.MATCHES}` and `{$OPNS.WG.PEER.NOT_MATCHES}`; `{#WG.IFNAME}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
-| Keep lost resources | 1h |
-
-**Item Prototypes:**
-
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| WireGuard peer {#WG.NAME}: status | `opns.wireguard.peer.status["{#WG.PUBKEY}"]` | – | Peer status reported by OPNsense (`online`, `stale`, or `offline`). |
-| WireGuard peer {#WG.NAME}: latest handshake | `opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]` | unixtime | Latest WireGuard handshake timestamp. Returns `0` if no handshake exists. |
-| WireGuard peer {#WG.NAME}: latest handshake age | `opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]` | s | Age of the latest handshake in seconds. Returns `0` if no handshake exists. |
-| WireGuard peer {#WG.NAME}: endpoint | `opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]` | – | Current peer endpoint. |
-| WireGuard peer {#WG.NAME}: bytes received | `opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]` | B | Total bytes received from the peer. |
-| WireGuard peer {#WG.NAME}: bytes received per second | `opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]` | Bps | Receive rate calculated from total received bytes. |
-| WireGuard peer {#WG.NAME}: bytes sent | `opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]` | B | Total bytes sent to the peer. |
-| WireGuard peer {#WG.NAME}: bytes sent per second | `opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]` | Bps | Send rate calculated from total sent bytes. |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
-
-## UPS Monitoring (NUT)
-
-OPNsense includes a built-in NUT (Network UPS Tools) plugin that exposes UPS status via its
-REST API. This template can optionally monitor a connected UPS using this integration.
-
-### How it works
-
-The `RAW UPS` item fetches the raw NUT status string from the OPNsense API endpoint
-`/api/nut/diagnostics/upsstatus`. A JavaScript preprocessing step parses the newline-separated
-`key: value` response into clean JSON. All UPS dependent items then extract their values
-from this JSON using standard JSONPath preprocessing – no external scripts required.
-
-### Enabling UPS Monitoring
-
-1. Install and configure the **NUT plugin** on OPNsense
-   (Services → Network UPS Tools)
-2. Connect a supported UPS via USB or network
-3. In Zabbix, navigate to the host and **enable the item** `RAW UPS` (`opns.ups.raw`)
-4. All dependent UPS items and triggers will start collecting data automatically
-
-
-## Dashboards
-
-The template includes a built-in dashboard **"OPNsense Info"** with three pages:
-
-1. **OPNSense Info** – CPU load widget, memory usage pie chart, firewall states pie chart,
-   firewall action SVG graph, and CARP status honeycomb overview.
-2. **Gateway Info** – SVG graphs for gateway round-trip time and packet loss across all
-   discovered gateways.
-3. **Interfaces** – SVG graph showing blocked and passed bytes (IPv4) per interface.
-
-## Feedback
-
-If you encounter any issues or have suggestions for improvement, please open an issue or
-pull request in the community templates repository.
+# Community template with the additions from this repository
+
+`template_opnsense_by_http_json-7.4-extended.yaml` is the Zabbix community template
+`Network_Devices/OPNsense/template_opnsense_by_http_json/7.4` with the parts of
+`../opnsense-by-http-api.yaml` added that it does not already cover.
+
+Template name, template UUID and the vendor block are unchanged, so importing this file
+updates an existing `OPNsense by HTTP-JSON` instead of creating a second template. Everything
+added carries fresh UUIDs, so the original `OPNsense by HTTP API` template can stay imported
+next to it.
+
+Of the community part, every item, discovery rule, trigger and macro is untouched byte for
+byte. Two things are deliberately not: four URLs are corrected and the dashboard is rebuilt,
+both documented below and both enforced by `check.py`, which fails if anything else changes.
+
+Pinned upstream copy: `upstream-7.4.yaml`, blob `b5303cdd47311eb2463a9cf4183e1b09f1e9ab4e`.
+
+## Rebuilding
+
+```sh
+python3 merged/build.py    # splices the additions into the pinned upstream copy
+python3 merged/check.py    # proves nothing else changed and validates the result
+```
+
+`check.py` diffs the result against the pinned copy up to the dashboard block and fails if
+any upstream line there was deleted or changed rather than only inserted, apart from the four
+declared corrections. It re-applies the correction list itself, so a fifth one cannot slip in.
+For the rebuilt dashboard it checks that the uuid and name still match upstream and reports
+which of the old widget sources are not reused verbatim. It also verifies UUIDs, master item
+links, calculated formulas, trigger expressions, macro definitions, value map references and
+that every dashboard widget points at an item that exists.
+
+To pick up a new upstream release, replace `upstream-7.4.yaml` and run both scripts again.
+
+`build.py --upstream` additionally writes `upstream-pr/template_opnsense_by_http_json.yaml`,
+the same result with the vendor version bumped to `0.31`, for a pull request against
+`zabbix/community-templates`. `upstream-pr/PR.md` has the steps and the commit message.
+
+`verify_live.py` queries a real firewall with the monitoring API key and replays every added
+preprocessing chain, including the JavaScript steps:
+
+```sh
+OPNS_KEY=... OPNS_SECRET=... python3 merged/verify_live.py --host 192.168.10.254
+```
+
+## Corrections to the community template
+
+Four URLs are corrected. They are the only upstream lines this build changes, they are
+declared in one list in `build.py`, and `check.py` fails if that list grows silently.
+
+| Item | Was | Now | Why |
+|------|-----|-----|-----|
+| `opns.raw.fw.states` | `diagnostics/firewall/pfStates` | `diagnostics/firewall/pf_states` | HTTP 403 for every non administrator key |
+| `opns.raw.memory.status` | `diagnostics/system/systemResources` | `diagnostics/system/system_resources` | same |
+| `opns.ipsec.phase1.raw` | `https://{HOST.IP}/api/...` | `https://{HOST.IP}:{$OPNS.PORT}/api/...` | pinned to 443, ignoring the port macro |
+| `opns.ipsec.phase2.raw` | `https://{HOST.IP}/api/...` | `https://{HOST.IP}:{$OPNS.PORT}/api/...` | same |
+
+The first two are the interesting ones. OPNsense routes both spellings to the same
+controller action (`Router.php` builds the action name with
+`lcfirst(str_replace('_', '', ucwords($element, '_')))`), so an administrator key never sees
+a problem. The privilege patterns, however, are `api/diagnostics/firewall/pf_states` and
+`api/diagnostics/system/system_resources`, both exact rather than wildcards, and `ACL.php`
+matches them with `preg_match` without the `i` modifier. A monitoring user with the
+Lobby: Dashboard privilege therefore gets HTTP 403 on the camelCase spelling, which takes
+out the firewall state items, the state table utilization and all memory items.
+
+## What was added
+
+67 items (14 of them HTTP agent masters), 5 discovery rules with 8 item prototypes,
+23 triggers, 4 trigger prototypes, 1 graph prototype, 12 macros and 4 value maps.
+
+| Area | Endpoint |
+|------|----------|
+| Processor utilization, split into user, system and interrupt | `diagnostics/activity/get_activity` |
+| Core count, and load per core derived from it | `diagnostics/cpu_usage/getCPUType` |
+| pf table entries against the configured ceiling | `firewall/alias/get_table_size` |
+| Clock synchronization, offset, stratum, reachable peers | `ntpd/service/status` |
+| Kernel network memory, mbuf clusters and denied requests | `diagnostics/interface/get_memory_statistics` |
+| netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
+| IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
+| Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
+| pf counters, state table rates, source nodes, SYN floods | `diagnostics/firewall/pf_statistics/info` |
+| pf source node limit | `diagnostics/firewall/pf_statistics/memory` |
+| Service run state, discovered | `core/service/search` |
+| Swap per device, discovered | `diagnostics/system/system_swap` |
+| Temperature per sensor, discovered | `diagnostics/system/system_temperature` |
+| Inbound errors and link state per interface, discovered | `diagnostics/interface/get_interface_statistics` |
+
+Seven more items ride along on masters the community template already polls, so they cost no
+extra request: the configuration change timestamp and load average over 5 and 15 minutes from
+`opns.raw.load`, the blocked share of the firewall log from `opns.raw.fw.action`, the CARP
+demotion factor and maintenance mode from `opns.raw.interfaces.carp`, and the OPNsense version
+from `opns.raw.product.info`.
+
+Interface inbound errors and link state come with their own discovery rule rather than as
+extra prototypes on the community interface discovery, because that rule stays untouched.
+Both rules discover the same interfaces, but no metric exists twice.
+
+Left out because the community template already covers it: memory, uptime, filesystems,
+gateways, interface traffic and counters, per interface pf block counters, CARP status per
+address, IPsec, WireGuard, pf state table current and limit, and pending updates.
+
+## Dashboard
+
+The `OPNsense Info` dashboard is rebuilt, keeping its uuid and name so an import updates it
+rather than adding a second one. Three defects made that worth doing:
+
+- the CPU load widget sets `Show=5`, which Zabbix 7.0 refuses outright with
+  `Invalid parameter "Show/5": value must be one of 1, 2, 3, 4`
+- both pie charts plot a total against a part of that same total, so "used" is drawn as a
+  slice of "total plus used" and always looks about half its real size
+- the pages use 41, 45 and 55 of the 72 grid columns, so everything sits in the left two
+  thirds, and `Gateway RTT*` also matches `Gateway RTTd`, mixing round trip time into one
+  graph with its own standard deviation
+
+Everything the old pages showed is still shown. The two pie charts are replaced by the
+utilization gauges that state the same fact correctly, and the page name typo `Inerfaces`
+is gone. The UPS, WireGuard and IPsec items that ship with the template but appeared on no
+page now have one.
+
+| Page | Shows |
+|------|-------|
+| Overview | Memory, state table, processor and load per core as gauges, six tiles from CPU load to state limit, firewall actions over time, CARP status, and all filesystems as a honeycomb |
+| Packet filter | State table, source tracking and pf table utilization, twelve tiles from states in use to source limit hits, state table churn and searches, rule matches against evaluations, drops and limit hits, malformed packets |
+| Interfaces | Link state per interface, traffic, blocked and passed bytes side by side, and inbound errors, output errors, queue drops and collisions in one graph |
+| Gateways | Status honeycomb, round trip time and packet loss side by side, deviation below |
+| VPN | WireGuard peers and instances, peer traffic, IPsec phase 1 tunnels and phase 2 traffic |
+| System | Processor, memory and load per core, uptime, version, cores, configuration change timestamp, both load averages, processor utilization split into user, system and interrupt, load average over time, temperature and swap honeycombs |
+| Kernel and protocols | mbuf utilization, clusters in use, denied requests, netisr drops, kernel network memory and netisr drops per protocol, IP and TCP error rates |
+| Services, clock and power | Every service as a honeycomb, clock synchronization, offset, stratum and reachable peers, CARP demotion and maintenance, UPS battery, status, load and runtime, clock offset and UPS voltage over time |
+
+Layout, colours and thresholds live in `dashboard.py`. The grid is 72 columns wide. Every
+widget type and field name used there already occurs in a dashboard that imports into a
+running Zabbix 7.0, so none of it is guessed, and `check.py` resolves all 110 item
+references before the file is ever imported.
+
+## Privileges on the OPNsense monitoring user
+
+Measured against a live OPNsense 26.7 with a restricted key, not read off the documentation.
+
+The added endpoints need these on top of what the community template already required. Only
+the last one grants more than reading, and without it the service discovery simply stays
+empty:
+
+| Privilege in the GUI | Internal ID | Needed for | Read only |
+|----------------------|-------------|------------|-----------|
+| Lobby: Dashboard | `page-system-login-logout` | swap, temperature, core count, load average, configuration change timestamp | yes |
+| Diagnostics: Netstat | `page-diagnostics-netstat` | interface errors and link state, mbuf pool, netisr queues, protocol errors | yes |
+| Diagnostics: Firewall statistics | `page-diagnostics-pf-info` | pf counters, source tracking, ruleset | yes |
+| Diagnostics: System Activity | `page-diagnostics-system-activity` | processor utilization | yes |
+| Status: NTP | `page-status-ntp` | clock synchronization | yes |
+| Diagnostics: Logs: Firewall: Summary View | `page-diagnostics-logs-firewall-summary` | blocked share of the firewall log | yes |
+| Firewall: Aliases | `page-firewall-aliases` | pf table entry usage, also exposes every alias content | yes |
+| Status: Services | `page-status-services` | service run state | **no**, permits starting and stopping services |
+
+Two more are needed by items the community template already had, and are easy to miss
+because the symptom is an HTTP 403 on a raw item rather than on the item you are looking at:
+
+| Privilege in the GUI | Internal ID | Without it |
+|----------------------|-------------|------------|
+| System: Firmware | `page-system-firmware-manualupdate` | the five firmware update items, the business license item and the OPNsense version stay unsupported. Its pattern is `api/core/firmware/*`, which also covers reboot, poweroff, install and remove, so this one is **not** read only |
+| Reporting: Traffic | `page-status-trafficgraph` | the whole community interface discovery stays empty, so no traffic, no counters, no per interface pf block counters. Read only |
+
+The version item is fed from `core/firmware/info` rather than `system_information`, so it
+needs System: Firmware. If you would rather not grant that privilege, source the version and
+the pending update indicator from `diagnostics/system/system_information` instead, which
+Lobby: Dashboard covers; both items exist in `../opnsense-by-http-api.yaml`.
+
+## Added macros
+
+All of them are thresholds with usable defaults, none has to be set.
+
+| Macro | Default | Purpose |
+|-------|---------|---------|
+| `{$OPNS.CPU.UTIL.WARN}` | 85 | Processor utilization counting as high, over ten minutes |
+| `{$OPNS.LOAD.AVG5.WARN}` | 4 | Absolute five minute load average counting as high |
+| `{$OPNS.LOAD.PERCORE.WARN}` | 1 | Load per core counting as high, 1 means the cores are saturated |
+| `{$OPNS.MBUF.UTIL.WARN}` | 80 | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.NTP.OFFSET.WARN}` | 100 | Clock offset in milliseconds counting as high |
+| `{$OPNS.PF.SRCNODES.UTIL.CRIT}` | 90 | Source tracking table fill level counting as critical |
+| `{$OPNS.PF.TABLES.UTIL.WARN}` | 80 | Share of the pf table entry budget counting as filling up |
+| `{$OPNS.SWAP.UTIL.WARN}` | 5 | Swap in use counting as a problem, per device via context |
+| `{$OPNS.TEMP.CRIT}` | 80 | Sensor temperature in degrees Celsius, per sensor via context |
+| `{$OPNS.IF.CONTROL}` | 1 | Set to 0, per interface via context, to silence the down trigger |
+| `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from the added discovery |
+| `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
