@@ -326,6 +326,7 @@ items and discovery rules.
 | OPNsense: Services (raw) | `opns.services.raw` | 5m | `/api/core/service/search` |
 | OPNsense: Swap (raw) | `opns.swap.raw` | 5m | `/api/diagnostics/system/system_swap` |
 | OPNsense: Temperature sensors (raw) | `opns.temperature.raw` | 1m | `/api/diagnostics/system/system_temperature` |
+| RAW IPsec Phase1 | `opns.ipsec.phase1.raw` | 5m | `/api/ipsec/sessions/searchPhase1` |
 
 Seven items need no request of their own because they hang off masters that were already
 being polled: the configuration change timestamp and both load averages come from
@@ -728,6 +729,29 @@ untouched. Both rules discover the same interfaces, but no metric exists twice.
 
 ---
 
+### 13. IPsec Phase 1 Discovery
+
+Was not described here before. Phase 2 no longer has a rule of its own, see below.
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.ipsec.phase1.discovery` |
+| Type | Dependent (master: `opns.ipsec.phase1.raw`) |
+| LLD Macros | `{#IPSECDESC}` -> `$.phase1desc`, `{#IPSECNAME}` -> `$.name` |
+
+**Item Prototypes, phase 1:** connection state, local address, and bytes in and out both as a
+total and as a rate. The API aggregates these counters over all child SAs of the connection
+itself.
+
+**Item Prototypes, phase 2:** `IPsec {#IPSECDESC}: phase 2 (raw)`
+(`opns.ipsec.phase2.raw[{#IPSECNAME}]`) is an HTTP agent prototype that posts
+`id={#IPSECNAME}` to `/api/ipsec/sessions/search_phase2`, one request per connection, and
+serves the ten phase 2 values below it: bytes and packets in and out as totals and rates,
+plus mode and state. Values are summed over the child SAs of the connection, and a tunnel that
+is down simply reports nothing rather than turning the items unsupported.
+
+---
+
 ## UPS Monitoring (NUT)
 
 OPNsense includes a built-in NUT (Network UPS Tools) plugin that exposes UPS status via its
@@ -802,8 +826,44 @@ For anyone following least privilege this took out `opns.fw.states.current`,
 `opns.fw.states.max`, `opns.states.util` and all four memory items. Both URLs now use the
 snake_case spelling.
 
-The IPsec phase 1 and phase 2 masters were also the only two items ignoring `{$OPNS.PORT}`
-and pinned to 443. They now use the macro like everything else.
+The IPsec phase 1 master was also one of two items ignoring `{$OPNS.PORT}` and pinned to 443.
+It now uses the macro like everything else.
+
+## Repaired IPsec monitoring
+
+Three defects, none of them visible without a tunnel to test against.
+
+**The masters shipped disabled.** Both IPsec raw items carried `status: DISABLED`. For the UPS
+master that is deliberate and documented; for IPsec neither the README nor the Raw Data Items
+table mentioned the items at all, so a user with working tunnels saw nothing and had no hint
+why. The same confusion already played out for UPS in issue #706. Phase 1 is enabled now;
+`ipsec/sessions/search_phase1` answers HTTP 200 with an empty row set on a firewall without
+tunnels, so this costs nothing for anyone else.
+
+**Tunnels without a description were dropped.** `searchPhase1Action` leaves `phase1desc` at
+`null` when the connection carries no description, and legacy tunnels can miss the ikeid
+lookup as well. The discovery used that field as the entity identity and put it into every
+prototype key, so several such tunnels collapsed into identical keys and the rule failed as a
+whole. A JavaScript step now fills `phase1desc` from `name`, which the API always sets. Item
+keys of anybody who does have descriptions are unchanged.
+
+**Phase 2 could never return anything.** `searchPhase2Action` reads its connection from
+`getPost('id')` and returns an empty set without it, while the template asked for it with a
+plain GET and no parameters. Measured against OPNsense 26.7 with a monitoring key, echoing
+`current` back proves that POST parameters arrive:
+
+```
+GET  (no parameters)         -> {"current":1,...}
+POST form-encoded current=3  -> {"current":3,...}
+```
+
+The web interface does the same: `sessions.volt` sends `request['id']` taken from the selected
+phase 1 row, whose identifier is the `name` column. Phase 2 therefore needs one request per
+connection, which is an item prototype inside the phase 1 rule rather than a standalone
+master, because a discovery rule cannot depend on an item another rule created. The ten phase 2
+prototypes moved accordingly and now aggregate over the child SAs of their connection.
+
+The privilege set does not change, `page-status-ipsec` covers `api/ipsec/sessions/*`.
 
 ## Feedback
 
