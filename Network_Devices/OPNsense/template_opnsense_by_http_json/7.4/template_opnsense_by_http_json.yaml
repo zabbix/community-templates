@@ -214,7 +214,7 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.rows
-          url: 'https://{HOST.IP}/api/ipsec/sessions/searchPhase1'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/ipsec/sessions/searchPhase1'
           tags:
             - tag: component
               value: raw
@@ -233,7 +233,7 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.rows
-          url: 'https://{HOST.IP}/api/ipsec/sessions/searchPhase2'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/ipsec/sessions/searchPhase2'
           tags:
             - tag: component
               value: raw
@@ -547,7 +547,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pfStates'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_states'
           tags:
             - tag: component
               value: raw
@@ -631,7 +631,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/systemResources'
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_resources'
           tags:
             - tag: component
               value: raw
@@ -759,6 +759,1627 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
+        - uuid: db58e030488343d8889f8e5b5359b747
+          name: 'OPNsense: System activity (raw)'
+          type: HTTP_AGENT
+          key: opns.activity.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Header block of the process listing, which is the only place the API states how busy the processor actually is. The bulk of the response is the process table itself and is not evaluated, so nothing is stored from it.
+          timeout: 15s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/activity/get_activity
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 232b5d602bd24b268288730aa62e7c0b
+          name: 'OPNsense: Alias tables (raw)'
+          type: HTTP_AGENT
+          key: opns.alias.raw
+          delay: 10m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Entries held by all pf tables together with the configured ceiling. Polled every ten minutes because block lists and GeoIP feeds move on that scale, not by the second.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/firewall/alias/get_table_size
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 0126fc720721498cb09894aff621da8e
+          name: 'CARP: Demotion factor'
+          type: DEPENDENT
+          key: opns.carp.demotion
+          delay: '0'
+          description: How strongly this node is holding itself back from becoming master. Zero means it is willing; anything above means a subsystem has demoted it, which is the usual reason a node refuses to take over when the peer fails.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.carp.demotion
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 3m
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: carp
+        - uuid: 6bef2f7a318c48d79023e235689ba924
+          name: 'CARP: Maintenance mode'
+          type: DEPENDENT
+          key: opns.carp.maintenance
+          delay: '0'
+          valuemap:
+            name: Enabled state
+          description: Maintenance mode hands every virtual address to the peer and keeps it there. Worth watching because it is easy to switch on for a planned change and just as easy to forget afterwards, leaving the pair permanently one sided.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.carp.maintenancemode
+              error_handler: DISCARD_VALUE
+            - type: BOOL_TO_DECIMAL
+              parameters:
+                - ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 3m
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: carp
+          triggers:
+            - uuid: 548a07530d684f63811b14cd4e34b1a8
+              expression: min(/OPNsense by HTTP-JSON/opns.carp.maintenance,30m)=1
+              name: 'OPNsense: CARP maintenance mode has been on for 30 minutes'
+              priority: WARNING
+              description: Long enough to suggest it was left on rather than switched on for a change in progress. While it is on there is no redundancy.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 914f03abf80f4ce788c9c0fc502f6b30
+          name: 'OPNsense: Configuration last changed'
+          type: DEPENDENT
+          key: opns.config.changed
+          delay: '0'
+          units: unixtime
+          description: Timestamp OPNsense records when the configuration is written. Covers every change, not only firewall rules, and needs no extra request because it rides along with the system time that is already polled. The reading is what the firewall itself reports, so a clock that is off shifts it accordingly.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "Thu Aug 13 12:03:17 UTC 2026". Date.parse is unreliable with this
+                  // format, so it is taken apart by position.
+                  var m = JSON.parse(value).config.match(
+                      /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})\s+\S+\s+(\d{4})$/);
+                  if (m === null) { throw 'cannot read config timestamp: ' + value; }
+                  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+                  return Math.round(Date.UTC(+m[6], months[m[1]], +m[2], +m[3], +m[4], +m[5]) / 1000);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.raw.load
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: eac7d7b80cdc481d939a46688dd5a271
+              expression: change(/OPNsense by HTTP-JSON/opns.config.changed)<>0 and last(/OPNsense by HTTP-JSON/opns.config.changed,#2)>0
+              name: 'OPNsense: Configuration has been changed'
+              priority: INFO
+              description: Someone wrote a new configuration. Broader than the ruleset fingerprint, which reacts to rules only, and the two together tell whether a change touched the firewall rules or something else. The second condition suppresses the jump out of a zero, which is what an item reports after a gap in collection rather than a real change.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 1ed6e5b59e304b8890568735a83af3f4
+          name: 'CPU: Cores'
+          type: DEPENDENT
+          key: opns.cpu.cores
+          delay: '0'
+          description: Physical core count, needed to put the load average into proportion. Parsed by position rather than by wording, because the source string is translated on a localised firewall.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "Intel(R) Xeon(R) ... (4 cores, 8 threads)". The words are translated,
+                  // the two numbers in the trailing parenthesis are not, so take those.
+                  var m = String(JSON.parse(value)[0]).match(/\((\d+)\D+(\d+)\D*\)\s*$/);
+                  if (m === null) { throw 'cannot read core count from: ' + value; }
+                  return parseInt(m[1], 10);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.cpu.raw
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: c3f22609de004b889c093cf7287f7354
+          name: 'CPU: Interrupt time'
+          type: DEPENDENT
+          key: opns.cpu.interrupt
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: Share spent servicing hardware interrupts. On a firewall this is largely network cards, and a high figure means the packet rate is close to what the hardware can take, well before the total utilisation looks alarming.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var h = JSON.parse(value).headers || [];
+                  for (var i = 0; i < h.length; i++) {
+                      var m = h[i].match(/([0-9.]+)%\s+interrupt/);
+                      if (m !== null) { return parseFloat(m[1]); }
+                  }
+                  throw 'no CPU line in the activity header';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.activity.raw
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: 1d3b74230f244413b40b5a8ccdf6f23a
+          name: 'OPNsense: CPU type (raw)'
+          type: HTTP_AGENT
+          key: opns.cpu.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Processor model with core and thread count. Static inventory, but polled at the same interval as the load average it is divided into, because a calculated item goes unsupported while a referenced item has no data yet. The dependent item discards unchanged values, so this costs a request rather than history. This is also the only endpoint addressed in camelCase, because the action name carries consecutive capitals that the snake_case spelling does not reproduce; its privilege matches by wildcard, so the spelling raises no access problem.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/cpu_usage/getCPUType
+          tags:
+            - tag: component
+              value: raw
+        - uuid: f1c410b452d240c4a9d4aba91be83167
+          name: 'CPU: System time'
+          type: DEPENDENT
+          key: opns.cpu.system
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: Share spent in the kernel, which on a firewall is mostly packet forwarding and rule evaluation.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var h = JSON.parse(value).headers || [];
+                  for (var i = 0; i < h.length; i++) {
+                      var m = h[i].match(/([0-9.]+)%\s+system/);
+                      if (m !== null) { return parseFloat(m[1]); }
+                  }
+                  throw 'no CPU line in the activity header';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.activity.raw
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: d124e187bdee494da20f14d74f2a1abc
+          name: 'CPU: User time'
+          type: DEPENDENT
+          key: opns.cpu.user
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: Share spent in user space, which covers the web interface, the configuration daemon and plugins such as an IDS.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var h = JSON.parse(value).headers || [];
+                  for (var i = 0; i < h.length; i++) {
+                      var m = h[i].match(/([0-9.]+)%\s+user/);
+                      if (m !== null) { return parseFloat(m[1]); }
+                  }
+                  throw 'no CPU line in the activity header';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.activity.raw
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: 53608ef7e1004a2b940c8668e21ba38b
+          name: 'CPU: Utilization'
+          type: DEPENDENT
+          key: opns.cpu.util
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: Everything that is not idle. Derived from the idle share the firewall reports, because that is the one figure the API states directly and the rest have to be added up otherwise.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "CPU:  1.8% user,  0.0% nice,  2.0% system,  0.2% interrupt, 96.1% idle"
+                  var h = JSON.parse(value).headers || [];
+                  for (var i = 0; i < h.length; i++) {
+                      var m = h[i].match(/([0-9.]+)%\s+idle/);
+                      if (m !== null) { return 100 - parseFloat(m[1]); }
+                  }
+                  throw 'no CPU line in the activity header';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 5m
+          master_item:
+            key: opns.activity.raw
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 9faaba82f30b473aa6d048657df9340f
+              expression: avg(/OPNsense by HTTP-JSON/opns.cpu.util,10m)>{$OPNS.CPU.UTIL.WARN}
+              name: 'OPNsense: CPU utilization is high'
+              priority: WARNING
+              description: 'Sustained load on the processor. Read alongside the interrupt share: if that dominates, the limit is packet handling rather than anything running on the box.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 3c8d3d3757e44986be2619807f892f1a
+          name: 'Firewall log: Blocked share'
+          type: DEPENDENT
+          key: opns.fwlog.block.pct
+          delay: '0'
+          value_type: FLOAT
+          units: '%'
+          description: 'Share of blocked entries among the most recent logged packets. Deliberately a share and not a count: the endpoint returns a fixed window of the last log entries, so the counts always add up to that window size and say nothing on their own. The span of time covered therefore varies with how much the firewall logs, and only rules with logging enabled appear at all. What a normal share looks like differs per site, so this ships without a trigger.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // [{"label":"pass","value":4323},{"label":"block","value":677}]
+                  var rows = JSON.parse(value), total = 0, block = 0;
+                  for (var i = 0; i < rows.length; i++) {
+                      total += Number(rows[i].value) || 0;
+                      if (rows[i].label === 'block') { block += Number(rows[i].value) || 0; }
+                  }
+                  if (!total) { throw 'firewall log is empty'; }
+                  return block / total * 100;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.raw.fw.action
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 07c5bc199b464afc986741291d1f7531
+          name: 'OPNsense: Interface statistics (raw)'
+          type: HTTP_AGENT
+          key: opns.ifstats.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Counters per interface and address.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_interface_statistics
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 274454865e434ad8a0979c2d8766c83d
+          name: 'mbuf: Clusters in use'
+          type: DEPENDENT
+          key: opns.mbuf.cluster.current
+          description: mbuf clusters currently taken from the fixed kernel pool. Grows with the number of packets in flight, not with configured memory.
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $['mbuf-statistics']['cluster-current']
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.mbuf.raw
+          tags:
+            - tag: component
+              value: memory
+        - uuid: e3ced44b4d9f49ebaf040dd9d5f4e71a
+          name: 'mbuf: Cluster limit'
+          type: DEPENDENT
+          key: opns.mbuf.cluster.max
+          description: Upper bound of the cluster pool, set by kern.ipc.nmbclusters. Raising that sysctl is the remedy when the pool runs dry.
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $['mbuf-statistics']['cluster-max']
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.mbuf.raw
+          tags:
+            - tag: component
+              value: memory
+        - uuid: 548d3b547add4ed49a781984dce63bcd
+          name: 'mbuf: Cluster utilization'
+          type: CALCULATED
+          key: opns.mbuf.cluster.pused
+          delay: 1m
+          value_type: FLOAT
+          units: '%'
+          params: last(/{HOST.HOST}/opns.mbuf.cluster.current) / last(/{HOST.HOST}/opns.mbuf.cluster.max) * 100
+          description: mbuf clusters are a fixed kernel pool. Once it is exhausted the firewall stops forwarding traffic while still answering ping and reporting free system memory, which makes this failure hard to recognise from the outside.
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: 2424cef1c3284729b01303270c81b447
+              expression: min(/OPNsense by HTTP-JSON/opns.mbuf.cluster.pused,5m)>{$OPNS.MBUF.UTIL.WARN}
+              dependencies:
+                - name: 'OPNsense: Kernel denied network memory requests'
+                  expression: change(/OPNsense by HTTP-JSON/opns.mbuf.denied)>0
+              name: 'OPNsense: mbuf cluster pool is filling up'
+              priority: AVERAGE
+              description: Approaching the cluster limit. Raise kern.ipc.nmbclusters before it is reached, because exhaustion costs traffic, not just performance.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: bb0bd3b7b2124303b08c4999127ccd11
+          name: 'mbuf: Denied requests'
+          type: DEPENDENT
+          key: opns.mbuf.denied
+          delay: '0'
+          description: Sum of the mbuf, cluster and packet allocation failures reported by the kernel. A cumulative counter since boot that should stay at zero for the entire uptime, so the trigger fires on any increase rather than on a threshold.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // netstat reports denials per pool. Any of them being non zero means the
+                  // kernel could not hand out network memory, so they are summed into one
+                  // figure. The jumbo pools are included because a firewall using jumbo
+                  // frames exhausts those first, while the regular counters stay at zero.
+                  var s = JSON.parse(value)['mbuf-statistics'];
+                  var fields = ['mbuf-failures', 'cluster-failures', 'packet-failures',
+                                'jumbop-failures', 'jumbo9-failures', 'jumbo16-failures'];
+                  var total = 0;
+                  for (var i = 0; i < fields.length; i++) {
+                      total += Number(s[fields[i]] || 0);
+                  }
+                  return total;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.mbuf.raw
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: 20a10be4643f44518c0b745e2694d5ac
+              expression: change(/OPNsense by HTTP-JSON/opns.mbuf.denied)>0
+              name: 'OPNsense: Kernel denied network memory requests'
+              priority: HIGH
+              description: The kernel ran out of mbufs or clusters and dropped traffic. Raise kern.ipc.nmbclusters. The counter never decreases, so this fires once per new occurrence.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 98e8ead97f0d4b64941acfb669cc00f6
+          name: 'OPNsense: mbuf statistics (raw)'
+          type: HTTP_AGENT
+          key: opns.mbuf.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Kernel network memory pool, the libxo output of netstat -m.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_memory_statistics
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 2cd1e3666db2481e8e4e63b6892b0049
+          name: 'netisr: Queue drops'
+          type: DEPENDENT
+          key: opns.netisr.queue.drops
+          delay: '0'
+          description: Packets discarded because a netisr queue was full, summed over all protocols and worker streams. This is the symptom of a firewall that cannot keep up with its offered load, and it is invisible in interface counters.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // netstat nests the per protocol work entries differently depending on
+                  // version, so walk the whole structure and add up every queue-drops
+                  // field found rather than relying on one fixed path.
+                  var total = 0;
+                  (function walk(node) {
+                      if (node === null || typeof node !== 'object') { return; }
+                      for (var k in node) {
+                          if (k === 'queue-drops') { total += Number(node[k]) || 0; }
+                          else { walk(node[k]); }
+                      }
+                  })(JSON.parse(value));
+                  return total;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.netisr.raw
+          tags:
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 5c42a61c6bf3445685ddb1c1614c9bdd
+              expression: change(/OPNsense by HTTP-JSON/opns.netisr.queue.drops)>0
+              name: 'OPNsense: netisr queue is dropping packets'
+              priority: AVERAGE
+              description: The kernel discarded packets before they reached the firewall rules. Check load, interface queue lengths and net.isr tuning. The counter never decreases, so this fires once per new occurrence.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: e7cf43d5b4404dd782e4076cba5f758d
+          name: 'OPNsense: netisr statistics (raw)'
+          type: HTTP_AGENT
+          key: opns.netisr.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Network dispatch queues, the libxo output of netstat -Q.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_netisr_statistics
+          tags:
+            - tag: component
+              value: raw
+        - uuid: f3e8112e58bd4981955e24da889bd2f6
+          name: 'NTP: Offset of the selected peer'
+          type: DEPENDENT
+          key: opns.ntp.offset
+          delay: '0'
+          value_type: FLOAT
+          units: ms
+          description: How far the local clock sits from the peer it is currently steering by. A drifting firewall clock breaks IPsec, certificate validation and the correlation of its own logs, and it does so without any other symptom.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // ntpq marks the selected peer with * and a PPS reference with o.
+                  var rows = JSON.parse(value).rows || [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].status === '*' || rows[i].status === 'o') {
+                          return parseFloat(rows[i].offset);
+                      }
+                  }
+                  throw 'no peer selected';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.ntp.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: c953cd4d83434b31b8bc1798943b5d1a
+              expression: abs(last(/OPNsense by HTTP-JSON/opns.ntp.offset))>{$OPNS.NTP.OFFSET.WARN}
+              name: 'OPNsense: Clock offset is high'
+              priority: WARNING
+              description: The local clock has drifted away from its time source. Check reachability of the configured servers.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 6dc79491e88441a096fbbdd9162a1fca
+          name: 'NTP: Reachable peers'
+          type: DEPENDENT
+          key: opns.ntp.peers.reachable
+          delay: '0'
+          description: Configured time sources that have answered recently. Pool placeholders are excluded, they are not servers but slots the daemon still has to fill.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value).rows || [];
+                  var n = 0;
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].status !== '__pool' && Number(rows[i].reach) > 0) { n++; }
+                  }
+                  return n;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.ntp.raw
+          tags:
+            - tag: component
+              value: system
+        - uuid: 9c45c955e66149769dd005dc182b622b
+          name: 'OPNsense: NTP peers (raw)'
+          type: HTTP_AGENT
+          key: opns.ntp.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Peer list of the time daemon with selection state, stratum, reach, offset and jitter.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/ntpd/service/status
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 5598339db9f2402d92f750d6e48a364d
+          name: 'NTP: Stratum of the selected peer'
+          type: DEPENDENT
+          key: opns.ntp.stratum
+          delay: '0'
+          description: Distance of the chosen source from a reference clock. A stratum of 16 means the daemon is not synchronised at all.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value).rows || [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].status === '*' || rows[i].status === 'o') {
+                          return parseInt(rows[i].stratum, 10);
+                      }
+                  }
+                  throw 'no peer selected';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.ntp.raw
+          tags:
+            - tag: component
+              value: system
+        - uuid: b80934b986684d6ebde3924b4effcc5b
+          name: 'NTP: Synchronised'
+          type: DEPENDENT
+          key: opns.ntp.synced
+          delay: '0'
+          valuemap:
+            name: NTP sync state
+          description: 'Whether the daemon has settled on a time source. Unsynchronised is the state that matters: the clock then follows nothing and drifts freely.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value).rows || [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].status === '*' || rows[i].status === 'o') { return 1; }
+                  }
+                  return 0;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 15m
+          master_item:
+            key: opns.ntp.raw
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 9827e48a3c914dd49201d53c1deaf291
+              expression: min(/OPNsense by HTTP-JSON/opns.ntp.synced,30m)=0
+              name: 'OPNsense: Clock is not synchronised'
+              priority: WARNING
+              description: No time source has been selected for half an hour. Right after a boot this is normal for a few minutes, beyond that the configured servers are unreachable or refusing.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: f8789c632a834b858b4454a5ce36381c
+          name: 'pf: Bad offset packets per second'
+          type: DEPENDENT
+          key: opns.pf.counter.badoffset.rate
+          description: Packets whose header offset field was invalid. Normally zero for the whole uptime.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters['bad-offset'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 83a4ac757e5a4212abe95843567bdfae
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.counter.badoffset.rate)>0
+              name: 'OPNsense: pf is seeing malformed packets'
+              priority: WARNING
+              description: Packets with a bad offset are normally zero. A sustained rate points at a broken sender or an attack.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 2861186beecf4fe8bd6e57f1ddff58d1
+          name: 'pf: Fragmented packets per second'
+          type: DEPENDENT
+          key: opns.pf.counter.fragment.rate
+          description: Fragmented packets seen by pf. Some fragmentation is normal, a rising rate usually means an MTU mismatch somewhere on the path.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters.fragment.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 05bf2b843cb14ba7bb526b8dca61ea69
+          name: 'pf: Rule matches per second'
+          type: DEPENDENT
+          key: opns.pf.counter.match.rate
+          description: Packets that matched a filter rule. The general throughput measure of the ruleset.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters.match.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: d1465b73e46d41569340a0cb4628967a
+          name: 'pf: Packets dropped for memory per second'
+          type: DEPENDENT
+          key: opns.pf.counter.memdrop.rate
+          description: Packets dropped because pf could not allocate memory for a state or a fragment. Traffic is lost when this is non zero.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters.memory.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: c28e9af80a094a23ba092ad10e2e092c
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.counter.memdrop.rate)>0
+              name: 'OPNsense: pf is dropping packets due to memory'
+              priority: HIGH
+              description: pf ran out of memory for states or fragments. Traffic is being lost. Check the state and table limits.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 623d70ea2ec24befb9bb89a9ef12bc3f
+          name: 'pf: Normalized packets per second'
+          type: DEPENDENT
+          key: opns.pf.counter.normalize.rate
+          description: Packets rewritten by scrub rules, most often reassembled fragments.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters.normalize.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 1063e4ac3e2e4a81ad00899931511c30
+          name: 'pf: Short packets per second'
+          type: DEPENDENT
+          key: opns.pf.counter.short.rate
+          description: Packets shorter than their own header claimed. Normally zero, and malformed by definition.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters.short.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: d5a84affe5b7493091b6cb0ce87bdd3c
+          name: 'pf: Source limit hits per second'
+          type: DEPENDENT
+          key: opns.pf.counter.srclimit.rate
+          description: Connections refused because one source exceeded the number of states its rule allows it.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters['src-limit'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: f7b3eecbd77044a1ab19fb79a36eae44
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.counter.srclimit.rate)>0
+              name: 'OPNsense: pf source limit is being hit'
+              priority: WARNING
+              description: A single source exceeded its allowed number of states.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 37c6559d0ae0493e855d7c38f4ca2a18
+          name: 'pf: State limit hits per second'
+          type: DEPENDENT
+          key: opns.pf.counter.statelimit.rate
+          description: Connections refused because the state table is at its limit. Every one of these is a connection that did not happen.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters['state-limit'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 017013e8812148919eb10bf6bd3ca693
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.counter.statelimit.rate)>0
+              name: 'OPNsense: pf state limit is being hit'
+              priority: HIGH
+              description: New connections are refused because the state limit is reached. Raise the limit or find the source.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 72ec7c4645cf4fb5a7f3f2cb58e572b5
+          name: 'pf: State mismatches per second'
+          type: DEPENDENT
+          key: opns.pf.counter.statemismatch.rate
+          description: Packets that did not fit the state they were matched against. Isolated ones are normal on an asymmetric path, a sustained rate is not.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info.counters['state-mismatch'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 7b3b471aa34a4fafa29a51417e2c798c
+          name: 'pf: Overload table insertions per second'
+          type: DEPENDENT
+          key: opns.pf.overload.rate
+          description: Entries added to the overload table, where pf collects sources that tripped a connection rate limit. Rises during brute force attempts against an exposed service.
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['limit-counters']['overload-table-insertion'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: ec8e2928abf448938982b021f76ddf51
+          name: 'pf: Rule evaluations per second'
+          type: DEPENDENT
+          key: opns.pf.rules.evaluations.rate
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          description: How many rule tests pf performs per second across the whole ruleset. Rises with traffic and with ruleset length, and shows what a reordering or a large alias table costs. The counters reset when the ruleset is reloaded, which the rate calculation absorbs by discarding the decrease.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // The backend nests every section under its own name, so the two
+                  // rule tables sit below "rules".
+                  var d = JSON.parse(value).rules;
+                  var total = 0;
+                  for (var section in d) {
+                      for (var rule in d[section]) {
+                          total += Number(d[section][rule].evaluations) || 0;
+                      }
+                  }
+                  return total;
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.pf.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: d8b047e804504cdcaa7341cb3dcab453
+          name: 'pf: Filter rules loaded'
+          type: DEPENDENT
+          key: opns.pf.rules.filter.count
+          delay: '0'
+          description: Number of filter rules in the running ruleset. Counting instead of tracking the rules themselves keeps this to one item and survives a changing WAN address, which rewrites rule text without changing the rule count.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).rules['filter rules'];
+                  return d === undefined ? 0 : Object.keys(d).length;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.pf.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 2a495a2e17ca4299a8dca6052f2c5d60
+              expression: change(/OPNsense by HTTP-JSON/opns.pf.rules.filter.count)<>0 and last(/OPNsense by HTTP-JSON/opns.pf.rules.filter.count,#2)>0
+              name: 'OPNsense: Number of filter rules has changed'
+              priority: INFO
+              description: Rules were added or removed. Useful for correlating a fault with a change to the ruleset. Edits to an existing rule do not change the count and are not detected. The second condition suppresses the jump out of a zero, which is what an item reports after a gap in collection rather than a real change.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 1fe09bc60aa04e608d4ed2217d005b19
+          name: 'pf: Ruleset fingerprint'
+          type: DEPENDENT
+          key: opns.pf.rules.fingerprint
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: Hash over the text of every filter and NAT rule, sorted so that reordering alone does not register. Catches what the rule counts cannot, namely an edit to an existing rule, which leaves the number of rules untouched. Counters are excluded from the hash, otherwise it would change with every packet. On a firewall whose WAN address changes, expect this to move with it. Rules written against an interface keep a symbolic form such as (vtnet0:1), but the generated anti-spoofing rules and every route-to statement embed the address literally; on the firewall this was measured against, 22 of 176 rules did so. The trigger is INFO for that reason, and a changed address is in fairness a changed ruleset.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Only the rule texts, which are the keys, never the counter values.
+                  var d = JSON.parse(value).rules;
+                  var rules = [];
+                  for (var section in d) {
+                      for (var rule in d[section]) { rules.push(section + '|' + rule); }
+                  }
+                  rules.sort();
+                  var s = rules.join('\n');
+                  // FNV-1a, 32 bit. No cryptography needed, only a stable fingerprint.
+                  var h = 0x811c9dc5;
+                  for (var i = 0; i < s.length; i++) {
+                      h ^= s.charCodeAt(i);
+                      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+                  }
+                  return ('0000000' + h.toString(16)).slice(-8);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.pf.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 8d3db3e10101414a806c8d958a0d3254
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.rules.fingerprint,#1)<>last(/OPNsense by HTTP-JSON/opns.pf.rules.fingerprint,#2)
+              name: 'OPNsense: Ruleset has changed'
+              priority: INFO
+              description: 'A rule was added, removed, edited or reworded. Together with the rule counts this separates the cases: if the counts moved as well, rules were added or removed, if they did not, an existing rule was edited.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: deaf0ac0c4e64f1593ea23eda1324f9c
+          name: 'pf: NAT rules loaded'
+          type: DEPENDENT
+          key: opns.pf.rules.nat.count
+          description: Number of NAT rules in the running ruleset. Changes when the configuration is applied, so it works as a change signal.
+          delay: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).rules['nat rules'];
+                  return d === undefined ? 0 : Object.keys(d).length;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.pf.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 5530b0e3c3a7466ab72cac18f91b7fb5
+              expression: change(/OPNsense by HTTP-JSON/opns.pf.rules.nat.count)<>0 and last(/OPNsense by HTTP-JSON/opns.pf.rules.nat.count,#2)>0
+              name: 'OPNsense: Number of NAT rules has changed'
+              description: NAT rules were added or removed. Edits to an existing rule leave the count unchanged and are not detected. The second condition suppresses the jump out of a zero, which is what an item reports after a gap in collection rather than a real change.
+              priority: INFO
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: b3bfef473f6e44c79503057c26d7c023
+          name: 'OPNsense: pf ruleset (raw)'
+          type: HTTP_AGENT
+          key: opns.pf.rules.raw
+          delay: 10m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Running filter and NAT ruleset with per rule counters. Polled every ten minutes because the response carries the full text of every rule and rule changes are not a per minute concern.
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/rules
+          tags:
+            - tag: component
+              value: raw
+        - uuid: e47418c124e641268d05c4cabb0c6c75
+          name: 'pf: Rules never matched'
+          type: DEPENDENT
+          key: opns.pf.rules.unused
+          delay: '0'
+          description: 'Rules with no evaluation since the ruleset was last loaded. Useful for spotting rules that no longer do anything, but only meaningful after a decent uptime: a reload resets every counter, so right after a configuration change this equals the total rule count. Deliberately has no trigger for that reason.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).rules;
+                  var unused = 0;
+                  for (var section in d) {
+                      for (var rule in d[section]) {
+                          if (!Number(d[section][rule].evaluations)) { unused++; }
+                      }
+                  }
+                  return unused;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.pf.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 8ca723ed272c471c877c3f004227386f
+          name: 'pf: Source nodes'
+          type: DEPENDENT
+          key: opns.pf.srcnodes.current
+          description: Source tracking entries in use. One per client for rules using sticky-address or a source limit, so this grows with the number of distinct clients rather than with connections.
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['source-tracking-table']['current-entries'].total
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 557cfbaba10f41cd87194b274adf8671
+          name: 'pf: Source node limit'
+          type: DEPENDENT
+          key: opns.pf.srcnodes.limit
+          description: Maximum number of source tracking entries pf will hold.
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.memory['src-nodes']
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.pfmem.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 960bd0b3c66e4d24811e3f9d698987dc
+          name: 'pf: Source tracking table utilization'
+          type: CALCULATED
+          key: opns.pf.srcnodes.pused
+          delay: 1m
+          value_type: FLOAT
+          units: '%'
+          description: Source tracking holds one entry per client for rules using sticky-address or source limits. Exhausting it rejects new connections from new clients while the state table still looks healthy.
+          params: last(/{HOST.HOST}/opns.pf.srcnodes.current) / last(/{HOST.HOST}/opns.pf.srcnodes.limit) * 100
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 0bd93ea8832a45edbf1b923ea1b84616
+              expression: min(/OPNsense by HTTP-JSON/opns.pf.srcnodes.pused,5m)>{$OPNS.PF.SRCNODES.UTIL.CRIT}
+              dependencies:
+                - name: 'OPNsense: pf source limit is being hit'
+                  expression: last(/OPNsense by HTTP-JSON/opns.pf.counter.srclimit.rate)>0
+              name: 'OPNsense: pf source tracking table is filling up'
+              priority: HIGH
+              description: Once the limit is reached pf refuses connections from clients it has no entry for.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: fc5751c4c1194b86a67d7d41a6f3d9a5
+          name: 'pf: State table inserts per second'
+          type: DEPENDENT
+          key: opns.pf.states.inserts.rate
+          description: New connections entering the state table per second.
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['state-table'].inserts.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: dab363b6e101467ab3466dcc1b49f07b
+          name: 'pf: State table removals per second'
+          type: DEPENDENT
+          key: opns.pf.states.removals.rate
+          description: Connections leaving the state table per second, through closure or timeout. Should roughly track the insert rate in steady state.
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['state-table'].removals.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 3f61d647db25429ea02987c65243ee49
+          name: 'pf: State table searches per second'
+          type: DEPENDENT
+          key: opns.pf.states.searches.rate
+          description: State table lookups per second, one or more per forwarded packet. The busiest counter on a loaded firewall.
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['state-table'].searches.rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: c73cd1ff0e84455fbcae14f7dae53e70
+          name: 'pf: SYN floods detected per second'
+          type: DEPENDENT
+          key: opns.pf.synfloods.rate
+          description: Destinations for which pf switched to syncookies because half open connections piled up.
+          delay: '0'
+          value_type: FLOAT
+          units: '!/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.info['limit-counters']['synfloods-detected'].rate
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.pfinfo.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 0c462a1e981d4a78aa492e48233c304f
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.synfloods.rate)>0
+              name: 'OPNsense: SYN flood detected'
+              priority: AVERAGE
+              description: pf activated syncookies for at least one destination.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 2872a011342e47fd80105e579765a103
+          name: 'pf: Table entry limit'
+          type: DEPENDENT
+          key: opns.pf.tables.entries.limit
+          delay: '0'
+          description: Ceiling for all pf table entries combined, from the firewall maximum table entries setting.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.size
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.alias.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: d4dab17037ae4fe580faf6a168d1d275
+          name: 'pf: Table entry utilization'
+          type: CALCULATED
+          key: opns.pf.tables.entries.pused
+          delay: 10m
+          value_type: FLOAT
+          units: '%'
+          description: 'How much of the table entry budget the aliases consume. Exceeding it is not a slow degradation: pf refuses to load a ruleset whose tables do not fit, so the firewall keeps running on the previous one and quietly ignores the change that was just applied.'
+          params: last(/{HOST.HOST}/opns.pf.tables.entries.used) / last(/{HOST.HOST}/opns.pf.tables.entries.limit) * 100
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: f7f6f1def6454155bf5873fb08f6fd62
+              expression: last(/OPNsense by HTTP-JSON/opns.pf.tables.entries.pused)>{$OPNS.PF.TABLES.UTIL.WARN}
+              name: 'OPNsense: pf table entries are filling up'
+              priority: WARNING
+              description: Raise the maximum table entries setting before a block list update pushes the ruleset over the limit.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 33bae84aaa3e4b9f9d61a4b4ea9b42d2
+          name: 'pf: Table entries in use'
+          type: DEPENDENT
+          key: opns.pf.tables.entries.used
+          delay: '0'
+          description: Addresses currently held across all pf tables, which is what aliases, block lists and GeoIP feeds fill.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.used
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.alias.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: b88e72dbd9dc4c24a32d0038191f9955
+          name: 'OPNsense: pf statistics (raw)'
+          type: HTTP_AGENT
+          key: opns.pfinfo.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Full pfctl -si output: state table, source tracking, counters and limit counters. Rates are already computed by pf.'
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/info
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 12c32e325c1c46b0918b191d34d195fb
+          name: 'OPNsense: pf limits (raw)'
+          type: HTTP_AGENT
+          key: opns.pfmem.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Hard limits for states, source nodes, fragments and table entries. These change only with the configuration, but are polled at the same interval as the counters they are compared against: a calculated item goes unsupported while a referenced item has no data yet, so a slower interval here would leave the source tracking utilisation unsupported after every template link.'
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/memory
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 8b522081590848c687e44719dc75e2ce
+          name: 'IP: Packets with a bad checksum per second'
+          type: DEPENDENT
+          key: opns.proto.ip.badsum.rate
+          description: IP packets discarded because the header checksum did not match. Steady non zero values point at a hardware or cabling fault rather than at an attack.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.ip['dropped-bad-checksum']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 05ed793b482f4f94abddbd4040f6c952
+              expression: min(/OPNsense by HTTP-JSON/opns.proto.ip.badsum.rate,10m)>0
+              name: 'OPNsense: Receiving IP packets with bad checksums'
+              priority: WARNING
+              description: A sustained rate points at faulty cabling, a failing NIC or a broken device upstream. Occasional single packets are normal.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: hardware
+        - uuid: d4999b47c82a4d93a2ae0a7a2a8cfae1
+          name: 'IP: Fragments dropped per second'
+          type: DEPENDENT
+          key: opns.proto.ip.fragdrop.rate
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          description: Fragments the kernel could not reassemble. Typically an MTU problem, often on a tunnel.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.ip['dropped-fragments']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: ce7d9a6c33db4dd38de8b9ffd03739e6
+          name: 'IP: Packets that cannot be forwarded per second'
+          type: DEPENDENT
+          key: opns.proto.ip.nofwd.rate
+          description: Packets the firewall was asked to route onward but could not, for instance because forwarding is disabled for that address family.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.ip['packets-cannot-forward']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: ed8aae45a655497abd9abd4d570a13fe
+          name: 'IP: Packets discarded for lack of a route per second'
+          type: DEPENDENT
+          key: opns.proto.ip.noroute.rate
+          description: Packets discarded because no route matched their destination. Rises when a gateway or a tunnel disappears while traffic for it keeps arriving.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.ip['discard-no-route']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+          triggers:
+            - uuid: fc98aaa23b8d43b5b79a25c57e389132
+              expression: min(/OPNsense by HTTP-JSON/opns.proto.ip.noroute.rate,10m)>0
+              name: 'OPNsense: Packets discarded for lack of a route'
+              priority: WARNING
+              description: Traffic arrives for destinations the firewall has no route to. Check the routing table and whether a gateway or a tunnel went down.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 50e72e9bae6c45d39f52f2665cffa74f
+          name: 'OPNsense: Protocol statistics (raw)'
+          type: HTTP_AGENT
+          key: opns.proto.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Per protocol kernel counters, the libxo output of netstat -s.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_protocol_statistics
+          tags:
+            - tag: component
+              value: raw
+        - uuid: cae907573769411b8c2943457745d9ba
+          name: 'TCP: Segments with a bad checksum per second'
+          type: DEPENDENT
+          key: opns.proto.tcp.badsum.rate
+          description: TCP segments discarded on a checksum mismatch, counted separately from the IP layer.
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.tcp['discard-bad-checksum']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: d4b68b024f3d47bfa91744b647885e2f
+          name: 'TCP: Retransmitted segments per second'
+          type: DEPENDENT
+          key: opns.proto.tcp.retrans.rate
+          delay: '0'
+          value_type: FLOAT
+          units: '!p/s'
+          description: Retransmissions sent by the firewall itself, so this reflects the quality of its own connections rather than of forwarded traffic.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.statistics.tcp['sent-retransmitted-packets']
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+          master_item:
+            key: opns.proto.raw
+          tags:
+            - tag: component
+              value: network
+        - uuid: 5a1d498706fb42edbee7acdbe66983bd
+          name: 'OPNsense: Services (raw)'
+          type: HTTP_AGENT
+          key: opns.services.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Run state of every service the firewall knows about, including the packet filter itself.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/core/service/search
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 5995272c974c41f3ac1d3e92aceabeeb
+          name: 'OPNsense: Swap (raw)'
+          type: HTTP_AGENT
+          key: opns.swap.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Swap devices with total and used, in KB. The list is empty on installations without swap, which is why the items below are discovered rather than static.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_swap
+          tags:
+            - tag: component
+              value: raw
+        - uuid: b32b6137677d4e4ab235e62719f70bd0
+          name: Load average (15 min)
+          type: DEPENDENT
+          key: opns.system.load.avg15
+          description: Run queue length averaged over fifteen minutes. Shows whether a load is sustained or passing.
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var v = JSON.parse(value).loadavg.split(',');
+                  return parseFloat(v[2]);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.raw.load
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: b1bd4eea4b6f4f7ba9d5b6ad9ce1352f
+          name: Load average (5 min)
+          type: DEPENDENT
+          key: opns.system.load.avg5
+          description: Run queue length averaged over five minutes. The value to alert on, since it ignores brief spikes.
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var v = JSON.parse(value).loadavg.split(',');
+                  return parseFloat(v[1]);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 5m
+          master_item:
+            key: opns.raw.load
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 5e7e524791254f88824c504991e2010f
+              expression: avg(/OPNsense by HTTP-JSON/opns.system.load.avg5,10m)>{$OPNS.LOAD.AVG5.WARN}
+              name: 'OPNsense: Load average is high'
+              priority: WARNING
+              description: The 5 minute average has been above the threshold for 10 minutes.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 868ac8bcfcef46f28f72fdd1a317cab9
+          name: Load average per core (5 min)
+          type: CALCULATED
+          key: opns.system.load.percore
+          delay: 1m
+          value_type: FLOAT
+          description: Five minute load divided by the number of cores. A load of 4 means saturation on a two core appliance and idling on a sixteen core one, so this is the figure that is comparable between firewalls. The API offers no true CPU utilisation, which makes this the closest available measure of saturation.
+          params: last(/{HOST.HOST}/opns.system.load.avg5) / last(/{HOST.HOST}/opns.cpu.cores)
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 8bc240bc3d9444c78242984c1086afc5
+              expression: avg(/OPNsense by HTTP-JSON/opns.system.load.percore,15m)>{$OPNS.LOAD.PERCORE.WARN}
+              name: 'OPNsense: Load per core is high'
+              priority: WARNING
+              description: Sustained demand above what the cores can serve. Unlike the raw load average this does not need a per host threshold.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: ac2cfb40e6eb48b69918d68484b63699
+          name: 'OPNsense: Temperature sensors (raw)'
+          type: HTTP_AGENT
+          key: opns.temperature.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: Sensor readings as a JSON array. Hardware without sensors, notably virtual machines, returns an empty array, so nothing is discovered and no item goes unsupported.
+          timeout: 10s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_temperature
+          tags:
+            - tag: component
+              value: raw
+        - uuid: ffcbce0885514a7694a26694fd2b4928
+          name: 'OPNsense: Version'
+          type: DEPENDENT
+          key: opns.version
+          description: Product name, version and architecture as one string. Changes after an update was applied.
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.product_version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.raw.product.info
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 1c3a4d49bd9941d980f73e740fadb8c5
+              expression: last(/OPNsense by HTTP-JSON/opns.version,#1)<>last(/OPNsense by HTTP-JSON/opns.version,#2)
+              name: 'OPNsense: Version has changed'
+              priority: INFO
+              description: An update was most likely applied.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
       discovery_rules:
         - uuid: 42db664817fa4d23803fe5be9eb4e0a1
           name: 'Disk Discovery'
@@ -2114,6 +3735,397 @@ zabbix_export:
               path: $.phase2desc
             - lld_macro: '{#IPSECNAME}'
               path: $.name
+        # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
+        - uuid: 37e5cc2b6b724c10bc00a812b8020ba0
+          name: Network interfaces (link state and inbound errors)
+          type: DEPENDENT
+          key: opns.net.if.discovery
+          description: One entry per physical and virtual interface. Only link level rows are used, because the per address rows count traffic per IP rather than per interface. Interfaces matching the exclusion macro are skipped.
+          delay: '0'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFNAME}'
+                value: '{$OPNS.IF.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          item_prototypes:
+            - uuid: 3c7b85dce3f84ae483a01beecd607f03
+              name: 'Interface {#IFALIAS} ({#IFNAME}): Inbound errors'
+              type: DEPENDENT
+              key: opns.net.if.in.errors[{#IFNAME}]
+              description: Receive errors on this interface. Points at cabling, an optic or the link partner.
+              delay: '0'
+              value_type: FLOAT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value).statistics;
+                      for (var k in d) {
+                          var e = d[k];
+                          if (e.name === '{#IFNAME}' && String(e.network).indexOf('<Link') === 0) {
+                              return e['received-errors'];
+                          }
+                      }
+                      throw 'interface {#IFNAME} not found';
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.ifstats.raw
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 78a8286eb10c44a38b1e1c61100a0140
+              name: 'Interface {#IFALIAS} ({#IFNAME}): Link status'
+              type: DEPENDENT
+              key: opns.net.if.status[{#IFNAME}]
+              delay: '0'
+              valuemap:
+                name: Link status
+              description: 'Derived from the BSD interface flags: bit 0 is UP, the administrative state, and bit 6 is RUNNING, which is set once the interface has a usable link. Both must be set for the interface to count as up.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value).statistics;
+                      for (var k in d) {
+                          var e = d[k];
+                          if (e.name === '{#IFNAME}' && String(e.network).indexOf('<Link') === 0) {
+                              // flags arrive as a hex string such as "0x8843"
+                              var f = parseInt(e.flags, 16);
+                              return (f & 0x1) && (f & 0x40) ? 1 : 0;
+                          }
+                      }
+                      throw 'interface {#IFNAME} not found';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.ifstats.raw
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: b02265bee3ec43018562d358651d3f76
+                  expression: last(/OPNsense by HTTP-JSON/opns.net.if.status[{#IFNAME}])=0 and {$OPNS.IF.CONTROL:"{#IFNAME}"}=1
+                  name: 'OPNsense: Interface {#IFALIAS} ({#IFNAME}) is down'
+                  priority: AVERAGE
+                  description: The link is gone or the interface was shut down. Set {$OPNS.IF.CONTROL:"{#IFNAME}"} to 0 for interfaces that are allowed to be down, such as a cold standby uplink.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: opns.ifstats.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).statistics;
+                  var seen = {};
+                  var out = [];
+                  for (var k in d) {
+                      var e = d[k];
+                      // Only the link level carries the interface counters, the IP rows count per address.
+                      if (String(e.network).indexOf('<Link') !== 0) { continue; }
+                      if (seen[e.name]) { continue; }
+                      seen[e.name] = true;
+                      out.push({'{#IFNAME}': e.name, '{#IFALIAS}': k.replace(/^\[([^\]]*)\].*$/, '$1')});
+                  }
+                  return JSON.stringify(out);
+        - uuid: dc978b216ba74b0a80affea4692f7975
+          name: netisr queues
+          type: DEPENDENT
+          key: opns.netisr.discovery
+          delay: '0'
+          description: One entry per protocol queue. The summed counter alerts, these tell you which queue is the one overflowing.
+          item_prototypes:
+            - uuid: 5d3d430a03ca4a118f0797d567dc08f3
+              name: 'netisr {#NETISR.PROTO}: Queue drops'
+              type: DEPENDENT
+              key: opns.netisr.queue.drops[{#NETISR.PROTO}]
+              description: Packets discarded from this protocol queue before reaching the firewall rules. Identifies which queue the summed counter is reacting to.
+              delay: '0'
+              value_type: FLOAT
+              units: '!/s'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // Entries for one protocol exist once per worker stream, so the
+                      // drops of this protocol are summed across all of them.
+                      var total = null;
+                      (function walk(node) {
+                          if (node === null || typeof node !== 'object') { return; }
+                          if (node.name === '{#NETISR.PROTO}' && node['queue-drops'] !== undefined) {
+                              total = (total || 0) + (Number(node['queue-drops']) || 0);
+                              return;
+                          }
+                          for (var k in node) { walk(node[k]); }
+                      })(JSON.parse(value));
+                      if (total === null) { throw 'netisr protocol {#NETISR.PROTO} not found'; }
+                      return total;
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.netisr.raw
+              tags:
+                - tag: component
+                  value: network
+                - tag: protocol
+                  value: '{#NETISR.PROTO}'
+          master_item:
+            key: opns.netisr.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // The per protocol entries sit at a nesting depth that varies between
+                  // netstat versions, so collect them by shape rather than by path.
+                  var seen = {};
+                  (function walk(node) {
+                      if (node === null || typeof node !== 'object') { return; }
+                      if (node.name !== undefined && node['queue-drops'] !== undefined) {
+                          seen[node.name] = true;
+                          return;
+                      }
+                      for (var k in node) { walk(node[k]); }
+                  })(JSON.parse(value));
+                  var out = [];
+                  for (var p in seen) { out.push({'{#NETISR.PROTO}': p}); }
+                  return JSON.stringify(out);
+        - uuid: 07677d7d3268425b99be5f6aae242168
+          name: Services
+          type: DEPENDENT
+          key: opns.services.discovery
+          delay: '0'
+          description: 'One entry per known service. Discovery keys on the identifier rather than the name, because a name can appear twice: the DHCP server registers once for IPv4 and once for IPv6 under the same name but distinct identifiers.'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SERVICE.ID}'
+                value: '{$OPNS.SERVICE.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          item_prototypes:
+            - uuid: 9312f6f4922c4160a644dae4bf2a40a8
+              name: 'Service {#SERVICE.DESCRIPTION}: Running'
+              type: DEPENDENT
+              key: opns.service.running[{#SERVICE.ID}]
+              delay: '0'
+              valuemap:
+                name: Service state
+              description: Whether this service is running. The packet filter itself appears here, so a firewall that has been disabled while staying reachable becomes visible.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var rows = JSON.parse(value).rows || [];
+                      for (var i = 0; i < rows.length; i++) {
+                          if (rows[i].id === '{#SERVICE.ID}') { return Number(rows[i].running) ? 1 : 0; }
+                      }
+                      throw 'service {#SERVICE.ID} not found';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 3m
+              master_item:
+                key: opns.services.raw
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: '{#SERVICE.ID}'
+              trigger_prototypes:
+                - uuid: 13c564ea19734750a94d77fb9f668f79
+                  expression: min(/OPNsense by HTTP-JSON/opns.service.running[{#SERVICE.ID}],5m)=0
+                  name: 'OPNsense: Service {#SERVICE.DESCRIPTION} is not running'
+                  priority: AVERAGE
+                  description: The service has been down for five minutes. Add it to {$OPNS.SERVICE.ID.NOT_MATCHES} if it is not supposed to run on this firewall.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: opns.services.raw
+          lld_macro_paths:
+            - lld_macro: '{#SERVICE.DESCRIPTION}'
+              path: $.description
+            - lld_macro: '{#SERVICE.ID}'
+              path: $.id
+            - lld_macro: '{#SERVICE.NAME}'
+              path: $.name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rows
+        - uuid: efaed7168142401ebfa9d1ae923aa455
+          name: Swap devices
+          type: DEPENDENT
+          key: opns.swap.discovery
+          delay: '0'
+          description: Discovers nothing on installations without swap, which keeps the template free of unsupported items there.
+          item_prototypes:
+            - uuid: 467cc15058e545179797df7e44bb38d7
+              name: 'Swap {#SWAPDEV}: utilization'
+              type: DEPENDENT
+              key: opns.swap.pused[{#SWAPDEV}]
+              description: Fill level of this swap device. A firewall that swaps at all is short on memory.
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value).swap;
+                      for (var i = 0; i < d.length; i++) {
+                          if (d[i].device === '{#SWAPDEV}') {
+                              var total = Number(d[i].total);
+                              if (!total) { return 0; }
+                              return Number(d[i].used) / total * 100;
+                          }
+                      }
+                      throw 'swap device {#SWAPDEV} not found';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: opns.swap.raw
+              tags:
+                - tag: component
+                  value: memory
+                - tag: swapdev
+                  value: '{#SWAPDEV}'
+              trigger_prototypes:
+                - uuid: 2df8147192bf4f80b67791417930ad51
+                  expression: min(/OPNsense by HTTP-JSON/opns.swap.pused[{#SWAPDEV}],10m)>{$OPNS.SWAP.UTIL.WARN:"{#SWAPDEV}"}
+                  name: 'OPNsense: Swap {#SWAPDEV} is in use'
+                  priority: WARNING
+                  description: A firewall that swaps is short on memory. Sustained swap usage costs throughput.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 4cb263306a4b43d7867d6169cda4afe1
+              name: 'Swap {#SWAPDEV}: total'
+              type: DEPENDENT
+              key: opns.swap.total[{#SWAPDEV}]
+              description: Size of this swap device.
+              delay: '0'
+              value_type: FLOAT
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.swap[?(@.device == "{#SWAPDEV}")].total.first()
+                - type: MULTIPLIER
+                  parameters:
+                    - '1024'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.swap.raw
+              tags:
+                - tag: component
+                  value: memory
+                - tag: swapdev
+                  value: '{#SWAPDEV}'
+            - uuid: 6b4226935e644892815a36259ad3f02b
+              name: 'Swap {#SWAPDEV}: used'
+              type: DEPENDENT
+              key: opns.swap.used[{#SWAPDEV}]
+              description: Swap in use on this device.
+              delay: '0'
+              value_type: FLOAT
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.swap[?(@.device == "{#SWAPDEV}")].used.first()
+                - type: MULTIPLIER
+                  parameters:
+                    - '1024'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.swap.raw
+              tags:
+                - tag: component
+                  value: memory
+                - tag: swapdev
+                  value: '{#SWAPDEV}'
+          master_item:
+            key: opns.swap.raw
+          lld_macro_paths:
+            - lld_macro: '{#SWAPDEV}'
+              path: $.device
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.swap
+        - uuid: 12c2dc7f12314b8a97cfd5b4e6528453
+          name: Temperature sensors
+          type: DEPENDENT
+          key: opns.temperature.discovery
+          delay: '0'
+          description: The endpoint returns a JSON array at the root. Virtual machines report no sensors, so nothing is discovered and nothing goes unsupported.
+          item_prototypes:
+            - uuid: 586071bbd624434fa11e3606faafbc71
+              name: Temperature {#DEVICE}
+              type: DEPENDENT
+              key: opns.temperature[{#DEVICE}]
+              description: Reading of one hardware sensor. Which physical component it describes depends on the platform, the sensor name carries that.
+              delay: '0'
+              value_type: FLOAT
+              units: °C
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $[?(@.device == "{#DEVICE}")].temperature.first()
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 3m
+              master_item:
+                key: opns.temperature.raw
+              tags:
+                - tag: component
+                  value: temperature
+                - tag: sensor
+                  value: '{#DEVICE}'
+              trigger_prototypes:
+                - uuid: 51d59fc27acb463e91c8b3e3e33c5405
+                  expression: avg(/OPNsense by HTTP-JSON/opns.temperature[{#DEVICE}],5m)>{$OPNS.TEMP.CRIT:"{#DEVICE}"}
+                  name: 'OPNsense: Sensor {#DEVICE} is running hot'
+                  priority: HIGH
+                  description: Sustained high temperature. Check fans, filters and ambient temperature. Adjust {$OPNS.TEMP.CRIT} per hardware, the default suits most x86 appliances.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: hardware
+          graph_prototypes:
+            - uuid: 887dcb79b24446fdb7df6a8c7f037bdf
+              name: Temperature {#DEVICE}
+              graph_items:
+                - color: E53935
+                  item:
+                    host: OPNsense by HTTP-JSON
+                    key: opns.temperature[{#DEVICE}]
+          master_item:
+            key: opns.temperature.raw
+          lld_macro_paths:
+            - lld_macro: '{#DEVICE}'
+              path: $.device
+            - lld_macro: '{#TYPE}'
+              path: $.type
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
@@ -2169,173 +4181,2434 @@ zabbix_export:
         - macro: '{$OPNS.WG.PEER.NOT_MATCHES}'
           value: ^$
           description: 'Regex filter for excluding WireGuard peers from discovery. Can be overridden on the host or linked template level.'
+        # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
+        - macro: '{$OPNS.CPU.UTIL.WARN}'
+          value: '85'
+          description: Processor utilisation that counts as high, averaged over ten minutes.
+        - macro: '{$OPNS.IF.CONTROL}'
+          value: '1'
+          description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
+        - macro: '{$OPNS.IF.NAME.NOT_MATCHES}'
+          value: ^(pflog|pfsync|enc|lo)\d*$
+          description: Interfaces that should not be discovered.
+        - macro: '{$OPNS.LOAD.AVG5.WARN}'
+          value: '4'
+          description: Absolute five minute load average that counts as high. Depends on the core count, which is why the per core trigger is usually the better one.
+        - macro: '{$OPNS.LOAD.PERCORE.WARN}'
+          value: '1'
+          description: Five minute load per core that counts as high. A value of 1 means the cores are exactly saturated.
+        - macro: '{$OPNS.MBUF.UTIL.WARN}'
+          value: '80'
+          description: Percentage of the mbuf cluster limit in use that counts as filling up.
+        - macro: '{$OPNS.NTP.OFFSET.WARN}'
+          value: '100'
+          description: Clock offset in milliseconds that counts as high. 100 is generous for a LAN time source and still far below what breaks Kerberos or IPsec.
+        - macro: '{$OPNS.PF.SRCNODES.UTIL.CRIT}'
+          value: '90'
+          description: Fill level of the source tracking table that counts as critical.
+        - macro: '{$OPNS.PF.TABLES.UTIL.WARN}'
+          value: '80'
+          description: Share of the pf table entry budget that counts as filling up. Relevant where block lists or GeoIP aliases are in use.
+        - macro: '{$OPNS.SERVICE.ID.NOT_MATCHES}'
+          value: ^$
+          description: Services excluded from discovery, as a regular expression over the service identifier. The default excludes nothing.
+        - macro: '{$OPNS.SWAP.UTIL.WARN}'
+          value: '5'
+          description: A firewall should not swap at all, so the default is deliberately low. Can be overridden per device with the device path as context.
+        - macro: '{$OPNS.TEMP.CRIT}'
+          value: '80'
+          description: Temperature threshold in degrees Celsius. Sensors on one board tolerate very different values, so this can be overridden per sensor with the sensor name as context, for example {$OPNS.TEMP.CRIT:"dev.cpu.0.temperature"}.
+      # --- dashboard rebuilt, see merged/dashboard.py ---
       dashboards:
         - uuid: 7a4b378cb31c4d6fb3c4c69731653336
           name: 'OPNsense Info'
           pages:
-            - name: 'OPNSense Info'
+            - name: Overview
               widgets:
-                - type: item
-                  name: 'CPU Load'
-                  width: '12'
-                  height: '4'
+                - type: gauge
+                  name: Memory
+                  width: '18'
+                  height: '3'
                   fields:
                     - type: ITEM
                       name: itemid.0
                       value:
-                        host: 'OPNsense by HTTP-JSON'
-                        key: opns.cpu.load
+                        host: OPNsense by HTTP-JSON
+                        key: opns.memory.util
+                    - type: STRING
+                      name: description
+                      value: Memory utilization
                     - type: INTEGER
-                      name: show.0
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: State table
+                  x: '18'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.states.util
+                    - type: STRING
+                      name: description
+                      value: pf states
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Processor
+                  x: '36'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.cpu.util
+                    - type: STRING
+                      name: description
+                      value: CPU utilization
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Load per core
+                  x: '54'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.load.percore
+                    - type: STRING
+                      name: description
+                      value: Load per core
+                    - type: INTEGER
+                      name: max
+                      value: '4'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: ''
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
                       value: '1'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                - type: item
+                  name: CPU load
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.cpu.load
                     - type: INTEGER
                       name: show.1
                       value: '2'
                     - type: INTEGER
                       name: show.2
                       value: '3'
-                    - type: INTEGER
-                      name: show.3
-                      value: '4'
-                    - type: INTEGER
-                      name: show.4
-                      value: '5'
-                - type: svggraph
-                  'y': '4'
-                  width: '41'
-                  height: '4'
+                - type: item
+                  name: Uptime
+                  x: '12'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
                   fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.uptime
                     - type: INTEGER
-                      name: ds.0.color_palette
-                      value: '0'
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Version
+                  x: '24'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.version
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Firmware
+                  x: '36'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.firmware.update.status
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: States in use
+                  x: '48'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.fw.states.current
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: State limit
+                  x: '60'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.fw.states.max
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: svggraph
+                  name: Firewall actions
+                  'y': '6'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'Firewall action*'
+                      value: Firewall action*
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: GNQTN
-                    - type: INTEGER
-                      name: righty
-                      value: '0'
+                      value: FWACT
                 - type: honeycomb
-                  name: 'Carp Status'
-                  'y': '8'
-                  width: '41'
+                  name: CARP
+                  x: '36'
+                  'y': '6'
+                  width: '36'
                   height: '5'
                   fields:
                     - type: STRING
                       name: items.0
-                      value: 'Carp Status of *'
+                      value: Carp Status of *
                     - type: STRING
                       name: primary_label
-                      value: '{ITEM.NAME}'
+                      value: '{{ITEM.NAME}.regsub("Carp Status of (.*)", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: RDXXH
-                - type: piechart
-                  name: 'Memory Usage'
-                  x: '12'
-                  width: '14'
+                      value: CARPH
+                - type: honeycomb
+                  name: Filesystems
+                  'y': '11'
+                  width: '72'
                   height: '4'
                   fields:
                     - type: STRING
-                      name: ds.0.color
-                      value: 00FF00
+                      name: items.0
+                      value: 'FS *: Space: Used, in %'
                     - type: STRING
-                      name: ds.0.items.0
-                      value: 'Total Memory'
-                    - type: STRING
-                      name: ds.1.color
-                      value: FF4000
-                    - type: STRING
-                      name: ds.1.items.0
-                      value: 'Used Memory'
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("FS \[(.*)\]: Space", "\1")}'
                     - type: INTEGER
-                      name: space
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: FSHNY
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '90'
+            - name: Packet filter
+              widgets:
+                - type: gauge
+                  name: State table
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.states.util
+                    - type: STRING
+                      name: description
+                      value: State table
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Source tracking
+                  x: '24'
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.srcnodes.pused
+                    - type: STRING
+                      name: description
+                      value: Source tracking
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Table entries
+                  x: '48'
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.tables.entries.pused
+                    - type: STRING
+                      name: description
+                      value: Table entries
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: item
+                  name: States in use
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.fw.states.current
+                    - type: INTEGER
+                      name: show.1
                       value: '2'
-                - type: piechart
-                  name: 'FW States'
-                  x: '26'
-                  width: '15'
-                  height: '4'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Source nodes
+                  x: '12'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.srcnodes.current
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Table entries
+                  x: '24'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.tables.entries.used
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Filter rules
+                  x: '36'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.rules.filter.count
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: NAT rules
+                  x: '48'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.rules.nat.count
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Rules never matched
+                  x: '60'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.rules.unused
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Ruleset fingerprint
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.rules.fingerprint
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Rule evaluations/s
+                  x: '12'
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.rules.evaluations.rate
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Blocked share of log
+                  x: '24'
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.fwlog.block.pct
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: SYN floods/s
+                  x: '36'
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.synfloods.rate
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: State limit hits/s
+                  x: '48'
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.counter.statelimit.rate
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Source limit hits/s
+                  x: '60'
+                  'y': '6'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.pf.counter.srclimit.rate
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: svggraph
+                  name: State table churn
+                  'y': '9'
+                  width: '36'
+                  height: '6'
                   fields:
                     - type: STRING
                       name: ds.0.color
-                      value: 00FF00
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '2'
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'Firewall states max'
+                      value: 'pf: State table inserts per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
                     - type: STRING
                       name: ds.1.color
-                      value: FF4000
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
                     - type: STRING
                       name: ds.1.items.0
-                      value: 'Firewall states current'
-            - name: 'Gateway Info'
-              widgets:
+                      value: 'pf: State table removals per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: PFCHU
                 - type: svggraph
-                  name: RoundTripTime
-                  width: '45'
+                  name: State table searches
+                  x: '36'
+                  'y': '9'
+                  width: '36'
                   height: '6'
                   fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 8E24AA
                     - type: INTEGER
-                      name: ds.0.color_palette
+                      name: ds.0.fill
+                      value: '2'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'pf: State table searches per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: PFSEA
+                - type: svggraph
+                  name: Rule matches and evaluations
+                  'y': '15'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '2'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'pf: Rule matches per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'pf: Rule evaluations per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: PFMAT
+                - type: svggraph
+                  name: Drops and limit hits
+                  x: '36'
+                  'y': '15'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
                       value: '0'
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'Gateway RTT*'
+                      value: 'pf: Packets dropped for memory per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'pf: State limit hits per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: FFD54F
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'pf: Source limit hits per second'
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.3.color
+                      value: 8E24AA
+                    - type: INTEGER
+                      name: ds.3.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.3.items.0
+                      value: 'pf: State mismatches per second'
+                    - type: INTEGER
+                      name: ds.3.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.4.color
+                      value: 00897B
+                    - type: INTEGER
+                      name: ds.4.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.4.items.0
+                      value: 'pf: SYN floods detected per second'
+                    - type: INTEGER
+                      name: ds.4.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.5.color
+                      value: '757575'
+                    - type: INTEGER
+                      name: ds.5.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.5.items.0
+                      value: 'pf: Overload table insertions per second'
+                    - type: INTEGER
+                      name: ds.5.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: JRMUO
-                    - type: INTEGER
-                      name: righty
-                      value: '0'
+                      value: PFDRP
                 - type: svggraph
-                  name: 'Gateway lost packages in %'
-                  'y': '6'
-                  width: '45'
+                  name: Malformed packets
+                  'y': '21'
+                  width: '72'
                   height: '6'
                   fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
                     - type: INTEGER
-                      name: ds.0.color_palette
+                      name: ds.0.fill
                       value: '0'
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'Gateway loss*'
+                      value: 'pf: Bad offset packets per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'pf: Short packets per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'pf: Fragmented packets per second'
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.3.color
+                      value: 00897B
+                    - type: INTEGER
+                      name: ds.3.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.3.items.0
+                      value: 'pf: Normalized packets per second'
+                    - type: INTEGER
+                      name: ds.3.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: XALVE
-                    - type: INTEGER
-                      name: righty
-                      value: '0'
-            - name: Inerfaces
+                      value: PFMAL
+            - name: Interfaces
               widgets:
-                - type: svggraph
-                  name: 'Bytes v4'
-                  width: '55'
-                  height: '10'
+                - type: honeycomb
+                  name: Link state
+                  width: '72'
+                  height: '4'
                   fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Interface *: Link status'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("Interface (.*): Link status", "\1")}'
                     - type: INTEGER
-                      name: ds.0.color_palette
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IFLNK
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: svggraph
+                  name: Traffic
+                  'y': '4'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Interface *: Bytes received'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Interface *: Bytes transmitted'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IFTRF
+                - type: svggraph
+                  name: Blocked bytes IPv4
+                  'y': '10'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
                       value: '0'
                     - type: STRING
                       name: ds.0.items.0
                       value: '*blocked bytes INv4'
                     - type: INTEGER
-                      name: ds.1.color_palette
-                      value: '1'
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
                     - type: STRING
                       name: ds.1.items.0
-                      value: '*passed bytes INv4'
+                      value: '*blocked bytes OUTv4'
                     - type: INTEGER
-                      name: lefty_scale
-                      value: '1'
+                      name: ds.1.width
+                      value: '2'
                     - type: INTEGER
                       name: legend_lines
-                      value: '4'
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: MARXC
+                      value: IFBLK
+                - type: svggraph
+                  name: Passed bytes IPv4
+                  x: '36'
+                  'y': '10'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
                     - type: INTEGER
-                      name: righty
+                      name: ds.0.fill
                       value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: '*passed bytes INv4'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: '*passed bytes OUTv4'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IFPAS
+                - type: svggraph
+                  name: Errors and drops
+                  'y': '16'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Interface *: Inbound errors'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Interface *: output errors'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: FFD54F
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'Interface *: input queue drops'
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.3.color
+                      value: 8E24AA
+                    - type: INTEGER
+                      name: ds.3.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.3.items.0
+                      value: 'Interface *: collisions'
+                    - type: INTEGER
+                      name: ds.3.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IFERR
+            - name: Gateways
+              widgets:
+                - type: honeycomb
+                  name: Gateway status
+                  width: '72'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: Gateway Status *
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("Gateway Status (.*)", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: GWYHC
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '4'
+                - type: svggraph
+                  name: Round trip time
+                  'y': '4'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Gateway RTT *
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: GWRTT
+                - type: svggraph
+                  name: Packet loss
+                  x: '36'
+                  'y': '4'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Gateway loss *
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: GWLOS
+                - type: svggraph
+                  name: Round trip time deviation
+                  'y': '10'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 8E24AA
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Gateway RTTd *
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: GWDEV
+            - name: VPN
+              widgets:
+                - type: honeycomb
+                  name: WireGuard peers
+                  width: '36'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'WireGuard peer *: status'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("WireGuard peer (.*): status", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: WGPHC
+                - type: honeycomb
+                  name: WireGuard instances
+                  x: '36'
+                  width: '36'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'WireGuard instance *: status'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("WireGuard instance (.*): status", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: WGIHC
+                - type: svggraph
+                  name: WireGuard peer traffic
+                  'y': '4'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'WireGuard peer *: bytes received per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'WireGuard peer *: bytes sent per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: WGTRF
+                - type: honeycomb
+                  name: IPsec phase 1
+                  'y': '10'
+                  width: '72'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: '* connected'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("(.*) connected", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IPSHC
+                - type: svggraph
+                  name: IPsec phase 2 traffic
+                  'y': '14'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: '* bytes-in per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: '* bytes-out per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IPSTR
+            - name: System
+              widgets:
+                - type: gauge
+                  name: Processor
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.cpu.util
+                    - type: STRING
+                      name: description
+                      value: CPU utilization
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Memory
+                  x: '24'
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.memory.util
+                    - type: STRING
+                      name: description
+                      value: Memory utilization
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                - type: gauge
+                  name: Load per core
+                  x: '48'
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.load.percore
+                    - type: STRING
+                      name: description
+                      value: Load per core
+                    - type: INTEGER
+                      name: max
+                      value: '4'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: ''
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                - type: item
+                  name: Uptime
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.uptime
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Version
+                  x: '12'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.version
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Cores
+                  x: '24'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.cpu.cores
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Configuration changed
+                  x: '36'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.config.changed
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Load average 5 min
+                  x: '48'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.load.avg5
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Load average 15 min
+                  x: '60'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.system.load.avg15
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: svggraph
+                  name: Processor utilization
+                  'y': '6'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'CPU: User time'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'CPU: System time'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'CPU: Interrupt time'
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.3.color
+                      value: '757575'
+                    - type: INTEGER
+                      name: ds.3.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.3.items.0
+                      value: 'CPU: Utilization'
+                    - type: INTEGER
+                      name: ds.3.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: CPUUT
+                - type: svggraph
+                  name: Load average
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: CPU load
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: Load average (5 min)
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: 8E24AA
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: Load average (15 min)
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: LOADA
+                - type: honeycomb
+                  name: Temperature sensors
+                  'y': '12'
+                  width: '36'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: Temperature *
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("Temperature (.*)", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: TEMPH
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '65'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '80'
+                - type: honeycomb
+                  name: Swap devices
+                  x: '36'
+                  'y': '12'
+                  width: '36'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Swap *: utilization'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("Swap (.*): utilization", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '13'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: SWAPH
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '5'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '30'
+            - name: Kernel and protocols
+              widgets:
+                - type: gauge
+                  name: mbuf clusters
+                  width: '24'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.mbuf.cluster.pused
+                    - type: STRING
+                      name: description
+                      value: mbuf clusters
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '60'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '80'
+                - type: item
+                  name: Clusters in use
+                  x: '24'
+                  width: '16'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.mbuf.cluster.current
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Denied requests
+                  x: '40'
+                  width: '16'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.mbuf.denied
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: netisr queue drops
+                  x: '56'
+                  width: '16'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.netisr.queue.drops
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: svggraph
+                  name: Kernel network memory
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '3'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'mbuf: Clusters in use'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'mbuf: Denied requests'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: MBUFG
+                - type: svggraph
+                  name: netisr queue drops per protocol
+                  x: '36'
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'netisr *: Queue drops'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: NETIS
+                - type: svggraph
+                  name: IP errors
+                  'y': '9'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'IP: Packets with a bad checksum per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'IP: Fragments dropped per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.2.color
+                      value: FFD54F
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'IP: Packets discarded for lack of a route per second'
+                    - type: INTEGER
+                      name: ds.2.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.3.color
+                      value: 8E24AA
+                    - type: INTEGER
+                      name: ds.3.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.3.items.0
+                      value: 'IP: Packets that cannot be forwarded per second'
+                    - type: INTEGER
+                      name: ds.3.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: IPERR
+                - type: svggraph
+                  name: TCP errors
+                  x: '36'
+                  'y': '9'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E53935
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'TCP: Segments with a bad checksum per second'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: FFA000
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'TCP: Retransmitted segments per second'
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: TCPER
+            - name: Services, clock and power
+              widgets:
+                - type: honeycomb
+                  name: Services
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Service *: Running'
+                    - type: STRING
+                      name: primary_label
+                      value: '{{ITEM.NAME}.regsub("Service (.*): Running", "\1")}'
+                    - type: INTEGER
+                      name: primary_label_size
+                      value: '11'
+                    - type: INTEGER
+                      name: primary_label_size_type
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: SVCHC
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: Clock synchronised
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.ntp.synced
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Clock offset
+                  x: '12'
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.ntp.offset
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Stratum
+                  x: '24'
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.ntp.stratum
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: Reachable peers
+                  x: '36'
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.ntp.peers.reachable
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: CARP demotion
+                  x: '48'
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.carp.demotion
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: CARP maintenance
+                  x: '60'
+                  'y': '5'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: opns.carp.maintenance
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: gauge
+                  name: UPS battery
+                  'y': '8'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: nut.battery.charge
+                    - type: STRING
+                      name: description
+                      value: UPS battery
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '50'
+                - type: item
+                  name: UPS status
+                  x: '18'
+                  'y': '8'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: nut.status
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: UPS load
+                  x: '36'
+                  'y': '8'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: nut.battery.load
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: UPS runtime
+                  x: '54'
+                  'y': '8'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: OPNsense by HTTP-JSON
+                        key: nut.battery.runtime
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: svggraph
+                  name: Clock offset
+                  'y': '11'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'NTP: Offset of the selected peer'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: NTPOF
+                - type: svggraph
+                  name: UPS voltage
+                  x: '36'
+                  'y': '11'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2774A4
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: UPS Input Voltage
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 069C56
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: UPS Output Voltage
+                    - type: INTEGER
+                      name: ds.1.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: UPSVO
+      # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
+      valuemaps:
+        - uuid: 2a2220f3be9a4bcb885f08fa1c4d3b9e
+          name: Enabled state
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
+        - uuid: c766debf363d44709be55d0bb5127421
+          name: Link status
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: e8c9640701484d49b0a18f1cc4b67acf
+          name: NTP sync state
+          mappings:
+            - value: '0'
+              newvalue: Not synchronised
+            - value: '1'
+              newvalue: Synchronised
+        - uuid: 91ff67466e6b4b5dbd9184297a2c4cd5
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Stopped
+            - value: '1'
+              newvalue: Running
