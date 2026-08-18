@@ -1,0 +1,538 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: f107640fe4fa4d1db0ddf6d307b7ae9f
+    name: Appliances
+  - uuid: 7df96b18c230490a9a0a9e2307226338
+    name: Templates
+  templates:
+  - uuid: 308996adab6a4351ae9b090020820f8f
+    template: DELL POWERVAULT ME5024
+    name: DELL POWERVAULT ME5024
+    description: 'Dell EMC PowerVault ME5024 template. Uses numeric OIDs only. V7 uses SNMP walk[] master items and dependent LLD/item prototypes instead of legacy discovery[] rules. For this ME5024 set SNMP interface Max repetitions to 1; the device times out with default 10.
+
+
+      V8 note: ME5024 may timeout when walking connUnitSensorStatus (.1.3.6.1.3.94.1.8.1.4). Sensor master item now walks only connUnitSensorMessage (.1.3.6.1.3.94.1.8.1.6). Status is monitored through raw messages and storage unit status, temperature triggers remain active.
+
+
+      V9 note: Sensor LLD no longer uses SNMP_WALK_TO_JSON because Zabbix did not populate {#SENSOR_NAME} from this ME5024 walk output. Sensor LLD now parses the SNMP walk master item directly with JavaScript and returns explicit {#SNMPINDEX}, {#SENSOR_RAW}, {#SENSOR_NAME}. Keep SNMP interface Max repetitions = 1.'
+    groups:
+    - name: Appliances
+    - name: Templates
+    items:
+    - name: 'ICMP: Ping'
+      type: SIMPLE
+      key: icmpping
+      delay: 1m
+      history: 7d
+      triggers:
+      - uuid: f5833c979af9431fa5ca6043201e8099
+        expression: max(/DELL POWERVAULT ME5024/icmpping,5m)=0
+        name: 'Dell ME5024: Host is unavailable by ICMP'
+        priority: HIGH
+      uuid: 4d8edfd6b67b4c4aa9bdce7b8d6fec88
+    - name: System description
+      type: SNMP_AGENT
+      snmp_oid: .1.3.6.1.2.1.1.1.0
+      key: system.descr
+      delay: 1h
+      history: 14d
+      value_type: TEXT
+      trends: '0'
+      preprocessing:
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      uuid: 051acc5c7d074b579751100c3af24a0b
+    - name: System name
+      type: SNMP_AGENT
+      snmp_oid: .1.3.6.1.2.1.1.5.0
+      key: system.name
+      delay: 1h
+      history: 14d
+      value_type: CHAR
+      trends: '0'
+      preprocessing:
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      uuid: 4cb6becf5f9346a980e7c70f7f92a6c7
+    - name: System uptime
+      type: SNMP_AGENT
+      snmp_oid: .1.3.6.1.2.1.1.3.0
+      key: system.uptime
+      delay: 1m
+      history: 30d
+      trends: 90d
+      units: uptime
+      preprocessing:
+      - type: MULTIPLIER
+        parameters:
+        - '0.01'
+      triggers:
+      - uuid: 164b8c61acf5405a8e6579862922dfd1
+        expression: last(/DELL POWERVAULT ME5024/system.uptime)<10m
+        name: 'Dell ME5024: Device has been restarted'
+        priority: INFO
+        manual_close: 'YES'
+      uuid: 8840e5cd9a6b4b2387cd791bf71bfedd
+    - name: SNMP walk sensor table
+      type: SNMP_AGENT
+      snmp_oid: walk[.1.3.6.1.3.94.1.8.1.6]
+      key: dell.me.sensor.walk
+      delay: 5m
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: Walks only connUnitSensorMessage table. Dell ME5024 may timeout when connUnitSensorStatus (.1.3.6.1.3.94.1.8.1.4) is included.
+      tags:
+      - tag: component
+        value: raw
+      uuid: cb0c627211b040d59af4c304168c7cb9
+    - name: SNMP walk storage unit table
+      type: SNMP_AGENT
+      snmp_oid: walk[.1.3.6.1.3.94.1.6.1.20,.1.3.6.1.3.94.1.6.1.7,.1.3.6.1.3.94.1.6.1.8,.1.3.6.1.3.94.1.6.1.6]
+      key: dell.me.connunit.walk
+      delay: 1h
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: Master SNMP walk for connUnit name/model/serial/status.
+      tags:
+      - tag: component
+        value: raw
+      uuid: a250da2b7f844e5f85d73216885f3eb2
+    - name: SNMP walk host port table
+      type: SNMP_AGENT
+      snmp_oid: walk[.1.3.6.1.3.94.1.10.1.17,.1.3.6.1.3.94.1.10.1.7,.1.3.6.1.3.94.1.10.1.3]
+      key: dell.me.hostport.walk
+      delay: 15m
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: Master SNMP walk for host port name/status/type.
+      tags:
+      - tag: component
+        value: raw
+      uuid: b885e69f06c043289b15cd2319832814
+    discovery_rules:
+    - uuid: 20d3d149ceb6401d83c7604b9b0080d7
+      name: 'Sensors: temperature discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.temperature.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: d169ab9a57e34f76979a45ea32f54a84
+        name: '{#SENSOR_NAME}: temperature'
+        type: DEPENDENT
+        key: dell.me.sensor.temp[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        master_item:
+          key: dell.me.sensor.walk
+        value_type: FLOAT
+        units: °C
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: REGEX
+          parameters:
+          - '.*: ([+-]?[0-9]+(?:\.[0-9]+)?)\s*C\b.*'
+          - \1
+        trigger_prototypes:
+        - uuid: 261937c011864910922bd7ffba899d8d
+          expression: last(/DELL POWERVAULT ME5024/dell.me.sensor.temp[{#SNMPINDEX}])>{$DELL.ME.TEMP.HIGH}
+          name: 'Dell ME5024: {#SENSOR_NAME} temperature is high'
+          opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+          priority: HIGH
+        - uuid: df49238b016d400e8810436761674633
+          expression: last(/DELL POWERVAULT ME5024/dell.me.sensor.temp[{#SNMPINDEX}])>{$DELL.ME.TEMP.WARN}
+          name: 'Dell ME5024: {#SENSOR_NAME} temperature is warning'
+          opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+          priority: WARNING
+          dependencies:
+          - name: 'Dell ME5024: {#SENSOR_NAME} temperature is high'
+            expression: last(/DELL POWERVAULT ME5024/dell.me.sensor.temp[{#SNMPINDEX}])>{$DELL.ME.TEMP.HIGH}
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#SENSOR_NAME}'
+          value: .*[Tt]emperature.*
+          formulaid: A
+          operator: MATCHES_REGEX
+    - uuid: 868238d176804a7cb3e8b96f1afcf075
+      name: 'Sensors: voltage discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.voltage.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: c79ebd58181440a9818dfd918195cab0
+        name: '{#SENSOR_NAME}: voltage'
+        type: DEPENDENT
+        key: dell.me.sensor.voltage[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        master_item:
+          key: dell.me.sensor.walk
+        value_type: FLOAT
+        units: V
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: REGEX
+          parameters:
+          - '.*: ([+-]?[0-9]+(?:\.[0-9]+)?).*'
+          - \1
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#SENSOR_NAME}'
+          value: .*[Vv]oltage.*
+          formulaid: A
+          operator: MATCHES_REGEX
+    - uuid: 0e867c7f9f7743bf9a933f09d39e1cb1
+      name: 'Sensors: current discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.current.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: 00a1b09afd4d4ad0845a4aadc17d8e3b
+        name: '{#SENSOR_NAME}: current'
+        type: DEPENDENT
+        key: dell.me.sensor.current[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        master_item:
+          key: dell.me.sensor.walk
+        value_type: FLOAT
+        units: A
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: REGEX
+          parameters:
+          - '.*: ([+-]?[0-9]+(?:\.[0-9]+)?).*'
+          - \1
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#SENSOR_NAME}'
+          value: .*[Cc]urrent.*
+          formulaid: A
+          operator: MATCHES_REGEX
+    - uuid: a488aa898b3346f9b384c4863838fe26
+      name: 'Sensors: capacitor charge discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.charge.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: f4009ff188674f069481da9be222c73e
+        name: '{#SENSOR_NAME}: charge'
+        type: DEPENDENT
+        key: dell.me.sensor.charge[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        master_item:
+          key: dell.me.sensor.walk
+        value_type: FLOAT
+        units: '%'
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: REGEX
+          parameters:
+          - '.*: ([+-]?[0-9]+(?:\.[0-9]+)?).*'
+          - \1
+        trigger_prototypes:
+        - uuid: fb086c8224d7429ba6a737673ca9014c
+          expression: last(/DELL POWERVAULT ME5024/dell.me.sensor.charge[{#SNMPINDEX}])<{$DELL.ME.CAP.CHARGE.MIN}
+          name: 'Dell ME5024: {#SENSOR_NAME} capacitor charge is low'
+          opdata: 'Current charge: {ITEM.LASTVALUE1}'
+          priority: WARNING
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#SENSOR_NAME}'
+          value: .*[Cc]harge.*
+          formulaid: A
+          operator: MATCHES_REGEX
+    - uuid: b899a4179bae439c8180c211bffc4378
+      name: 'Sensors: raw message discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.message.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: d610f5b2c81c46cbae06b0a00260dc5d
+        name: '{#SENSOR_NAME}: message'
+        type: DEPENDENT
+        key: dell.me.sensor.message[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: '0'
+        master_item:
+          key: dell.me.sensor.walk
+        value_type: TEXT
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1d
+    - uuid: 426317a6f6034dababff07ab2607b00c
+      name: 'Sensors: overall unit status discovery'
+      type: DEPENDENT
+      key: dell.me.sensor.overall.discovery
+      delay: '0'
+      lifetime: 7d
+      enabled_lifetime_type: DISABLE_NEVER
+      description: Discovers Overall Unit Status from connUnitSensorMessage only.
+      item_prototypes:
+      - uuid: 0f49ecab9ded4cecbfa5c9a39e2f45e5
+        name: '{#SENSOR_NAME}'
+        type: DEPENDENT
+        key: dell.me.sensor.overall.message[{#SNMPINDEX}]
+        delay: '0'
+        value_type: CHAR
+        description: Overall Unit Status raw message.
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.8.1.6.{#SNMPINDEX}
+          - '0'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1d
+        master_item:
+          key: dell.me.sensor.walk
+        trigger_prototypes:
+        - uuid: 658d68099b3541968a25516a44401a02
+          expression: find(/DELL POWERVAULT ME5024/dell.me.sensor.overall.message[{#SNMPINDEX}],,"like","OK")=0
+          name: 'Dell ME5024: Overall unit status is not OK'
+          opdata: 'Current status: {ITEM.LASTVALUE1}'
+          priority: HIGH
+      master_item:
+        key: dell.me.sensor.walk
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var out = [];\nvar lines = value.split(/\\r?\\n/);\nvar base = '.1.3.6.1.3.94.1.8.1.6';\n\nfor (var i = 0; i < lines.length; i++) {\n    var line = lines[i].replace(/^\\s+|\\s+$/g, '');\n    if (!line) {\n        continue;\n    }\n\n    // Expected examples:\n    // .1.3.6.1.3.94.1.8.1.6.<index> = STRING: \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    // .1.3.6.1.3.94.1.8.1.6.<index> = \"CPU Temperature-Ctlr B: 62 C 143.60F\"\n    var m = line.match(/^(\\.1\\.3\\.6\\.1\\.3\\.94\\.1\\.8\\.1\\.6)\\.(\\S+)\\s*=\\s*(.*)$/);\n    if (!m) {\n        continue;\n    }\n\n    var idx = m[2];\n    var raw = m[3];\n    raw = raw.replace(/^[A-Za-z0-9_-]+:\\s*/, '');\n    raw = raw.replace(/^\"|\"$/g, '');\n    raw = raw.replace(/^\\s+|\\s+$/g, '');\n\n    var name = raw;\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*C\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*V\\b.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*A\\b.*$/i, '');\n    name\
+          \ = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*%.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Farads.*$/i, '');\n    name = name.replace(/:\\s*[+-]?\\d+(?:\\.\\d+)?\\s*Ohms.*$/i, '');\n    name = name.replace(/:\\s*OK\\s*$/i, '');\n    name = name.replace(/^\\s+|\\s+$/g, '');\n\n    out.push({\n        '{#SNMPINDEX}': idx,\n        '{#SENSOR_RAW}': raw,\n        '{#SENSOR_NAME}': name || raw || idx\n    });\n}\n\nreturn JSON.stringify({'data': out});"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#SENSOR_NAME}'
+          value: ^Overall Unit Status$
+          formulaid: A
+          operator: MATCHES_REGEX
+    - uuid: a83e653782f348c6a25ba635a002968e
+      name: Storage unit discovery
+      type: DEPENDENT
+      key: dell.me.connunit.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.connunit.walk
+      preprocessing:
+      - type: SNMP_WALK_TO_JSON
+        parameters:
+        - '{#CONNUNIT_NAME}'
+        - .1.3.6.1.3.94.1.6.1.20
+        - '0'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: c9db23a1d16f4586bec58de29654949c
+        name: 'Storage unit {#CONNUNIT_NAME}: model'
+        type: DEPENDENT
+        key: dell.me.connunit.model[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: '0'
+        value_type: CHAR
+        master_item:
+          key: dell.me.connunit.walk
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.6.1.7.{#SNMPINDEX}
+          - '0'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1d
+      - uuid: 369194b129b545f3ae03af5cdd893805
+        name: 'Storage unit {#CONNUNIT_NAME}: serial number'
+        type: DEPENDENT
+        key: dell.me.connunit.serial[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: '0'
+        value_type: CHAR
+        master_item:
+          key: dell.me.connunit.walk
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.6.1.8.{#SNMPINDEX}
+          - '0'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1d
+      - uuid: 71de2b0a6c014026b86ad6fa6ebabc22
+        name: 'Storage unit {#CONNUNIT_NAME}: status'
+        type: DEPENDENT
+        key: dell.me.connunit.status[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        value_type: UNSIGNED
+        master_item:
+          key: dell.me.connunit.walk
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.6.1.6.{#SNMPINDEX}
+          - '0'
+        trigger_prototypes:
+        - uuid: d901493a42544e19ad2f217cc6f98737
+          expression: last(/DELL POWERVAULT ME5024/dell.me.connunit.status[{#SNMPINDEX}])<>3
+          name: 'Dell ME5024: Storage unit {#CONNUNIT_NAME} status is not OK'
+          opdata: 'Current status: {ITEM.LASTVALUE1}'
+          priority: HIGH
+    - uuid: 492ae2db1b1645b7a835344cbad3a68f
+      name: Host port discovery
+      type: DEPENDENT
+      key: dell.me.hostport.discovery
+      delay: '0'
+      master_item:
+        key: dell.me.hostport.walk
+      preprocessing:
+      - type: SNMP_WALK_TO_JSON
+        parameters:
+        - '{#PORT_NAME}'
+        - .1.3.6.1.3.94.1.10.1.17
+        - '0'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: dde9db2587e64e15bc3401da5e627e22
+        name: 'Host port {#PORT_NAME}: status'
+        type: DEPENDENT
+        key: dell.me.hostport.status[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        value_type: UNSIGNED
+        master_item:
+          key: dell.me.hostport.walk
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.10.1.7.{#SNMPINDEX}
+          - '0'
+      - uuid: 621274d6be404ea487f7f054c0264b79
+        name: 'Host port {#PORT_NAME}: type'
+        type: DEPENDENT
+        key: dell.me.hostport.type[{#SNMPINDEX}]
+        delay: '0'
+        history: 30d
+        trends: 90d
+        value_type: UNSIGNED
+        master_item:
+          key: dell.me.hostport.walk
+        preprocessing:
+        - type: SNMP_WALK_VALUE
+          parameters:
+          - .1.3.6.1.3.94.1.10.1.3.{#SNMPINDEX}
+          - '0'
+    macros:
+    - macro: '{$DELL.ME.TEMP.WARN}'
+      value: '70'
+      description: Warning temperature threshold, C.
+    - macro: '{$DELL.ME.TEMP.HIGH}'
+      value: '80'
+      description: High temperature threshold, C.
+    - macro: '{$DELL.ME.CAP.CHARGE.MIN}'
+      value: '90'
+      description: Minimum capacitor charge percentage.
+    valuemaps:
+    - uuid: babf221e01a643d4a45bb8a985b85152
+      name: Dell ME FC-MGMT status
+      mappings:
+      - value: '1'
+        newvalue: unknown
+      - value: '2'
+        newvalue: other
+      - value: '3'
+        newvalue: OK
+      - value: '4'
+        newvalue: warning
+      - value: '5'
+        newvalue: failed
