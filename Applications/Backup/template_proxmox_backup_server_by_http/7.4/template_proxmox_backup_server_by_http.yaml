@@ -505,18 +505,47 @@ zabbix_export:
                 throw 'Failed to list datastores: HTTP status ' + req.getStatus();
             }
 
-            // Latest verify-job completion per datastore. PBS verifies on a schedule,
-            // so this is the cutoff a snapshot must predate to count as missed.
+            // UPID:node:PID:PSTART:TASK_ID:STARTTIME:worker_type:worker_id:userid: - the
+            // fields are hex and any colon inside worker_id is escaped, so the fixed
+            // positions are safe to split on.
+            function upidStart(upid) {
+                var parts = String(upid || '').split(':');
+                if (parts.length < 6) {
+                    return null;
+                }
+                var start = parseInt(parts[5], 16);
+                return isNaN(start) ? null : start;
+            }
+
+            // Start of the most recent completed verify run per datastore: the cutoff a
+            // snapshot must predate to count as missed. A snapshot taken while the run was
+            // under way is not due yet - PBS lists a group's snapshots once, when it starts
+            // walking that group.
             var verifiedUntil = {};
+            // End time of that same run, used only to pick the most recent one.
+            var verifiedEnd = {};
+            // Datastores with a verify job running right now. PBS reports no
+            // last-run-endtime while a job is in progress, so no cutoff is known
+            // and the missed count is omitted for them.
+            var verifyRunning = {};
             var verifyResp = req.get(encodeURI(base + '/admin/verify'));
             if (req.getStatus() === 200) {
                 (JSON.parse(verifyResp).data || []).forEach(function (job) {
-                    var end = job['last-run-endtime'];
-                    if (!job.store || !end) {
+                    if (!job.store) {
                         return;
                     }
-                    if (!verifiedUntil[job.store] || end > verifiedUntil[job.store]) {
-                        verifiedUntil[job.store] = end;
+                    var end = job['last-run-endtime'];
+                    if (!end) {
+                        // A last-run-upid without an endtime means that run is still going.
+                        if (job['last-run-upid']) {
+                            verifyRunning[job.store] = true;
+                        }
+                        return;
+                    }
+                    if (!verifiedEnd[job.store] || end > verifiedEnd[job.store]) {
+                        verifiedEnd[job.store] = end;
+                        var start = upidStart(job['last-run-upid']);
+                        verifiedUntil[job.store] = start === null ? end : start;
                     }
                 });
             } else {
@@ -564,19 +593,55 @@ zabbix_export:
                         complete = false;
                         return;
                     }
+                    // PBS omits "verification" entirely for a snapshot it has never
+                    // verified. Such a snapshot is only missed if it predates the
+                    // last completed verify run; anything newer is not due yet.
+                    var cutoff = verifiedUntil[store.store];
+                    var groups = {};
+
                     (JSON.parse(snapResp).data || []).forEach(function (snap) {
                         total++;
-                        if (!snap.verification) {
-                            // PBS omits "verification" entirely for a snapshot it has never
-                            // verified. Such a snapshot is only missed if it predates the
-                            // last completed verify run; anything newer is not due yet.
-                            var cutoff = verifiedUntil[store.store];
-                            if (cutoff && (snap['backup-time'] || 0) < cutoff) {
-                                unverified++;
-                            }
-                        } else if (snap.verification.state === 'failed') {
+                        if (snap.verification && snap.verification.state === 'failed') {
                             failed++;
                         }
+                        var group = (snap['backup-type'] || '') + '/' + (snap['backup-id'] || '');
+                        if (!groups[group]) {
+                            groups[group] = [];
+                        }
+                        groups[group].push(snap);
+                    });
+
+                    if (!cutoff) {
+                        return;
+                    }
+
+                    Object.keys(groups).forEach(function (group) {
+                        var snaps = groups[group].sort(function (a, b) {
+                            return (a['backup-time'] || 0) - (b['backup-time'] || 0);
+                        });
+                        // A verify run walks a group newest first, so verifying one snapshot
+                        // proves the run had already passed everything newer in that group.
+                        // Anything unverified below that mark was reached and had its state
+                        // erased afterwards - a sync overwriting the manifest - not skipped.
+                        // The timestamp is when the run started, which is a lower bound: a
+                        // long run reaches a group after snapshots newer than it appeared.
+                        var reached = 0;
+                        snaps.forEach(function (snap) {
+                            var time = snap['backup-time'] || 0;
+                            if (snap.verification) {
+                                // An unparseable UPID cannot be dated, so it is taken to
+                                // cover everything newer rather than nothing.
+                                var when = upidStart(snap.verification.upid);
+                                when = when === null ? Infinity : when;
+                                if (when > reached) {
+                                    reached = when;
+                                }
+                                return;
+                            }
+                            if (time < cutoff && reached <= time) {
+                                unverified++;
+                            }
+                        });
                     });
                 });
 
@@ -584,12 +649,18 @@ zabbix_export:
                 // out rather than reported as clean, so that a transient API failure
                 // cannot silently clear a real "failed verification" alarm.
                 if (complete) {
-                    result.push({
+                    var entry = {
                         store: store.store,
                         failed: failed,
-                        unverified: unverified,
                         total: total
-                    });
+                    };
+                    // While a verify job runs there is no usable cutoff, so the missed
+                    // count is omitted and the item receives no value; a 0 here would
+                    // only mean "currently unknown".
+                    if (!verifyRunning[store.store]) {
+                        entry.unverified = unverified;
+                    }
+                    result.push(entry);
                 }
             });
             return JSON.stringify(result);
@@ -608,6 +679,57 @@ zabbix_export:
             the last verify run. On any datastore that backs up more often than it verifies
             - a daily backup with a weekly verify, say - that is the normal steady state,
             and the count would be non-zero almost permanently while meaning nothing.
+
+            A snapshot is also not counted when an older snapshot of the same backup group
+            carries a verification state dated after that snapshot was taken. PBS verifies a
+            group newest first, from a list it takes once when it starts the group, so
+            verifying the older one proves the run had already passed the newer one - which
+            can then only be unverified because something erased its state afterwards. A
+            pull sync does exactly that: it rewrites the local manifest with the source's
+            copy, while the backup-time (the source's) still predates the verify run. How
+            much that erases depends on the source - a manifest the source has verified
+            carries the source's verification state across, and a snapshot in that state is
+            not unverified here at all, so only snapshots the source has not reached lose
+            their state to a sync.
+
+            Verification carried in from a sync source is indistinguishable from local
+            verification in these counts, so on a pull target some snapshots can read
+            verified on the strength of the source having hashed its own copy. That has
+            always been true of this item; the exemption above inherits it.
+
+            Snapshots genuinely outside verification - the wrong namespace, no verify job,
+            a job that never completes - have no verified older sibling anywhere in their
+            group, and are counted exactly as before. So are groups whose verification
+            stopped at some point, since there the verified snapshots predate the unverified
+            ones instead of following them.
+
+            The evidence is an older snapshot of the group verified after the re-synced one
+            was taken, and it has to survive. A group that has stopped taking backups but is
+            still pulled from a source that does not verify loses it - with ignore-verified
+            set, the surviving older snapshots keep the timestamp of their first
+            verification, which predates the re-synced one - as does a group whose verified
+            tail prune has removed. Either way the re-synced snapshot is counted until the
+            next verify run reaches it.
+
+            That is also the only route by which a verify job that has stopped running
+            surfaces here, so it is a fallback as much as a limitation: the cutoff freezes
+            at the last run, every later backup is newer than it and is never counted, and
+            what eventually raises the count is a re-synced snapshot losing the older
+            sibling that exempted it. Late, indirect and dependent on the prune policy, but
+            it is the difference between late and never - suppressing it would take the
+            fallback with it.
+
+            A verification timestamp earlier than the snapshot's own backup-time is normal,
+            not corrupt: a run lists a group when it reaches it, so a long run legitimately
+            verifies snapshots taken after it started. The timestamp is therefore a lower
+            bound on when a snapshot was reached, which under-exempts rather than over-.
+
+            The missed count is reported not at all - rather than as 0 - while a verify job
+            is running, because PBS reports no last-run-endtime for a run in progress and
+            the cutoff is then unknown. The failed count is unaffected. The count therefore
+            receives no value for the length of every verify run, whatever it would have
+            been: a nodata() trigger on it needs a period longer than the longest run, and
+            the last() triggers shipped here hold the previous value across it by design.
 
             This walks every snapshot of every datastore, so it is polled on its own slow
             interval ({$PBS.VERIFY.INTERVAL}, one hour by default) rather than with the
@@ -1945,7 +2067,7 @@ zabbix_export:
               name: 'Datastore [{#DATASTORE.NAME}]: Snapshots missed by verification'
               type: DEPENDENT
               key: 'proxmox.datastore.snapshots.unverified[{#DATASTORE.NAME}]'
-              description: 'Number of snapshots in this datastore that already existed when verification last finished and are still unverified - snapshots the verify job should have covered but did not. Backups taken since the last verify run are not counted: they are waiting their turn, not skipped. A non-zero value means verification is silently missing data, which is neither known-good nor known-bad.'
+              description: 'Number of snapshots in this datastore that already existed when the last verify run started and are still unverified - snapshots the verify job should have covered but did not. Backups taken since that run began are not counted: they are waiting their turn, not skipped. Neither are snapshots sitting above a verified older snapshot of the same group, because PBS verifies a group newest first, so the run demonstrably reached them and something erased their state afterwards - a pull sync overwriting the manifest. A non-zero value means verification is silently missing data, which is neither known-good nor known-bad. The item receives no value while a verify job is running, because PBS reports no completion time for a run in progress.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1964,7 +2086,7 @@ zabbix_export:
                   name: 'Proxmox Backup Server: Snapshots missed by verification on {#DATASTORE.NAME}'
                   opdata: 'Missed snapshots: {ITEM.LASTVALUE1}'
                   priority: WARNING
-                  description: 'Snapshots that already existed when verification last finished are still unverified, so the verify job is silently skipping data - its scope does not cover them, or it is not completing. Their integrity is unknown: they are neither known-good nor known-bad. Backups taken since the last verify run are not counted here.'
+                  description: 'Snapshots that already existed when the last verify run started, whose whole backup group is unverified, so the verify job is silently skipping data - its scope does not cover them, or it is not completing. Their integrity is unknown: they are neither known-good nor known-bad. Backups taken since that run began are not counted here, nor are snapshots whose group holds a verified older snapshot: PBS verifies a group newest first, so those were reached and had their verification state erased afterwards, which is what a pull sync does when it overwrites the manifest.'
                   dependencies:
                     - name: 'Proxmox Backup Server: Snapshots failing verification on {#DATASTORE.NAME}'
                       expression: 'last(/Proxmox Backup Server by HTTP/proxmox.datastore.snapshots.failed[{#DATASTORE.NAME}])>0'
