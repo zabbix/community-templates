@@ -4030,13 +4030,43 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.health[{#ZPOOL}]'
               delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'zpool health: ONLINE, DEGRADED, FAULTED, OFFLINE, REMOVED or UNAVAIL.'
+              value_type: UNSIGNED
+              trends: 365d
+              description: 'zpool health as a number so it can be graphed and used on a dashboard. 0 is ONLINE, everything above is a fault. The value map turns it back into the zpool wording.'
+              valuemap:
+                name: 'ZFS pool health'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.name=="{#ZPOOL}")].health.first()'
+                - type: STR_REPLACE
+                  parameters:
+                    - ONLINE
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - DEGRADED
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - FAULTED
+                    - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - OFFLINE
+                    - '3'
+                - type: STR_REPLACE
+                  parameters:
+                    - REMOVED
+                    - '4'
+                - type: STR_REPLACE
+                  parameters:
+                    - UNAVAIL
+                    - '5'
+                - type: STR_REPLACE
+                  parameters:
+                    - SUSPENDED
+                    - '6'
               master_item:
                 key: pve.zfs.raw
               tags:
@@ -4046,10 +4076,11 @@ zabbix_export:
                   value: '{#ZPOOL}'
               trigger_prototypes:
                 - uuid: d65a4e365c134cea9cf48cfca9c173dc
-                  expression: 'last(/Template Proxmox VE REST API/zfs.health[{#ZPOOL}])<>"ONLINE"'
+                  expression: 'last(/Template Proxmox VE REST API/zfs.health[{#ZPOOL}])<>0'
                   name: 'ZFS pool {#ZPOOL} is not ONLINE on {HOST.NAME}'
+                  event_name: 'ZFS pool {#ZPOOL} is {ITEM.VALUE1} on {HOST.NAME}'
                   priority: HIGH
-                  description: 'zpool health is DEGRADED, FAULTED, OFFLINE, REMOVED or UNAVAIL. Check /nodes/{node}/disks/zfs/{pool} for the failing vdev.'
+                  description: 'zpool health left ONLINE. Check /nodes/{node}/disks/zfs/{pool} for the failing vdev, the detail endpoint reports read, write and checksum errors per device.'
             - uuid: 60c15d2ea06e465897ef285127da047c
               name: 'ZFS pool size {#ZPOOL}'
               type: DEPENDENT
@@ -4130,6 +4161,12 @@ zabbix_export:
                   value: ZFS
                 - tag: PVE
                   value: '{#ZPOOL}'
+              trigger_prototypes:
+                - uuid: ed2b6ba1d4cb4b029e7b75c0ff414ea0
+                  expression: 'last(/Template Proxmox VE REST API/zfs.frag[{#ZPOOL}])>{$ZFS.FRAG.WARN:"{#ZPOOL}"}'
+                  name: 'ZFS pool {#ZPOOL} fragmentation above {$ZFS.FRAG.WARN}% on {HOST.NAME}'
+                  priority: WARNING
+                  description: 'Free space in the pool is heavily fragmented, which slows down writes. Usually a consequence of a pool kept too full for too long. Freeing space helps, defragmenting a zpool is not possible.'
             - uuid: 2167f0fa32e24ac9803b5aa3cd346bbe
               name: 'ZFS pool dedup ratio {#ZPOOL}'
               type: DEPENDENT
@@ -4217,8 +4254,9 @@ zabbix_export:
                 - uuid: 9d0695a301e54a4dbb9590dd62e79a37
                   expression: 'last(/Template Proxmox VE REST API/repl.fail_count[{#REPL_ID}])>{$PVE.REPL.FAIL.MAX}'
                   name: 'Replication job {#REPL_ID} failing on {HOST.NAME}'
+                  event_name: 'Replication job {#REPL_ID} failing: {?last(//repl.error[{#REPL_ID}])}'
                   priority: AVERAGE
-                  description: 'PVE counts consecutive failures of this replication job. The reason is in the corresponding error item.'
+                  description: 'PVE counts consecutive failures of this replication job. The event name carries the error message PVE reported for the last run.'
             - uuid: 40786cb4039d42c8bc5703ca03635c1e
               name: 'Replication last sync {#REPL_ID}'
               type: DEPENDENT
@@ -4503,6 +4541,12 @@ zabbix_export:
         - macro: '{$PVE.APT.REPO.ERRORS.MAX}'
           value: '0'
           description: 'Tolerated number of unparsable APT repository files before alerting.'
+        - macro: '{$PVE.APT.REPO.WARN.MAX}'
+          value: '0'
+          description: 'Tolerated number of APT repository warnings. A host on the no-subscription repository permanently reports one warning, set this to 1 there.'
+        - macro: '{$PVE.APT.UPDATES.MAX}'
+          value: '0'
+          description: 'Tolerated number of pending package updates. Only relevant if the disabled apt/update items are switched on.'
         - macro: '{$PVE.CERT.EXPIRE.DAYS}'
           value: 21d
           description: 'Lead time before certificate expiry. Must include a time unit, for example 21d.'
@@ -5347,6 +5391,23 @@ zabbix_export:
               newvalue: paused
             - value: '3'
               newvalue: unknown
+        - uuid: 4edeb346d0d64155ad2e8063d7a4cab8
+          name: 'ZFS pool health'
+          mappings:
+            - value: '0'
+              newvalue: ONLINE
+            - value: '1'
+              newvalue: DEGRADED
+            - value: '2'
+              newvalue: FAULTED
+            - value: '3'
+              newvalue: OFFLINE
+            - value: '4'
+              newvalue: REMOVED
+            - value: '5'
+              newvalue: UNAVAIL
+            - value: '6'
+              newvalue: SUSPENDED
   triggers:
     - uuid: bdaeac3c76ec44ef96bf78ca83ba0dad
       expression: 'min(/Template Proxmox VE REST API/pve.loadaverage.oneminute,900) >= last(/Template Proxmox VE REST API/pve.cpus)'
@@ -5399,6 +5460,20 @@ zabbix_export:
       opdata: 'Broken files: {ITEM.LASTVALUE1}'
       priority: WARNING
       description: 'At least one APT repository file cannot be parsed. Updates will fail until this is fixed.'
+    - uuid: 5fe993f6929a4e05ab7bca6e61c8b631
+      expression: 'last(/Template Proxmox VE REST API/pve.apt.repos.warnings)>{$PVE.APT.REPO.WARN.MAX}'
+      name: 'APT repository configuration has warnings on {HOST.NAME}'
+      opdata: 'Warnings: {ITEM.LASTVALUE1}'
+      priority: INFO
+      description: 'PVE reports a problem with the repository configuration, for example the enterprise repository being enabled without a subscription. A host on the no-subscription repository reports one warning permanently, raise {$PVE.APT.REPO.WARN.MAX} to 1 there.'
+      manual_close: 'YES'
+    - uuid: 516ffe6de3804b97aa29d41e333deba3
+      expression: 'last(/Template Proxmox VE REST API/pve.apt.updates.count)>{$PVE.APT.UPDATES.MAX}'
+      name: '{ITEM.LASTVALUE} package update(s) pending on {HOST.NAME}'
+      priority: INFO
+      status: DISABLED
+      description: 'Disabled by default, like the item it depends on. The master item needs Sys.Modify, which PVEAuditor does not grant.'
+      manual_close: 'YES'
     - uuid: 57b2f7fad21f4672874712a66208931a
       expression: 'last(/Template Proxmox VE REST API/pve.subscription.status)<>"active" and {$PVE.SUBSCRIPTION.ALERT}=1'
       name: 'PVE subscription is not active on {HOST.NAME} ({ITEM.LASTVALUE})'

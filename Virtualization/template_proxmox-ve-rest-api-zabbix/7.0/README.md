@@ -108,6 +108,8 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 | `{$PVE.REPL.FAIL.MAX}` | `0` | Tolerated consecutive failures of a replication job. Context form `{$PVE.REPL.FAIL.MAX:"105-0"}`. |
 | `{$PVE.NOTBACKEDUP.MAX}` | `0` | Tolerated number of guests without a backup job. Raise it if some guests are deliberately excluded. |
 | `{$PVE.APT.REPO.ERRORS.MAX}` | `0` | Tolerated number of unparsable APT repository files. |
+| `{$PVE.APT.REPO.WARN.MAX}` | `0` | Tolerated number of APT repository warnings. A host on the no-subscription repository permanently reports one warning, set this to 1 there. |
+| `{$PVE.APT.UPDATES.MAX}` | `0` | Tolerated number of pending package updates. Only relevant if the disabled apt/update items are switched on. |
 
 ### Timing Macros
 
@@ -183,6 +185,8 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | VMs/LXC not all running | Info | Cluster-wide: running count < total count |
 | Guests not covered by any backup job | Warning | From `/cluster/backup-info/not-backed-up`. Catches the guest that was created after the backup job was defined. |
 | APT repository files are broken | Warning | At least one repository file cannot be parsed, updates will fail |
+| APT repository configuration has warnings | Info | For example the enterprise repository enabled without a subscription |
+| Package updates pending | Info | Disabled by default, like the item it depends on |
 | PVE subscription is not active | Warning | Disabled by default, see `{$PVE.SUBSCRIPTION.ALERT}` |
 
 ### VM / LXC Prototypes
@@ -221,6 +225,7 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | SSD wearout below threshold | Warning |
 | PVE service not running | Average |
 | ZFS pool not ONLINE | High |
+| ZFS pool fragmentation above `{$ZFS.FRAG.WARN}` | Warning |
 | ZFS pool usage over warning / critical threshold | Average / High |
 | Replication job failing | Average |
 | Replication job has not synced within `{$PVE.REPL.LAG}` | Warning |
@@ -262,6 +267,7 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 - **Replication:** The list endpoint already carries the job state, so no extra request per job is needed. Fields such as `last_sync` and `error` are absent before the first run or while the job is healthy; those items discard the value instead of turning unsupported.
 - **Subscription:** `/nodes/{node}/subscription` needs no special permission and answers with HTTP 200 even without a subscription, reporting status `notfound`.
 - **Permission errors:** The API answers with HTTP 403, so an item lacking permissions turns visibly unsupported rather than silently staying empty.
+- **ZFS pool health:** Stored as a number with a value map rather than as text, so it can be graphed and shown on a dashboard. 0 is ONLINE, everything above is a fault. The mapping is done with preprocessing steps, not with a script. A state outside the seven known zpool states leaves text in place and the item turns visibly unsupported instead of reporting a wrong number.
 - **Long term data:** Numeric performance and capacity items keep 365 days of trends. Timestamp items such as `last_sync` or `notafter` deliberately keep trends disabled, a trend over a Unix timestamp carries no meaning.
 
 ---
