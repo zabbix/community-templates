@@ -1536,12 +1536,43 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
-          description: 'Next due date as reported by PVE (string, not a timestamp). Alerting is done on the status item instead.'
+          description: 'Next due date as reported by PVE, a plain date string. The numeric form for alerting is in pve.subscription.nextduedate.epoch.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data.nextduedate'
               error_handler: DISCARD_VALUE
+          master_item:
+            key: pve.subscription.raw
+          tags:
+            - tag: PVE
+              value: Subscription
+        - uuid: d3ed6d06a2194635b5580d04303e143d
+          name: 'Subscription expiry'
+          type: DEPENDENT
+          key: pve.subscription.nextduedate.epoch
+          delay: '0'
+          value_type: FLOAT
+          units: unixtime
+          trends: '0'
+          description: 'Expiry date as a Unix timestamp so the remaining time can be compared. PVE reports nextduedate as a plain date string, unlike the certificate endpoint which already delivers an epoch. Zabbix has no preprocessing step that parses a date, hence the one line of JavaScript. Without a subscription the field is absent and the value is discarded.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.nextduedate'
+              error_handler: DISCARD_VALUE
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // PVE reports nextduedate as YYYY-MM-DD. Anchored to UTC so the
+                  // result does not shift with the server timezone. An unexpected
+                  // format throws, which turns the item visibly unsupported instead
+                  // of silently producing a wrong date.
+                  var t = Date.parse(value + 'T00:00:00Z');
+                  if (isNaN(t)) {
+                      throw 'unexpected nextduedate format: ' + value;
+                  }
+                  return Math.floor(t / 1000);
           master_item:
             key: pve.subscription.raw
           tags:
@@ -4565,6 +4596,9 @@ zabbix_export:
         - macro: '{$PVE.SERVICE.STATE.ALERT}'
           value: '1'
           description: 'Enables the service state trigger. Use the context form {$PVE.SERVICE.STATE.ALERT:"pveproxy"}=0 to silence a single service.'
+        - macro: '{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
+          value: 30d
+          description: 'Lead time before the subscription expires. Must include a time unit, for example 30d. The expiry triggers need no enable macro: hosts without a subscription report no due date, so the item stays empty.'
         - macro: '{$PVE.SUBSCRIPTION.ALERT}'
           value: '0'
           description: 'Set to 1 on hosts that are meant to carry a subscription. Off by default so community hosts do not alert on status notfound.'
@@ -5474,11 +5508,29 @@ zabbix_export:
       status: DISABLED
       description: 'Disabled by default, like the item it depends on. The master item needs Sys.Modify, which PVEAuditor does not grant.'
       manual_close: 'YES'
+    - uuid: 7350199fa4884df6bf61d5797c37cf4a
+      expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+      name: 'PVE subscription has expired on {HOST.NAME}'
+      opdata: 'Expired on: {ITEM.LASTVALUE1}'
+      priority: AVERAGE
+      description: 'The subscription period has ended. Access to the enterprise repository is gone, updates from it will fail. Needs no enable macro: without a subscription PVE does not report a due date, so the item stays empty and this trigger cannot fire on community hosts.'
+    - uuid: 3e3366874a4d4191a88632af4344bcce
+      expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)-now()<{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
+      name: 'PVE subscription expires in less than {$PVE.SUBSCRIPTION.EXPIRE.DAYS} on {HOST.NAME}'
+      opdata: 'Expires on: {ITEM.LASTVALUE1}'
+      priority: WARNING
+      description: 'Advance warning before the subscription runs out, so it can be renewed in time. Depends on the expired trigger, so only one of the two is open at a time.'
+      dependencies:
+        - name: 'PVE subscription has expired on {HOST.NAME}'
+          expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
     - uuid: 57b2f7fad21f4672874712a66208931a
       expression: 'last(/Template Proxmox VE REST API/pve.subscription.status)<>"active" and {$PVE.SUBSCRIPTION.ALERT}=1'
       name: 'PVE subscription is not active on {HOST.NAME} ({ITEM.LASTVALUE})'
       priority: WARNING
-      description: 'Status is notfound, invalid, expired or suspended. Disabled by default, set {$PVE.SUBSCRIPTION.ALERT}=1 on hosts that carry a subscription.'
+      description: 'Status is notfound, invalid, expired or suspended. Off by default, set {$PVE.SUBSCRIPTION.ALERT}=1 on hosts that are meant to carry a subscription. Depends on the expired trigger so a lapsed subscription raises one problem, not two.'
+      dependencies:
+        - name: 'PVE subscription has expired on {HOST.NAME}'
+          expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
   graphs:
     - uuid: bbdef5c2775146b4ad30ac91ad877624
       name: 'Load average'

@@ -123,6 +123,7 @@ Values must carry a time unit.
 | `{$IFACE.ACTIVE.WINDOW}` | `7d` | An interface must have been up once within this window before the interface down trigger fires. |
 | `{$PVE.REPL.LAG}` | `2h` | Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. |
 | `{$PVE.CERT.EXPIRE.DAYS}` | `21d` | Lead time before certificate expiry. |
+| `{$PVE.SUBSCRIPTION.EXPIRE.DAYS}` | `30d` | Lead time before the subscription expires. |
 
 ### Discovery Filter Macros
 
@@ -187,7 +188,9 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | APT repository files are broken | Warning | At least one repository file cannot be parsed, updates will fail |
 | APT repository configuration has warnings | Info | For example the enterprise repository enabled without a subscription |
 | Package updates pending | Info | Disabled by default, like the item it depends on |
-| PVE subscription is not active | Warning | Disabled by default, see `{$PVE.SUBSCRIPTION.ALERT}` |
+| PVE subscription has expired | Average | The subscription period has ended, the enterprise repository is no longer accessible |
+| PVE subscription expires soon | Warning | Advance warning via `{$PVE.SUBSCRIPTION.EXPIRE.DAYS}`, depends on the expired trigger so only one is open at a time |
+| PVE subscription is not active | Warning | Status invalid, suspended or notfound. Off by default, see `{$PVE.SUBSCRIPTION.ALERT}` |
 
 ### VM / LXC Prototypes
 
@@ -265,7 +268,7 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 - **Physical NIC traffic:** Not available either. `/nodes/{node}/netstat` returns per-guest tap devices and resets its counters on every read, so there are no byte counters for `eno1` or `vmbr0`. `/nodes/{node}/rrddata` only carries the node aggregate.
 - **ZFS:** `/nodes/{node}/disks/zfs` requires `Sys.Audit` on `/`, not on `/nodes/{node}`. On nodes without ZFS the discovery simply returns nothing and stays supported.
 - **Replication:** The list endpoint already carries the job state, so no extra request per job is needed. Fields such as `last_sync` and `error` are absent before the first run or while the job is healthy; those items discard the value instead of turning unsupported.
-- **Subscription:** `/nodes/{node}/subscription` needs no special permission and answers with HTTP 200 even without a subscription, reporting status `notfound`.
+- **Subscription:** `/nodes/{node}/subscription` needs no special permission and answers with HTTP 200 even without a subscription, reporting status `notfound`. Unlike the certificate endpoint it reports `nextduedate` as a plain date string rather than an epoch, so a single JavaScript preprocessing line converts it for the expiry triggers. Those triggers need no enable macro: a host without a subscription reports no due date, so the item stays empty and they cannot fire.
 - **Permission errors:** The API answers with HTTP 403, so an item lacking permissions turns visibly unsupported rather than silently staying empty.
 - **ZFS pool health:** Stored as a number with a value map rather than as text, so it can be graphed and shown on a dashboard. 0 is ONLINE, everything above is a fault. The mapping is done with preprocessing steps, not with a script. A state outside the seven known zpool states leaves text in place and the item turns visibly unsupported instead of reporting a wrong number.
 - **Long term data:** Numeric performance and capacity items keep 365 days of trends. Timestamp items such as `last_sync` or `notafter` deliberately keep trends disabled, a trend over a Unix timestamp carries no meaning.
