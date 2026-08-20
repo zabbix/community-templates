@@ -20,7 +20,7 @@ zabbix_export:
           name: 'PVE backup raw'
           type: HTTP_AGENT
           key: pve.backup.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/tasks, filtered and grouped by JavaScript preprocessing to extract only backup tasks (vzdump/PBS), deduplicated to the most recent run per VM.'
@@ -316,7 +316,7 @@ zabbix_export:
           type: HTTP_AGENT
           key: pve.cluster.raw
           delay: '60'
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Raw cluster status from /api2/json/cluster/status. Used as master for cluster-dependent items.'
@@ -712,7 +712,7 @@ zabbix_export:
           name: 'PVE lxc raw'
           type: HTTP_AGENT
           key: pve.nodes.lxc.raw
-          history: 1d
+          history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/lxc. Used as source for all LXC container dependent items and discovery rules.'
@@ -1184,6 +1184,26 @@ zabbix_export:
                   value: '{#BCKPID}'
                 - tag: vmid
                   value: '{#BCKPID}'
+            - uuid: 44259cf2a2344ca09ff4a808dafc42cf
+              name: 'Backup message {#ID}'
+              type: DEPENDENT
+              key: 'backup.message[{#BCKPID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Status text of the last backup job for VM/CT {#BCKPID}, exactly as Proxmox VE reports it. A successful job reports OK, a failed one reports the error message itself. The numeric item Backup status maps only a fixed set of known texts, so this item carries the real cause of a failure.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.bckpid=="{#BCKPID}")].status.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.backup.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: vmid
+                  value: '{#BCKPID}'
             - uuid: 44af4c4fba8a485ca2d6076bed9e01b4
               name: 'Backup starttime {#ID}'
               type: DEPENDENT
@@ -1212,7 +1232,7 @@ zabbix_export:
               delay: '0'
               description: 'Status of the last backup job for VM/CT {#ID}. 0=OK, 1=running, 2=stopped, 3=error, 4=unknown error.'
               valuemap:
-                name: 'Tasks status'
+                name: 'Backup status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1251,8 +1271,9 @@ zabbix_export:
                   value: '{#BCKPID}'
               trigger_prototypes:
                 - uuid: 6c0aa697138548fe8407c82d28d31a4a
-                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALERT:"{#ID}"}'
+                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALERT:"{#BCKPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/backup.endtime[{#BCKPID}],{$BACKUP.ALERT.WINDOW})=1'
                   name: 'Backup for {#ID} failed'
+                  event_name: 'Backup for {#ID} failed: {?last(//backup.message[{#BCKPID}])}'
                   opdata: 'Backup status: {ITEM.LASTVALUE}'
                   priority: HIGH
                   description: |
@@ -1287,28 +1308,24 @@ zabbix_export:
           type: DEPENDENT
           key: discover.disks
           delay: '0'
-          description: 'Discovers physical disks from /nodes/{node}/disks/list for SMART health monitoring.'
+          description: 'Discovers physical disks from /nodes/{node}/disks/list. Covers every disk type Proxmox VE reports, including SATA, SAS and NVMe. The wearout item is skipped for rotating disks, which do not expose that value.'
           item_prototypes:
             - uuid: 34f801ed3d4f492bb997c571addb024a
               name: 'Disk {#DISK_DEV} health'
-              type: HTTP_AGENT
+              type: DEPENDENT
               key: 'disk.health[{#DISK_DEV}]'
-              delay: '3600'
+              delay: '0'
               value_type: CHAR
               trends: '0'
-              description: 'SMART health status of disk {#DISK_DEV} ({#DISK_MODEL}). Values: PASSED, FAILED. Source: /nodes/{node}/disks/smart.'
+              description: 'SMART health status of disk {#DISK_DEV} ({#DISK_MODEL}). Values: PASSED, FAILED, UNKNOWN. Source: /nodes/{node}/disks/list, which reports the same overall health assessment as the dedicated SMART endpoint, so no extra request per disk is needed.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.data.health
+                    - '$.data[?(@.devpath=="{#DISK_DEV}")].health.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: UNKNOWN
-              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/smart?disk={#DISK_DEV}'
-              headers:
-                - name: Authorization
-                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-                - name: Accept
-                  value: application/json
+              master_item:
+                key: pve.disks.raw
               tags:
                 - tag: PVE
                   value: Disk
@@ -1320,6 +1337,88 @@ zabbix_export:
                   name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) SMART health not PASSED on {HOST.NAME}'
                   priority: HIGH
                   description: 'SMART health check for disk {#DISK_DEV} returned a non-PASSED status. Immediate investigation recommended.'
+                  manual_close: 'YES'
+            - uuid: 57d697c2516d49aaadeca4f761b082dc
+              name: 'Disk {#DISK_DEV} SMART raw'
+              type: HTTP_AGENT
+              key: 'disk.smart.raw[{#DISK_DEV}]'
+              delay: '3600'
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Master item. Raw JSON from /nodes/{node}/disks/smart for disk {#DISK_DEV}. Proxmox VE answers in two shapes: type=ata carries a list of numbered SMART attributes, type=text carries the raw smartctl output used for NVMe and SAS. Source for the disk temperature item.'
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/smart?disk={#DISK_DEV}'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: PVE
+                  value: Raw
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+            - uuid: ffcc0cce9a074f4c8061e99dda3f325b
+              name: 'Disk {#DISK_DEV} temperature'
+              type: DEPENDENT
+              key: 'disk.temp[{#DISK_DEV}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '!°C'
+              description: 'Temperature of disk {#DISK_DEV} ({#DISK_MODEL}) in degrees Celsius. Read from the SMART payload of the disk. SATA and SAS disks report it as attribute 194, or 190 on drives that only expose an airflow sensor. NVMe disks report it in the composite Temperature line of the smartctl output. Disks that expose no temperature at all deliver no value.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // Proxmox returns two different SMART shapes, so both are handled here.
+                      // type=ata  -> numbered attribute list, temperature is id 194 (or 190)
+                      // type=text -> raw smartctl output, temperature is the composite line
+                      var d = JSON.parse(value).data;
+                      if (!d) {
+                          throw 'no SMART payload';
+                      }
+                      if (d.attributes) {
+                          var wanted = ['194', '190'];
+                          for (var w = 0; w < wanted.length; w++) {
+                              for (var i = 0; i < d.attributes.length; i++) {
+                                  var a = d.attributes[i];
+                                  // Proxmox keeps the attribute id as a space padded string
+                                  if (String(a.id).replace(/\s/g, '') !== wanted[w]) {
+                                      continue;
+                                  }
+                                  // the raw column may carry trailing text such as "38 (Min/Max 20/45)"
+                                  var r = String(a.raw).match(/\d+/);
+                                  if (r) {
+                                      return r[0];
+                                  }
+                              }
+                          }
+                      }
+                      if (typeof d.text === 'string') {
+                          var t = d.text.match(/^\s*Temperature:\s+(\d+)\s+Celsius/m);
+                          if (!t) {
+                              t = d.text.match(/^\s*Temperature Sensor 1:\s+(\d+)\s+Celsius/m);
+                          }
+                          if (t) {
+                              return t[1];
+                          }
+                      }
+                      throw 'no temperature in SMART data';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'disk.smart.raw[{#DISK_DEV}]'
+              tags:
+                - tag: PVE
+                  value: Disk
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+              trigger_prototypes:
+                - uuid: a407b65ce7b44bfebd0a2f343dc0300d
+                  expression: 'min(/Template Proxmox VE REST API/disk.temp[{#DISK_DEV}],10m)>{$DISK.TEMP.MAX:"{#DISK_DEV}"}'
+                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) temperature above {$DISK.TEMP.MAX} C on {HOST.NAME}'
+                  opdata: 'Temperature: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The disk has stayed above the temperature threshold for 10 minutes. Set {$DISK.TEMP.MAX:"{#DISK_DEV}"} to raise the threshold for a single disk.'
                   manual_close: 'YES'
             - uuid: 8f6a409c8d1c40dd8ddb78d029f7dcbc
               name: 'Disk {#DISK_DEV} size'
@@ -1340,6 +1439,13 @@ zabbix_export:
                   value: Disk
                 - tag: PVE
                   value: '{#DISK_DEV}'
+              trigger_prototypes:
+                - uuid: 273bb1dc1ff74d379f4c7b1c88c82fcf
+                  expression: 'nodata(/Template Proxmox VE REST API/disk.size[{#DISK_DEV}],{$DISK.MISSING.TIME})=1'
+                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) is no longer reported by {HOST.NAME}'
+                  priority: AVERAGE
+                  description: 'Proxmox VE has stopped listing this disk. Either the disk was removed on purpose or it dropped off the bus. The disk list is refreshed hourly, so {$DISK.MISSING.TIME} must stay well above one hour.'
+                  manual_close: 'YES'
             - uuid: 11439521679e47f8a1e96261a5e98e4d
               name: 'Disk {#DISK_DEV} wearout'
               type: DEPENDENT
@@ -1379,10 +1485,27 @@ zabbix_export:
               path: $.devpath
             - lld_macro: '{#DISK_MODEL}'
               path: $.model
+            - lld_macro: '{#DISK_SERIAL}'
+              path: $.serial
+            - lld_macro: '{#DISK_TYPE}'
+              path: $.type
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+          overrides:
+            - name: 'No wearout on rotating disks'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#DISK_TYPE}'
+                    value: '^hdd$'
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: LIKE
+                  value: wearout
+                  discover: NO_DISCOVER
         - uuid: 235e7e42e382487085fdf54efa040b65
           name: 'Discover HA resources'
           type: DEPENDENT
@@ -1623,7 +1746,7 @@ zabbix_export:
                 - tag: vmid
                   value: '{#VMID}'
             - uuid: 58c148d323b24f7a824f2934d219d16c
-              name: 'Memory utilization of  {#VMID}'
+              name: 'Memory usage of {#VMID}'
               type: DEPENDENT
               key: 'lxc.memusage[{#VMID}]'
               delay: '0'
@@ -1660,7 +1783,7 @@ zabbix_export:
                 - tag: vmid
                   value: '{#VMID}'
             - uuid: 698ac639b14248dbabc4ceef3e8fd5e4
-              name: 'Name of  {#VMID}'
+              name: 'Name of {#VMID}'
               type: DEPENDENT
               key: 'lxc.name[{#VMID}]'
               delay: '0'
@@ -1687,14 +1810,15 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netin.current[{#VMID}]'
               delay: '0'
-              units: Bytes
-              description: 'Current network receive rate of LXC container {#VMID} in bytes/s (delta of cumulative counter).'
+              value_type: FLOAT
+              units: Bps
+              description: 'Current network receive rate of LXC container {#VMID} in bytes/s (derived from the cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].netin.first()'
                   error_handler: DISCARD_VALUE
-                - type: SIMPLE_CHANGE
+                - type: CHANGE_PER_SECOND
                   parameters:
                     - ''
               master_item:
@@ -1732,14 +1856,15 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netout.current[{#VMID}]'
               delay: '0'
-              units: Bytes
-              description: 'Current network transmit rate of LXC container {#VMID} in bytes/s (delta of cumulative counter).'
+              value_type: FLOAT
+              units: Bps
+              description: 'Current network transmit rate of LXC container {#VMID} in bytes/s (derived from the cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].netout.first()'
                   error_handler: DISCARD_VALUE
-                - type: SIMPLE_CHANGE
+                - type: CHANGE_PER_SECOND
                   parameters:
                     - ''
               master_item:
@@ -1810,7 +1935,7 @@ zabbix_export:
                 - uuid: ff83e8f239e246b0a1c385029fe3941d
                   expression: |
                     min(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
-                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and min(/Template Proxmox VE REST API/lxc.status[{#VMID}],24h)=1
+                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and max(/Template Proxmox VE REST API/lxc.status[{#VMID}],24h)=1
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1'
                   name: 'LXC {#VMID} status is stopped'
@@ -1821,7 +1946,7 @@ zabbix_export:
                     {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=0 will disable the alert for that item.
                   manual_close: 'YES'
             - uuid: 761b499cf31f463e86c66bf0e8d38e1e
-              name: 'Swap utilization of  {#VMID}'
+              name: 'Swap usage of {#VMID}'
               type: DEPENDENT
               key: 'lxc.swap[{#VMID}]'
               delay: '0'
@@ -1938,7 +2063,7 @@ zabbix_export:
                   calc_fnc: ALL
                   item:
                     host: 'Template Proxmox VE REST API'
-                    key: 'lxc.netin.current[{#VMID}]'
+                    key: 'lxc.netin[{#VMID}]'
                 - sortorder: '1'
                   color: '274482'
                   calc_fnc: ALL
@@ -2025,13 +2150,13 @@ zabbix_export:
                   calc_fnc: ALL
                   item:
                     host: 'Template Proxmox VE REST API'
-                    key: 'lxc.memusage[{#VMID}]'
+                    key: 'lxc.swap[{#VMID}]'
                 - sortorder: '1'
                   color: 2E7D32
                   calc_fnc: ALL
                   item:
                     host: 'Template Proxmox VE REST API'
-                    key: 'lxc.maxmem[{#VMID}]'
+                    key: 'lxc.maxswap[{#VMID}]'
           master_item:
             key: pve.cluster.resources.raw
           lld_macro_paths:
@@ -2215,13 +2340,13 @@ zabbix_export:
                   value: '{#NODE_NAME}'
               trigger_prototypes:
                 - uuid: e85b8277a1824f2daf365df1a8ce8de2
-                  expression: 'min(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=0 and {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1'
+                  expression: 'min(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=0 and {$ENABLE_NODE_STATUS_ALERT:"{#NODE_NAME}"}=1'
                   name: 'Node status {#NODE_NAME} offline'
                   priority: HIGH
                   description: |
                     Use the following host macros to control the "Node status" trigger for each Proxmox node:
-                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=1 activates the "Node status" trigger
-                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_ID}"}=0 deactivates (suppresses) the "Node status" trigger
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_NAME}"}=1 activates the "Node status" trigger
+                    {$ENABLE_NODE_STATUS_ALERT:"{#NODE_NAME}"}=0 deactivates (suppresses) the "Node status" trigger
             - uuid: 635870600dec41d382d8aab1217591e2
               name: 'Node uptime {#NODE_NAME}'
               type: DEPENDENT
@@ -2230,8 +2355,6 @@ zabbix_export:
               trends: '0'
               units: s
               description: 'Uptime of cluster node {#NODE_NAME} in seconds. Source: /nodes → data[node].uptime.'
-              valuemap:
-                name: 'Node status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2283,29 +2406,6 @@ zabbix_export:
           enabled_lifetime_type: DISABLE_AFTER
           enabled_lifetime: 2d
           item_prototypes:
-            - uuid: bc762ee4ac6741bba3d7ecf96ef740c3
-              name: 'Balloon minimum memory {#VMID}'
-              type: DEPENDENT
-              key: 'vm.balloonmin[{#VMID}]'
-              delay: '0'
-              units: Bytes
-              description: |
-                Minimum balloon size on Proxmox host for VM {#VMID}
-                Note: The balloon size can only be determined when the VM is running.
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.vmid=={#VMID})].balloon_min.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.nodes.qemu.raw
-              tags:
-                - tag: QEMU/KVM-VMs
-                  value: Memory
-                - tag: QEMU/KVM-VMs
-                  value: '{#VMID}'
-                - tag: vmid
-                  value: '{#VMID}'
             - uuid: d828297876d94d078596f76f0da43c38
               name: 'Balloon memory {#VMID}'
               type: DEPENDENT
@@ -2432,8 +2532,6 @@ zabbix_export:
               value_type: CHAR
               trends: '0'
               description: 'The running-machine field reports the QEMU machine type and version that the VM is currently using (for example, pc-i440fx-9.2+pve1), indicating the emulated hardware platform and Proxmox-specific patch level.'
-              valuemap:
-                name: 'VM  and LXC status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -2470,7 +2568,7 @@ zabbix_export:
                 - tag: vmid
                   value: '{#VMID}'
             - uuid: 714ffb3297174a01bc6484daf01e63dc
-              name: 'Memory utilization of  {#VMID}'
+              name: 'Memory usage of {#VMID}'
               type: DEPENDENT
               key: 'vm.memusage[{#VMID}]'
               delay: '0'
@@ -2534,14 +2632,15 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netin.current[{#VMID}]'
               delay: '0'
-              units: Bytes
-              description: 'Current network receive rate of VM {#VMID} in bytes/s (delta of cumulative counter).'
+              value_type: FLOAT
+              units: Bps
+              description: 'Current network receive rate of VM {#VMID} in bytes/s (derived from the cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].netin.first()'
                   error_handler: DISCARD_VALUE
-                - type: SIMPLE_CHANGE
+                - type: CHANGE_PER_SECOND
                   parameters:
                     - ''
               master_item:
@@ -2579,14 +2678,15 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netout.current[{#VMID}]'
               delay: '0'
-              units: Bytes
-              description: 'Current network transmit rate of VM {#VMID} in bytes/s (delta of cumulative counter).'
+              value_type: FLOAT
+              units: Bps
+              description: 'Current network transmit rate of VM {#VMID} in bytes/s (derived from the cumulative counter).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].netout.first()'
                   error_handler: DISCARD_VALUE
-                - type: SIMPLE_CHANGE
+                - type: CHANGE_PER_SECOND
                   parameters:
                     - ''
               master_item:
@@ -2677,7 +2777,7 @@ zabbix_export:
                   value: '{#VMID}'
               trigger_prototypes:
                 - uuid: ac085aa97edb40dcb08272e859a39e36
-                  expression: 'max(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and min(/Template Proxmox VE REST API/vm.status[{#VMID}],24h)=1'
+                  expression: 'max(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and max(/Template Proxmox VE REST API/vm.status[{#VMID}],24h)=1'
                   name: 'VM {#VMID} status is stopped'
                   priority: HIGH
                   description: |
@@ -2902,7 +3002,7 @@ zabbix_export:
                     {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=1 enables the "Storage not available" trigger
                     {$ENABLE_STORAGE_INACTIVE_ALERT:"{#STORAGE_NAME}"}=0 disables (suppresses) the "Storage not available" trigger
             - uuid: 8e1de775d9524b27b37ad414ce961d9b
-              name: 'Storage availble {#STORAGE_NAME}'
+              name: 'Storage available {#STORAGE_NAME}'
               type: DEPENDENT
               key: 'storage.avail[{#STORAGE_NAME}]'
               delay: '0'
@@ -3031,7 +3131,7 @@ zabbix_export:
                 - uuid: 2b032af2b5d54593a4f5910d6ae3f912
                   expression: 'last(/Template Proxmox VE REST API/storage.util[{#STORAGE_NAME}]) > {$STORAGE.UTIL.CRIT:"{#STORAGE_NAME}"} and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
                   name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} >{$STORAGE.UTIL.CRIT}%)'
-                  opdata: 'Used: {ITEM.LASTVALUE1}%'
+                  opdata: 'Used: {ITEM.LASTVALUE1}'
                   priority: HIGH
                   description: |
                     Storage utilization exceeded the critical threshold {$STORAGE.UTIL.CRIT}%.
@@ -3039,7 +3139,7 @@ zabbix_export:
                 - uuid: 3827182fb0fe498d8e4c09401168d998
                   expression: 'last(/Template Proxmox VE REST API/storage.util[{#STORAGE_NAME}]) > {$STORAGE.UTIL.WARN:"{#STORAGE_NAME}"} and {$ENABLE_STORAGE_AVAILABLE_ALERT:"{#STORAGE_NAME}"}=1'
                   name: 'High storage usage on {HOST.NAME} ({#STORAGE_NAME} >{$STORAGE.UTIL.WARN}%)'
-                  opdata: 'Used: {ITEM.LASTVALUE1}%'
+                  opdata: 'Used: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
                   description: |
                     Storage utilization exceeded the warning threshold {$STORAGE.UTIL.WARN}%.
@@ -3112,12 +3212,30 @@ zabbix_export:
               trends: '0'
               units: unixtime
               description: 'Unix timestamp of the last end time for task type {#TYPE} on VM/CT {#GRPID}. Source: pve.tasks.raw.'
-              valuemap:
-                name: 'Tasks status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].endtime.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.tasks.raw
+              tags:
+                - tag: PVE
+                  value: Tasks
+                - tag: vmid
+                  value: '{#GRPID}'
+            - uuid: 5dda8b03514e474cbe5879096a17c133
+              name: 'Task message {#TYPE} {#ID}'
+              type: DEPENDENT
+              key: 'task.message[{#GRPID},{#TYPE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Status text of the last task of type {#TYPE} for VM/CT {#GRPID}, exactly as Proxmox VE reports it. A successful task reports OK, a failed one reports the error message itself. The numeric item Task Status maps only a fixed set of known texts, so this item carries the real cause of a failure.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].status.first()'
                   error_handler: DISCARD_VALUE
               master_item:
                 key: pve.tasks.raw
@@ -3134,8 +3252,6 @@ zabbix_export:
               trends: '0'
               units: unixtime
               description: 'Unix timestamp of the last start time for task type {#TYPE} on VM/CT {#GRPID}. Source: pve.tasks.raw.'
-              valuemap:
-                name: 'Tasks status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -3181,7 +3297,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: REGEX
                   parameters:
-                    - '^(OK|running|stopped|error|unexpected status|CT is locked \(disk\)|timeout waiting on systemd|Failed to run vncproxy\.|unable to read tail \(got 0 byte\)|interrupted by signal)$'
+                    - '^(OK|running|stopped|error|unexpected status|CT is locked \(disk\)|timeout waiting on systemd|Failed to run vncproxy\.|unable to read tail \(got 0 bytes\)|interrupted by signal)$'
                     - \0
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '10'
@@ -3234,11 +3350,14 @@ zabbix_export:
                   value: '{#GRPID}'
               trigger_prototypes:
                 - uuid: 19e5d067d25941169192a9ff6461b787
-                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALERT:"{#GRPID}"}=1'
+                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALERT:"{#GRPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/task.endtime[{#GRPID},{#TYPE}],{$TASK.ALERT.WINDOW})=1'
                   name: 'Proxmox task {#TYPE} {#ID} failed'
+                  event_name: 'Proxmox task {#TYPE} {#ID} failed: {?last(//task.message[{#GRPID},{#TYPE}])}'
                   opdata: 'Current task status: {ITEM.LASTVALUE}'
                   priority: WARNING
                   description: |
+                    A task of type {#TYPE} for VM/CT {#ID} finished with a status other than OK.
+                    The problem clears as soon as a later task of the same id and type succeeds, and it expires on its own once the failure is older than {$TASK.ALERT.WINDOW}, because Proxmox VE only keeps the most recent tasks in its task list.
                     Use context macro to suppress per-task:
                     {$ENABLE_TASK_ALERT:"{#GRPID}"}=0 suppresses this trigger for a specific task.
                     {$ENABLE_TASK_ALERT}=0 disables all task failure alerts globally.
@@ -3413,6 +3532,9 @@ zabbix_export:
               parameters:
                 - '$.body.data[*]'
       macros:
+        - macro: '{$BACKUP.ALERT.WINDOW}'
+          value: 24h
+          description: 'How long a failed backup keeps alerting. The problem clears earlier if a later backup of the same guest succeeds. The value must include a time unit, for example 24h or 2d.'
         - macro: '{$CLUSTER.NODES.OFFLINE.MAX}'
           value: '0'
           description: 'Maximum tolerated offline cluster nodes before triggering an alert. Set to 1+ during planned maintenance.'
@@ -3422,6 +3544,12 @@ zabbix_export:
         - macro: '{$CPU_USAGE_HIGH}'
           value: '99'
           description: 'High CPU usage threshold (%) for warning level trigger'
+        - macro: '{$DISK.MISSING.TIME}'
+          value: 3h
+          description: 'How long a disk may be absent from the Proxmox disk list before the missing disk trigger fires. The list is refreshed once per hour, so keep this well above 1h. The value must include a time unit.'
+        - macro: '{$DISK.TEMP.MAX}'
+          value: '60'
+          description: 'Temperature threshold for physical disks in degrees Celsius. Use the context form {$DISK.TEMP.MAX:"/dev/sda"} to raise it for a single disk.'
         - macro: '{$DISK.WEAROUT.MIN}'
           value: '20'
           description: 'Minimum SSD wearout remaining (%) before triggering a warning. Default: 20%.'
@@ -3491,6 +3619,9 @@ zabbix_export:
         - macro: '{$STORAGE.UTIL.WARN}'
           value: '80'
           description: 'Warning threshold for storage utilization (%). Triggers when storage used exceeds this value.'
+        - macro: '{$TASK.ALERT.WINDOW}'
+          value: 1h
+          description: 'How long a failed task keeps alerting. The problem clears earlier if a later task of the same id and type succeeds. Proxmox VE only keeps the most recent tasks in its task list, so without this window a one-off failure would alert forever. The value must include a time unit, for example 1h or 30m.'
       dashboards:
       - uuid: a6999e1b8414408ab403f86cba2b272b
         name: Proxmox VE - Monitoring Dashboard
@@ -3955,7 +4086,7 @@ zabbix_export:
             name: Storage utilization
             x: '0'
             y: '0'
-            width: '36'
+            width: '24'
             height: '7'
             fields:
             - type: STRING
@@ -3978,9 +4109,9 @@ zabbix_export:
               value: PVST1
           - type: honeycomb
             name: Disk health
-            x: '36'
+            x: '24'
             y: '0'
-            width: '36'
+            width: '24'
             height: '7'
             fields:
             - type: STRING
@@ -4001,6 +4132,43 @@ zabbix_export:
             - type: STRING
               name: reference
               value: PVST2
+          - type: honeycomb
+            name: Disk temperature
+            x: '48'
+            y: '0'
+            width: '24'
+            height: '7'
+            fields:
+            - type: STRING
+              name: items.0
+              value: Disk * temperature
+            - type: INTEGER
+              name: item_tags.0.operator
+              value: '1'
+            - type: STRING
+              name: item_tags.0.tag
+              value: PVE
+            - type: STRING
+              name: item_tags.0.value
+              value: Disk
+            - type: STRING
+              name: primary_label
+              value: '{ITEM.NAME}'
+            - type: STRING
+              name: reference
+              value: PVST4
+            - type: STRING
+              name: thresholds.0.color
+              value: FFBF59
+            - type: STRING
+              name: thresholds.0.threshold
+              value: '50'
+            - type: STRING
+              name: thresholds.1.color
+              value: E45959
+            - type: STRING
+              name: thresholds.1.threshold
+              value: '60'
           - type: itemnavigator
             name: Browse all host items
             x: '0'
@@ -4292,7 +4460,7 @@ zabbix_export:
           expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > {$ROOTFS.UTIL.CRIT}'
     - uuid: 429391e580264ef398145055ff85100a
       expression: 'last(/Template Proxmox VE REST API/pve.cluster.vms.running)<last(/Template Proxmox VE REST API/pve.cluster.vms.total)'
-      name: '{ITEM.LASTVALUE} of {last(/Template Proxmox VE REST API/pve.cluster.vms.total)} VMs/LXC running'
+      name: '{ITEM.LASTVALUE} of {?last(//pve.cluster.vms.total)} VMs/LXC running'
       priority: INFO
       description: 'One or more VMs or LXC containers are not in running state.'
       manual_close: 'YES'

@@ -97,8 +97,24 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 | `{$CLUSTER.NODES.OFFLINE.MAX}` | `0` | Max. tolerated offline nodes (raise during maintenance) |
 | `{$DISK.WEAROUT.MIN}` | `20` | Min. SSD wearout remaining before warning (%) |
 | `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days) |
-| `{$VM.CPU.UTIL.LOW}` | `5` | CPU over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
-| `{$VM.MEM.UTIL.LOW}` | `20` | RAM over-provisioning threshold (%). INFO trigger fires when 24h avg stays below this value. |
+| `{$DISK.TEMP.MAX}` | `60` | Disk temperature threshold (degrees Celsius). Context form `{$DISK.TEMP.MAX:"/dev/sda"}` raises it for one disk. |
+
+### Timing Macros
+
+Values must carry a time unit.
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$TASK.ALERT.WINDOW}` | `1h` | How long a failed task keeps alerting. Proxmox VE only keeps the most recent tasks, so without this window a one-off failure would alert forever. |
+| `{$BACKUP.ALERT.WINDOW}` | `24h` | How long a failed backup keeps alerting. |
+| `{$DISK.MISSING.TIME}` | `3h` | How long a disk may be absent from the disk list before the missing disk trigger fires. The list refreshes hourly. |
+| `{$IFACE.ACTIVE.WINDOW}` | `7d` | An interface must have been up once within this window before the interface down trigger fires. |
+
+### Discovery Filter Macros
+
+| Macro | Default | Description |
+|-------|---------|-------------|
+| `{$IFACE.NOT_MATCHES}` | `^(tap\|veth\|fwbr\|fwpr\|fwln)` | Host interface names excluded from discovery. The default drops the per-guest interfaces Proxmox creates. |
 
 ### Alert Enable/Disable Macros
 
@@ -128,7 +144,7 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | `discover.users` | `/access/users` | PVE user accounts with expiration monitoring |
 | `discover.network` | `/nodes/{node}/network` | Host network interfaces (bridge, bond, eth, vlan) |
 | `discover.ha.resources` | `/cluster/ha/status/current` | HA-protected VMs and containers |
-| `discover.disks` | `/nodes/{node}/disks/list` | Physical disks with SMART health and wearout |
+| `discover.disks` | `/nodes/{node}/disks/list` | Physical disks of any type with SMART health, temperature, size and wearout |
 
 ---
 
@@ -178,6 +194,8 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | Network interface down | Warning |
 | HA resource in error state | High |
 | Disk SMART health not PASSED | High |
+| Disk temperature above `{$DISK.TEMP.MAX}` | Warning |
+| Disk no longer reported by the node | Average |
 | SSD wearout below threshold | Warning |
 
 ---
