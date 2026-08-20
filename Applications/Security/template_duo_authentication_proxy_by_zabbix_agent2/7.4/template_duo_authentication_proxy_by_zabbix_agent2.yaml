@@ -1,0 +1,559 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 26976b67a34b4b62bcac9cc4991052bd
+      template: 'Duo Authentication Proxy by Zabbix agent 2'
+      name: 'Duo Authentication Proxy by Zabbix agent 2'
+      description: |
+        Monitors Cisco Duo Authentication Proxy on Linux using native Zabbix agent 2 keys.
+        
+        The template monitors systemd state, service resources, the Duo process, configuration-file integrity metadata, and locally listening RADIUS ports. It does not read Duo configuration or authentication logs and requires no credentials or custom UserParameters.
+        
+        Set {$DUO.RADIUS.PORTS} to a comma-separated list of UDP listener ports. The default is 18121. Override other macros only when the installation paths, service name, service account, or process command line differ.
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 35c0290434ae40288c37680f943d1b14
+          name: 'Duo: Service active state'
+          type: DEPENDENT
+          key: duo.service.active
+          history: 7d
+          description: 'Whether the Duo Authentication Proxy systemd unit is active. Reported as the numeric systemd state code and displayed through the "Unit Active State" value map.'
+          valuemap:
+            name: 'Unit Active State'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ActiveState.state
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Unit]'
+          tags:
+            - tag: component
+              value: service
+          triggers:
+            - uuid: 37f8b21a820d4fd98e2357b85d9a7c28
+              expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              name: 'Duo: Authentication Proxy service is not active'
+              event_name: 'Duo: Authentication Proxy service is not active on {HOST.NAME}'
+              opdata: 'Systemd active state: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: |
+                The systemd unit has not reported the active state for three consecutive checks.
+                
+                Confirm the unit state with systemctl status, then review the Duo startup diagnostics and configuration validation. This is the parent availability problem; process and listener problems depend on it to prevent duplicate alerts.
+              tags:
+                - tag: component
+                  value: service
+                - tag: scope
+                  value: availability
+        - uuid: 1e61e5fc82334034bef52cda8aa0a5e7
+          name: 'Duo: Service CPU utilization'
+          type: DEPENDENT
+          key: duo.service.cpu.util
+          history: 30d
+          value_type: FLOAT
+          units: '%'
+          description: 'CPU utilization calculated from the change in systemd service CPU time.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.CPUUsageNSec
+            - type: CHANGE_PER_SECOND
+            - type: MULTIPLIER
+              parameters:
+                - '1.0E-7'
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: a25c14793592493280d5a8fddfdd1686
+              expression: 'min(/Duo Authentication Proxy by Zabbix agent 2/duo.service.cpu.util,10m)>{$DUO.CPU.UTIL.MAX.WARN}'
+              name: 'Duo: Authentication Proxy CPU utilization is high'
+              event_name: 'Duo: Authentication Proxy CPU utilization exceeds {$DUO.CPU.UTIL.MAX.WARN}% for 10m'
+              opdata: 'Current CPU utilization: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Sustained CPU utilization exceeds the configurable threshold. Review authentication volume and service health before taking corrective action.'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: cpu
+                - tag: scope
+                  value: performance
+        - uuid: 052d75bb732e4bf797126607f10b77fa
+          name: 'Duo: Service enabled state'
+          type: DEPENDENT
+          key: duo.service.enabled
+          history: 7d
+          description: 'Whether the Duo Authentication Proxy systemd unit is enabled to start automatically. Reported as the numeric systemd unit-file state code and displayed through the "Unit File State" value map.'
+          valuemap:
+            name: 'Unit File State'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.UnitFileState.state
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Unit]'
+          tags:
+            - tag: component
+              value: service
+          triggers:
+            - uuid: 62652ddc8ac54244a813c751b1c16240
+              expression: 'last(/Duo Authentication Proxy by Zabbix agent 2/duo.service.enabled)<>1'
+              name: 'Duo: Authentication Proxy service is not enabled at boot'
+              opdata: 'Systemd enabled state: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The service is not enabled for automatic startup. Authentication may remain unavailable after a server reboot even if the service is currently running.'
+              tags:
+                - tag: component
+                  value: service
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: configuration
+        - uuid: d4bb85db0fd54cc781b9d10611bf6258
+          name: 'Duo: Service main PID'
+          type: DEPENDENT
+          key: duo.service.main_pid
+          history: 7d
+          description: 'Main process identifier reported by systemd.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.MainPID
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          tags:
+            - tag: component
+              value: process
+          triggers:
+            - uuid: ede46c3b03784326a7db0ffd053f747b
+              expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.main_pid,#3)=0'
+              name: 'Duo: Authentication Proxy has no main process'
+              opdata: 'Main PID: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Systemd reports no main PID for three consecutive checks even though the parent service-state problem is not active.'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: process
+                - tag: scope
+                  value: availability
+        - uuid: 3e91da01169d4929bbebdac4761189d8
+          name: 'Duo: Service memory usage'
+          type: DEPENDENT
+          key: duo.service.memory
+          history: 30d
+          units: B
+          description: 'Current memory attributed to the Duo systemd service cgroup.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.MemoryCurrent
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: 30271ffdab8c48ee84af075d262d87db
+              expression: 'min(/Duo Authentication Proxy by Zabbix agent 2/duo.service.memory,10m)>{$DUO.MEMORY.MAX.WARN}'
+              name: 'Duo: Authentication Proxy memory usage is high'
+              event_name: 'Duo: Authentication Proxy memory usage exceeds {$DUO.MEMORY.MAX.WARN} for 10m'
+              opdata: 'Current memory: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Sustained service-cgroup memory usage exceeds the configurable warning threshold. Confirm whether traffic or worker counts changed before restarting the service.'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: memory
+                - tag: scope
+                  value: performance
+        - uuid: feecf696b3c2406f95a91c66fe34db0f
+          name: 'Duo: Service restart count'
+          type: DEPENDENT
+          key: duo.service.restarts
+          history: 30d
+          description: 'Number of automatic service restarts reported by systemd.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.NRestarts
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          tags:
+            - tag: component
+              value: service
+          triggers:
+            - uuid: 5a1fba9c029a4694b2f2e79abcaad4e2
+              expression: 'change(/Duo Authentication Proxy by Zabbix agent 2/duo.service.restarts)>0'
+              name: 'Duo: Authentication Proxy was automatically restarted'
+              opdata: 'Restart counter: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The systemd automatic-restart counter increased. Investigate the service journal and Duo startup diagnostics for a crash or failed health condition.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: service
+                - tag: scope
+                  value: notice
+        - uuid: e97562aeb2e448968dfe18cad7e12e27
+          name: 'Duo: Service substate'
+          type: DEPENDENT
+          key: duo.service.substate
+          history: 7d
+          value_type: CHAR
+          description: 'Detailed systemd unit substate, normally running.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.SubState
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Unit]'
+          tags:
+            - tag: component
+              value: service
+        - uuid: 9b672c417b5a4f0b8c4ec4ce7ee9dbce
+          name: 'Duo: Service tasks'
+          type: DEPENDENT
+          key: duo.service.tasks
+          history: 30d
+          description: 'Current number of tasks in the Duo systemd service cgroup.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.TasksCurrent
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          tags:
+            - tag: component
+              value: process
+          triggers:
+            - uuid: 576b5e9958c248bdb4db3813950c1415
+              expression: 'min(/Duo Authentication Proxy by Zabbix agent 2/duo.service.tasks,10m)>{$DUO.TASKS.MAX.WARN}'
+              name: 'Duo: Authentication Proxy task count is high'
+              event_name: 'Duo: Authentication Proxy task count exceeds {$DUO.TASKS.MAX.WARN} for 10m'
+              opdata: 'Current tasks: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The number of service-cgroup tasks has remained above the configured threshold. Review authentication demand and look for stuck or accumulating workers.'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: process
+                - tag: scope
+                  value: performance
+        - uuid: 9a75d237c64c4e64ad8388d558d35bce
+          name: 'Duo: Service uptime'
+          type: DEPENDENT
+          key: duo.service.uptime
+          history: 7d
+          trends: '0'
+          value_type: FLOAT
+          units: uptime
+          description: 'Number of seconds since systemd most recently placed the Duo service in the active state. No value is produced while the unit is inactive.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+                  if (data.ActiveEnterTimestamp > data.ActiveExitTimestamp) {
+                    return Math.floor(Date.now() / 1000) - Number(data.ActiveEnterTimestamp) / 1000000;
+                  }
+                  return null;
+          master_item:
+            key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Unit]'
+          tags:
+            - tag: component
+              value: service
+          triggers:
+            - uuid: c632483035f3475ba7f87d53c19f4fd3
+              expression: 'last(/Duo Authentication Proxy by Zabbix agent 2/duo.service.uptime)<10m'
+              name: 'Duo: Authentication Proxy has been restarted'
+              event_name: 'Duo: Authentication Proxy has been restarted on {HOST.NAME}'
+              opdata: 'Service uptime: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'The service uptime is below ten minutes, indicating a recent manual or automatic restart. Confirm that the restart was expected and that the service and listener recovered normally.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: service
+                - tag: scope
+                  value: notice
+        - uuid: fcce6e8f9d2f4566a55b0a779b1c6c89
+          name: 'Duo: Process RSS memory'
+          key: 'proc.mem[{$DUO.PROCESS.NAME},{$DUO.PROCESS.USER},,{$DUO.PROCESS.CMDLINE},rss]'
+          history: 30d
+          units: B
+          description: 'Resident memory used by Duo Authentication Proxy processes matching the configured filters.'
+          tags:
+            - tag: component
+              value: memory
+        - uuid: 24ca3ff9193943c38a51e60793b7d765
+          name: 'Duo: Process count'
+          key: 'proc.num[{$DUO.PROCESS.NAME},{$DUO.PROCESS.USER},,{$DUO.PROCESS.CMDLINE}]'
+          history: 7d
+          description: 'Number of Duo Authentication Proxy processes matching the configured executable name, service account, and command-line pattern.'
+          tags:
+            - tag: component
+              value: process
+          triggers:
+            - uuid: 0c2d9f924c81494eab30624df20ca25b
+              expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/proc.num[{$DUO.PROCESS.NAME},{$DUO.PROCESS.USER},,{$DUO.PROCESS.CMDLINE}],#3)=0'
+              name: 'Duo: Authentication Proxy process is not running'
+              opdata: 'Matching processes: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'No process matching the configured Duo executable, service account, and command line was found for three consecutive checks.'
+              dependencies:
+                - name: 'Duo: Authentication Proxy service is not active'
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+              tags:
+                - tag: component
+                  value: process
+                - tag: scope
+                  value: availability
+        - uuid: 9c874216129446ec93ab78794a722040
+          name: 'Duo: Get systemd service metrics'
+          key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Service]'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw systemd Service-interface properties used by dependent resource and restart items.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 79f1d77bf8ff419e82db12d349cda213
+          name: 'Duo: Get systemd unit state'
+          key: 'systemd.unit.get[{$DUO.SERVICE.NAME},Unit]'
+          history: '0'
+          value_type: TEXT
+          description: 'Raw systemd Unit-interface properties. Dependent items extract service availability and configuration state.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 3a754676aa4345a5b6a4948a3ca3ca48
+          name: 'Duo: Executable exists'
+          key: 'vfs.file.exists[{$DUO.BINARY.PATH}]'
+          delay: 15m
+          history: 7d
+          description: 'Whether the Duo Authentication Proxy control executable exists.'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 671d8ce992c34c3688d4c602e762814d
+              expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/vfs.file.exists[{$DUO.BINARY.PATH}],#3)=0'
+              name: 'Duo: Authentication Proxy executable is missing'
+              priority: HIGH
+              description: 'The configured Duo Authentication Proxy executable path did not exist for three consecutive checks. Verify installation integrity and the {$DUO.BINARY.PATH} macro.'
+              tags:
+                - tag: component
+                  value: application
+                - tag: scope
+                  value: availability
+        - uuid: d446460ccd4e46dc8cb45089cb27ed4d
+          name: 'Duo: Configuration file exists'
+          key: 'vfs.file.exists[{$DUO.CONFIG.PATH}]'
+          delay: 5m
+          history: 7d
+          description: 'Whether the Duo Authentication Proxy configuration file exists. The file contents are never collected.'
+          tags:
+            - tag: component
+              value: configuration
+          triggers:
+            - uuid: 6dd8ea3d601b4058acdaa17b7eca4993
+              expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/vfs.file.exists[{$DUO.CONFIG.PATH}],#3)=0'
+              name: 'Duo: Authentication Proxy configuration file is missing'
+              priority: HIGH
+              description: 'The configured Duo Authentication Proxy configuration path did not exist for three consecutive checks. The item collects existence metadata only and never reads configuration contents.'
+              tags:
+                - tag: component
+                  value: configuration
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: configuration
+        - uuid: b313fd4a863a424c84aab679d47b2ed9
+          name: 'Duo: Configuration modification time'
+          key: 'vfs.file.time[{$DUO.CONFIG.PATH},modify]'
+          delay: 5m
+          history: 30d
+          units: unixtime
+          description: 'Last modification time of the Duo configuration file. Configuration contents are not collected.'
+          tags:
+            - tag: component
+              value: configuration
+          triggers:
+            - uuid: a9b0c592741a4f1ead42239511b1e8d5
+              expression: 'change(/Duo Authentication Proxy by Zabbix agent 2/vfs.file.time[{$DUO.CONFIG.PATH},modify])<>0'
+              name: 'Duo: Authentication Proxy configuration was modified'
+              opdata: 'Modification time: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'The configuration-file modification timestamp changed. Confirm that the change was authorized and that the service remains healthy. This trigger does not expose configuration contents.'
+              manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: configuration
+                - tag: scope
+                  value: configuration
+                - tag: scope
+                  value: notice
+      discovery_rules:
+        - uuid: 65b58ee20156461dac53dc44248b80bf
+          name: 'Duo: RADIUS listener discovery'
+          type: SCRIPT
+          key: duo.radius.listener.discovery
+          delay: 1h
+          params: |
+            var input = JSON.parse(value),
+                ports = String(input.ports || '').split(','),
+                seen = {},
+                result = [];
+            
+            ports.forEach(function (entry) {
+                var port = entry.trim();
+                if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+                    throw 'Invalid UDP port in {$DUO.RADIUS.PORTS}: ' + port;
+                }
+                if (!seen[port]) {
+                    result.push({'{#DUO.PORT}': port});
+                    seen[port] = true;
+                }
+            });
+            
+            if (result.length === 0) {
+                throw '{$DUO.RADIUS.PORTS} must contain at least one UDP port.';
+            }
+            return JSON.stringify(result);
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Discovers one or more locally monitored UDP RADIUS listeners from the comma-separated {$DUO.RADIUS.PORTS} macro.'
+          item_prototypes:
+            - uuid: 59ff86e99b28433aa0ff33fc6610eefb
+              name: 'Duo: UDP {#DUO.PORT} listener status'
+              key: 'net.udp.listen[{#DUO.PORT}]'
+              history: 7d
+              description: 'Whether a process is listening locally on discovered UDP port {#DUO.PORT}. Combined with the systemd and process checks, this verifies that the Duo service and its expected listener are present.'
+              tags:
+                - tag: component
+                  value: network
+                - tag: port
+                  value: '{#DUO.PORT}'
+              trigger_prototypes:
+                - uuid: 4689cb075bd84ba494c674c8ae59faae
+                  expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/net.udp.listen[{#DUO.PORT}],#3)=0'
+                  name: 'Duo: UDP {#DUO.PORT} listener is not available'
+                  event_name: 'Duo: Expected UDP listener {#DUO.PORT} is not available on {HOST.NAME}'
+                  opdata: 'Listener state: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'No local UDP listener was detected on the discovered Duo RADIUS port for three consecutive checks. Verify the configured Duo server section and listening port. This problem depends on the parent service-down trigger to prevent duplicate outage alerts.'
+                  dependencies:
+                    - name: 'Duo: Authentication Proxy service is not active'
+                      expression: 'max(/Duo Authentication Proxy by Zabbix agent 2/duo.service.active,#3)<>1'
+                  tags:
+                    - tag: component
+                      value: network
+                    - tag: port
+                      value: '{#DUO.PORT}'
+                    - tag: scope
+                      value: availability
+          parameters:
+            - name: ports
+              value: '{$DUO.RADIUS.PORTS}'
+      tags:
+        - tag: class
+          value: application
+        - tag: target
+          value: authentication-proxy
+        - tag: target
+          value: duo
+      macros:
+        - macro: '{$DUO.BINARY.PATH}'
+          value: /opt/duoauthproxy/bin/authproxyctl
+          description: 'Path to the Duo Authentication Proxy control executable.'
+        - macro: '{$DUO.CONFIG.PATH}'
+          value: /opt/duoauthproxy/conf/authproxy.cfg
+          description: 'Path to the Duo Authentication Proxy configuration file. Only file metadata is monitored.'
+        - macro: '{$DUO.CPU.UTIL.MAX.WARN}'
+          value: '80'
+          description: 'Maximum sustained Duo service CPU utilization percentage before a warning.'
+        - macro: '{$DUO.MEMORY.MAX.WARN}'
+          value: 512M
+          description: 'Maximum sustained Duo service-cgroup memory usage before a warning.'
+        - macro: '{$DUO.PROCESS.CMDLINE}'
+          value: duoauthproxy
+          description: 'Regular expression used to identify the Duo process command line.'
+        - macro: '{$DUO.PROCESS.NAME}'
+          value: python3
+          description: 'Process executable name used by proc.num and proc.mem.'
+        - macro: '{$DUO.PROCESS.USER}'
+          value: duo_authproxy_svc
+          description: 'Operating-system account that runs Duo Authentication Proxy.'
+        - macro: '{$DUO.RADIUS.PORTS}'
+          value: '18121'
+          description: 'Comma-separated UDP listener ports discovered and monitored as Duo RADIUS listeners.'
+        - macro: '{$DUO.SERVICE.NAME}'
+          value: duoauthproxy.service
+          description: 'Duo Authentication Proxy systemd unit name.'
+        - macro: '{$DUO.TASKS.MAX.WARN}'
+          value: '50'
+          description: 'Maximum sustained number of tasks in the Duo service cgroup before a warning.'
+      valuemaps:
+        - uuid: 8f2b1d6c4a7e4c92b0d31e5a7c9f4b28
+          name: 'Unit Active State'
+          mappings:
+            - value: '0'
+              newvalue: unknown
+            - value: '1'
+              newvalue: active
+            - value: '2'
+              newvalue: reloading
+            - value: '3'
+              newvalue: inactive
+            - value: '4'
+              newvalue: failed
+            - value: '5'
+              newvalue: activating
+            - value: '6'
+              newvalue: deactivating
+        - uuid: 3c7a95e21b8d4f60ae42c8d1f36b7e04
+          name: 'Unit File State'
+          mappings:
+            - value: '0'
+              newvalue: unknown
+            - value: '1'
+              newvalue: enabled
+            - value: '2'
+              newvalue: enabled-runtime
+            - value: '3'
+              newvalue: linked
+            - value: '4'
+              newvalue: linked-runtime
+            - value: '5'
+              newvalue: masked
+            - value: '6'
+              newvalue: masked-runtime
+            - value: '7'
+              newvalue: static
+            - value: '8'
+              newvalue: disabled
+            - value: '9'
+              newvalue: invalid
