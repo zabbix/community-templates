@@ -193,7 +193,7 @@ ha.raw  (HTTP_AGENT → /api/states, Bearer {$API.TOKEN})
 | Macro | Example | Description |
 |---|---:|---|
 | `{$BATTERY.MINIMUM}` | `30` | Low battery threshold (%) |
-| `{$BATTERY_TRIGGER_TIMEOUT}` | `900` | Seconds before "battery unavailable" trigger fires |
+| `{$TRIGGER.TEMPERATURE}` | `44` | Device temperature threshold (°C). The trigger fires above this value. |
 | `{$ZIGBEE.SIGNAL.MINIMUM}` | `20` | Minimum ZigBee LQI before trigger |
 | `{$DBM.SIGNAL.MINIMUM}` | `-80` | Minimum dBm signal quality before trigger |
 | `{$CPU.UTIL.MAX.PERCENT}` | `90` | Maximum CPU utilization (%) |
