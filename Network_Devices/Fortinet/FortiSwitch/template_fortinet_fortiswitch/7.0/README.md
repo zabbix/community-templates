@@ -1,111 +1,205 @@
-Fortinet FortiSwitch by SNMP
-## Overview
+# Community template with the additions from this repository
 
-Fortinet FortiSwitch integration for Zabbix 7.0.
+`template_opnsense_by_http_json-7.4-extended.yaml` is the Zabbix community template
+`Network_Devices/OPNsense/template_opnsense_by_http_json/7.4` with the parts of
+`../opnsense-by-http-api.yaml` added that it does not already cover.
 
-May also work with Zabbix 6.4 because it is using the new walk[] master and dependent items logic, but have not tested yet.
+Template name, template UUID and the vendor block are unchanged, so importing this file
+updates an existing `OPNsense by HTTP-JSON` instead of creating a second template. Everything
+added carries fresh UUIDs, so the original `OPNsense by HTTP API` template can stay imported
+next to it.
 
-Monitors:
-- OS version
-- Serial number
-- ICMP checks
-- System name, location, object ID etc
-- Network interfaces
-- CPU & Memory
+Of the community part, every item, discovery rule, trigger and macro is untouched byte for
+byte. Two things are deliberately not: four URLs are corrected and the dashboard is rebuilt,
+both documented below and both enforced by `check.py`, which fails if anything else changes.
 
-## Author
+Pinned upstream copy: `upstream-7.4.yaml`, blob `b5303cdd47311eb2463a9cf4183e1b09f1e9ab4e`.
 
-Christos Diamantis - christos.diamantis@outlook.com
+## Rebuilding
 
-## Macros used
+```sh
+python3 merged/build.py    # splices the additions into the pinned upstream copy
+python3 merged/check.py    # proves nothing else changed and validates the result
+```
 
-|Name|Description|Default|Type|
-|----|-----------|----|----|
-|{$CPU.UTILIZATION.CRIT}|<p>-</p>|`70`|Text macro|
-|{$CPU.UTILIZATION.WARN}|<p>-</p>|`50`|Text macro|
-|{$MEM.UTILIZATION.CRIT}|<p>-</p>|`80`|Text macro|
-|{$MEM.UTILIZATION.WARN}|<p>-</p>|`60`|Text macro|
-|{$NET.IF.IFADMINSTATUS.MATCHES}|<p>-</p>|`^.*`|Text macro|
-|{$NET.IF.IFADMINSTATUS.NOT_MATCHES}|Ignore down(2) administrative status|`^2$`|Text macro|
-|{$NET.IF.IFALIAS.MATCHES}|<p>-</p>|`.*`|Text macro|
-|{$NET.IF.IFALIAS.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
-|{$NET.IF.IFDESCR.MATCHES}|<p>-</p>|`.*`|Text macro|
-|{$NET.IF.IFDESCR.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
-|{$NET.IF.IFNAME.MATCHES}|<p>-</p>|`^.*$`|Text macro|
-|{$NET.IF.IFNAME.NOT_MATCHES}|Filter out loopbacks, nulls, docker veth links and docker0 bridge by default|`(^Software Loopback Interface\|^NULL[0-9.]*$\|^[Ll]o[0-9.]*$\|^[Ss]ystem$\|^Nu[0-9.]*$\|^veth[0-9a-z]+$\|docker[0-9]+\|br-[a-z0-9]{12}\|^quarantine.*$\|^onboarding.*$\|^naf.root.*$\|^nac_segment.*$\|^l2t.root.*$\|^_default.*$)`|Text macro|
-|{$NET.IF.IFOPERSTATUS.MATCHES}|<p>-</p>|`^.*$`|Text macro|
-|{$NET.IF.IFOPERSTATUS.NOT_MATCHES}|Ignore notPresent(6)|`^6$`|Text macro|
-|{$NET.IF.IFTYPE.MATCHES}|<p>-</p>|`.*`|Text macro|
-|{$NET.IF.IFTYPE.NOT_MATCHES}|<p>-</p>|`CHANGE_IF_NEEDED`|Text macro|
-|{$SNMP_TIMEOUT}|<p>-</p>|`5m`|Text macro|
+`check.py` diffs the result against the pinned copy up to the dashboard block and fails if
+any upstream line there was deleted or changed rather than only inserted, apart from the four
+declared corrections. It re-applies the correction list itself, so a fifth one cannot slip in.
+For the rebuilt dashboard it checks that the uuid and name still match upstream and reports
+which of the old widget sources are not reused verbatim. It also verifies UUIDs, master item
+links, calculated formulas, trigger expressions, macro definitions, value map references and
+that every dashboard widget points at an item that exists.
 
-## Template links
+To pick up a new upstream release, replace `upstream-7.4.yaml` and run both scripts again.
 
-There are no template links in this template
+`build.py --upstream` additionally writes `upstream-pr/template_opnsense_by_http_json.yaml`,
+the same result with the vendor version bumped to `0.31`, for a pull request against
+`zabbix/community-templates`. `upstream-pr/PR.md` has the steps and the commit message.
 
-## Discovery rules
+`verify_live.py` queries a real firewall with the monitoring API key and replays every added
+preprocessing chain, including the JavaScript steps:
 
-|Name|Description|Type|Key and additional info|
-|----|-----------|----|----|
-|Network interfaces discovery|Discovering interfaces from IF-MIB.|SNMP_AGENT|net.if.discovery|
-|EtherLike discovery|Discovering interfaces from IF-MIB and EtherLike-MIB. Interfaces with up(1) Operational Status are discovered.|SNMP_AGENT|net.if.duplex.discovery|
+```sh
+OPNS_KEY=... OPNS_SECRET=... python3 merged/verify_live.py --host 192.168.10.254
+```
 
-## Items collected
+## Corrections to the community template
 
-|Name|Description|Type|Key and additonal info|
-|----|-----------|----|----|
-|CPU Usage|<p>LLD</p>|`SNMP_AGENT`|fsw.cpu.usage|
-|Memory total|<p>LLD</p>|`SNMP_AGENT`|fsw.mem.total|
-|Memory used|<p>LLD</p>|`SNMP_AGENT`|fsw.mem.used|
-|Memory utilization|<p>LLD</p>|`CALCULATED`|fsw.mem.utilization|
-|Storage total|<p>LLD</p>|`SNMP_AGENT`|fsw.storage.total|
-|Storage used|<p>LLD</p>|`SNMP_AGENT`|fsw.storage.used|
-|Storage utilization|<p>LLD</p>|`CALCULATED`|fsw.storage.utilization|
-|ICMP ping|<p>LLD</p>|`SIMPLE`|icmpping|
-|ICMP loss|<p>LLD</p>|`SIMPLE`|icmppingloss|
-|ICMP response time|<p>LLD</p>|`SIMPLE`|icmppingsec|
-|SNMP traps (fallback)|Item is used to collect all SNMP traps unmatched by other snmptrap items|`SNMP_TRAP`|snmptrap.fallback|
-|System contact details|MIB: SNMPv2-MIB The textual identification of the contact person for this managed node, together with information on how to contact this person.  If no contact information is known, the value is the zero-length string. |`SNMP_AGENT`|system.contact|
-|System description|MIB: SNMPv2-MIB A textual description of the entity. This value should include the full name and version identification of the system's hardware type, software operating-system, and networking software. |`SNMP_AGENT`|system.descr|
-|Hardware model name|MIB: ENTITY-MIB|`SNMP_AGENT`|system.hw.model|
-|Hardware serial number|MIB: ENTITY-MIB|`SNMP_AGENT`|system.hw.serialnumber|
-|Uptime (hardware)|MIB: HOST-RESOURCES-MIB The amount of time since this host was last initialized. Note that this is different from sysUpTime in the SNMPv2-MIB [RFC1907] because sysUpTime is the uptime of the network management portion of the system. |`SNMP_AGENT`|system.hw.uptime|
-|System location|MIB: SNMPv2-MIB The physical location of this node (e.g., `telephone closet, 3rd floor').  If the location is unknown, the value is the zero-length string. |`SNMP_AGENT`|system.location|
-|System name|MIB: SNMPv2-MIB An administratively-assigned name for this managed node.By convention, this is the node's fully-qualified domain name.  If the name is unknown, the value is the zero-length string. |`SNMP_AGENT`|system.name|
-|Uptime (network)|MIB: SNMPv2-MIB The time (in hundredths of a second) since the network management portion of the system was last re-initialized. |`SNMP_AGENT`|system.net.uptime|
-|System object ID|MIB: SNMPv2-MIB The vendor's authoritative identification of the network management subsystem contained in the entity.  This value is allocated within the SMI enterprises subtree (1.3.6.1.4.1) and provides an easy and unambiguous means for determining`what kind of box' is being managed.  For example, if vendor`Flintstones, Inc.' was assigned the subtree1.3.6.1.4.1.4242, it could assign the identifier 1.3.6.1.4.1.4242.1.1 to its `Fred Router'. |`SNMP_AGENT`|system.objectid|
-|Operating system|<p>LLD</p>|`SNMP_AGENT`|system.sw.os|
-|SNMP agent availability|<p>LLD</p>|`INTERNAL`|zabbix[host,snmp,available]|
-|Interface {#IFNAME}({#IFDESCR}): Inbound packets discarded|MIB: IF-MIB The number of inbound packets which were chosen to be discarded even though no errors had been detected to prevent their being deliverable to a higher-layer protocol. One possible reason for discarding such a packet could be to free up buffer space. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.in.discards[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Inbound packets with errors|MIB: IF-MIB For packet-oriented interfaces, the number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol.  For character-oriented or fixed-length interfaces, the number of inbound transmission units that contained errors preventing them from being deliverable to a higher-layer protocol. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.in.errors[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): In utilization|<p>-</p>|`CALCULATED`|net.if.in.util[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Bits received|MIB: IF-MIB The total number of octets received on the interface, including framing characters. This object is a 64-bit version of ifInOctets. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.in[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Outbound packets discarded|MIB: IF-MIB The number of outbound packets which were chosen to be discarded even though no errors had been detected to prevent their being deliverable to a higher-layer protocol. One possible reason for discarding such a packet could be to free up buffer space. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.out.discards[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Outbound packets with errors|MIB: IF-MIB For packet-oriented interfaces, the number of outbound packets that contained errors preventing them from being deliverable to a higher-layer protocol.  For character-oriented or fixed-length interfaces, the number of outbound transmission units that contained errors preventing them from being deliverable to a higher-layer protocol. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.out.errors[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Out utilization|<p>-</p>|`CALCULATED`|net.if.out.util[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Bits sent|MIB: IF-MIB The total number of octets transmitted out of the interface, including framing characters. This object is a 64-bit version of ifOutOctets.Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime. |`SNMP_AGENT`|net.if.out[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Speed|MIB: IF-MIB An estimate of the interface's current bandwidth in units of 1,000,000 bits per second. If this object reports a value of `n' then the speed of the interface is somewhere in the range of `n-500,000' to`n+499,999'.  For interfaces which do not vary in bandwidth or for those where no accurate estimation can be made, this object should contain the nominal bandwidth. For a sub-layer which has no concept of bandwidth, this object should be zero. |`SNMP_AGENT`|net.if.speed[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Operational status|MIB: IF-MIB The current operational state of the interface. - The testing(3) state indicates that no operational packet scan be passed - If ifAdminStatus is down(2) then ifOperStatus should be down(2) - If ifAdminStatus is changed to up(1) then ifOperStatus should change to up(1) if the interface is ready to transmit and receive network traffic - It should change todormant(5) if the interface is waiting for external actions (such as a serial line waiting for an incoming connection) - It should remain in the down(2) state if and only if there is a fault that prevents it from going to the up(1) state - It should remain in the notPresent(6) state if the interface has missing(typically, hardware) components. |`SNMP_AGENT`|net.if.status[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Total utilization|<p>-</p>|`CALCULATED`|net.if.total.util[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Interface type|MIB: IF-MIB The type of interface. Additional values for ifType are assigned by the Internet Assigned Numbers Authority (IANA), through updating the syntax of the IANAifType textual convention. |`SNMP_AGENT`|net.if.type[{#SNMPINDEX}]<p>LLD</p>|
-|Interface {#IFNAME}({#IFDESCR}): Duplex status|MIB: EtherLike-MIB Object name: dot3StatsDuplexStatus The current mode of operation of the MAC entity.  'unknown' indicates that the current duplex mode could not be determined.  Management control of the duplex mode is accomplished through the MAU MIB.  When an interface does not support autonegotiation, or when autonegotiation is not enabled, the duplex mode is controlled using ifMauDefaultType.  When autonegotiation is supported and enabled, duplex mode is controlled using ifMauAutoNegAdvertisedBits.  In either case, the currently operating duplex mode is reflected both in this object and in ifMauType.  Note that this object provides redundant information with ifMauType.  Normally, redundant objects are discouraged.  However, in this instance, it allows a management application to determine the duplex status of an interface without having to know every possible value of ifMauType.  This was felt to be sufficiently valuable to justify the redundancy. Reference: [IEEE 802.3 Std.], 30.3.1.1.32,aDuplexStatus. |`SNMP_AGENT`|net.if.duplex[{#SNMPINDEX}]<p>LLD</p>|
+Four URLs are corrected. They are the only upstream lines this build changes, they are
+declared in one list in `build.py`, and `check.py` fails if that list grows silently.
 
-## Triggers
+| Item | Was | Now | Why |
+|------|-----|-----|-----|
+| `opns.raw.fw.states` | `diagnostics/firewall/pfStates` | `diagnostics/firewall/pf_states` | HTTP 403 for every non administrator key |
+| `opns.raw.memory.status` | `diagnostics/system/systemResources` | `diagnostics/system/system_resources` | same |
+| `opns.ipsec.phase1.raw` | `https://{HOST.IP}/api/...` | `https://{HOST.IP}:{$OPNS.PORT}/api/...` | pinned to 443, ignoring the port macro |
 
-|Name|Description|Expression|Priority|
-|----|-----------|----|----|
-|High CPU Utilization|<p>-</p>|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/fsw.cpu.usage)>{$CPU.UTILIZATION.CRIT}</p>|HIGH|
-|High CPU Utilization|<p>-</p>|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/fsw.cpu.usage)>{$CPU.UTILIZATION.WARN}</p>|WARNING|
-|High Memory Utilization|<p>-</p>|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/fsw.mem.utilization)>{$MEM.UTILIZATION.CRIT}</p>|HIGH|
-|High Memory Utilization|<p>-</p>|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/fsw.mem.utilization)>{$MEM.UTILIZATION.WARN}</p>|WARNING|
-|High Storage Utilization|<p>-</p>|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/fsw.storage.utilization)>=90</p>|HIGH|
-|Unavailable by ICMP ping|Last three attempts returned timeout.  Please check device connectivity.|<p>**Expression**: max(/Fortinet FortiSwitch by SNMP/icmpping,#3)=0</p>|HIGH|
-|High ICMP ping loss|<p>-</p>|<p>**Expression**: min(/Fortinet FortiSwitch by SNMP/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/Fortinet FortiSwitch by SNMP/icmppingloss,5m)<100</p>|WARNING|
-|High ICMP ping response time|<p>-</p>|<p>**Expression**: avg(/Fortinet FortiSwitch by SNMP/icmppingsec,5m)>{$ICMP_RESPONSE_TIME_WARN}</p>|WARNING|
-|Device has been replaced|Device serial number has changed. Ack to close|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/system.hw.serialnumber,#1)<>last(/Fortinet FortiSwitch by SNMP/system.hw.serialnumber,#2) and length(last(/Fortinet FortiSwitch by SNMP/system.hw.serialnumber))>0</p>|INFO|
-|System name has changed|System name has changed. Ack to close.|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/system.name,#1)<>last(/Fortinet FortiSwitch by SNMP/system.name,#2) and length(last(/Fortinet FortiSwitch by SNMP/system.name))>0</p>|INFO|
-|Operating system description has changed|Operating system description has changed. Possible reasons that system has been updated or replaced. Ack to close.|<p>**Expression**: last(/Fortinet FortiSwitch by SNMP/system.sw.os,#1)<>last(/Fortinet FortiSwitch by SNMP/system.sw.os,#2) and length(last(/Fortinet FortiSwitch by SNMP/system.sw.os))>0</p>|INFO|
-|No SNMP data collection|SNMP is not available for polling. Please check device connectivity and SNMP settings.|<p>**Expression**: max(/Fortinet FortiSwitch by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0</p>|WARNING|
-|Interface {#IFNAME}({#IFDESCR}): Ethernet has changed to lower speed than it was before|This Ethernet connection has transitioned down from its known maximum speed. This might be a sign of autonegotiation issues. Ack to close.|<p>**Expression**: change(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])<0 and last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])>0 and ( last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=6 or last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=7 or last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=11 or last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=62 or last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=69 or last(/Fortinet FortiSwitch by SNMP/net.if.type[{#SNMPINDEX}])=117 ) and (last(/Fortinet FortiSwitch by SNMP/net.if.status[{#SNMPINDEX}])<>2) </p><p>**Recovery expression**: (change(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])>0 and last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}],#2)>0) or (last(/Fortinet FortiSwitch by SNMP/net.if.status[{#SNMPINDEX}])=2) </p>|INFO|
-|Interface {#IFNAME}({#IFDESCR}): High inbound bandwidth usage|The network interface utilization is close to its estimated maximum bandwidth.|<p>**Expression**: (avg(/Fortinet FortiSwitch by SNMP/net.if.in[{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])) and last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])>0 </p><p>**Recovery expression**: avg(/Fortinet FortiSwitch by SNMP/net.if.in[{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])</p>|WARNING|
-|Interface {#IFNAME}({#IFDESCR}): High outbound bandwidth usage|The network interface utilization is close to its estimated maximum bandwidth.|<p>**Expression**: (avg(/Fortinet FortiSwitch by SNMP/net.if.out[{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])) and last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])>0 </p><p>**Recovery expression**: avg(/Fortinet FortiSwitch by SNMP/net.if.out[{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/Fortinet FortiSwitch by SNMP/net.if.speed[{#SNMPINDEX}])</p>|WARNING|
+The first two are the interesting ones. OPNsense routes both spellings to the same
+controller action (`Router.php` builds the action name with
+`lcfirst(str_replace('_', '', ucwords($element, '_')))`), so an administrator key never sees
+a problem. The privilege patterns, however, are `api/diagnostics/firewall/pf_states` and
+`api/diagnostics/system/system_resources`, both exact rather than wildcards, and `ACL.php`
+matches them with `preg_match` without the `i` modifier. A monitoring user with the
+Lobby: Dashboard privilege therefore gets HTTP 403 on the camelCase spelling, which takes
+out the firewall state items, the state table utilization and all memory items.
+
+### The IPsec branch
+
+Reported from the outside: four site-to-site tunnels, nothing discovered. Three defects, none
+of them visible without a tunnel to test against, all three declared in `ipsec_fix.py`:
+
+| What | Why it failed |
+|------|---------------|
+| Both IPsec masters shipped `status: DISABLED` | Deliberate and documented for UPS, undocumented for IPsec. The Raw Data Items table did not even list the two items. Phase 1 is enabled now |
+| `phase1desc` is `null` without a description | The discovery uses that field as the entity identity and puts it into every prototype key, so several such tunnels collapse into identical keys and the rule fails as a whole. A JavaScript step fills it from `name`, which is always set, without renaming a single key |
+| Phase 2 could never return data | `searchPhase2Action` reads its connection from `getPost('id')`, the template asked with a plain GET. Phase 2 is now an HTTP agent prototype inside the phase 1 rule that posts `id={#IPSECNAME}`. Only mode and state are read that way; the eight byte and packet values come off the phase 1 master, which aggregates the same child SAs itself |
+
+Proven where it can be proven: the POST mechanism against a live OPNsense 26.7 with a
+restricted key (echoing `current` back), every preprocessing chain against the live API, and the
+call convention against `sessions.volt`, which sends the same `id` from the selected phase 1
+row. What cannot be proven here is that real tunnels produce values, this workspace has none.
+
+## What was added
+
+67 items (14 of them HTTP agent masters), 5 discovery rules with 8 item prototypes,
+23 triggers, 4 trigger prototypes, 1 graph prototype, 12 macros and 4 value maps.
+
+| Area | Endpoint |
+|------|----------|
+| Processor utilization, split into user, system and interrupt | `diagnostics/activity/get_activity` |
+| Core count, and load per core derived from it | `diagnostics/cpu_usage/getCPUType` |
+| pf table entries against the configured ceiling | `firewall/alias/get_table_size` |
+| Clock synchronization, offset, stratum, reachable peers | `ntpd/service/status` |
+| Kernel network memory, mbuf clusters and denied requests | `diagnostics/interface/get_memory_statistics` |
+| netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
+| IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
+| Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
+| pf counters, state table rates, source nodes, SYN floods | `diagnostics/firewall/pf_statistics/info` |
+| pf source node limit | `diagnostics/firewall/pf_statistics/memory` |
+| Service run state, discovered | `core/service/search` |
+| Swap per device, discovered | `diagnostics/system/system_swap` |
+| Temperature per sensor, discovered | `diagnostics/system/system_temperature` |
+| Inbound errors and link state per interface, discovered | `diagnostics/traffic/_interface`, the master the community template already polls |
+
+Seven more items ride along on masters the community template already polls, so they cost no
+extra request: the configuration change timestamp and load average over 5 and 15 minutes from
+`opns.raw.load`, the blocked share of the firewall log from `opns.raw.fw.action`, the CARP
+demotion factor and maintenance mode from `opns.raw.interfaces.carp`, and the OPNsense version
+from `opns.raw.product.info`.
+
+Interface inbound errors and link state come with their own discovery rule rather than as
+extra prototypes on the community interface discovery, because that rule stays untouched.
+Both rules discover the same interfaces, but no metric exists twice.
+
+Left out because the community template already covers it: memory, uptime, filesystems,
+gateways, interface traffic and counters, per interface pf block counters, CARP status per
+address, IPsec, WireGuard, pf state table current and limit, and pending updates.
+
+## Dashboard
+
+The `OPNsense Info` dashboard is rebuilt, keeping its uuid and name so an import updates it
+rather than adding a second one. Three defects made that worth doing:
+
+- the CPU load widget sets `Show=5`, which Zabbix 7.0 refuses outright with
+  `Invalid parameter "Show/5": value must be one of 1, 2, 3, 4`
+- both pie charts plot a total against a part of that same total, so "used" is drawn as a
+  slice of "total plus used" and always looks about half its real size
+- the pages use 41, 45 and 55 of the 72 grid columns, so everything sits in the left two
+  thirds, and `Gateway RTT*` also matches `Gateway RTTd`, mixing round trip time into one
+  graph with its own standard deviation
+
+Everything the old pages showed is still shown. The two pie charts are replaced by the
+utilization gauges that state the same fact correctly, and the page name typo `Inerfaces`
+is gone. The UPS, WireGuard and IPsec items that ship with the template but appeared on no
+page now have one.
+
+| Page | Shows |
+|------|-------|
+| Overview | Memory, state table, processor and load per core as gauges, six tiles from CPU load to state limit, firewall actions over time, CARP status, and all filesystems as a honeycomb |
+| Packet filter | State table, source tracking and pf table utilization, twelve tiles from states in use to source limit hits, state table churn and searches, rule matches against evaluations, drops and limit hits, malformed packets |
+| Interfaces | Link state per interface, traffic, blocked and passed bytes side by side, and inbound errors, output errors, queue drops and collisions in one graph |
+| Gateways | Status honeycomb, round trip time and packet loss side by side, deviation below |
+| VPN | WireGuard peers and instances, peer traffic, IPsec phase 1 tunnels and phase 2 traffic |
+| System | Processor, memory and load per core, uptime, version, cores, configuration change timestamp, both load averages, processor utilization split into user, system and interrupt, load average over time, temperature and swap honeycombs |
+| Kernel and protocols | mbuf utilization, clusters in use, denied requests, netisr drops, kernel network memory and netisr drops per protocol, IP and TCP error rates |
+| Services, clock and power | Every service as a honeycomb, clock synchronization, offset, stratum and reachable peers, CARP demotion and maintenance, UPS battery, status, load and runtime, clock offset and UPS voltage over time |
+
+Layout, colours and thresholds live in `dashboard.py`. The grid is 72 columns wide. Every
+widget type and field name used there already occurs in a dashboard that imports into a
+running Zabbix 7.0, so none of it is guessed, and `check.py` resolves all 110 item
+references before the file is ever imported.
+
+## Privileges on the OPNsense monitoring user
+
+Measured against a live OPNsense 26.7 with a restricted key, not read off the documentation.
+
+The added endpoints need these on top of what the community template already required. Only
+the last one grants more than reading, and without it the service discovery simply stays
+empty:
+
+| Privilege in the GUI | Internal ID | Needed for | Read only |
+|----------------------|-------------|------------|-----------|
+| Lobby: Dashboard | `page-system-login-logout` | swap, temperature, core count, load average, configuration change timestamp | yes |
+| Diagnostics: Netstat | `page-diagnostics-netstat` | mbuf pool, netisr queues, protocol errors | yes |
+| Diagnostics: Firewall statistics | `page-diagnostics-pf-info` | pf counters, source tracking, ruleset | yes |
+| Diagnostics: System Activity | `page-diagnostics-system-activity` | processor utilization | yes |
+| Status: NTP | `page-status-ntp` | clock synchronization | yes |
+| Diagnostics: Logs: Firewall: Summary View | `page-diagnostics-logs-firewall-summary` | blocked share of the firewall log | yes |
+| Firewall: Aliases | `page-firewall-aliases` | pf table entry usage, also exposes every alias content | yes |
+| Status: Services | `page-status-services` | service run state | **no**, permits starting and stopping services |
+
+Two more are needed by items the community template already had, and are easy to miss
+because the symptom is an HTTP 403 on a raw item rather than on the item you are looking at:
+
+| Privilege in the GUI | Internal ID | Without it |
+|----------------------|-------------|------------|
+| System: Firmware | `page-system-firmware-manualupdate` | the five firmware update items, the business license item and the OPNsense version stay unsupported. Its pattern is `api/core/firmware/*`, which also covers reboot, poweroff, install and remove, so this one is **not** read only |
+| Reporting: Traffic | `page-status-trafficgraph` | the whole community interface discovery stays empty, so no traffic, no counters, no per interface pf block counters. Read only |
+
+`page-nut` (Nut) was missing from the upstream table entirely. It comes from the NUT plugin,
+covers `api/nut/*`, and without it the UPS master returns HTTP 403 even after enabling the
+item. Only needed if a UPS is monitored.
+
+The version item is fed from `core/firmware/info` rather than `system_information`, so it
+needs System: Firmware. If you would rather not grant that privilege, source the version and
+the pending update indicator from `diagnostics/system/system_information` instead, which
+Lobby: Dashboard covers; both items exist in `../opnsense-by-http-api.yaml`.
+
+## Added macros
+
+All of them are thresholds with usable defaults, none has to be set.
+
+| Macro | Default | Purpose |
+|-------|---------|---------|
+| `{$OPNS.CPU.UTIL.WARN}` | 85 | Processor utilization counting as high, over ten minutes |
+| `{$OPNS.LOAD.AVG5.WARN}` | 4 | Absolute five minute load average counting as high |
+| `{$OPNS.LOAD.PERCORE.WARN}` | 1 | Load per core counting as high, 1 means the cores are saturated |
+| `{$OPNS.MBUF.UTIL.WARN}` | 80 | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.NTP.OFFSET.WARN}` | 100 | Clock offset in milliseconds counting as high |
+| `{$OPNS.PF.SRCNODES.UTIL.CRIT}` | 90 | Source tracking table fill level counting as critical |
+| `{$OPNS.PF.TABLES.UTIL.WARN}` | 80 | Share of the pf table entry budget counting as filling up |
+| `{$OPNS.SWAP.UTIL.WARN}` | 5 | Swap in use counting as a problem, per device via context |
+| `{$OPNS.TEMP.CRIT}` | 80 | Sensor temperature in degrees Celsius, per sensor via context |
+| `{$OPNS.IF.CONTROL}` | 1 | Set to 0, per interface via context, to silence the down trigger |
+| `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from the added discovery |
+| `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
