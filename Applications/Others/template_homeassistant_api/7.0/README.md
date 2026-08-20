@@ -28,7 +28,7 @@ ha.raw  (HTTP_AGENT → /api/states, Bearer {$API.TOKEN})
 
 - Home Assistant instance with REST API enabled and reachable from Zabbix
 - Long-Lived Access Token created in Home Assistant (`Profile → Security → Long-Lived Access Tokens`)
-- Accessible base URL (e.g., `http://192.168.10.121:8123`)
+- Accessible base URL (e.g., `http://homeassistant.example.com:8123`)
 - Template applied to a Zabbix host that has network access to Home Assistant
 
 ## Setup
@@ -40,7 +40,7 @@ ha.raw  (HTTP_AGENT → /api/states, Bearer {$API.TOKEN})
 
 | Macro | Example | Description |
 |---|---:|---|
-| `{$HA.URL}` | `http://192.168.10.121:8123` | Base URL of the Home Assistant instance |
+| `{$HA.URL}` | `http://homeassistant.example.com:8123` | Base URL of the Home Assistant instance |
 | `{$API.TOKEN}` | `eyJhbGci...` | Long-Lived Access Token |
 | `{$HOST.REACHABLE}` | `1` | Set to `0` to suppress the host unreachable trigger |
 
@@ -184,7 +184,7 @@ ha.raw  (HTTP_AGENT → /api/states, Bearer {$API.TOKEN})
 
 | Macro | Example | Description |
 |---|---:|---|
-| `{$HA.URL}` | `http://192.168.10.121:8123` | Home Assistant base URL |
+| `{$HA.URL}` | `http://homeassistant.example.com:8123` | Home Assistant base URL |
 | `{$API.TOKEN}` | `eyJhbGci...` | Long-Lived Access Token |
 | `{$HOST.REACHABLE}` | `1` | Controls the no-data / unreachable trigger (1 = active) |
 
