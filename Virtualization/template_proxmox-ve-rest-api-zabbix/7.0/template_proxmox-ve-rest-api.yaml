@@ -20,6 +20,7 @@ zabbix_export:
           name: 'PVE backup raw'
           type: HTTP_AGENT
           key: pve.backup.raw
+          delay: '300'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -645,11 +646,11 @@ zabbix_export:
           delay: '0'
           trends: '0'
           units: Bytes
-          description: 'Free (available) RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.free.'
+          description: 'RAM available for new workloads on the PVE host in bytes, cache and reclaimable memory included. Source: /nodes/{node}/status → data.memory.available. Together with the used value this adds up to the installed total, which data.memory.free does not.'
           preprocessing:
             - type: JSONPATH
               parameters:
-                - $.data.memory.free
+                - $.data.memory.available
           master_item:
             key: pve.status
           tags:
@@ -712,6 +713,7 @@ zabbix_export:
           name: 'PVE lxc raw'
           type: HTTP_AGENT
           key: pve.nodes.lxc.raw
+          delay: '300'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -747,6 +749,7 @@ zabbix_export:
           name: 'PVE qemu raw'
           type: HTTP_AGENT
           key: pve.nodes.qemu.raw
+          delay: '300'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -764,6 +767,7 @@ zabbix_export:
           name: 'PVE nodes raw'
           type: HTTP_AGENT
           key: pve.nodes.raw
+          delay: '300'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -850,6 +854,7 @@ zabbix_export:
           name: 'PVE status raw'
           type: HTTP_AGENT
           key: pve.status
+          delay: '60'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -875,6 +880,7 @@ zabbix_export:
           name: 'PVE storage raw'
           type: HTTP_AGENT
           key: pve.storage.raw
+          delay: '60'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -927,10 +933,62 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Boot
+        - uuid: b3016c59c0024f8fa5306198d1d1b73b
+          name: 'PVE swap free'
+          type: DEPENDENT
+          key: pve.swap.free
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          description: 'Free swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.free. Reports 0 on hosts without swap.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.free
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: f2ae0c9f82084184954595f19a9ed722
+          name: 'PVE swap total'
+          type: DEPENDENT
+          key: pve.swap.total
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          description: 'Configured swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.total. Reports 0 on hosts without swap.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.total
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: 9d49a6ae2695427a84790e829970669d
+          name: 'PVE swap used'
+          type: DEPENDENT
+          key: pve.swap.used
+          delay: '0'
+          trends: '0'
+          units: Bytes
+          description: 'Used swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.used. Swap filling up while memory is not tight usually means pages were evicted during an earlier peak and never came back.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.used
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
         - uuid: 8cbc645bf73d4654afa40ff9245ac67c
           name: 'PVE tasks raw'
           type: HTTP_AGENT
           key: pve.tasks.raw
+          delay: '60'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -1094,6 +1152,7 @@ zabbix_export:
           name: 'PVE user raw'
           type: HTTP_AGENT
           key: pve.user.raw
+          delay: '3600'
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -1111,22 +1170,26 @@ zabbix_export:
               value: Raw
         - uuid: 6ab7180a35904b229e889d93696c65ad
           name: 'PVE version'
-          type: HTTP_AGENT
+          type: DEPENDENT
           key: pve.version
+          delay: '0'
           history: '0'
           value_type: CHAR
           trends: '0'
-          description: 'Proxmox VE version string (e.g. 8.3.2). Source: /nodes/{node}/version → data.version.'
+          description: 'Proxmox VE version string, for example 9.2.10. Source: /nodes/{node}/status → data.pveversion, which carries it as pve-manager/9.2.10/<repoid>. Read from the host status instead of the separate version endpoint, so no extra request per interval is needed.'
           preprocessing:
             - type: JSONPATH
               parameters:
-                - $.data.version
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/version'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
+                - $.data.pveversion
+            - type: REGEX
+              parameters:
+                - 'pve-manager/([0-9][0-9.]*)'
+                - \1
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: pve.status
           tags:
             - tag: PVE
               value: Version
@@ -1922,6 +1985,10 @@ zabbix_export:
                   parameters:
                     - paused
                     - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - unknown
+                    - '3'
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -2460,9 +2527,8 @@ zabbix_export:
                   name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_AVERAGE:"{#VMID}"}% for 5 minutes'
                   priority: AVERAGE
                   description: |
-                    To permanently suppress the "CPU high" trigger warning on the host, set the host macro:
-                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=1 Enable the "VM stopped" trigger. 
-                    {$CPU_USAGE_AVERAGE:"{#VMID}"}=0 will disable the alert for that item.
+                    {$CPU_USAGE_AVERAGE} is a percentage threshold, not a switch. Setting it to 0 makes the trigger fire on any load above zero.
+                    Use the context form to change it for a single guest, for example {$CPU_USAGE_AVERAGE:"{#VMID}"}=95, or set it to 100 to silence that guest.
                   dependencies:
                     - name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
                       expression: 'min(/Template Proxmox VE REST API/vm.cpuusage[{#VMID}],300)>{$CPU_USAGE_HIGH:"{#VMID}"}'
@@ -2471,9 +2537,8 @@ zabbix_export:
                   name: 'CPU usage of VM {#VMID} over {$CPU_USAGE_HIGH:"{#VMID}"}% for 5 minutes'
                   priority: HIGH
                   description: |
-                    To permanently suppress the "CPU high" trigger warning on the host, set the host macro:
-                    {$CPU_USAGE_HIGH:"{#VMID}"}=1  Enable the "VM stopped" trigger.
-                    {$CPU_USAGE_HIGH:"{#VMID}"}=0 will disable the alert for that item.
+                    {$CPU_USAGE_HIGH} is a percentage threshold, not a switch. Setting it to 0 makes the trigger fire on any load above zero.
+                    Use the context form to change it for a single guest, for example {$CPU_USAGE_HIGH:"{#VMID}"}=100.
             - uuid: 4c6878c9c5a945a8810c1d5c3fac9c5f
               name: 'Disk read rate of {#VMID}'
               type: DEPENDENT
@@ -2766,6 +2831,10 @@ zabbix_export:
                   parameters:
                     - paused
                     - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - unknown
+                    - '3'
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -3585,7 +3654,7 @@ zabbix_export:
           description: 'Warning threshold for LXC CPU utilization (%) over 5 minutes.'
         - macro: '{$MEMORY.UTIL.MAX}'
           value: '90'
-          description: 'Warning threshold for VM/LXC memory utilization (%). Triggers when memory used exceeds this value.'
+          description: 'Warning threshold for memory utilization of the PVE host itself (%). Guest memory is not covered by this macro.'
         - macro: '{$PVE.USER.EXPIRE.TIME}'
           value: '172800'
           description: 'Seconds before user account expiration to trigger warning (default 172800 = 2 days).'
@@ -3613,6 +3682,9 @@ zabbix_export:
         - macro: '{$ROOTFS.UTIL.WARN}'
           value: '90'
           description: 'Warning threshold for root filesystem utilization (%).'
+        - macro: '{$SWAP.UTIL.MAX}'
+          value: '80'
+          description: 'Warning threshold for swap utilization of the PVE host (%). The trigger stays silent on hosts that have no swap configured.'
         - macro: '{$STORAGE.UTIL.CRIT}'
           value: '90'
           description: 'Critical threshold for storage utilization (%). Triggers when storage used exceeds this value.'
@@ -4434,12 +4506,23 @@ zabbix_export:
               newvalue: running
             - value: '2'
               newvalue: paused
+            - value: '3'
+              newvalue: unknown
   triggers:
     - uuid: bdaeac3c76ec44ef96bf78ca83ba0dad
       expression: 'min(/Template Proxmox VE REST API/pve.loadaverage.oneminute,900) >= last(/Template Proxmox VE REST API/pve.cpus)'
       name: 'High CPU average'
       opdata: 'Current cpu average: {ITEM.LASTVALUE1}'
       priority: AVERAGE
+    - uuid: e63733b354ef41c4aa800990b8f2ae73
+      expression: |
+        last(/Template Proxmox VE REST API/pve.swap.total)>0
+        and last(/Template Proxmox VE REST API/pve.swap.used) / last(/Template Proxmox VE REST API/pve.swap.total) * 100 > {$SWAP.UTIL.MAX}
+      name: 'High swap usage on {HOST.NAME} (>{$SWAP.UTIL.MAX}%)'
+      opdata: 'Swap used: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+      priority: WARNING
+      description: 'Swap on the PVE host is filling up. The first condition keeps the trigger silent on hosts without swap instead of turning it unsupported.'
+      manual_close: 'YES'
     - uuid: d7b8381cedda4cd0bcb28053cd731ddf
       expression: '(last(/Template Proxmox VE REST API/pve.memory.used) / last(/Template Proxmox VE REST API/pve.memory.total)) * 100 > {$MEMORY.UTIL.MAX}'
       name: 'High memory usage on {HOST.NAME} (>{$MEMORY.UTIL.MAX}%)'

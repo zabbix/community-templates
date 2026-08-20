@@ -89,7 +89,8 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 | `{$CPU_USAGE_HIGH}` | `99` | CPU critical threshold (%) |
 | `{$LXC.CPU.WARN}` | `85` | LXC CPU warning threshold (%) |
 | `{$LXC.CPU.HIGH}` | `99` | LXC CPU critical threshold (%) |
-| `{$MEMORY.UTIL.MAX}` | `90` | Memory warning threshold (%) |
+| `{$MEMORY.UTIL.MAX}` | `90` | Host memory warning threshold (%) |
+| `{$SWAP.UTIL.MAX}` | `80` | Host swap warning threshold (%). The trigger stays silent on hosts without swap. |
 | `{$ROOTFS.UTIL.WARN}` | `90` | Root filesystem warning threshold (%) |
 | `{$ROOTFS.UTIL.CRIT}` | `95` | Root filesystem critical threshold (%) |
 | `{$STORAGE.UTIL.WARN}` | `80` | Storage pool warning threshold (%) |
