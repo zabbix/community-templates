@@ -1,6 +1,6 @@
 # Zabbix Template Proxmox VE REST API
 
-This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE 7.0+). No Zabbix agent is required inside VMs or on the PVE host. It collects host and cluster metrics, VM and LXC container data, backup jobs, storage status, tasks, network interfaces, HA resources, disk health, and user accounts.
+This Zabbix template enables full monitoring of a Proxmox VE environment via the official REST API (Proxmox VE 7.0+). No Zabbix agent is required inside VMs or on the PVE host. It collects host and cluster metrics, VM and LXC container data, backup jobs, storage status, tasks, network interfaces, HA resources, disk health, and user accounts. It also covers the PVE services themselves, ZFS pools, replication jobs, certificate expiry, APT repository state and the subscription status.
 
 Works on standalone single-node setups as well as full clusters.
 
@@ -49,6 +49,8 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 3. **Grant permission to the token explicitly**
    - **Datacenter → Permissions → Add → API Token Permission**
    - Path: `/` · Token: `zabbix@pam!Zabbix` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
+
+> **Note for pending updates:** `/nodes/{node}/apt/update` is the only endpoint in this template that requires `Sys.Modify` rather than `Sys.Audit`, so `PVEAuditor` cannot read it. The corresponding master item `pve.apt.update.raw` and its dependent item are therefore **disabled by default**. Enable them only if you accept granting the monitoring token write level permissions. The repository state is monitored through `/nodes/{node}/apt/repositories` instead, which only needs `Sys.Audit`.
 
 > **Note for disk monitoring:** `/nodes/{node}/disks/list` requires the `Sys.Audit` privilege. `PVEAuditor` includes this privilege. If disk items show "not supported", verify that the role is applied with **Propagate** enabled and that the token has the correct path `/`.
 
@@ -99,6 +101,13 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 | `{$DISK.WEAROUT.MIN}` | `20` | Min. SSD wearout remaining before warning (%) |
 | `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days) |
 | `{$DISK.TEMP.MAX}` | `60` | Disk temperature threshold (degrees Celsius). Context form `{$DISK.TEMP.MAX:"/dev/sda"}` raises it for one disk. |
+| `{$NODE.CPU.UTIL.MAX}` | `90` | Node CPU utilization (%) before the high CPU trigger fires. This threshold used to be hardcoded in the trigger expression. |
+| `{$ZFS.UTIL.WARN}` | `80` | ZFS pool usage (%) for the average severity trigger. ZFS performance degrades noticeably above 80%. Context form `{$ZFS.UTIL.WARN:"rpool"}`. |
+| `{$ZFS.UTIL.CRIT}` | `90` | ZFS pool usage (%) for the high severity trigger. |
+| `{$ZFS.FRAG.WARN}` | `60` | ZFS free space fragmentation (%) before warning. |
+| `{$PVE.REPL.FAIL.MAX}` | `0` | Tolerated consecutive failures of a replication job. Context form `{$PVE.REPL.FAIL.MAX:"105-0"}`. |
+| `{$PVE.NOTBACKEDUP.MAX}` | `0` | Tolerated number of guests without a backup job. Raise it if some guests are deliberately excluded. |
+| `{$PVE.APT.REPO.ERRORS.MAX}` | `0` | Tolerated number of unparsable APT repository files. |
 
 ### Timing Macros
 
@@ -110,12 +119,15 @@ Values must carry a time unit.
 | `{$BACKUP.ALERT.WINDOW}` | `24h` | How long a failed backup keeps alerting. |
 | `{$DISK.MISSING.TIME}` | `3h` | How long a disk may be absent from the disk list before the missing disk trigger fires. The list refreshes hourly. |
 | `{$IFACE.ACTIVE.WINDOW}` | `7d` | An interface must have been up once within this window before the interface down trigger fires. |
+| `{$PVE.REPL.LAG}` | `2h` | Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. |
+| `{$PVE.CERT.EXPIRE.DAYS}` | `21d` | Lead time before certificate expiry. |
 
 ### Discovery Filter Macros
 
 | Macro | Default | Description |
 |-------|---------|-------------|
 | `{$IFACE.NOT_MATCHES}` | `^(tap\|veth\|fwbr\|fwpr\|fwln)` | Host interface names excluded from discovery. The default drops the per-guest interfaces Proxmox creates. |
+| `{$PVE.SERVICE.MATCHES}` | `^(pve-cluster\|pvedaemon\|pveproxy\|pvestatd\|pve-firewall)$` | Which PVE services are discovered. `corosync`, `pve-ha-lrm` and `pve-ha-crm` are excluded by default because they are legitimately inactive on a standalone node. Extend the regex in a cluster. |
 
 ### Alert Enable/Disable Macros
 
@@ -129,6 +141,8 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | `{$ENABLE_STORAGE_INACTIVE_ALERT}` | `1` | Storage inactive trigger |
 | `{$ENABLE_TASK_ALERT}` | `1` | Task failure trigger |
 | `{$ENABLE_VM_STOP_ALERT}` | `1` | VM/LXC stopped trigger |
+| `{$PVE.SERVICE.STATE.ALERT}` | `1` | PVE service not running trigger. Context form `{$PVE.SERVICE.STATE.ALERT:"pveproxy"}=0` silences one service. |
+| `{$PVE.SUBSCRIPTION.ALERT}` | `0` | Subscription status trigger. Off by default so community hosts do not alert on status `notfound`. Set to `1` on hosts that carry a subscription. |
 
 ---
 
@@ -146,6 +160,10 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | `discover.network` | `/nodes/{node}/network` | Host network interfaces (bridge, bond, eth, vlan) |
 | `discover.ha.resources` | `/cluster/ha/status/current` | HA-protected VMs and containers |
 | `discover.disks` | `/nodes/{node}/disks/list` | Physical disks of any type with SMART health, temperature, size and wearout |
+| `discover.pve.services` | `/nodes/{node}/services` | The systemd units PVE manages, with SubState, UnitFileState and ActiveState |
+| `discover.zfs.pools` | `/nodes/{node}/disks/zfs` | Local ZFS pools with health, size, allocated, free, fragmentation, dedup ratio and calculated utilization |
+| `discover.replication` | `/nodes/{node}/replication` | ZFS replication jobs with fail count, last sync, last try, duration and error message |
+| `discover.certificates` | `/nodes/{node}/certificates/info` | Node certificates with expiry timestamp, subject and issuer |
 
 ---
 
@@ -155,14 +173,17 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 
 | Trigger | Severity | Description |
 |---------|----------|-------------|
-| PVE API not reachable | Average | No data from API for 5 minutes |
-| High CPU usage (>90%) | Average | PVE host CPU sustained high |
+| PVE API not reachable | High | No data from API for 5 minutes. When the API is gone this is the cause of every other outage, so it outranks the individual failures. |
+| High CPU usage | Average | PVE host CPU sustained high, threshold via `{$NODE.CPU.UTIL.MAX}` |
 | High load average | Average | Load average ≥ number of CPUs |
 | High memory usage | Average | Configurable via `{$MEMORY.UTIL.MAX}` |
 | High root filesystem usage | Average / High | Two-level: warn and critical |
 | Cluster lost quorum | Disaster | Only fires on actual clusters, not standalone nodes |
 | Cluster nodes offline | High | Configurable tolerance via `{$CLUSTER.NODES.OFFLINE.MAX}` |
 | VMs/LXC not all running | Info | Cluster-wide: running count < total count |
+| Guests not covered by any backup job | Warning | From `/cluster/backup-info/not-backed-up`. Catches the guest that was created after the backup job was defined. |
+| APT repository files are broken | Warning | At least one repository file cannot be parsed, updates will fail |
+| PVE subscription is not active | Warning | Disabled by default, see `{$PVE.SUBSCRIPTION.ALERT}` |
 
 ### VM / LXC Prototypes
 
@@ -198,6 +219,12 @@ Set to `0` to suppress a trigger globally. Supports context macros for per-insta
 | Disk temperature above `{$DISK.TEMP.MAX}` | Warning |
 | Disk no longer reported by the node | Average |
 | SSD wearout below threshold | Warning |
+| PVE service not running | Average |
+| ZFS pool not ONLINE | High |
+| ZFS pool usage over warning / critical threshold | Average / High |
+| Replication job failing | Average |
+| Replication job has not synced within `{$PVE.REPL.LAG}` | Warning |
+| Certificate expires within `{$PVE.CERT.EXPIRE.DAYS}` | Warning |
 
 ---
 
@@ -230,6 +257,12 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 - **HA monitoring:** Only relevant if PVE HA is configured. If no HA resources exist, discovery returns nothing and the rule stays supported. HA data is read from `/cluster/ha/status/current`, which carries the CRM master status and one entry per HA-managed service. The plain `/cluster/ha/status` path is a directory index only and returns no status data.
 - **SSD wearout:** Read from `/nodes/{node}/disks/list`, not from the SMART endpoint, which does not return this value. Disks that report a non-numeric wearout, such as rotating disks, are discarded instead of turning the item unsupported.
 - **CPU temperatures:** Not available through the PVE REST API. Requires an agent or custom script.
+- **Physical NIC traffic:** Not available either. `/nodes/{node}/netstat` returns per-guest tap devices and resets its counters on every read, so there are no byte counters for `eno1` or `vmbr0`. `/nodes/{node}/rrddata` only carries the node aggregate.
+- **ZFS:** `/nodes/{node}/disks/zfs` requires `Sys.Audit` on `/`, not on `/nodes/{node}`. On nodes without ZFS the discovery simply returns nothing and stays supported.
+- **Replication:** The list endpoint already carries the job state, so no extra request per job is needed. Fields such as `last_sync` and `error` are absent before the first run or while the job is healthy; those items discard the value instead of turning unsupported.
+- **Subscription:** `/nodes/{node}/subscription` needs no special permission and answers with HTTP 200 even without a subscription, reporting status `notfound`.
+- **Permission errors:** The API answers with HTTP 403, so an item lacking permissions turns visibly unsupported rather than silently staying empty.
+- **Long term data:** Numeric performance and capacity items keep 365 days of trends. Timestamp items such as `last_sync` or `notafter` deliberately keep trends disabled, a trend over a Unix timestamp carries no meaning.
 
 ---
 
