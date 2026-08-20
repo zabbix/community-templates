@@ -11,7 +11,7 @@ TIMEOUT="${PODMAN_COLLECT_TIMEOUT:-30}"
 COLLECT_DISK="${PODMAN_COLLECT_DISK:-1}"
 
 if [[ $EUID -ne 0 ]]; then
-    echo "Muss als root ausgeführt werden." >&2
+    echo "This script must be run as root." >&2
     exit 1
 fi
 

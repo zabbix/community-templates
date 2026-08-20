@@ -1,4 +1,4 @@
- sc  # Podman by Zabbix Agent Active
+# Podman by Zabbix Agent Active
 
 ## Overview
 
