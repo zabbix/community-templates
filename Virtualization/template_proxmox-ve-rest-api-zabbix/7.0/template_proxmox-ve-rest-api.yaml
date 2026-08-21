@@ -203,14 +203,11 @@ zabbix_export:
           value_type: CHAR
           trends: '0'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var d = JSON.parse(value).data;
-                  for (var i = 0; i < d.length; i++) {
-                    if (d[i].type === 'cluster') return d[i].name;
-                  }
-                  return 'standalone';
+                - '$.data[?(@.type=="cluster")].name.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: standalone
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
                 - 1d
@@ -245,15 +242,9 @@ zabbix_export:
           delay: '0'
           history: 1w
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var d = JSON.parse(value).data;
-                  var count = 0;
-                  for (var i = 0; i < d.length; i++) {
-                    if (d[i].type === 'node' && d[i].online === 1) count++;
-                  }
-                  return count;
+                - '$.data[?(@.type=="node" && @.online==1)].length()'
           master_item:
             key: pve.cluster.raw
           tags:
@@ -290,14 +281,11 @@ zabbix_export:
           delay: '0'
           history: 1w
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var d = JSON.parse(value).data;
-                  for (var i = 0; i < d.length; i++) {
-                    if (d[i].type === 'cluster') return d[i].quorate;
-                  }
-                  return '1';
+                - '$.data[?(@.type=="cluster")].quorate.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '1'
           master_item:
             key: pve.cluster.raw
           tags:
@@ -355,15 +343,9 @@ zabbix_export:
           delay: '0'
           description: 'Number of QEMU VMs and LXC containers currently in running state across the cluster. Source: /cluster/resources.'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var d = JSON.parse(value).data;
-                  var count = 0;
-                  for (var i = 0; i < d.length; i++) {
-                    if ((d[i].type === 'qemu' || d[i].type === 'lxc') && d[i].status === 'running') count++;
-                  }
-                  return count;
+                - '$.data[?((@.type=="qemu" || @.type=="lxc") && @.status=="running")].length()'
           master_item:
             key: pve.cluster.resources.raw
           tags:
@@ -376,15 +358,9 @@ zabbix_export:
           delay: '0'
           description: 'Total number of QEMU VMs and LXC containers registered in the cluster. Source: /cluster/resources.'
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  var d = JSON.parse(value).data;
-                  var count = 0;
-                  for (var i = 0; i < d.length; i++) {
-                    if (d[i].type === 'qemu' || d[i].type === 'lxc') count++;
-                  }
-                  return count;
+                - '$.data[?(@.type=="qemu" || @.type=="lxc")].length()'
           master_item:
             key: pve.cluster.resources.raw
           tags:
@@ -1578,6 +1554,100 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Subscription
+        - uuid: 53f4ab57c4784fb78b62cdecb54b644c
+          name: 'PVE backup jobs raw'
+          type: HTTP_AGENT
+          key: pve.backup.jobs.raw
+          delay: '600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/backup, the configured vzdump backup job definitions. This is the job side of backup monitoring: pve.backup.raw watches the runs, this item watches whether a job exists at all, is enabled and is still being scheduled. A job that was switched off or is no longer advanced by the scheduler starts no run, so it produces no failed task and would otherwise stay invisible. Requires Sys.Audit on /.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 4b7c777084034f50803f8c03d363b265
+          name: 'Backup jobs configured'
+          type: DEPENDENT
+          key: pve.backup.jobs.count
+          delay: '0'
+          value_type: UNSIGNED
+          trends: 365d
+          description: 'Number of vzdump backup job definitions in the cluster. Zero means nothing is scheduled at all, regardless of how many guests exist. Source: /cluster/backup.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.length()'
+          master_item:
+            key: pve.backup.jobs.raw
+          tags:
+            - tag: PVE
+              value: Backup
+        - uuid: 95c94b814aa84f569872151d7249b7a0
+          name: 'PVE backup active raw'
+          type: HTTP_AGENT
+          key: pve.backup.active.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/tasks with source=active and typefilter=vzdump, so it carries only backup tasks that are running right now. The task list defaults to source=archive, where a task appears only once it has finished, which is why a running backup is invisible to pve.backup.raw and why a backup that never finishes produces no signal there at all. Returns an empty list while no backup runs. Requires Sys.Audit on /nodes/{node}.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks?source=active&typefilter=vzdump'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: b9d09de6571e41eb9f6b5500b510c377
+          name: 'Backup running'
+          type: DEPENDENT
+          key: pve.backup.running
+          delay: '0'
+          value_type: UNSIGNED
+          trends: '0'
+          valuemap:
+            name: 'Backup running'
+          description: 'Number of backup tasks running on this node right now, normally 0 or 1. The value is a counter rather than a forced 0 or 1: if two vzdump tasks ever overlap the item shows 2 and stays readable, only the value map has no entry for it. Source: /nodes/{node}/tasks with source=active.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.length()'
+          master_item:
+            key: pve.backup.active.raw
+          tags:
+            - tag: PVE
+              value: Backup
+        - uuid: b481215ab6764b049dbbd06ead48fa94
+          name: 'Backup running since'
+          type: DEPENDENT
+          key: pve.backup.running.since
+          delay: '0'
+          value_type: FLOAT
+          units: unixtime
+          trends: '0'
+          description: 'Start time of the backup that is running right now, available the moment it starts. Zero means no backup is running: the source list is then empty, the JSONPath finds nothing, and the error handler supplies the zero. This is the real start time, unlike Backup starttime, which only moves once the run has finished and reached the task archive. A trend over a Unix timestamp carries no meaning, so trends stay off.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*].starttime.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: pve.backup.active.raw
+          tags:
+            - tag: PVE
+              value: Backup
       discovery_rules:
         - uuid: 91bb690f87b743cb8045704ac4a4c9e0
           name: 'Discover backup'
@@ -1707,6 +1777,23 @@ zabbix_export:
                     3. error: General execution failure; check logs for details
                     4. unknown error: Cannot classify status, please check Proxmox for details
                   manual_close: 'YES'
+            - uuid: 92c26ec56dfd4ec9b420851f7feb5f48
+              name: 'Backup duration {#ID}'
+              type: CALCULATED
+              key: 'backup.duration[{#BCKPID}]'
+              delay: '300'
+              value_type: FLOAT
+              units: s
+              trends: 365d
+              params: 'last(/{HOST.HOST}/backup.endtime[{#BCKPID}]) - last(/{HOST.HOST}/backup.starttime[{#BCKPID}])'
+              description: 'How long the last finished backup of {#ID} took, in seconds. Derived from the end and start timestamps of the same run, both of which arrive together when the task reaches the archive. The value therefore describes the last completed run, never the one in progress.'
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BCKPID}'
+                - tag: vmid
+                  value: '{#BCKPID}'
           graph_prototypes:
             - uuid: 1f9f9b88b6394562ae09774bf5190e68
               name: 'Backup status {#ID}'
@@ -1970,26 +2057,10 @@ zabbix_export:
           lld_macro_paths:
             - lld_macro: '{#HA_SID}'
               path: $.sid
-            - lld_macro: '{#HA_TYPE}'
-              path: $.ha_type
           preprocessing:
-            - type: JAVASCRIPT
+            - type: JSONPATH
               parameters:
-                - |
-                  // Keep only the service entries and expose the resource type (vm or ct) from the SID.
-                  try {
-                    var d = JSON.parse(value).data;
-                    if (!d || !Array.isArray(d)) return '[]';
-                    var out = [];
-                    for (var i = 0; i < d.length; i++) {
-                      if (d[i].type !== 'service' || !d[i].sid) continue;
-                      var parts = String(d[i].sid).split(':');
-                      out.push({ sid: d[i].sid, ha_type: parts.length > 1 ? parts[0] : '' });
-                    }
-                    return JSON.stringify(out);
-                  } catch (e) {
-                    return '[]';
-                  }
+                - '$.data[?(@.type=="service")]'
         - uuid: 553940a5f79343cbb87e6eef7f446131
           name: 'Discover lxc'
           type: DEPENDENT
@@ -4472,6 +4543,88 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+        - uuid: d82f27394dbb4634a7802e256d63d054
+          name: 'Discover backup jobs'
+          type: DEPENDENT
+          key: discover.backup.jobs
+          delay: '0'
+          description: 'Discovers the vzdump backup job definitions from /cluster/backup. Counterpart to Discover backup, which discovers the runs: a job that was disabled or is no longer scheduled starts no run, so the run side stays silent about it.'
+          item_prototypes:
+            - uuid: 9503145719074bfcb1ab65c4a9882da0
+              name: 'Backup job {#BACKUP_JOB_ID} enabled'
+              type: DEPENDENT
+              key: 'backup.job.enabled[{#BACKUP_JOB_ID}]'
+              delay: '0'
+              value_type: UNSIGNED
+              trends: '0'
+              valuemap:
+                name: 'Backup job enabled'
+              description: 'Whether this backup job is active. A disabled job stays configured and visible in the PVE interface but never runs and never reports a failure. Schedule of this job: {#BACKUP_JOB_SCHEDULE}, target storage: {#BACKUP_JOB_STORAGE}.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")].enabled.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.backup.jobs.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BACKUP_JOB_ID}'
+              trigger_prototypes:
+                - uuid: 9213166e3c774322a4bc6e31d87b4198
+                  expression: 'last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=0 and {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"}=1'
+                  name: 'Backup job {#BACKUP_JOB_ID} is disabled on {HOST.NAME}'
+                  opdata: 'Schedule: {#BACKUP_JOB_SCHEDULE}, storage: {#BACKUP_JOB_STORAGE}'
+                  priority: WARNING
+                  description: 'The job is still configured but switched off, so it never runs and produces no failed task to alert on. If the job is off on purpose, set {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"} to 0 for that one job.'
+                  manual_close: 'YES'
+            - uuid: a60711d6b85c4225bbd2cb0eb4367015
+              name: 'Backup job {#BACKUP_JOB_ID} next run'
+              type: DEPENDENT
+              key: 'backup.job.nextrun[{#BACKUP_JOB_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: unixtime
+              trends: '0'
+              description: 'Timestamp of the next run as computed by the PVE scheduler. The API field is called next-run with a hyphen, which is why the JSONPath addresses it in bracket notation. A trend over a Unix timestamp carries no meaning, so trends stay off. The value is stored only when it changes, so the item history is one entry per scheduler advance and the stale trigger below can work without a script. A disabled job carries no next run and the value is discarded instead of turning the item unsupported.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")]["next-run"].first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.backup.jobs.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BACKUP_JOB_ID}'
+              trigger_prototypes:
+                - uuid: 6279740f47ca48d3adf8795d408d722c
+                  expression: 'nodata(/Template Proxmox VE REST API/backup.job.nextrun[{#BACKUP_JOB_ID}],{$PVE.BACKUP.JOB.STALE})=1 and last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=1'
+                  name: 'Backup job {#BACKUP_JOB_ID} has not been rescheduled for {$PVE.BACKUP.JOB.STALE}'
+                  opdata: 'Next run: {ITEM.LASTVALUE1}, schedule: {#BACKUP_JOB_SCHEDULE}'
+                  priority: AVERAGE
+                  description: 'PVE moves the next run forward after every completed run, so the timestamp changes at least once per scheduling interval. It has not changed within {$PVE.BACKUP.JOB.STALE} while the job is enabled, which means the scheduler is no longer advancing this job. The task list cannot show this because no run is ever started. Look at the pvescheduler service on the node first. The macro must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs, and it must carry a time unit such as 2d.'
+                  manual_close: 'YES'
+          master_item:
+            key: pve.backup.jobs.raw
+          lld_macro_paths:
+            - lld_macro: '{#BACKUP_JOB_ID}'
+              path: $.id
+            - lld_macro: '{#BACKUP_JOB_SCHEDULE}'
+              path: $.schedule
+            - lld_macro: '{#BACKUP_JOB_STORAGE}'
+              path: $.storage
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
       macros:
         - macro: '{$BACKUP.ALERT.WINDOW}'
           value: 24h
@@ -4611,6 +4764,18 @@ zabbix_export:
         - macro: '{$ZFS.UTIL.WARN}'
           value: '80'
           description: 'ZFS pool usage (%) for the average severity trigger. ZFS performance degrades noticeably above 80%.'
+        - macro: '{$PVE.BACKUP.JOBS.MIN}'
+          value: '1'
+          description: 'Minimum number of vzdump backup job definitions expected on this cluster. Set to 0 on hosts that are deliberately backed up from somewhere else.'
+        - macro: '{$PVE.BACKUP.JOB.STALE}'
+          value: 2d
+          description: 'How long the next run of an enabled backup job may stay unchanged before the trigger fires. PVE advances the timestamp after every completed run, so the value must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs. The value must include a time unit, for example 2d or 36h. Context form {$PVE.BACKUP.JOB.STALE:"backup-a5c9d88a-bc0e"} widens it for a single job with a wide schedule.'
+        - macro: '{$PVE.BACKUP.JOB.ALERT}'
+          value: '1'
+          description: 'Disabled backup job trigger. Set to 0 to suppress it everywhere, or use the context form {$PVE.BACKUP.JOB.ALERT:"backup-a5c9d88a-bc0e"}=0 to silence one job that is switched off on purpose.'
+        - macro: '{$PVE.BACKUP.RUN.MAX}'
+          value: 3h
+          description: 'How long a backup may run before it is treated as stuck. The value must include a time unit, for example 3h or 90m, and must stay above the normal runtime of the longest job, otherwise the trigger fires during every regular run.'
       dashboards:
       - uuid: a6999e1b8414408ab403f86cba2b272b
         name: Proxmox VE - Monitoring Dashboard
@@ -5327,6 +5492,20 @@ zabbix_export:
               name: show.2
               value: '3'
       valuemaps:
+        - uuid: 4f48a8938054422b8cf484adaec102ee
+          name: 'Backup job enabled'
+          mappings:
+            - value: '0'
+              newvalue: disabled
+            - value: '1'
+              newvalue: enabled
+        - uuid: eec173da961c4f238887a1f4e0356a3e
+          name: 'Backup running'
+          mappings:
+            - value: '0'
+              newvalue: idle
+            - value: '1'
+              newvalue: running
         - uuid: ec064a4b227f46ddbfdec0d7f2ae6572
           name: 'Backup status'
           mappings:
@@ -5531,6 +5710,20 @@ zabbix_export:
       dependencies:
         - name: 'PVE subscription has expired on {HOST.NAME}'
           expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+    - uuid: 27abcc86c4424e11b36b25b92f9fdf0b
+      expression: 'last(/Template Proxmox VE REST API/pve.backup.jobs.count)<{$PVE.BACKUP.JOBS.MIN}'
+      name: 'Fewer backup jobs configured than expected on {HOST.NAME}'
+      opdata: 'Configured jobs: {ITEM.LASTVALUE1}'
+      priority: WARNING
+      description: 'Fewer vzdump backup job definitions exist than {$PVE.BACKUP.JOBS.MIN} expects. With no job at all nothing is backed up, and since no run is attempted there is no failed task to alert on either. Discovery of the individual jobs stops in the same moment, so the per job triggers go away instead of firing.'
+      manual_close: 'YES'
+    - uuid: c94e008565344aca9077f48fdc06c951
+      expression: 'min(/Template Proxmox VE REST API/pve.backup.running,{$PVE.BACKUP.RUN.MAX})>0'
+      name: 'Backup has been running for more than {$PVE.BACKUP.RUN.MAX} on {HOST.NAME}'
+      opdata: 'Running since: {ITEM.LASTVALUE1}'
+      priority: AVERAGE
+      description: 'A backup task has been running without interruption for the whole period. This is the one backup failure the task archive cannot show: a run that never finishes never reaches the archive, so the status, end time and message items keep reporting the previous successful run and nothing else would ever fire. Check the running task in the PVE task viewer and the target storage.'
+      manual_close: 'YES'
   graphs:
     - uuid: bbdef5c2775146b4ad30ac91ad877624
       name: 'Load average'
