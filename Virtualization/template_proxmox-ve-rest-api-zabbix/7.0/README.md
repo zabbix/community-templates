@@ -277,8 +277,11 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 
 ## Screenshots
 
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d41f3f60-8220-4326-a2c2-6f28f1ffae57" />
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/9d4975cd-bf00-4f17-a92f-a67c3d66f162" />
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/0b1d7b96-e4a2-4b65-9879-0bf9dc69270b" />
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/d95a382b-00eb-439c-9250-7e0b340ec453" />
-<img width="2321" height="1147" alt="image" src="https://github.com/user-attachments/assets/48d17e9c-71ae-4e27-8fbe-eb64c666a917" />
+<img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-52-55" src="https://github.com/user-attachments/assets/3bb2fc8b-e892-4f7b-8dc8-5356986b9b1d" />
+<img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-14" src="https://github.com/user-attachments/assets/f548341c-975d-44a3-b4d6-5acbb25517b7" />
+<img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-22" src="https://github.com/user-attachments/assets/091a82e9-3eef-4fd6-84a4-2a806189fe50" />
+<img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-29" src="https://github.com/user-attachments/assets/f06dde1f-3244-448d-b9e1-3e9e038b68f2" />
+<img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-33" src="https://github.com/user-attachments/assets/ba551cbb-49c3-452c-ac75-887503af2e8e" />
+
+
+
