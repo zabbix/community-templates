@@ -24,8 +24,8 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-107 items, 14 discovery rules with 70 item prototypes, 52 triggers, 36 macros and a dashboard
-with 8 pages.
+127 items, 15 discovery rules with 71 item prototypes, 58 triggers, 41 macros and a dashboard
+with 9 pages.
 
 | Area | Source endpoint |
 |------|-----------------|
@@ -52,6 +52,10 @@ with 8 pages.
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
+| Resolver: queries, cache hits and misses, prefetches, rate limited queries, recursion time, request queue | `unbound/diagnostics/stats` |
+| Certificate validity, discovered per certificate | `trust/cert/search` |
+| The status panel the firewall shows about itself | `core/system/status` |
+| DHCP leases, active and total, v4 and v6 | `kea/leases4/search`, `kea/leases6/search` |
 
 ## Setup
 
@@ -81,29 +85,50 @@ not the DNS name.
 
 ## Privileges
 
-Measured with a restricted key, not taken from the documentation. Ten privileges are needed,
-eight of them read only.
+Derived from the privilege patterns the firewall itself publishes under `auth/priv/search`,
+not from trying endpoints with a key and reading the HTTP code. Trying tells you what your
+key happens to allow; the patterns tell you what any key needs.
+
+Seventeen endpoints are covered by exactly one privilege each. Three more, the gateway
+status, the WireGuard status and the pf table size, can be covered by either of two, and the
+table names the better choice with the reason. Twenty privileges in total, ten of which only
+read.
 
 | Privilege in the GUI | Internal ID | Needed for | Read only |
 |----------------------|-------------|------------|-----------|
-| Lobby: Dashboard | `page-system-login-logout` | system resources, time, disks, swap, temperature, core count, pf states | yes |
-| Diagnostics: Netstat | `page-diagnostics-netstat` | interface statistics, mbuf pool, netisr queues, protocol errors | yes |
-| Diagnostics: Firewall statistics | `page-diagnostics-pf-info` | pf counters, source tracking, ruleset | yes |
+| Lobby: Dashboard | `page-system-login-logout` | system resources, time, disk, swap, temperature, CPU type, pf states | yes, the pattern names single endpoints |
+| Diagnostics: Netstat | `page-diagnostics-netstat` | mbuf pool, netisr queues, protocol errors | yes |
+| Diagnostics: Firewall statistics | `page-diagnostics-pf-info` | pf counters, memory, ruleset, per interface blocks | yes |
 | Diagnostics: System Activity | `page-diagnostics-system-activity` | processor utilisation | yes |
-| Status: NTP | `page-status-ntp` | clock synchronisation | yes |
 | Diagnostics: Logs: Firewall: Summary View | `page-diagnostics-logs-firewall-summary` | blocked share of the firewall log | yes |
-| Firewall: Aliases | `page-firewall-aliases` | pf table entry usage, also exposes every alias content | yes |
-| Reporting: Traffic | `page-status-trafficgraph` | interface discovery, traffic and counters | yes |
-| Status: Services | `page-status-services` | service run state | **no**, also permits starting and stopping services |
-| System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, its pattern `api/core/firmware/*` also covers reboot, poweroff, install and remove |
+| Firewall: Aliases | `page-firewall-aliases` | pf table entry usage | yes, the pattern is limited to `export`, `search*`, `list*` and `get*`. Do **not** use Firewall: Alias: Edit instead, which covers `api/firewall/alias/*` and therefore writing |
+| Reporting: Traffic | `page-status-trafficgraph` | interface traffic and counters | yes |
+| Interfaces: Virtual IPs: Status | `page-status-carp` | CARP status per address | yes |
+| Status: NTP | `page-status-ntp` | clock synchronisation | yes, the pattern is the single status endpoint |
+| Status: IPsec | `page-status-ipsec` | IPsec phase 1 and phase 2 | yes, `api/ipsec/sessions/*` is a read only controller |
+| System: Status | `page-system-status` | the status panel the firewall shows about itself | almost, it also permits dismissing a message |
+| System: Gateways | `page-system-gateways` | gateway status | **no**, its pattern also covers `api/routing/settings/*`. The alternative, System: Static Routes, covers `api/routes/*` and is no better |
+| Status: OpenVPN | `page-status-openvpn` | OpenVPN instances and clients | **no**, `api/openvpn/service/*` includes service control |
+| VPN: WireGuard: Status | `page-wireguard-diagnostics` | WireGuard instances and peers | **no**, `api/wireguard/service/*` includes service control. Still the narrower of the two: VPN: WireGuard: Configuration also covers servers, clients and general settings |
+| Status: Services | `page-status-services` | service run state | **no**, `api/core/service/*` permits starting and stopping services |
+| System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, `api/core/firmware/*` also covers reboot, poweroff, install and remove |
+| Services: Unbound | `page-services-unbound` | resolver statistics | **no**, `api/unbound/*` covers the whole resolver configuration |
+| System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates |
+| Services: DHCP: Kea(v4) and Kea(v6) | `page-dhcp-kea-v4`, `page-dhcp-kea-v6` | DHCP lease counters | **no**, the patterns cover the Kea configuration and service control |
 
-Two of them grant more than reading. Without **Status: Services** the service discovery stays
-empty and nothing else breaks. Without **System: Firmware** the five firmware items, the
-license item and the version item stay unsupported; the version is also available from
-`diagnostics/system/system_information`, which Lobby: Dashboard already covers.
+Leaving one out costs exactly the items it feeds, which then stay unsupported, and nothing
+else. That is the way to trade coverage against privilege:
 
-`page-nut` is needed only if a UPS is monitored. It comes with the NUT plugin and covers
-`api/nut/*`. Without it the UPS master returns HTTP 403 even with the item enabled.
+- without **Status: Services** the service discovery stays empty
+- without **System: Firmware** the five firmware items, the license item and the version item
+  stay unsupported. The version is also available from
+  `diagnostics/system/system_information`, which Lobby: Dashboard covers
+- without **Services: Unbound**, **System: Certificate Manager** or the two **Kea** ones the
+  resolver, certificate and lease items stay unsupported. These four areas are the ones to
+  drop first if the account has to stay close to read only
+
+`page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
+`api/nut/*`, and without it the UPS master returns HTTP 403 even after enabling the item.
 
 ## Macros
 
@@ -139,6 +164,9 @@ license item and the version item stay unsupported; the version is also availabl
 | `{$OPNS.NUT.BAT.LOW}` | `30` | UPS battery charge counting as low |
 | `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining UPS runtime in seconds |
 | `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load counting as high |
+| `{$OPNS.DNS.RECURSION.WARN}` | `1` | Average recursion time in seconds counting as slow |
+| `{$OPNS.DNS.HITRATIO.MIN}` | `60` | Cache hit ratio in percent below which the resolver is reported as working harder than it should |
+| `{$OPNS.CERT.EXPIRE.DAYS}` | `21d` | Lead time before a certificate expires |
 
 ### Discovery filters and switches
 
@@ -153,6 +181,8 @@ license item and the version item stay unsupported; the version is also availabl
 | `{$OPNS.WG.PEER.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard peer discovery filter |
 | `{$OPNS.FS.FSNAME.MATCHES}` / `.NOT_MATCHES` | `.+` / `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Filesystem discovery filter by mount point |
 | `{$OPNS.FS.FSTYPE.MATCHES}` / `.NOT_MATCHES` | filesystem list / `^\s$` | Filesystem discovery filter by type |
+| `{$OPNS.CERT.NAME.NOT_MATCHES}` | `^$` | Certificates excluded from discovery, by description |
+| `{$OPNS.CERT.IN_USE.MATCHES}` | `1` | Which certificates are discovered, matched against the in_use flag. Set to `.*` to watch every certificate in the store |
 
 ## Discovery
 
@@ -172,10 +202,14 @@ license item and the version item stay unsupported; the version is also availabl
 | WireGuard Instance Discovery | instances |
 | WireGuard Peer Discovery | peers, traffic and handshake age |
 | OpenVPN instances and clients | instances and connected clients |
+| Certificates | validity per certificate in the trust store |
 
 ## Triggers
 
-52 in total: 2 Disaster, 13 High, 11 Average, 18 Warning, 8 Info.
+58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+
+Trigger names carry no product prefix, following the Zabbix guidelines and the community
+template: Zabbix puts the host name in front of the trigger anyway.
 
 Disaster is reserved for a gateway that is down and for a low UPS battery. High covers the
 cases where the firewall is losing packets or a tunnel is gone: denied kernel network memory,
@@ -190,7 +224,7 @@ firmware updates, a reboot, and a gateway whose monitoring is switched off.
 
 ## Dashboard
 
-Eight pages, 84 widgets. The grid is the full 72 columns wide.
+Nine pages, 96 widgets. The grid is the full 72 columns wide.
 
 | Page | Shows |
 |------|-------|
@@ -202,6 +236,7 @@ Eight pages, 84 widgets. The grid is the full 72 columns wide.
 | System | processor, memory and load per core, uptime, version, cores, configuration change timestamp, both load averages, utilisation split, temperature and swap honeycombs |
 | Kernel and protocols | mbuf utilisation, clusters in use, denied requests, netisr drops per protocol, IP and TCP error rates |
 | Services, clock and power | every service as a honeycomb, clock synchronisation, offset, stratum, reachable peers, CARP demotion and maintenance, UPS battery, status, load and runtime |
+| Resolver, certificates and leases | DNS cache hit ratio, query rate, recursion time and queue, the system status message, query and recursion graphs, DHCP leases, and certificate expiry as a honeycomb |
 
 ## Notes
 
@@ -232,6 +267,27 @@ entity identity and identical keys would collapse into one.
 **JavaScript is kept to a minimum.** Parsing happens once on the master item, dependent items
 read the result with plain JSONPath. A step on a prototype would run per value and per
 discovered instance.
+
+**DHCP leases carry no trigger.** A network that addresses everything statically runs at zero
+leases forever, and a trigger on that would be wrong on exactly the installations that are
+configured most carefully. The meaningful threshold is the size of the pool, which is a local
+decision, so the number is there to be graphed and alerted on where it matters.
+
+**The system status item** reports the code the firewall shows in its own status panel. A
+firewall with nothing pending answers 2 and "No pending messages". The other codes were not
+observed here, so the trigger fires on anything other than 2 rather than claiming to know
+them, and the message is carried next to it as text.
+
+**Raw master items store nothing.** Every master carries `history: 0`. A dependent item is
+fed from the value as it arrives, not from the stored history, so the chain works without it,
+and nothing else reads a raw payload. Measured on one small firewall with this template
+linked, keeping a day of them costs about 20 MiB per host per day. What is given up is
+looking at yesterday's raw response in Latest data.
+
+**A firewall without CARP discovers no CARP addresses** rather than reporting an error.
+`get_vip_status` answers with an empty `rows` list and the message "Could not locate any
+defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
+rule takes the empty list.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
