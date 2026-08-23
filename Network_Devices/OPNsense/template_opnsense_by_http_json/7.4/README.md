@@ -462,18 +462,18 @@ demotion factor and maintenance mode from `opns.raw.interfaces.carp`, and the ve
 |------|-----|------|-------------|
 | Gateway Address {#GWSTATUSNAME} | `opns.gw.status.address[{#GWSTATUSNAME}]` | – | Gateway IP address. |
 | Gateway Status {#GWSTATUSNAME} | `opns.gw.status.status[{#GWSTATUSNAME}]` | – | Translated status string (e.g. "Online"). |
-| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time. Returns 9999 if monitoring is disabled. |
-| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | RTT standard deviation. Returns 9999 if monitoring is disabled. |
-| Gateway loss {#GWSTATUSNAME} | `opns.gw.status.loss[{#GWSTATUSNAME}]` | % | Packet loss percentage. Returns 9999 if monitoring is disabled. |
+| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time. Stays empty while gateway monitoring is disabled, where the firewall reports a tilde instead of a number. |
+| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | RTT standard deviation. Stays empty while gateway monitoring is disabled. |
+| Gateway loss {#GWSTATUSNAME} | `opns.gw.status.loss[{#GWSTATUSNAME}]` | % | Packet loss percentage. Stays empty while gateway monitoring is disabled. |
 
 **Trigger Prototypes:**
 
 | Name | Severity | Description |
 |------|----------|-------------|
-| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense. |
+| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. A gateway without a monitor address reports no value at all, so the trigger cannot fire. |
+| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. A gateway without a monitor address reports no value at all, so the trigger cannot fire. |
+| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. A gateway without a monitor address reports no value at all, so an outage of such a gateway is not detected here. |
+| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Info** | None of the three monitoring values has arrived for 10 min, so the gateway has no monitor address. Informational because that is a configuration decision, but while it holds an outage of this gateway raises nothing. |
 
 ---
 
