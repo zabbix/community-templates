@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 15 discovery rules with 71 item prototypes, 58 triggers, 41 macros and a dashboard
+127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -175,7 +175,8 @@ else. That is the way to trade coverage against privilege:
 | `{$OPNS.IF.CONTROL}` | `1` | Set to 0, per interface through context, to silence the interface down trigger |
 | `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from discovery |
 | `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
-| `{$OPNS.OPENVPN.ID.NOT_MATCHES}` | `^$` | OpenVPN instances excluded from discovery |
+| `{$OPNS.OPENVPN.ID.NOT_MATCHES}` | `^$` | OpenVPN instances excluded from discovery, sessions of an excluded instance go with it |
+| `{$OPNS.OPENVPN.SESSION.NOT_MATCHES}` | `^$` | Connected OpenVPN clients excluded from discovery, by client name. Set to `.*` to switch session discovery off |
 | `{$OPNS.OPENVPN.CONTROL}` | `1` | Set to 0, per instance through context, to silence the OpenVPN down trigger |
 | `{$OPNS.WG.INSTANCE.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard instance discovery filter |
 | `{$OPNS.WG.PEER.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard peer discovery filter |
@@ -201,7 +202,8 @@ else. That is the way to trade coverage against privilege:
 | IPsec Phase1 Discovery | tunnels, with phase 2 per connection |
 | WireGuard Instance Discovery | instances |
 | WireGuard Peer Discovery | peers, traffic and handshake age |
-| OpenVPN instances and clients | instances and connected clients |
+| OpenVPN instances | servers and clients, their state and the number of connected clients |
+| OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
 
 ## Triggers
@@ -295,6 +297,26 @@ rule takes the empty list.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
+
+**An OpenVPN server disappears behind its own clients.** `search_sessions` answers with one
+flat list, and a running server that has clients connected is represented by those clients
+alone. Each client carries the description, the type and the status of the instance it belongs
+to, and its identifier is the instance identifier with the source address appended. Discovered
+as it stands, every session is named after its instance, and the instance itself vanishes for
+as long as anybody is connected. The script on the master item therefore splits the list into
+instances and sessions and rebuilds the instance from its sessions. Two more things follow from
+the same answer: a server keeps no traffic counters of its own, so the instance figures are the
+sum over the clients connected right now, which steps down when one of them leaves; and an
+instance that is enabled but not running is returned without a status at all, which is reported
+as `stopped` so that the down trigger has something to work on. A client instance and a server
+in point to point mode report the state of their own tunnel instead, `connected` rather than
+`ok`, and the trigger accepts both. Sessions are deleted the moment they end, because the
+source port is part of their identity and a reconnect is a new session. This part was read off
+the OPNsense source, `ServiceController::searchSessionsAction` and `ovpn_status.py`, because
+that firewall runs no OpenVPN, and then checked against its live endpoint with the OpenVPN
+management sockets simulated. The answer, the field names and the fact that a busy server is
+represented by its clients alone are what the endpoint returns on OPNsense 26.7.2. What has
+not been seen is a real tunnel carrying a real client.
 
 ## License
 

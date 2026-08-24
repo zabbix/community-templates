@@ -27,14 +27,15 @@ zabbix_export:
         with phase 2 per connection, WireGuard, OpenVPN, services, clock synchronisation,
         filesystems, firmware state, configuration changes and UPS. Interfaces, gateways,
         filesystems, swap devices, temperature sensors, netisr protocols, services, CARP
-        addresses, IPsec tunnels, WireGuard peers and OpenVPN instances are discovered.
+        addresses, IPsec tunnels, WireGuard peers, OpenVPN instances and the clients connected to
+        them are discovered.
 
         The monitoring account needs ten privileges. Eight are read only; the README states
         what the other two permit and how to do without them.
 
         Derived from the Zabbix community template "OPNsense by HTTP-JSON", MIT licensed,
         Copyright (c) 2021 Zabbix, with the greater part of the current content added on
-        top. See LICENSE.
+        top.
       groups:
         - name: 'Templates/Network devices'
         - name: 'Templates/Operating systems'
@@ -1488,11 +1489,118 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           timeout: 15s
           url: https://{HOST.IP}:{$OPNS.PORT}/api/openvpn/service/search_sessions
-          description: Every OpenVPN instance and every client connected to a server, in one request. Instances that are enabled but not running are included with an empty status, so a server that died is still discovered rather than disappearing.
+          description: |
+            Every OpenVPN instance and every client connected to a server, in one request. Instances that are enabled but not running are included, so a server that died is still discovered rather than disappearing.
+            The API answers with one flat list in which a running server that has clients connected is represented by those clients alone, each of them carrying the description and the type of the instance they belong to. Discovered as it stands, a session would be named after its instance and the instance itself would vanish for as long as anybody is connected. The script splits the list into instances and sessions, rebuilds the instance from its sessions, adds the session counters up onto it, and reports an instance that is enabled but not running as stopped instead of leaving its status empty.
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.rows
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var instances = {}, order = [], sessions = [], i;
+
+                  function text(v) {
+                      return v === null || v === undefined ? '' : String(v);
+                  }
+
+                  function num(v) {
+                      if (v === null || v === undefined || v === '') {
+                          return null;
+                      }
+                      var n = Number(v);
+                      return isNaN(n) ? null : n;
+                  }
+
+                  function label(row, id) {
+                      var d = text(row.description);
+                      return d !== '' ? d : id;
+                  }
+
+                  function instanceOf(id, row) {
+                      if (!instances[id]) {
+                          instances[id] = {id: id, description: label(row, id), type: text(row.type),
+                                           status: 'stopped', clients: 0};
+                          order.push(id);
+                      }
+                      return instances[id];
+                  }
+
+                  for (i = 0; i < rows.length; i++) {
+                      var row = rows[i], id = text(row.id), inst, rx, tx, since;
+                      if (row.is_client === true || row.is_client === 'true') {
+                          var real = text(row.real_address), parent = id;
+                          if (real !== '' && id.length > real.length &&
+                                  id.substring(id.length - real.length - 1) === '_' + real) {
+                              parent = id.substring(0, id.length - real.length - 1);
+                          }
+                          var who = text(row.common_name);
+                          if (who === '' || who === 'UNDEF') {
+                              who = text(row.username);
+                          }
+                          if (who === '' || who === 'UNDEF') {
+                              who = real !== '' ? real : id;
+                          }
+                          var session = {id: id, instance: parent, description: label(row, parent),
+                                         type: text(row.type), client: who, real_address: real,
+                                         virtual_address: text(row.virtual_address)};
+                          rx = num(row.bytes_received);
+                          tx = num(row.bytes_sent);
+                          since = num(row.connected_since__time_t_);
+                          if (since === null) {
+                              since = num(row.timestamp);
+                          }
+                          if (rx !== null) {
+                              session.bytes_received = rx;
+                          }
+                          if (tx !== null) {
+                              session.bytes_sent = tx;
+                          }
+                          if (since !== null) {
+                              session.connected_since = since;
+                          }
+                          sessions.push(session);
+                          inst = instanceOf(parent, row);
+                          inst.clients++;
+                          if (text(row.status) !== '') {
+                              inst.status = text(row.status);
+                          }
+                          if (rx !== null) {
+                              inst.bytes_received = (inst.bytes_received || 0) + rx;
+                          }
+                          if (tx !== null) {
+                              inst.bytes_sent = (inst.bytes_sent || 0) + tx;
+                          }
+                      } else {
+                          inst = instanceOf(id, row);
+                          inst.description = label(row, id);
+                          inst.type = text(row.type);
+                          if (text(row.status) !== '') {
+                              inst.status = text(row.status);
+                          }
+                          rx = num(row.bytes_received);
+                          tx = num(row.bytes_sent);
+                          if (rx !== null) {
+                              inst.bytes_received = rx;
+                          }
+                          if (tx !== null) {
+                              inst.bytes_sent = tx;
+                          }
+                      }
+                  }
+
+                  var out = [];
+                  for (i = 0; i < order.length; i++) {
+                      inst = instances[order[i]];
+                      if (inst.type === 'client') {
+                          delete inst.clients;
+                      }
+                      out.push(inst);
+                  }
+
+                  return JSON.stringify({instances: out, sessions: sessions});
           tags:
             - tag: component
               value: raw
@@ -4320,18 +4428,25 @@ zabbix_export:
             - lld_macro: '{#NETISR.PROTO}'
               path: $.name
         - uuid: 197dc88a53f9474cb7946623455b286f
-          name: OpenVPN instances and clients
+          name: OpenVPN instances
           type: DEPENDENT
           key: opns.openvpn.discovery
           delay: '0'
-          description: One entity per instance, plus one per client connected to a server. A client carries the instance id and the client address in its own id, so the two never collide.
+          description: |
+            One entry per enabled instance, server or client. An instance that is enabled but not running is included, so a server that died is still discovered rather than disappearing.
+            A running server that has clients connected is not listed by the API in its own right, only its clients are, which is why the instance list is rebuilt on the master item from those clients.
+            An instance without a description in the configuration is named after its identifier.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.instances
           master_item:
             key: opns.openvpn.raw
           lld_macro_paths:
-            - lld_macro: '{#OVPN.ID}'
-              path: $.id
             - lld_macro: '{#OVPN.DESC}'
               path: $.description
+            - lld_macro: '{#OVPN.ID}'
+              path: $.id
             - lld_macro: '{#OVPN.TYPE}'
               path: $.type
           filter:
@@ -4341,17 +4456,30 @@ zabbix_export:
                 value: '{$OPNS.OPENVPN.ID.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
                 formulaid: A
+          overrides:
+            - name: 'Client instances have no clients of their own'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#OVPN.TYPE}'
+                    value: ^client$
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: LIKE
+                  value: 'clients connected'
+                  discover: NO_DISCOVER
           item_prototypes:
             - uuid: e0b80df6d63a456095f526e2c48ad6ed
               name: 'OpenVPN {#OVPN.DESC} ({#OVPN.TYPE}): status'
               type: DEPENDENT
               key: opns.openvpn.status[{#OVPN.ID}]
               delay: '0'
-              description: ok while the instance answers on its management socket. An enabled instance that is not running reports nothing at all, which the trigger treats as down.
+              description: |
+                ok for a server that answers on its management socket, connected for a client instance and for a server in point to point mode, which report the state of their own tunnel instead. stopped for an instance that is enabled but not running. A disabled instance is not reported by the API at all and is therefore not discovered.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $[?(@.id == "{#OVPN.ID}")].status.first()
+                    - $.instances[?(@.id == "{#OVPN.ID}")].status.first()
                   error_handler: DISCARD_VALUE
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
@@ -4366,21 +4494,43 @@ zabbix_export:
               value_type: CHAR
               trigger_prototypes:
                 - uuid: bef2f6149b744929a3667f8147d884e3
-                  expression: find(/OPNsense by REST API/opns.openvpn.status[{#OVPN.ID}],10m,"regexp","^ok$")=0 and {$OPNS.OPENVPN.CONTROL:"{#OVPN.DESC}"}=1
+                  expression: find(/OPNsense by REST API/opns.openvpn.status[{#OVPN.ID}],10m,"regexp","^(ok|connected)$")=0 and {$OPNS.OPENVPN.CONTROL:"{#OVPN.DESC}"}=1
                   name: OpenVPN {#OVPN.DESC} ({#OVPN.TYPE}) is not up
                   priority: AVERAGE
                   manual_close: 'YES'
-                  description: The instance has not reported a working management socket for ten minutes. Set {$OPNS.OPENVPN.CONTROL} to 0, per instance through macro context, for instances that are allowed to be down.
+                  description: The instance has not reported a working tunnel for ten minutes. Set {$OPNS.OPENVPN.CONTROL} to 0, per instance through macro context, for instances that are allowed to be down.
+            - uuid: 7e61a5cb3cfd4cd4865d606af3d03f33
+              name: 'OpenVPN {#OVPN.DESC} ({#OVPN.TYPE}): clients connected'
+              type: DEPENDENT
+              key: opns.openvpn.clients[{#OVPN.ID}]
+              delay: '0'
+              description: Clients currently connected to this server instance. Client instances do not carry the item, they have no clients of their own.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.instances[?(@.id == "{#OVPN.ID}")].clients.first()
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.openvpn.raw
+              tags:
+                - tag: component
+                  value: openvpn
+                - tag: openvpn
+                  value: '{#OVPN.DESC}'
             - uuid: bfcf4cc326a249b6afbddbcbbba7cf55
               name: 'OpenVPN {#OVPN.DESC} ({#OVPN.TYPE}): bytes received'
               type: DEPENDENT
               key: opns.openvpn.bytes.in[{#OVPN.ID}]
               delay: '0'
-              description: Total received on this instance or client.
+              description: |
+                For a client instance, the counter of the instance itself. For a server, the sum over the clients connected right now, because a server reports no counter of its own. That sum drops when a client disconnects, so read it as current load rather than as a lifetime total.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $[?(@.id == "{#OVPN.ID}")].bytes_received.first()
+                    - $.instances[?(@.id == "{#OVPN.ID}")].bytes_received.first()
                   error_handler: DISCARD_VALUE
               master_item:
                 key: opns.openvpn.raw
@@ -4395,11 +4545,12 @@ zabbix_export:
               type: DEPENDENT
               key: opns.openvpn.bytes.out[{#OVPN.ID}]
               delay: '0'
-              description: Total sent on this instance or client.
+              description: |
+                For a client instance, the counter of the instance itself. For a server, the sum over the clients connected right now, because a server reports no counter of its own. That sum drops when a client disconnects, so read it as current load rather than as a lifetime total.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $[?(@.id == "{#OVPN.ID}")].bytes_sent.first()
+                    - $.instances[?(@.id == "{#OVPN.ID}")].bytes_sent.first()
                   error_handler: DISCARD_VALUE
               master_item:
                 key: opns.openvpn.raw
@@ -4414,16 +4565,16 @@ zabbix_export:
               type: DEPENDENT
               key: opns.openvpn.bytes.in.rate[{#OVPN.ID}]
               delay: '0'
-              description: ''
+              description: A client disconnecting takes its counter out of the server total, which would turn the rate negative. Such a step down is discarded rather than recorded.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $[?(@.id == "{#OVPN.ID}")].bytes_received.first()
+                    - $.instances[?(@.id == "{#OVPN.ID}")].bytes_received.first()
                   error_handler: DISCARD_VALUE
-                - &id001
-                  type: CHANGE_PER_SECOND
+                - type: CHANGE_PER_SECOND
                   parameters:
                     - ''
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: opns.openvpn.raw
               tags:
@@ -4437,13 +4588,16 @@ zabbix_export:
               type: DEPENDENT
               key: opns.openvpn.bytes.out.rate[{#OVPN.ID}]
               delay: '0'
-              description: ''
+              description: A client disconnecting takes its counter out of the server total, which would turn the rate negative. Such a step down is discarded rather than recorded.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $[?(@.id == "{#OVPN.ID}")].bytes_sent.first()
+                    - $.instances[?(@.id == "{#OVPN.ID}")].bytes_sent.first()
                   error_handler: DISCARD_VALUE
-                - *id001
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                  error_handler: DISCARD_VALUE
               master_item:
                 key: opns.openvpn.raw
               tags:
@@ -4452,6 +4606,112 @@ zabbix_export:
                 - tag: openvpn
                   value: '{#OVPN.DESC}'
               units: Bps
+        - uuid: 85552d52f3bd4491b07adc4be50afffd
+          name: OpenVPN sessions
+          type: DEPENDENT
+          key: opns.openvpn.session.discovery
+          delay: '0'
+          lifetime_type: DELETE_IMMEDIATELY
+          description: |
+            One entry per client connected to a server instance, named after the client rather than after the instance it is connected to. The name is the common name from the certificate, the user name where the common name is missing or UNDEF, and the source address where neither is known.
+            A session is identified by the instance and the source address including the port, so a reconnect creates a new session. Items of a session that ended are therefore deleted right away instead of lingering as unsupported.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.sessions
+          master_item:
+            key: opns.openvpn.raw
+          lld_macro_paths:
+            - lld_macro: '{#OVPN.CN}'
+              path: $.client
+            - lld_macro: '{#OVPN.DESC}'
+              path: $.description
+            - lld_macro: '{#OVPN.ID}'
+              path: $.instance
+            - lld_macro: '{#OVPN.REAL}'
+              path: $.real_address
+            - lld_macro: '{#OVPN.SESSION}'
+              path: $.id
+            - lld_macro: '{#OVPN.VIRT}'
+              path: $.virtual_address
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#OVPN.CN}'
+                value: '{$OPNS.OPENVPN.SESSION.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+              - macro: '{#OVPN.ID}'
+                value: '{$OPNS.OPENVPN.ID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: a0f48e83d3734cbca941ede109d78618
+              name: 'OpenVPN {#OVPN.DESC} session {#OVPN.CN} from {#OVPN.REAL}: bytes received'
+              type: DEPENDENT
+              key: opns.openvpn.session.bytes.in[{#OVPN.SESSION}]
+              delay: '0'
+              description: 'Received from this client since it connected. The tunnel address it was given is {#OVPN.VIRT}.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sessions[?(@.id == "{#OVPN.SESSION}")].bytes_received.first()
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.openvpn.raw
+              tags:
+                - tag: component
+                  value: openvpn
+                - tag: openvpn
+                  value: '{#OVPN.DESC}'
+                - tag: openvpn_client
+                  value: '{#OVPN.CN}'
+              units: B
+            - uuid: 224f0f2a0c9b4e5888545fec4cbc2ee5
+              name: 'OpenVPN {#OVPN.DESC} session {#OVPN.CN} from {#OVPN.REAL}: bytes sent'
+              type: DEPENDENT
+              key: opns.openvpn.session.bytes.out[{#OVPN.SESSION}]
+              delay: '0'
+              description: 'Sent to this client since it connected. The tunnel address it was given is {#OVPN.VIRT}.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sessions[?(@.id == "{#OVPN.SESSION}")].bytes_sent.first()
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.openvpn.raw
+              tags:
+                - tag: component
+                  value: openvpn
+                - tag: openvpn
+                  value: '{#OVPN.DESC}'
+                - tag: openvpn_client
+                  value: '{#OVPN.CN}'
+              units: B
+            - uuid: c677b39308644edab25b041f406a6d1d
+              name: 'OpenVPN {#OVPN.DESC} session {#OVPN.CN} from {#OVPN.REAL}: connected since'
+              type: DEPENDENT
+              key: opns.openvpn.session.since[{#OVPN.SESSION}]
+              delay: '0'
+              description: Start of this session, as reported by the server.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sessions[?(@.id == "{#OVPN.SESSION}")].connected_since.first()
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.openvpn.raw
+              tags:
+                - tag: component
+                  value: openvpn
+                - tag: openvpn
+                  value: '{#OVPN.DESC}'
+                - tag: openvpn_client
+                  value: '{#OVPN.CN}'
+              units: unixtime
         - uuid: a193ea4493564267bb945680a35be241
           name: Services
           type: DEPENDENT
@@ -4752,7 +5012,10 @@ zabbix_export:
           description: Set to 0, optionally per instance through macro context, to stop the down trigger for instances that are allowed not to run.
         - macro: '{$OPNS.OPENVPN.ID.NOT_MATCHES}'
           value: ^$
-          description: Instances or clients excluded from discovery, as a regular expression over the identifier. The default excludes nothing.
+          description: Instances excluded from discovery, as a regular expression over the identifier. Excluding an instance excludes its sessions with it. The default excludes nothing.
+        - macro: '{$OPNS.OPENVPN.SESSION.NOT_MATCHES}'
+          value: ^$
+          description: Connected clients excluded from discovery, as a regular expression over the client name. The default excludes nothing. Set it to .* on a server with many short lived sessions to switch session discovery off and keep the instance items.
         - macro: '{$OPNS.PF.SRCNODES.UTIL.CRIT}'
           value: '90'
           description: Fill level of the source tracking table that counts as critical.
