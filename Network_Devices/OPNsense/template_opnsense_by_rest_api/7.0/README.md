@@ -128,7 +128,9 @@ else. That is the way to trade coverage against privilege:
   drop first if the account has to stay close to read only
 
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
-`api/nut/*`, and without it the UPS master returns HTTP 403 even after enabling the item.
+`api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
+item. On a firewall where the plugin is not installed at all the route does not exist and the
+answer is HTTP 404, which is why the item ships disabled.
 
 ## Macros
 
