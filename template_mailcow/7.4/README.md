@@ -136,3 +136,8 @@ instead of fixed thresholds.
 
 MIT — see the [project repository](https://github.com/linuser/Mailcow-Zabbix-Monitoring).
 © 2026 Alexander Fox | PlaNet Fox.
+
+## Grafana dashboard
+
+An optional Grafana dashboard is available in the upstream project:
+https://github.com/linuser/Mailcow-Zabbix-Monitoring/blob/main/Grafana/mailcow-grafana-dashboard.json
