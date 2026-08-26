@@ -1,0 +1,936 @@
+zabbix_export:
+  version: '6.0'
+  date: '2026-08-21T00:00:00Z'
+  groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 59fe9821b0d143e4a755d79159898686
+      template: 'Couchbase Elasticsearch Connector by HTTP'
+      name: 'Couchbase Elasticsearch Connector by HTTP'
+      description: |
+        Monitors one or more Couchbase Elasticsearch Connector instances through the native Dropwizard JSON metrics endpoint.
+
+        This trigger-focused, database-conscious template performs one HTTP request per connector per polling interval and derives all metrics through dependent items. It requires no Zabbix agent, container integration, or external script.
+
+        Tested with Couchbase Elasticsearch Connector 4.4.8 and Zabbix 6.0 LTS. DCP connection-status metrics are not part of a documented CBES monitoring contract; absence of these metrics is reported as Unknown rather than Unhealthy.
+
+        Author: hozgryldz
+        Project home: https://github.com/hozgryldz/zabbix-template-couchbase-elasticsearch-connector
+      groups:
+        - name: Templates/Applications
+      discovery_rules:
+        - uuid: a6324a56b2274126983be36573114726
+          name: 'Couchbase Elasticsearch Connector instance discovery'
+          type: SCRIPT
+          key: cbes.instances.discovery
+          delay: 1h
+          lifetime: 1h
+          description: |
+            Parses {$CBES.INSTANCES} without making an HTTP request. The strict format is a comma-separated list of unique name:port entries. Invalid input makes the discovery rule unsupported instead of silently returning an empty result.
+          params: |
+            function trim(text) {
+                return text.replace(/^\s+|\s+$/g, '');
+            }
+
+            var params;
+            try {
+                params = JSON.parse(value);
+            } catch (e) {
+                throw 'CBES instance discovery parameters are not valid JSON.';
+            }
+
+            if (typeof params.instances !== 'string' || trim(params.instances) === '') {
+                throw 'CBES instance list must not be empty.';
+            }
+
+            var entries = params.instances.split(',');
+            var result = [];
+            var names = {};
+            var ports = {};
+
+            for (var i = 0; i < entries.length; i++) {
+                var entry = trim(entries[i]);
+                if (entry === '') {
+                    throw 'CBES instance list contains an empty entry at position ' + (i + 1) + '.';
+                }
+                if (entry.indexOf(':') === -1 || entry.indexOf(':') !== entry.lastIndexOf(':')) {
+                    throw 'CBES instance entry "' + entry + '" must contain exactly one colon.';
+                }
+
+                var separator = entry.indexOf(':');
+                var name = trim(entry.substring(0, separator));
+                var portText = trim(entry.substring(separator + 1));
+
+                if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/.test(name)) {
+                    throw 'CBES instance name "' + name + '" is invalid. Use 1-64 letters, digits, dots, underscores, or hyphens; begin and end with a letter or digit.';
+                }
+                if (!/^[1-9][0-9]{0,4}$/.test(portText)) {
+                    throw 'CBES instance port "' + portText + '" is not a canonical numeric port.';
+                }
+
+                var port = parseInt(portText, 10);
+                if (port < 1 || port > 65535) {
+                    throw 'CBES instance port "' + portText + '" is outside the range 1-65535.';
+                }
+
+                var normalizedName = name.toLowerCase();
+                if (names[normalizedName]) {
+                    throw 'CBES instance name "' + name + '" is duplicated.';
+                }
+                if (ports[String(port)]) {
+                    throw 'CBES instance port "' + port + '" is duplicated.';
+                }
+
+                names[normalizedName] = true;
+                ports[String(port)] = true;
+                result.push({
+                    '{#ESR.NAME}': name,
+                    '{#ESR.PORT}': String(port)
+                });
+            }
+
+            return JSON.stringify(result);
+          item_prototypes:
+            - uuid: c259be3b43cb4edb970ed95d2db2a840
+              name: 'ESR [{#ESR.NAME}]: Get metrics'
+              type: HTTP_AGENT
+              key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '{$CBES.INTERVAL}'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Retrieves and validates the native Dropwizard JSON metrics payload. This is the only HTTP request made for this connector during a polling interval; raw JSON is not stored.'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '{"_zbx_cbes_error":true,"reason":"collection"}'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var requiredGauges = ['cbes.backlog', 'cbes.esWaitMs', 'cbes.writeQueue'];
+                      var requiredMeters = [
+                          'cbes.bulkRetry',
+                          'cbes.docWriteRetry',
+                          'cbes.docRejected',
+                          'cbes.esConnFail',
+                          'cbes.rejectionLogFail',
+                          'cbes.saveStateFail',
+                          'cbes.throughputBytes'
+                      ];
+
+                      function errorPayload(reason) {
+                          return JSON.stringify({_zbx_cbes_error: true, reason: reason});
+                      }
+
+                      function isObject(candidate) {
+                          return candidate !== null && typeof candidate === 'object' && !Array.isArray(candidate);
+                      }
+
+                      function isFiniteNonNegative(candidate) {
+                          return typeof candidate === 'number' && isFinite(candidate) && candidate >= 0;
+                      }
+
+                      if (typeof value !== 'string' || value.trim() === '') {
+                          return errorPayload('empty');
+                      }
+
+                      var data;
+                      try {
+                          data = JSON.parse(value);
+                      } catch (e) {
+                          return errorPayload('json');
+                      }
+
+                      if (data && data._zbx_cbes_error === true) {
+                          return value;
+                      }
+
+                      if (!isObject(data) || !isObject(data.gauges) ||
+                              !isObject(data.meters) || !isObject(data.timers)) {
+                          return errorPayload('schema');
+                      }
+
+                      var i;
+                      for (i = 0; i < requiredGauges.length; i++) {
+                          if (!isObject(data.gauges[requiredGauges[i]]) ||
+                                  !isFiniteNonNegative(data.gauges[requiredGauges[i]].value)) {
+                              return errorPayload('schema');
+                          }
+                      }
+
+                      for (i = 0; i < requiredMeters.length; i++) {
+                          if (!isObject(data.meters[requiredMeters[i]]) ||
+                                  !isFiniteNonNegative(data.meters[requiredMeters[i]].count)) {
+                              return errorPayload('schema');
+                          }
+                      }
+
+                      if (!isObject(data.timers['cbes.latency']) ||
+                              !isFiniteNonNegative(data.timers['cbes.latency'].p95) ||
+                              !isFiniteNonNegative(data.timers['cbes.latency'].p99)) {
+                          return errorPayload('schema');
+                      }
+
+                      return value;
+              url: '{$CBES.SCHEME}://{HOST.CONN}:{#ESR.PORT}{$CBES.METRICS.PATH}'
+              status_codes: '200'
+              timeout: '{$CBES.HTTP.TIMEOUT}'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 83c38b2551644b42aab4fedebf8607f0
+              name: 'ESR [{#ESR.NAME}]: Data collection status'
+              type: DEPENDENT
+              key: 'cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.STATUS}'
+              trends: '0'
+              description: 'Indicates whether the latest HTTP response is a valid CBES metrics payload containing every required v1 metric.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var data = JSON.parse(value);
+                          return data._zbx_cbes_error === true ? 0 : 1;
+                      } catch (e) {
+                          return 0;
+                      }
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              valuemap:
+                name: 'CBES data collection status'
+              tags:
+                - tag: component
+                  value: health
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 364400cf4b0b42e3862ccc6ff71900f4
+              name: 'ESR [{#ESR.NAME}]: Backlog'
+              type: DEPENDENT
+              key: 'cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '{$CBES.TRENDS.PERF}'
+              description: 'Estimated number of Couchbase changes not yet processed by this connector.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''gauges''][''cbes.backlog''][''value'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: replication
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: cab6396219b5436f9a42c010f3015d69
+              name: 'ESR [{#ESR.NAME}]: Elasticsearch request wait'
+              type: DEPENDENT
+              key: 'cbes.es_wait["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '{$CBES.TRENDS.PERF}'
+              units: ms
+              description: 'Time the connector has been waiting for in-flight Elasticsearch requests.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''gauges''][''cbes.esWaitMs''][''value'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: elasticsearch
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 8507412a32b24a2fa1470e55f80cee77
+              name: 'ESR [{#ESR.NAME}]: Write queue'
+              type: DEPENDENT
+              key: 'cbes.write_queue["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '0'
+              units: events
+              description: 'Number of document events buffered in the connector write queue.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''gauges''][''cbes.writeQueue''][''value'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: replication
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: e3c54e500aa045359d0c10bece2f34cd
+              name: 'ESR [{#ESR.NAME}]: New bulk retries'
+              type: DEPENDENT
+              key: 'cbes.bulk_retry.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of new bulk retry events since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.bulkRetry''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: elasticsearch
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 5322601645474b7285f3808d78864297
+              name: 'ESR [{#ESR.NAME}]: New document write retries'
+              type: DEPENDENT
+              key: 'cbes.doc_write_retry.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of new document write retry events since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.docWriteRetry''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: elasticsearch
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: d0847f7cff3d49939f7dab982839a2e4
+              name: 'ESR [{#ESR.NAME}]: New rejected documents'
+              type: DEPENDENT
+              key: 'cbes.doc_rejected.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of newly rejected documents since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.docRejected''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: elasticsearch
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: e0f352fc802e463c80499ce2e4e48c24
+              name: 'ESR [{#ESR.NAME}]: New Elasticsearch connection failures'
+              type: DEPENDENT
+              key: 'cbes.es_conn_fail.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of new Elasticsearch connection failures since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.esConnFail''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: elasticsearch
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: d06490afba4f4e0f914af7873960586e
+              name: 'ESR [{#ESR.NAME}]: New rejection log failures'
+              type: DEPENDENT
+              key: 'cbes.rejection_log_fail.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of new failures to write the rejection log since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.rejectionLogFail''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: connector
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: b3cafbcaca70464bb4cfc5c2b50b0db5
+              name: 'ESR [{#ESR.NAME}]: New state save failures'
+              type: DEPENDENT
+              key: 'cbes.save_state_fail.delta["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.COUNTER}'
+              trends: '0'
+              units: events
+              description: 'Number of new connector state or checkpoint save failures since the previous collected value. Counter resets are discarded.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.saveStateFail''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: SIMPLE_CHANGE
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: connector
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 06e77d9c9fea4a3b9a5119ba525ba048
+              name: 'ESR [{#ESR.NAME}]: Throughput'
+              type: DEPENDENT
+              key: 'cbes.throughput["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '{$CBES.TRENDS.PERF}'
+              value_type: FLOAT
+              units: Bps
+              description: 'Estimated Elasticsearch write throughput derived from the cumulative cbes.throughputBytes count.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''meters''][''cbes.throughputBytes''][''count'']'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: performance
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 5502945287424204a18d5a6d45b193d4
+              name: 'ESR [{#ESR.NAME}]: Latency p95'
+              type: DEPENDENT
+              key: 'cbes.latency.p95["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '{$CBES.TRENDS.PERF}'
+              value_type: FLOAT
+              units: ms
+              description: '95th percentile connector latency reported by the cbes.latency Dropwizard timer.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''timers''][''cbes.latency''][''p95'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: performance
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 7f7e61db4c6047768195768e1713b3bc
+              name: 'ESR [{#ESR.NAME}]: Latency p99'
+              type: DEPENDENT
+              key: 'cbes.latency.p99["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.PERF}'
+              trends: '{$CBES.TRENDS.PERF}'
+              value_type: FLOAT
+              units: ms
+              description: '99th percentile connector latency reported by the cbes.latency Dropwizard timer.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''timers''][''cbes.latency''][''p99'']'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: performance
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: c42b4ac6cacd49b7ae1bcd9d7037b5c2
+              name: 'ESR [{#ESR.NAME}]: DCP connection summary'
+              type: DEPENDENT
+              key: 'cbes.dcp.summary["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'Historyless intermediate JSON summary of all DCP connection-status gauges for this connector.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      function emptySummary() {
+                          return {total: 0, failed: 0, health: 0, failed_remotes: ''};
+                      }
+
+                      function isObject(candidate) {
+                          return candidate !== null && typeof candidate === 'object' && !Array.isArray(candidate);
+                      }
+
+                      var data;
+                      try {
+                          data = JSON.parse(value);
+                      } catch (e) {
+                          return JSON.stringify(emptySummary());
+                      }
+
+                      if (data._zbx_cbes_error === true || !isObject(data.gauges)) {
+                          return JSON.stringify(emptySummary());
+                      }
+
+                      var total = 0;
+                      var failed = 0;
+                      var invalid = false;
+                      var failedRemotes = [];
+                      var failedRemoteSeen = {};
+                      var keys = Object.keys(data.gauges);
+
+                      for (var i = 0; i < keys.length; i++) {
+                          var keyMatch = /^dcp\.connectionStatus\{(.+)\}$/.exec(keys[i]);
+                          if (keyMatch === null) {
+                              continue;
+                          }
+
+                          total++;
+                          var remoteMatch = /(?:^|,)\s*remote=([^,}]+)(?:,|$)/.exec(keyMatch[1]);
+                          var gauge = data.gauges[keys[i]];
+
+                          if (remoteMatch === null || !isObject(gauge) ||
+                                  typeof gauge.value !== 'number' || !isFinite(gauge.value)) {
+                              invalid = true;
+                              continue;
+                          }
+
+                          var remote = remoteMatch[1].trim();
+                          if (remote === '') {
+                              invalid = true;
+                              continue;
+                          }
+
+                          if (gauge.value !== 1) {
+                              failed++;
+                              if (!failedRemoteSeen[remote]) {
+                                  failedRemoteSeen[remote] = true;
+                                  failedRemotes.push(remote);
+                              }
+                          }
+                      }
+
+                      failedRemotes.sort();
+                      var health = failed > 0 ? 2 : (invalid || total === 0 ? 0 : 1);
+
+                      return JSON.stringify({
+                          total: total,
+                          failed: failed,
+                          health: health,
+                          failed_remotes: failedRemotes.join(', ')
+                      });
+              master_item:
+                key: 'cbes.metrics.get["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: raw
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 7e5996eabdde4fd294151892f5a32ad3
+              name: 'ESR [{#ESR.NAME}]: DCP connections total'
+              type: DEPENDENT
+              key: 'cbes.dcp.connections.total["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.STATUS}'
+              trends: '0'
+              units: connections
+              description: 'Number of DCP connection-status gauges exposed by the connector. Zero can mean that the undocumented DCP metric is unavailable.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''total'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.dcp.summary["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: dcp
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: e7993cbe2cbc487fba2f0dbd047824c6
+              name: 'ESR [{#ESR.NAME}]: DCP connections failed'
+              type: DEPENDENT
+              key: 'cbes.dcp.connections.failed["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.STATUS}'
+              trends: '0'
+              units: connections
+              description: 'Number of DCP connection-status gauges whose numeric value is not 1.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''failed'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.dcp.summary["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: dcp
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: 044874f1cb1649bab9cbc2656ce461de
+              name: 'ESR [{#ESR.NAME}]: DCP connection health'
+              type: DEPENDENT
+              key: 'cbes.dcp.health["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.STATUS}'
+              trends: '0'
+              description: 'Aggregate DCP connection health. No DCP metric, an invalid DCP gauge, or a collection failure is Unknown rather than Unhealthy.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''health'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.dcp.summary["{#ESR.NAME}","{#ESR.PORT}"]'
+              valuemap:
+                name: 'CBES DCP connection health'
+              tags:
+                - tag: component
+                  value: dcp
+                - tag: connector
+                  value: '{#ESR.NAME}'
+            - uuid: d65f281e44024505ab650a7f5e1e6075
+              name: 'ESR [{#ESR.NAME}]: DCP failed remotes'
+              type: DEPENDENT
+              key: 'cbes.dcp.failed_remotes["{#ESR.NAME}","{#ESR.PORT}"]'
+              delay: '0'
+              history: '{$CBES.HISTORY.STATUS}'
+              trends: '0'
+              value_type: TEXT
+              description: 'Lexically sorted, comma-separated DCP remote names whose connection-status value is not 1. This diagnostic item does not drive the trigger.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[''failed_remotes'']'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '{$CBES.HEARTBEAT}'
+              master_item:
+                key: 'cbes.dcp.summary["{#ESR.NAME}","{#ESR.PORT}"]'
+              tags:
+                - tag: component
+                  value: dcp
+                - tag: connector
+                  value: '{#ESR.NAME}'
+          trigger_prototypes:
+            - uuid: 1b0e6188476c4f9e8e960b7850303889
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1'
+              name: 'ESR [{#ESR.NAME}]: Metrics endpoint unavailable'
+              priority: HIGH
+              description: 'The connector endpoint could not be collected, returned a non-200 response, returned invalid JSON, or did not contain every required v1 metric. The trigger also detects a complete absence of status samples.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: ac10d5912f7541bfaa3a706e6f4cbadf
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.dcp.health["{#ESR.NAME}","{#ESR.PORT}"])=2 and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Couchbase DCP connections are unhealthy'
+              priority: AVERAGE
+              description: 'At least one reported DCP connection has an explicit non-connected value. Consult the DCP connections failed and DCP failed remotes items for diagnosis. DCP metrics are undocumented; their absence results in Unknown and does not trigger this problem.'
+              dependencies:
+                - name: 'ESR [{#ESR.NAME}]: Metrics endpoint unavailable'
+                  expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 23dd6f643241418981eab099fbeca7bd
+              expression: '{$CBES.BULK_RETRY.WARN:"{#ESR.NAME}"}>0 and sum(/Couchbase Elasticsearch Connector by HTTP/cbes.bulk_retry.delta["{#ESR.NAME}","{#ESR.PORT}"],5m)>{$CBES.BULK_RETRY.WARN:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Bulk retries are excessive'
+              priority: WARNING
+              description: 'The number of new bulk retries in the last five minutes exceeds the configured per-instance threshold. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 577edebb753542028db68fc07736cb09
+              expression: '{$CBES.DOC_RETRY.WARN:"{#ESR.NAME}"}>0 and sum(/Couchbase Elasticsearch Connector by HTTP/cbes.doc_write_retry.delta["{#ESR.NAME}","{#ESR.PORT}"],5m)>{$CBES.DOC_RETRY.WARN:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Document write retries are excessive'
+              priority: WARNING
+              description: 'The number of new document write retries in the last five minutes exceeds the configured per-instance threshold. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 3befadece3fc49f9999fa379fd3d9723
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.doc_rejected.delta["{#ESR.NAME}","{#ESR.PORT}"])>0 and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Elasticsearch rejected document(s)'
+              opdata: 'New events: {ITEM.VALUE1}'
+              priority: HIGH
+              description: 'This event-style trigger opens when the cumulative counter increases and recovers on the next zero delta. The occurrence remains available in Zabbix event history.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 0e6394ef0bf744ddb04f919fbd130899
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.es_conn_fail.delta["{#ESR.NAME}","{#ESR.PORT}"])>0 and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Elasticsearch connection failure detected'
+              opdata: 'New events: {ITEM.VALUE1}'
+              priority: AVERAGE
+              description: 'This event-style trigger opens when the cumulative counter increases and recovers on the next zero delta. The occurrence remains available in Zabbix event history.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 123c9c6ab08540709b2e745dc0b67f0b
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.rejection_log_fail.delta["{#ESR.NAME}","{#ESR.PORT}"])>0 and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Failed to write rejection log'
+              opdata: 'New events: {ITEM.VALUE1}'
+              priority: AVERAGE
+              description: 'This event-style trigger opens when the cumulative counter increases and recovers on the next zero delta. The occurrence remains available in Zabbix event history.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: c155f790ac69443587598d36cc2abbdf
+              expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.save_state_fail.delta["{#ESR.NAME}","{#ESR.PORT}"])>0 and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              name: 'ESR [{#ESR.NAME}]: Failed to save connector state'
+              opdata: 'New events: {ITEM.VALUE1}'
+              priority: AVERAGE
+              description: 'This event-style trigger opens when the cumulative counter increases and recovers on the next zero delta. The occurrence remains available in Zabbix event history.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 6d02652efdc04f19a49507f94dc33166
+              expression: '{$CBES.BACKLOG.WARN:"{#ESR.NAME}"}>0 and min(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],15m)>{$CBES.BACKLOG.WARN:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1 or max(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],5m)<={$CBES.BACKLOG.WARN:"{#ESR.NAME}"}'
+              name: 'ESR [{#ESR.NAME}]: Backlog is persistently high'
+              priority: WARNING
+              description: 'Backlog stayed above the configured threshold for 15 minutes. Recovery requires all values in a five-minute window to be at or below the threshold. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+                - tag: scope
+                  value: capacity
+            - uuid: 1223dc083da0480da934501611100462
+              expression: '{$CBES.BACKLOG.GROWTH:"{#ESR.NAME}"}>0 and avg(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],15m)>avg(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],15m:now-15m)+{$CBES.BACKLOG.GROWTH:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1 or avg(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],15m)<=avg(/Couchbase Elasticsearch Connector by HTTP/cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"],15m:now-15m)+{$CBES.BACKLOG.GROWTH:"{#ESR.NAME}"}/2'
+              name: 'ESR [{#ESR.NAME}]: Backlog is growing'
+              priority: AVERAGE
+              description: 'The recent 15-minute backlog average exceeds the previous non-overlapping 15-minute average by the configured absolute growth threshold. Recovery uses 50% hysteresis. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+                - tag: scope
+                  value: capacity
+            - uuid: 2c1700cd38374df28aff24a6f3ce5422
+              expression: '{$CBES.ESWAIT.WARN:"{#ESR.NAME}"}>0 and min(/Couchbase Elasticsearch Connector by HTTP/cbes.es_wait["{#ESR.NAME}","{#ESR.PORT}"],5m)>{$CBES.ESWAIT.WARN:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1 or max(/Couchbase Elasticsearch Connector by HTTP/cbes.es_wait["{#ESR.NAME}","{#ESR.PORT}"],5m)<={$CBES.ESWAIT.WARN:"{#ESR.NAME}"}'
+              name: 'ESR [{#ESR.NAME}]: Elasticsearch request wait is high'
+              priority: AVERAGE
+              description: 'Elasticsearch request wait stayed above the configured threshold for five minutes. Recovery requires all values in a five-minute window to be at or below the threshold. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 7af1a9d644894f8cb5b1b2411ec522ec
+              expression: '{$CBES.LATENCY.WARN:"{#ESR.NAME}"}>0 and min(/Couchbase Elasticsearch Connector by HTTP/cbes.latency.p95["{#ESR.NAME}","{#ESR.PORT}"],5m)>{$CBES.LATENCY.WARN:"{#ESR.NAME}"} and last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=1 and nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"])=0 or nodata(/Couchbase Elasticsearch Connector by HTTP/cbes.collection.status["{#ESR.NAME}","{#ESR.PORT}"],{$CBES.NODATA})=1 or max(/Couchbase Elasticsearch Connector by HTTP/cbes.latency.p95["{#ESR.NAME}","{#ESR.PORT}"],5m)<={$CBES.LATENCY.WARN:"{#ESR.NAME}"}'
+              name: 'ESR [{#ESR.NAME}]: Latency is persistently high'
+              priority: AVERAGE
+              description: 'Latency p95 stayed above the configured threshold for five minutes. Recovery requires all values in a five-minute window to be at or below the threshold. A threshold of 0 disables this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+          graph_prototypes:
+            - uuid: 7f7c1824769c4204b1daed17afb8aa00
+              name: 'ESR [{#ESR.NAME}]: Backlog and write queue'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Couchbase Elasticsearch Connector by HTTP'
+                    key: 'cbes.backlog["{#ESR.NAME}","{#ESR.PORT}"]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Couchbase Elasticsearch Connector by HTTP'
+                    key: 'cbes.write_queue["{#ESR.NAME}","{#ESR.PORT}"]'
+            - uuid: f6ec2b1b842f4da3858cefdf8b3bf2bb
+              name: 'ESR [{#ESR.NAME}]: Latency and Elasticsearch wait'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Couchbase Elasticsearch Connector by HTTP'
+                    key: 'cbes.latency.p95["{#ESR.NAME}","{#ESR.PORT}"]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Couchbase Elasticsearch Connector by HTTP'
+                    key: 'cbes.latency.p99["{#ESR.NAME}","{#ESR.PORT}"]'
+                - sortorder: '2'
+                  color: 2774A4
+                  yaxisside: RIGHT
+                  item:
+                    host: 'Couchbase Elasticsearch Connector by HTTP'
+                    key: 'cbes.es_wait["{#ESR.NAME}","{#ESR.PORT}"]'
+          parameters:
+            - name: instances
+              value: '{$CBES.INSTANCES}'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: connector
+      macros:
+        - macro: '{$CBES.INSTANCES}'
+          value: 'default:31415'
+          description: 'Strict comma-separated connector instance list in name:port format.'
+        - macro: '{$CBES.SCHEME}'
+          value: http
+          description: 'HTTP scheme used for connector metrics endpoints.'
+        - macro: '{$CBES.METRICS.PATH}'
+          value: /metrics
+          description: 'Path of the native Dropwizard JSON metrics endpoint.'
+        - macro: '{$CBES.INTERVAL}'
+          value: 1m
+          description: 'Polling interval for each connector metrics endpoint.'
+        - macro: '{$CBES.HTTP.TIMEOUT}'
+          value: 10s
+          description: 'Timeout for each connector HTTP request.'
+        - macro: '{$CBES.NODATA}'
+          value: 5m
+          description: 'Fallback window for detecting a complete absence of collection status samples.'
+        - macro: '{$CBES.HISTORY.PERF}'
+          value: 7d
+          description: 'History retention for performance metrics.'
+        - macro: '{$CBES.HISTORY.COUNTER}'
+          value: 1d
+          description: 'History retention for derived error and retry deltas.'
+        - macro: '{$CBES.HISTORY.STATUS}'
+          value: 1d
+          description: 'History retention for collection and DCP status items.'
+        - macro: '{$CBES.TRENDS.PERF}'
+          value: 90d
+          description: 'Trend retention for selected performance metrics.'
+        - macro: '{$CBES.HEARTBEAT}'
+          value: 1h
+          description: 'Heartbeat used when discarding unchanged status and event values.'
+        - macro: '{$CBES.BULK_RETRY.WARN}'
+          value: '0'
+          description: 'Maximum new bulk retries in five minutes. 0 disables the trigger. Supports an instance-name macro context.'
+        - macro: '{$CBES.DOC_RETRY.WARN}'
+          value: '0'
+          description: 'Maximum new document write retries in five minutes. 0 disables the trigger. Supports an instance-name macro context.'
+        - macro: '{$CBES.BACKLOG.WARN}'
+          value: '0'
+          description: 'Persistent backlog threshold. 0 disables the trigger. Supports an instance-name macro context.'
+        - macro: '{$CBES.BACKLOG.GROWTH}'
+          value: '0'
+          description: 'Absolute increase between consecutive 15-minute backlog averages. 0 disables the trigger. Supports an instance-name macro context.'
+        - macro: '{$CBES.ESWAIT.WARN}'
+          value: '0'
+          description: 'Elasticsearch request wait threshold in milliseconds. 0 disables the trigger. Supports an instance-name macro context.'
+        - macro: '{$CBES.LATENCY.WARN}'
+          value: '0'
+          description: 'Latency p95 threshold in milliseconds. 0 disables the trigger. Supports an instance-name macro context.'
+      dashboards:
+        - uuid: 2cbfa26d8a6d4adc885d2383645b430c
+          name: 'Couchbase Elasticsearch Connector overview'
+          pages:
+            - widgets:
+                - type: GRAPH_PROTOTYPE
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid
+                      value:
+                        host: 'Couchbase Elasticsearch Connector by HTTP'
+                        name: 'ESR [{#ESR.NAME}]: Backlog and write queue'
+                - type: GRAPH_PROTOTYPE
+                  'y': '5'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid
+                      value:
+                        host: 'Couchbase Elasticsearch Connector by HTTP'
+                        name: 'ESR [{#ESR.NAME}]: Latency and Elasticsearch wait'
+      valuemaps:
+        - uuid: cb2a10e9960c46f3a0a02671d8f73e26
+          name: 'CBES data collection status'
+          mappings:
+            - value: '0'
+              newvalue: Unavailable
+            - value: '1'
+              newvalue: Available
+        - uuid: 16e6da574dc14a3ea268213c0bc6f8fc
+          name: 'CBES DCP connection health'
+          mappings:
+            - value: '0'
+              newvalue: Unknown
+            - value: '1'
+              newvalue: Healthy
+            - value: '2'
+              newvalue: Unhealthy
