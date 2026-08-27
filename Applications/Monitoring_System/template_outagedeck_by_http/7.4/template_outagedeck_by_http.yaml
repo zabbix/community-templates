@@ -1,0 +1,628 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: cffad275b0054ed09a6252114135620c
+      name: Templates/Applications
+  templates:
+    - uuid: 8cffb9170afd420c92bb467d5b20b215
+      template: 'OutageDeck by HTTP'
+      name: 'OutageDeck by HTTP'
+      description: |
+        Agentless monitoring of cloud and SaaS provider status through the OutageDeck HTTP API.
+
+        The template collects a normalized provider status, active incident count, source
+        freshness, API health and response time. Low-level discovery creates status items and
+        triggers for every service exposed by the selected provider.
+
+        Requirements:
+          - Zabbix 7.4 or newer.
+          - Outbound HTTPS access to outagedeck.com.
+
+        Setup:
+          1. Assign this template to a host.
+          2. Set {$OUTAGEDECK.PROVIDER} to the provider slug to monitor, for example github,
+             aws, cloudflare, openai or stripe.
+          3. Optionally set {$OUTAGEDECK.API.KEY} to an OutageDeck API key for a higher quota.
+
+        API documentation:
+        https://outagedeck.com/developers/api?utm_source=zabbix&utm_medium=integration&utm_campaign=zabbix_template
+      vendor:
+        name: OutageDeck
+        version: 7.4-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 8a8a81e0d6c546918c81701ef2cb7454
+          name: 'OutageDeck: Get provider data'
+          type: SCRIPT
+          key: outagedeck.provider.get
+          delay: '{$OUTAGEDECK.INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value),
+                request = new HttpRequest(),
+                started = Date.now(),
+                result = {
+                    monitor: {
+                        available: 0,
+                        http_status: 0,
+                        response_time: 0,
+                        error: '',
+                        checked_at: Math.floor(Date.now() / 1000)
+                    },
+                    data: {
+                        slug: String(params.provider || ''),
+                        name: String(params.provider || ''),
+                        currentStatus: {
+                            code: 'unknown',
+                            label: 'Unknown',
+                            headline: '',
+                            summary: ''
+                        },
+                        source: {
+                            checkedAt: '',
+                            officialUrl: ''
+                        },
+                        counts: {
+                            activeIncidents: 0
+                        },
+                        services: []
+                    }
+                },
+                base = String(params.url || '').replace(/\/+$/, ''),
+                provider = String(params.provider || '').replace(/^\s+|\s+$/g, ''),
+                response,
+                payload;
+
+            if (!base) {
+                result.monitor.error = 'OutageDeck API URL is empty';
+                return JSON.stringify(result);
+            }
+            if (!provider) {
+                result.monitor.error = 'OutageDeck provider slug is empty';
+                return JSON.stringify(result);
+            }
+
+            request.addHeader('Accept: application/json');
+            request.addHeader('User-Agent: Zabbix/7.4 OutageDeck-template/7.4-1');
+            if (String(params.api_key || '').length > 0) {
+                request.addHeader('X-API-Key: ' + params.api_key);
+            }
+            if (String(params.proxy || '').length > 0) {
+                request.setProxy(params.proxy);
+            }
+
+            try {
+                response = request.get(base + '/providers/' + encodeURIComponent(provider) +
+                    '?utm_source=zabbix&utm_medium=integration&utm_campaign=zabbix_template');
+                result.monitor.response_time = (Date.now() - started) / 1000;
+                result.monitor.http_status = request.getStatus();
+
+                if (result.monitor.http_status !== 200) {
+                    result.monitor.error = 'OutageDeck API returned HTTP ' + result.monitor.http_status;
+                    return JSON.stringify(result);
+                }
+
+                payload = JSON.parse(response);
+                if (!payload.data || !payload.data.slug || !payload.data.currentStatus ||
+                        !payload.data.currentStatus.code) {
+                    throw 'OutageDeck API returned an incomplete provider response';
+                }
+
+                result.data = payload.data;
+                result.monitor.available = 1;
+            }
+            catch (error) {
+                result.monitor.response_time = (Date.now() - started) / 1000;
+                result.monitor.error = String(error);
+            }
+
+            return JSON.stringify(result);
+          description: 'Central collection item. It requests one provider from the OutageDeck API and returns normalized JSON for dependent items and service discovery.'
+          timeout: '{$OUTAGEDECK.HTTP.TIMEOUT}'
+          parameters:
+            - name: api_key
+              value: '{$OUTAGEDECK.API.KEY}'
+            - name: provider
+              value: '{$OUTAGEDECK.PROVIDER}'
+            - name: proxy
+              value: '{$OUTAGEDECK.HTTP.PROXY}'
+            - name: url
+              value: '{$OUTAGEDECK.API.URL}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 0bb311199c1146d29e1fffc60cf0c61e
+          name: 'OutageDeck: API available'
+          type: DEPENDENT
+          key: outagedeck.api.available
+          history: 7d
+          description: 'Whether the OutageDeck API returned a complete provider response.'
+          valuemap:
+            name: 'OutageDeck availability'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.monitor.available
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: availability
+          triggers:
+            - uuid: 7e765d90030f4f9c81ffa589a7eeeab6
+              expression: 'last(/OutageDeck by HTTP/outagedeck.api.available)=0 or nodata(/OutageDeck by HTTP/outagedeck.api.available,{$OUTAGEDECK.NODATA.TIME})=1'
+              name: 'OutageDeck: API is not available'
+              opdata: 'Availability: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The OutageDeck API did not return a complete provider response. Check network access, the provider slug, proxy configuration and API key.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 937ac773f21a4df6b353746bea1343d2
+          name: 'OutageDeck: API HTTP status'
+          type: DEPENDENT
+          key: outagedeck.api.http_status
+          history: 7d
+          description: 'HTTP status returned by the latest OutageDeck API request. Zero indicates that no HTTP response was received.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.monitor.http_status
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: api
+        - uuid: f168f21d6dd4452aa50622a8266d5b78
+          name: 'OutageDeck: API response time'
+          type: DEPENDENT
+          key: outagedeck.api.response_time
+          history: 30d
+          value_type: FLOAT
+          units: s
+          description: 'Elapsed time for the latest OutageDeck API request.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.monitor.response_time
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: performance
+          triggers:
+            - uuid: ae382c6ed24e49399dded2527e5bba97
+              expression: '{$OUTAGEDECK.RESPONSE.TIME.MAX}>0 and avg(/OutageDeck by HTTP/outagedeck.api.response_time,#3)>{$OUTAGEDECK.RESPONSE.TIME.MAX}'
+              name: 'OutageDeck: API response time is high'
+              opdata: 'Response time: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The average response time across the last three requests exceeds {$OUTAGEDECK.RESPONSE.TIME.MAX}. Set the macro to 0 to disable this trigger.'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 8a84e387530145b68f70012b1b23289c
+          name: 'OutageDeck: Collection error'
+          type: DEPENDENT
+          key: outagedeck.api.error
+          history: 7d
+          value_type: TEXT
+          description: 'Error returned by the latest collection attempt. Empty when collection succeeds.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.monitor.error
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: error
+        - uuid: c0b2ba8f4fd848098a5d209a7e27226e
+          name: 'OutageDeck: Provider name'
+          type: DEPENDENT
+          key: outagedeck.provider.name
+          history: 30d
+          value_type: CHAR
+          description: 'Human-readable provider name.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.name
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: provider
+        - uuid: 8db9fe72fef74f23a33e2e8623697393
+          name: 'OutageDeck: Provider status'
+          type: DEPENDENT
+          key: outagedeck.provider.status
+          history: 90d
+          description: 'Normalized provider status: unknown, operational, maintenance, degraded, partial outage or major outage.'
+          valuemap:
+            name: 'OutageDeck status'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var codes = {
+                      unknown: 0,
+                      operational: 1,
+                      maintenance: 2,
+                      degraded: 3,
+                      partial_outage: 4,
+                      major_outage: 5
+                  };
+                  var status = String(JSON.parse(value).data.currentStatus.code || 'unknown')
+                      .toLowerCase().replace(/[ -]+/g, '_');
+                  return codes.hasOwnProperty(status) ? codes[status] : 0;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: status
+          triggers:
+            - uuid: 0275f532e685431ea306cce1b37ea05b
+              expression: 'last(/OutageDeck by HTTP/outagedeck.provider.status)=3'
+              name: 'OutageDeck: Provider performance is degraded'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The selected provider reports degraded performance.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 4db69f68ac91451db4a7088a00149a40
+              expression: 'last(/OutageDeck by HTTP/outagedeck.provider.status)>=4'
+              name: 'OutageDeck: Provider has an outage'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'The selected provider reports a partial or major outage.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: f765b3d038dd42b494d65bb7aac004f0
+              expression: 'last(/OutageDeck by HTTP/outagedeck.provider.status)=0 and last(/OutageDeck by HTTP/outagedeck.api.available)=1'
+              name: 'OutageDeck: Provider status is unknown'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The API request succeeded, but OutageDeck could not normalize the provider status.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 6122ca3fce4240bdafa54257d2040c9a
+          name: 'OutageDeck: Active incidents'
+          type: DEPENDENT
+          key: outagedeck.provider.active_incidents
+          history: 90d
+          description: 'Number of active incidents reported for the selected provider.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.counts.activeIncidents
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: incidents
+          triggers:
+            - uuid: 3f48c529f8414699872021f1ec156bbe
+              expression: 'last(/OutageDeck by HTTP/outagedeck.provider.active_incidents)>0 and last(/OutageDeck by HTTP/outagedeck.api.available)=1'
+              name: 'OutageDeck: Provider has active incidents'
+              opdata: 'Active incidents: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'OutageDeck reports one or more active provider incidents.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: f32716b5fa3d41cfa114f855f6c6b81e
+          name: 'OutageDeck: Source data age'
+          type: DEPENDENT
+          key: outagedeck.provider.source_age
+          history: 30d
+          units: s
+          description: 'Age in seconds of the provider data at its official source.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var checkedAt = JSON.parse(value).data.source.checkedAt;
+                  var timestamp = Date.parse(checkedAt);
+                  return isNaN(timestamp) ? 0 : Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: freshness
+          triggers:
+            - uuid: 590a2e7160794b939d2fb41d98013a5d
+              expression: 'last(/OutageDeck by HTTP/outagedeck.provider.source_age)>{$OUTAGEDECK.SOURCE.MAX.AGE} and last(/OutageDeck by HTTP/outagedeck.api.available)=1'
+              name: 'OutageDeck: Provider source data is stale'
+              opdata: 'Source age: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The official provider data is older than {$OUTAGEDECK.SOURCE.MAX.AGE}.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: bdd56cfc1f5546928f86aa591c444f49
+          name: 'OutageDeck: Provider headline'
+          type: DEPENDENT
+          key: outagedeck.provider.headline
+          history: 30d
+          value_type: TEXT
+          description: 'Current human-readable provider status headline.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.currentStatus.headline
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: status
+        - uuid: 21fdcef2a85047e58195e67ae3e6e328
+          name: 'OutageDeck: Provider summary'
+          type: DEPENDENT
+          key: outagedeck.provider.summary
+          history: 30d
+          value_type: TEXT
+          description: 'Current human-readable provider status summary.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.currentStatus.summary
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: status
+        - uuid: c70e419e280e42489598c7825afc84fb
+          name: 'OutageDeck: Official status URL'
+          type: DEPENDENT
+          key: outagedeck.provider.official_url
+          history: 30d
+          value_type: CHAR
+          description: 'Official status page URL for the selected provider.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.source.officialUrl
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: outagedeck.provider.get
+          tags:
+            - tag: component
+              value: provider
+      discovery_rules:
+        - uuid: 117a685764e4494493fea5c93081acdc
+          name: 'OutageDeck: Services discovery'
+          type: DEPENDENT
+          key: outagedeck.service.discovery
+          description: 'Discovers the services exposed by the selected OutageDeck provider.'
+          item_prototypes:
+            - uuid: 70a7446b5df3468f83785e04e64a683a
+              name: 'OutageDeck: {#SERVICE.NAME}: Status'
+              type: DEPENDENT
+              key: 'outagedeck.service.status[{#SERVICE.SLUG}]'
+              history: 90d
+              description: 'Normalized status for {#SERVICE.NAME}.'
+              valuemap:
+                name: 'OutageDeck status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var slug = '{#SERVICE.SLUG}',
+                          services = JSON.parse(value).data.services || [],
+                          codes = {
+                              unknown: 0,
+                              operational: 1,
+                              maintenance: 2,
+                              degraded: 3,
+                              partial_outage: 4,
+                              major_outage: 5
+                          },
+                          status = 'unknown';
+                      for (var i = 0; i < services.length; i++) {
+                          if (String(services[i].slug) === slug) {
+                              status = String(services[i].status || 'unknown')
+                                  .toLowerCase().replace(/[ -]+/g, '_');
+                              break;
+                          }
+                      }
+                      return codes.hasOwnProperty(status) ? codes[status] : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 10m
+              master_item:
+                key: outagedeck.provider.get
+              tags:
+                - tag: component
+                  value: status
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+              trigger_prototypes:
+                - uuid: 6e2ccf2f25634be8bf2d600cb925ad78
+                  expression: 'last(/OutageDeck by HTTP/outagedeck.service.status[{#SERVICE.SLUG}])=3'
+                  name: 'OutageDeck: {#SERVICE.NAME} performance is degraded'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The discovered provider service reports degraded performance.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                    - tag: service
+                      value: '{#SERVICE.NAME}'
+                - uuid: 5bacf65731bd445fa1bb8b0389727e51
+                  expression: 'last(/OutageDeck by HTTP/outagedeck.service.status[{#SERVICE.SLUG}])>=4'
+                  name: 'OutageDeck: {#SERVICE.NAME} has an outage'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'The discovered provider service reports a partial or major outage.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                    - tag: service
+                      value: '{#SERVICE.NAME}'
+            - uuid: d1d8bf7f14dd474c89e9a3287ca731d3
+              name: 'OutageDeck: {#SERVICE.NAME}: Name'
+              type: DEPENDENT
+              key: 'outagedeck.service.name[{#SERVICE.SLUG}]'
+              history: 30d
+              value_type: CHAR
+              description: 'Human-readable name of the discovered provider service.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var slug = '{#SERVICE.SLUG}', services = JSON.parse(value).data.services || [];
+                      for (var i = 0; i < services.length; i++) {
+                          if (String(services[i].slug) === slug) {
+                              return String(services[i].name || slug);
+                          }
+                      }
+                      return slug;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: outagedeck.provider.get
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+            - uuid: 45421def78cc496390a836bc8409bd71
+              name: 'OutageDeck: {#SERVICE.NAME}: Category'
+              type: DEPENDENT
+              key: 'outagedeck.service.category[{#SERVICE.SLUG}]'
+              history: 30d
+              value_type: CHAR
+              description: 'Category of the discovered provider service.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var slug = '{#SERVICE.SLUG}', services = JSON.parse(value).data.services || [];
+                      for (var i = 0; i < services.length; i++) {
+                          if (String(services[i].slug) === slug) {
+                              return String(services[i].category || '');
+                          }
+                      }
+                      return '';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: outagedeck.provider.get
+              tags:
+                - tag: component
+                  value: service
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+          master_item:
+            key: outagedeck.provider.get
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var services = JSON.parse(value).data.services || [], result = [];
+                      for (var i = 0; i < services.length; i++) {
+                          if (services[i].slug) {
+                              result.push({
+                                  '{#SERVICE.SLUG}': String(services[i].slug),
+                                  '{#SERVICE.NAME}': String(services[i].name || services[i].slug),
+                                  '{#SERVICE.CATEGORY}': String(services[i].category || '')
+                              });
+                          }
+                      }
+                      return JSON.stringify(result);
+                  }
+                  catch (error) {
+                      return '[]';
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+      tags:
+        - tag: class
+          value: software
+        - tag: component
+          value: http_api
+        - tag: target
+          value: outagedeck
+      macros:
+        - macro: '{$OUTAGEDECK.API.KEY}'
+          type: SECRET_TEXT
+          description: 'Optional OutageDeck API key for a higher quota. Leave empty for public read-only access.'
+        - macro: '{$OUTAGEDECK.API.URL}'
+          value: 'https://outagedeck.com/api/v1'
+          description: 'Base URL of the OutageDeck API.'
+        - macro: '{$OUTAGEDECK.HTTP.PROXY}'
+          value: ''
+          description: 'Optional HTTP proxy accepted by the Zabbix HttpRequest object.'
+        - macro: '{$OUTAGEDECK.HTTP.TIMEOUT}'
+          value: 10s
+          description: 'Timeout for the OutageDeck API request.'
+        - macro: '{$OUTAGEDECK.INTERVAL}'
+          value: 5m
+          description: 'Polling interval for provider status.'
+        - macro: '{$OUTAGEDECK.NODATA.TIME}'
+          value: 15m
+          description: 'No-data interval after which the API availability trigger fires.'
+        - macro: '{$OUTAGEDECK.PROVIDER}'
+          value: github
+          description: 'Provider slug to monitor, for example github, aws, cloudflare, openai or stripe.'
+        - macro: '{$OUTAGEDECK.RESPONSE.TIME.MAX}'
+          value: '3'
+          description: 'Maximum average API response time in seconds. Set to 0 to disable the trigger.'
+        - macro: '{$OUTAGEDECK.SOURCE.MAX.AGE}'
+          value: 1h
+          description: 'Maximum accepted age of data from the official provider source.'
+      valuemaps:
+        - uuid: b9bb5394ba064dcca9ba9165876febba
+          name: 'OutageDeck availability'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 2a7b5482731342169638ae9e9418e7f5
+          name: 'OutageDeck status'
+          mappings:
+            - value: '0'
+              newvalue: Unknown
+            - value: '1'
+              newvalue: Operational
+            - value: '2'
+              newvalue: Maintenance
+            - value: '3'
+              newvalue: Degraded
+            - value: '4'
+              newvalue: 'Partial outage'
+            - value: '5'
+              newvalue: 'Major outage'

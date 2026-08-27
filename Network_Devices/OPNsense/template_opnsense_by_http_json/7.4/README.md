@@ -5,7 +5,7 @@
 This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
 It collects data about system resources (CPU, memory, disk, uptime), configured cron jobs, firewall states and actions,
 gateway health, network interfaces, CARP, pfsync and XMLRPC high-availability status, WireGuard peers,
-and UPS status via NUT (Network UPS Tools).
+certificates, and UPS status via NUT (Network UPS Tools).
 
 The template uses OPNsense API key/secret authentication and requires no agent installation
 on the firewall.
@@ -29,12 +29,13 @@ on the firewall.
   - `core/hasync_status`
   - `cron/settings`
   - `nut/diagnostics`
-  - `ipsec/sessions/searchPhase(1|2)` 
+  - `ipsec/sessions/searchPhase(1|2)`
   - `wireguard/service/show`
-  
+  - `trust/cert`
+
 ### Permissions
 
-| Privilege ID                            | UI Name                                   |
+| Privilege ID                           | UI Name                                   |
 | -------------------------------------- | ----------------------------------------- |
 | page-diagnostics-logs-firewall-summary | Diagnostics: Logs: Firewall: Summary View |
 | page-diagnostics-pf-info               | Diagnostics: Firewall statistics          |
@@ -46,8 +47,9 @@ on the firewall.
 | page-system-gateways                   | System: Gateways                          |
 | page-system-login-logout               | Lobby: Dashboard                          |
 | page-status-habackup                    | Status: HA backup                         |
-| page-status-ipsec | Status: IPsec |
-| page-wireguard-diagnostics | VPN: WireGuard: Status |
+| page-status-ipsec                      | Status: IPsec                             |
+| page-wireguard-diagnostics             | VPN: WireGuard: Status                    |
+| page-system-certmanager                | Trust: Certificates                       |
 
 
 
@@ -66,8 +68,8 @@ on the firewall.
    - Link the template `OPNsense by HTTP-JSON`
 
 4. **Configure the required macros** on the host:
-   - `{$OPNS.KEY}` – Your OPNsense API key
-   - `{$OPNS.SECRET}` – Your OPNsense API secret
+   - `{$OPNS.KEY}` - Your OPNsense API key
+   - `{$OPNS.SECRET}` - Your OPNsense API secret
 
 5. **Verify connectivity**:
    - After a few minutes check that the item `RAW Gatewaystatus` is receiving data
@@ -87,6 +89,7 @@ on the firewall.
 |-------|---------------|-------------|
 | `{$OPNS.KEY}` | *(empty)* | OPNsense API key used as the HTTP Basic authentication username. **Required.** |
 | `{$OPNS.SECRET}` | *(empty, secret text)* | OPNsense API secret used as the HTTP Basic authentication password. **Required.** |
+| `{$OPNS.PORT}` | `443` | OPNsense API port. |
 | `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
 | `{$OPNS.CRON.JOB.MATCHES}` | `.+` | Regex filter for cron job descriptions to discover. |
 | `{$OPNS.CRON.JOB.NOT_MATCHES}` | `^$` | Regex filter for cron job descriptions to exclude from discovery. |
@@ -135,11 +138,11 @@ on the firewall.
 
 ### Firewall Items
 
-| Name | Key | Type | Description |
-|------|-----|------|-------------|
-| Firewall states current | `opns.fw.states.current` | Dependent | Current number of active firewall states. |
-| Firewall states max | `opns.fw.states.max` | Dependent | Maximum number of allowed firewall states. |
-| States table utilization in % | `opns.states.util` | Calculated | Percentage of the state table currently in use. |
+| Name                          | Key                      | Type       | Description                                     |
+| ----------------------------- | ------------------------ | ---------- | ----------------------------------------------- |
+| Firewall states current       | `opns.fw.states.current` | Dependent  | Current number of active firewall states.       |
+| Firewall states max           | `opns.fw.states.max`     | Dependent  | Maximum number of allowed firewall states.      |
+| States table utilization in % | `opns.states.util`       | Calculated | Percentage of the state table currently in use. |
 
 ### High Availability Items
 
@@ -164,37 +167,37 @@ on the firewall.
 
 > These items are only active when `RAW UPS` is enabled on the host.
 
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| UPS Battery Charge | `nut.battery.charge` | % | Current battery charge level. |
-| UPS Battery Runtime | `nut.battery.runtime` | s | Estimated remaining battery runtime in seconds. |
-| UPS Battery Load | `nut.battery.load` | % | Current load on the UPS in percent. |
-| UPS Input Voltage | `nut.input.voltage` | V | Input (mains) voltage. |
-| UPS Input Frequency | `nut.input.frequency` | Hz | Input (mains) frequency. |
-| UPS Output Voltage | `nut.output.voltage` | V | Output voltage supplied to connected devices. |
-| UPS Status | `nut.status` | Text | Current UPS status code (e.g. `OL`, `OB`, `LB`). See status codes below. |
-| UPS Model | `nut.model` | Text | UPS model name as reported by NUT. |
+| Name                | Key                   | Unit | Description                                                              |
+| ------------------- | --------------------- | ---- | ------------------------------------------------------------------------ |
+| UPS Battery Charge  | `nut.battery.charge`  | %    | Current battery charge level.                                            |
+| UPS Battery Runtime | `nut.battery.runtime` | s    | Estimated remaining battery runtime in seconds.                          |
+| UPS Battery Load    | `nut.battery.load`    | %    | Current load on the UPS in percent.                                      |
+| UPS Input Voltage   | `nut.input.voltage`   | V    | Input (mains) voltage.                                                   |
+| UPS Input Frequency | `nut.input.frequency` | Hz   | Input (mains) frequency.                                                 |
+| UPS Output Voltage  | `nut.output.voltage`  | V    | Output voltage supplied to connected devices.                            |
+| UPS Status          | `nut.status`          | Text | Current UPS status code (e.g. `OL`, `OB`, `LB`). See status codes below. |
+| UPS Model           | `nut.model`           | Text | UPS model name as reported by NUT.                                       |
 
 #### UPS Status Codes
 
-| Code | Meaning | Description |
-|------|---------|-------------|
-| `OL` | On Line | UPS is powered by mains electricity, supplying power to connected devices. |
-| `OB` | On Battery | UPS is running on battery power due to a mains failure. |
-| `LB` | Low Battery | Battery charge is critically low. UPS will shut down soon. |
-| `RB` | Replace Battery | Battery needs replacement due to age or health issues. |
-| `HB` | High Battery | Battery is fully charged (rare). |
-| `CHRG` | Charging | Battery is currently being charged. |
-| `DISCHRG` | Discharging | Battery is actively discharging (more specific than `OB`). |
-| `OVER` | Overload | UPS load exceeds its rated capacity. |
-| `ALARM` | Alarm Active | UPS has triggered an internal alarm (e.g. overload or battery fault). |
-| `CAL` | Calibrating | UPS is performing a battery runtime calibration. |
-| `COMMLOST` | Communication Lost | Communication between NUT and the UPS device is lost. |
-| `OFF` | Off | UPS output is turned off. |
-| `TRIM` | Trim | Input voltage is too high; UPS is stepping it down (buck). |
-| `BOOST` | Boost | Input voltage is too low; UPS is stepping it up. |
-| `TEST` | Self-Test | UPS is performing an automatic self-test. |
-| `SYNC` | Synchronizing | UPS is synchronizing with the mains frequency (rare). |
+| Code       | Meaning            | Description                                                                |
+| ---------- | ------------------ | -------------------------------------------------------------------------- |
+| `OL`       | On Line            | UPS is powered by mains electricity, supplying power to connected devices. |
+| `OB`       | On Battery         | UPS is running on battery power due to a mains failure.                    |
+| `LB`       | Low Battery        | Battery charge is critically low. UPS will shut down soon.                 |
+| `RB`       | Replace Battery    | Battery needs replacement due to age or health issues.                     |
+| `HB`       | High Battery       | Battery is fully charged (rare).                                           |
+| `CHRG`     | Charging           | Battery is currently being charged.                                        |
+| `DISCHRG`  | Discharging        | Battery is actively discharging (more specific than `OB`).                 |
+| `OVER`     | Overload           | UPS load exceeds its rated capacity.                                       |
+| `ALARM`    | Alarm Active       | UPS has triggered an internal alarm (e.g. overload or battery fault).      |
+| `CAL`      | Calibrating        | UPS is performing a battery runtime calibration.                           |
+| `COMMLOST` | Communication Lost | Communication between NUT and the UPS device is lost.                      |
+| `OFF`      | Off                | UPS output is turned off.                                                  |
+| `TRIM`     | Trim               | Input voltage is too high; UPS is stepping it down (buck).                 |
+| `BOOST`    | Boost              | Input voltage is too low; UPS is stepping it up.                           |
+| `TEST`     | Self-Test          | UPS is performing an automatic self-test.                                  |
+| `SYNC`     | Synchronizing      | UPS is synchronizing with the mains frequency (rare).                      |
 
 ### Raw Data Items
 
@@ -221,6 +224,7 @@ items and discovery rules.
 | RAW Firmware Status | `opns.raw.firmware.status` | 6h | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
 | RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
 | RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
+| RAW Trust - Certificates | `opns.raw.trust.certificates` | 5m              | `/api/trust/cert/search/`                                                      |
 
 ## Triggers
 
@@ -240,13 +244,13 @@ items and discovery rules.
 
 ### UPS Triggers
 
-| Name | Severity | Description |
-|------|----------|-------------|
-| UPS on Battery | **High** | UPS status contains `OB` – mains power has failed. |
-| Battery low | **Disaster** | UPS status contains `LB` – battery is critically low and shutdown is imminent. |
-| High Load on UPS Battery | **Average** | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%). |
-| Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning** | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%). |
-| Remaining battery runtime is low | **High** | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
+| Name                                        | Severity     | Description                                                                            |
+| ------------------------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| UPS on Battery                              | **High**     | UPS status contains `OB` – mains power has failed.                                     |
+| Battery low                                 | **Disaster** | UPS status contains `LB` – battery is critically low and shutdown is imminent.         |
+| High Load on UPS Battery                    | **Average**  | UPS load exceeds `{$OPNS.NUT.HIGH.LOAD}` % (default: 80%).                             |
+| Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning**  | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%).                        |
+| Remaining battery runtime is low            | **High**     | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
 
 ### High Availability Triggers
 
@@ -267,10 +271,10 @@ items and discovery rules.
 
 ### WireGuard Triggers
 
-| Name | Severity | Description |
-|------|----------|-------------|
-| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
-| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. OPNsense marks peers online when the latest handshake is not older than 300 seconds. |
+| Name                                      | Severity | Description                                                                                                                           |
+| ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes.                                                                                      |
+| WireGuard peer {#WG.NAME} is not online   | **High** | Peer status has not been `online` for 5 minutes. OPNsense marks peers online when the latest handshake is not older than 300 seconds. |
 
 ## Discovery Rules
 
@@ -291,81 +295,81 @@ not per-run exit codes; this discovery therefore does not assert that a command 
 
 ### 2. Disk Discovery
 
-| Property | Value |
-|----------|-------|
-| Key | `opns.disk.discovery` |
-| Type | Dependent (master: `opns.raw.disk`) |
-| Filters | `{#FSNAME}` and `{#FSTYPE}` configurable via macros |
-| Keep lost resources | 1h |
+| Property            | Value                                               |
+| ------------------- | --------------------------------------------------- |
+| Key                 | `opns.disk.discovery`                               |
+| Type                | Dependent (master: `opns.raw.disk`)                 |
+| Filters             | `{#FSNAME}` and `{#FSTYPE}` configurable via macros |
+| Keep lost resources | 1h                                                  |
 
 **Item Prototypes:**
 
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| FS [{#FSNAME}]: Get data | `opns.disk.data[{#FSNAME},data]` | – | Raw JSON for the filesystem (intermediate item). |
-| FS [{#FSNAME}]: Space: Total | `opns.disk.size[{#FSNAME},total]` | B | Total filesystem size in bytes. |
-| FS [{#FSNAME}]: Space: Used | `opns.disk.size[{#FSNAME},used]` | B | Used space in bytes. |
-| FS [{#FSNAME}]: Space: Available | `opns.disk.size[{#FSNAME},available]` | B | Available space in bytes. |
-| FS [{#FSNAME}]: Space: Used, in % | `opns.disk.size[{#FSNAME},pused]` | % | Used space as a percentage. |
+| Name                              | Key                                   | Unit | Description                                      |
+| --------------------------------- | ------------------------------------- | ---- | ------------------------------------------------ |
+| FS [{#FSNAME}]: Get data          | `opns.disk.data[{#FSNAME},data]`      | –    | Raw JSON for the filesystem (intermediate item). |
+| FS [{#FSNAME}]: Space: Total      | `opns.disk.size[{#FSNAME},total]`     | B    | Total filesystem size in bytes.                  |
+| FS [{#FSNAME}]: Space: Used       | `opns.disk.size[{#FSNAME},used]`      | B    | Used space in bytes.                             |
+| FS [{#FSNAME}]: Space: Available  | `opns.disk.size[{#FSNAME},available]` | B    | Available space in bytes.                        |
+| FS [{#FSNAME}]: Space: Used, in % | `opns.disk.size[{#FSNAME},pused]`     | %    | Used space as a percentage.                      |
 
 **Trigger Prototypes:**
 
-| Name | Severity | Description |
-|------|----------|-------------|
-| OPNsense: FS [{#FSNAME}]: Space is low | **Warning** | Used space exceeds `{$OPNS.FS.PUSED.MAX.WARN}` % (default: 90%). |
+| Name                                              | Severity    | Description                                                      |
+| ------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| OPNsense: FS [{#FSNAME}]: Space is low            | **Warning** | Used space exceeds `{$OPNS.FS.PUSED.MAX.WARN}` % (default: 90%). |
 | OPNsense: FS [{#FSNAME}]: Space is critically low | **Average** | Used space exceeds `{$OPNS.FS.PUSED.MAX.CRIT}` % (default: 95%). |
 
 ---
 
 ### 3. Gateway Discovery
 
-| Property | Value |
-|----------|-------|
-| Key | `opns.gateway.discovery` |
-| Type | Dependent (master: `opns.raw.gateway.status`) |
-| LLD Macro | `{#GWSTATUSNAME}` → `$.name` |
-| Keep lost resources | 1h |
+| Property            | Value                                         |
+| ------------------- | --------------------------------------------- |
+| Key                 | `opns.gateway.discovery`                      |
+| Type                | Dependent (master: `opns.raw.gateway.status`) |
+| LLD Macro           | `{#GWSTATUSNAME}` → `$.name`                 |
+| Keep lost resources | 1h                                            |
 
 **Item Prototypes:**
 
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| Gateway Address {#GWSTATUSNAME} | `opns.gw.status.address[{#GWSTATUSNAME}]` | – | Gateway IP address. |
-| Gateway Status {#GWSTATUSNAME} | `opns.gw.status.status[{#GWSTATUSNAME}]` | – | Translated status string (e.g. "Online"). |
-| Gateway RTT {#GWSTATUSNAME} | `opns.gw.status.delay[{#GWSTATUSNAME}]` | ms | Round-trip time. Returns 9999 if monitoring is disabled. |
-| Gateway RTTd {#GWSTATUSNAME} | `opns.gw.status.stddev[{#GWSTATUSNAME}]` | ms | RTT standard deviation. Returns 9999 if monitoring is disabled. |
-| Gateway loss {#GWSTATUSNAME} | `opns.gw.status.loss[{#GWSTATUSNAME}]` | % | Packet loss percentage. Returns 9999 if monitoring is disabled. |
+| Name                            | Key                                       | Unit | Description                                                     |
+| ------------------------------- | ----------------------------------------- | ---- | --------------------------------------------------------------- |
+| Gateway Address {#GWSTATUSNAME} | `opns.gw.status.address[{#GWSTATUSNAME}]` | –    | Gateway IP address.                                             |
+| Gateway Status {#GWSTATUSNAME}  | `opns.gw.status.status[{#GWSTATUSNAME}]`  | –    | Translated status string (e.g. "Online").                       |
+| Gateway RTT {#GWSTATUSNAME}     | `opns.gw.status.delay[{#GWSTATUSNAME}]`   | ms   | Round-trip time. Returns 9999 if monitoring is disabled.        |
+| Gateway RTTd {#GWSTATUSNAME}    | `opns.gw.status.stddev[{#GWSTATUSNAME}]`  | ms   | RTT standard deviation. Returns 9999 if monitoring is disabled. |
+| Gateway loss {#GWSTATUSNAME}    | `opns.gw.status.loss[{#GWSTATUSNAME}]`    | %    | Packet loss percentage. Returns 9999 if monitoring is disabled. |
 
 **Trigger Prototypes:**
 
-| Name | Severity | Description |
-|------|----------|-------------|
-| Gateway {#GWSTATUSNAME} Packet loss | **Average** | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} High packet loss | **High** | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway {#GWSTATUSNAME} is down | **Disaster** | Packet loss > 99% for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
-| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average** | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense. |
+| Name                                              | Severity     | Description                                                                                                            |
+| ------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Gateway {#GWSTATUSNAME} Packet loss               | **Average**  | Packet loss > `{$OPNS.GW.MIN.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled.  |
+| Gateway {#GWSTATUSNAME} High packet loss          | **High**     | Packet loss > `{$OPNS.GW.HIGH.PACKET.LOSS}` % for 5 min. Ignores the `9999` sentinel used when monitoring is disabled. |
+| Gateway {#GWSTATUSNAME} is down                   | **Disaster** | Packet loss > 99% for 5 min. Ignores the `9999` sentinel used when monitoring is disabled.                             |
+| Gateway Monitoring on {#GWSTATUSNAME} is disabled | **Average**  | All monitoring values return 9999 – gateway monitoring is not enabled in OPNsense.                                     |
 
 ---
 
 ### 4. FW Action Discovery
 
-| Property | Value |
-|----------|-------|
-| Key | `opns.fw.action.discovery` |
-| Type | Dependent (master: `opns.raw.fw.action`) |
-| LLD Macro | `{#FWACTION}` → `$.label` |
-| Keep lost resources | 1h |
+| Property            | Value                                    |
+| ------------------- | ---------------------------------------- |
+| Key                 | `opns.fw.action.discovery`               |
+| Type                | Dependent (master: `opns.raw.fw.action`) |
+| LLD Macro           | `{#FWACTION}` → `$.label`               |
+| Keep lost resources | 1h                                       |
 
 **Item Prototypes:**
 
-| Name | Key | Description |
-|------|-----|-------------|
+| Name                        | Key                           | Description                                                           |
+| --------------------------- | ----------------------------- | --------------------------------------------------------------------- |
 | Firewall action {#FWACTION} | `opns.fw.action[{#FWACTION}]` | Counter for the discovered firewall action (e.g. pass, block, match). |
 
 **Graph Prototypes:**
 
-| Name | Description |
-|------|-------------|
+| Name                              | Description                                                      |
+| --------------------------------- | ---------------------------------------------------------------- |
 | OPNSense Action Graph {#FWACTION} | Graph showing firewall action counts per discovered action type. |
 
 ---
@@ -419,100 +423,120 @@ currently retained states may not appear even when pfsync transport itself is fu
 
 ### 8. Interface Stats Discovery
 
-| Property | Value |
-|----------|-------|
-| Key | `opns.interface.stats.discovery` |
-| Type | Dependent (master: `opns.raw.interfaces.stat`) |
+| Property   | Value                                                                          |
+| ---------- | ------------------------------------------------------------------------------ |
+| Key        | `opns.interface.stats.discovery`                                               |
+| Type       | Dependent (master: `opns.raw.interfaces.stat`)                                 |
 | LLD Macros | `{#OPNS.INTERFACE.DEVICE}` → `$.device`, `{#OPNS.INTERFACE.NAME}` → `$.name` |
 
 **Item Prototypes – Traffic:**
 
-| Name | Key | Unit |
-|------|-----|------|
-| …Bytes received | `opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …Bytes transmitted | `opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …packets received | `opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …packets transmitted | `opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …multicasts received | `opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]` | – |
+| Name                 | Key                                                            | Unit |
+| -------------------- | -------------------------------------------------------------- | ---- |
+| …Bytes received      | `opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}]`      | Bps  |
+| …Bytes transmitted   | `opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}]`   | Bps  |
+| …packets received    | `opns.interface.packets.received[{#OPNS.INTERFACE.DEVICE}]`    | –    |
+| …packets transmitted | `opns.interface.packets.transmitted[{#OPNS.INTERFACE.DEVICE}]` | –    |
+| …multicasts received | `opns.interface.multicast.received[{#OPNS.INTERFACE.DEVICE}]`  | –    |
 
 **Item Prototypes – Errors & Drops:**
 
-| Name | Key |
-|------|-----|
-| …collisions | `opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]` |
-| …input queue drops | `opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]` |
-| …output errors | `opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]` |
+| Name                          | Key                                                                 |
+| ----------------------------- | ------------------------------------------------------------------- |
+| …collisions                   | `opns.interface.collisions[{#OPNS.INTERFACE.DEVICE}]`               |
+| …input queue drops            | `opns.interface.input.queue.drops[{#OPNS.INTERFACE.DEVICE}]`        |
+| …output errors                | `opns.interface.output.errors[{#OPNS.INTERFACE.DEVICE}]`            |
 | …packets for unknown protocol | `opns.interface.packets.unknown.protocol[{#OPNS.INTERFACE.DEVICE}]` |
 
 **Item Prototypes – Firewall per Interface (IPv4):**
 
-| Name | Key | Unit |
-|------|-----|------|
-| …blocked bytes INv4 | `opns.interface.fw.bytes.blockin.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …blocked bytes OUTv4 | `opns.interface.fw.bytes.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …passed bytes INv4 | `opns.interface.fw.bytes.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …passed bytes OUTv4 | `opns.interface.fw.bytes.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | Bps |
-| …blocked packets INv4 | `opns.interface.fw.packets.blockin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …blocked packets OUTv4 | `opns.interface.fw.packets.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …passed packets INv4 | `opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
-| …passed packets OUTv4 | `opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]` | – |
+| Name                   | Key                                                               | Unit |
+| ---------------------- | ----------------------------------------------------------------- | ---- |
+| …blocked bytes INv4    | `opns.interface.fw.bytes.blockin.v4[{#OPNS.INTERFACE.DEVICE}]`    | Bps  |
+| …blocked bytes OUTv4   | `opns.interface.fw.bytes.blockout.v4[{#OPNS.INTERFACE.DEVICE}]`   | Bps  |
+| …passed bytes INv4     | `opns.interface.fw.bytes.passin.v4[{#OPNS.INTERFACE.DEVICE}]`     | Bps  |
+| …passed bytes OUTv4    | `opns.interface.fw.bytes.passout.v4[{#OPNS.INTERFACE.DEVICE}]`    | Bps  |
+| …blocked packets INv4  | `opns.interface.fw.packets.blockin.v4[{#OPNS.INTERFACE.DEVICE}]`  | –    |
+| …blocked packets OUTv4 | `opns.interface.fw.packets.blockout.v4[{#OPNS.INTERFACE.DEVICE}]` | –    |
+| …passed packets INv4   | `opns.interface.fw.packets.passin.v4[{#OPNS.INTERFACE.DEVICE}]`   | –    |
+| …passed packets OUTv4  | `opns.interface.fw.packets.passout.v4[{#OPNS.INTERFACE.DEVICE}]`  | –    |
 
 ---
 
 ### 9. WireGuard Instance Discovery
 
-| Property | Value |
-|----------|-------|
-| Key | `opns.wireguard.instance.discovery` |
-| Type | Dependent (master: `opns.wireguard.raw`) |
-| LLD Macros | `{#WG.IF}` → `$.if`, `{#WG.INSTANCE}` → `$.name` |
-| Filters | `{#WG.INSTANCE}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
-| Keep lost resources | 1h |
+| Property            | Value                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Key                 | `opns.wireguard.instance.discovery`                                                                   |
+| Type                | Dependent (master: `opns.wireguard.raw`)                                                              |
+| LLD Macros          | `{#WG.IF}` → `$.if`, `{#WG.INSTANCE}` → `$.name`                                                    |
+| Filters             | `{#WG.INSTANCE}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
+| Keep lost resources | 1h                                                                                                    |
 
 **Item Prototypes:**
 
-| Name | Key | Unit | Description |
-|------|-----|------|-------------|
-| WireGuard instance {#WG.INSTANCE}: status | `opns.wireguard.instance.status[{#WG.IF}]` | – | Interface status reported by OPNsense (`up` or `down`). |
-| WireGuard instance {#WG.INSTANCE}: listen port | `opns.wireguard.instance.listen_port[{#WG.IF}]` | – | WireGuard listen port. |
-| WireGuard instance {#WG.INSTANCE}: public key | `opns.wireguard.instance.public_key[{#WG.IF}]` | – | Instance public key. |
+| Name                                           | Key                                             | Unit | Description                                             |
+| ---------------------------------------------- | ----------------------------------------------- | ---- | ------------------------------------------------------- |
+| WireGuard instance {#WG.INSTANCE}: status      | `opns.wireguard.instance.status[{#WG.IF}]`      | –    | Interface status reported by OPNsense (`up` or `down`). |
+| WireGuard instance {#WG.INSTANCE}: listen port | `opns.wireguard.instance.listen_port[{#WG.IF}]` | –    | WireGuard listen port.                                  |
+| WireGuard instance {#WG.INSTANCE}: public key  | `opns.wireguard.instance.public_key[{#WG.IF}]`  | –    | Instance public key.                                    |
 
 **Trigger Prototypes:**
 
-| Name | Severity | Description |
-|------|----------|-------------|
+| Name                                      | Severity | Description                                      |
+| ----------------------------------------- | -------- | ------------------------------------------------ |
 | WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
 
 ---
 
 ### 10. WireGuard Peer Discovery
 
+| Property            | Value                                                                                                                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Key                 | `opns.wireguard.peer.discovery`                                                                                                                                                                |
+| Type                | Dependent (master: `opns.wireguard.raw`)                                                                                                                                                       |
+| LLD Macros          | `{#WG.PUBKEY}` → `$.public_key`, `{#WG.NAME}` → `$.name`, `{#WG.IF}` → `$.if`, `{#WG.IFNAME}` → `$.ifname`                                                                                 |
+| Filters             | `{#WG.NAME}` configurable via `{$OPNS.WG.PEER.MATCHES}` and `{$OPNS.WG.PEER.NOT_MATCHES}`; `{#WG.IFNAME}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
+| Keep lost resources | 1h                                                                                                                                                                                             |
+
+**Item Prototypes:**
+
+| Name                                                 | Key                                                        | Unit     | Description                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| WireGuard peer {#WG.NAME}: status                    | `opns.wireguard.peer.status["{#WG.PUBKEY}"]`               | –        | Peer status reported by OPNsense (`online`, `stale`, or `offline`).         |
+| WireGuard peer {#WG.NAME}: latest handshake          | `opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]`     | unixtime | Latest WireGuard handshake timestamp. Returns `0` if no handshake exists.   |
+| WireGuard peer {#WG.NAME}: latest handshake age      | `opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]` | s        | Age of the latest handshake in seconds. Returns `0` if no handshake exists. |
+| WireGuard peer {#WG.NAME}: endpoint                  | `opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]`             | –        | Current peer endpoint.                                                      |
+| WireGuard peer {#WG.NAME}: bytes received            | `opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]`          | B        | Total bytes received from the peer.                                         |
+| WireGuard peer {#WG.NAME}: bytes received per second | `opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]`     | Bps      | Receive rate calculated from total received bytes.                          |
+| WireGuard peer {#WG.NAME}: bytes sent                | `opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]`          | B        | Total bytes sent to the peer.                                               |
+| WireGuard peer {#WG.NAME}: bytes sent per second     | `opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]`     | Bps      | Send rate calculated from total sent bytes.                                 |
+
+**Trigger Prototypes:**
+
+| Name                                    | Severity | Description                                      |
+| --------------------------------------- | -------- | ------------------------------------------------ |
+| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
+
+---
+
+### 11. Certificates Discovery
+
 | Property | Value |
 |----------|-------|
-| Key | `opns.wireguard.peer.discovery` |
-| Type | Dependent (master: `opns.wireguard.raw`) |
-| LLD Macros | `{#WG.PUBKEY}` → `$.public_key`, `{#WG.NAME}` → `$.name`, `{#WG.IF}` → `$.if`, `{#WG.IFNAME}` → `$.ifname` |
-| Filters | `{#WG.NAME}` configurable via `{$OPNS.WG.PEER.MATCHES}` and `{$OPNS.WG.PEER.NOT_MATCHES}`; `{#WG.IFNAME}` configurable via `{$OPNS.WG.INSTANCE.MATCHES}` and `{$OPNS.WG.INSTANCE.NOT_MATCHES}` |
-| Keep lost resources | 1h |
+| Key | `opns.trust.certificates.discovery` |
+| Type | Dependent (master: `opns.raw.trust.certificates`) |
+| LLD Macros | `{#DESCRIPTION}` → `$..descr.first()` |
 
 **Item Prototypes:**
 
 | Name | Key | Unit | Description |
 |------|-----|------|-------------|
-| WireGuard peer {#WG.NAME}: status | `opns.wireguard.peer.status["{#WG.PUBKEY}"]` | – | Peer status reported by OPNsense (`online`, `stale`, or `offline`). |
-| WireGuard peer {#WG.NAME}: latest handshake | `opns.wireguard.peer.latest_handshake["{#WG.PUBKEY}"]` | unixtime | Latest WireGuard handshake timestamp. Returns `0` if no handshake exists. |
-| WireGuard peer {#WG.NAME}: latest handshake age | `opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"]` | s | Age of the latest handshake in seconds. Returns `0` if no handshake exists. |
-| WireGuard peer {#WG.NAME}: endpoint | `opns.wireguard.peer.endpoint["{#WG.PUBKEY}"]` | – | Current peer endpoint. |
-| WireGuard peer {#WG.NAME}: bytes received | `opns.wireguard.peer.transfer_rx["{#WG.PUBKEY}"]` | B | Total bytes received from the peer. |
-| WireGuard peer {#WG.NAME}: bytes received per second | `opns.wireguard.peer.transfer_rx.rate["{#WG.PUBKEY}"]` | Bps | Receive rate calculated from total received bytes. |
-| WireGuard peer {#WG.NAME}: bytes sent | `opns.wireguard.peer.transfer_tx["{#WG.PUBKEY}"]` | B | Total bytes sent to the peer. |
-| WireGuard peer {#WG.NAME}: bytes sent per second | `opns.wireguard.peer.transfer_tx.rate["{#WG.PUBKEY}"]` | Bps | Send rate calculated from total sent bytes. |
-
-**Trigger Prototypes:**
-
-| Name | Severity | Description |
-|------|----------|-------------|
-| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
+| {#DESCRIPTION} commonname | `opns.trust.certificates.discovery.commonname[{#DESCRIPTION}]` | – | Certificate CN (common name). |
+| {#DESCRIPTION} is in use | `opns.trust.certificates.discovery.in_use[{#DESCRIPTION}]` | Boolean | Shows whether the certificate is used or assigned. |
+| {#DESCRIPTION} is user | `opns.trust.certificates.discovery.is_user[{#DESCRIPTION}]` | Boolean | User certificate (for example, user VPN) or system certificate (for example, site-to-site VPN). |
+| {#DESCRIPTION} valid from | `opns.trust.certificates.discovery.valid_from[{#DESCRIPTION}]` | unixtime | Certificate validity start. |
+| {#DESCRIPTION} valid to | `opns.trust.certificates.discovery.valid_to[{#DESCRIPTION}]` | unixtime | Certificate validity end. |
 
 ## UPS Monitoring (NUT)
 
@@ -534,6 +558,15 @@ from this JSON using standard JSONPath preprocessing – no external scripts req
 3. In Zabbix, navigate to the host and **enable the item** `RAW UPS` (`opns.ups.raw`)
 4. All dependent UPS items and triggers will start collecting data automatically
 
+## Value mapping
+
+
+| Name    | Raw value | Mapped value |
+| ------- | --------- | ------------ |
+| Boolean | `1`       | `Yes`        |
+| Boolean | `0`       | `No`         |
+
+---
 
 ## Dashboards
 

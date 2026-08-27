@@ -1,0 +1,525 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: efc15cccd9ca4e9182157f4ab11f4830
+      template: 'SONiC by SNMP'
+      name: 'SONiC by SNMP'
+      description: |
+        Monitors switches running SONiC via SNMP. Built for and tested against a Dell PowerSwitch (HwSku DellEMC-S5232f-C32) running Dell Enterprise SONiC 4.6.0 (Standard); uses only vendor-neutral MIBs (from sonic-snmpagent), so it should apply to other SONiC platforms too.
+
+        Thin template: links to the official "Linux by SNMP" template for host/interface/filesystem monitoring (SONiC's control plane is Debian Linux/net-snmp exposing the same standard MIBs) and only adds physical chassis sensors via ENTITY-MIB/ENTITY-SENSOR-MIB, since SONiC has no vendor chassis MIB the way FTOS (F10-S-SERIES-CHASSIS-MIB) or Dell OS10 (DELLEMC-OS10-CHASSIS-MIB) do. Migrating from FTOS/OS10 to SONiC? Use this instead of those vendor templates.
+
+        Requires the official "Linux by SNMP" template (ships with Zabbix) already imported - linked by name.
+
+        MIBs used directly: ENTITY-MIB, ENTITY-SENSOR-MIB
+        MIBs used via linked template: SNMPv2-MIB, IF-MIB, EtherLike-MIB, HOST-RESOURCES-MIB, UCD-SNMP-MIB, UCD-DISKIO-MIB
+
+        Known caveats (see README for detail):
+        - ENTITY-MIB/ENTITY-SENSOR-MIB confirmed POPULATED: 445 physical entities, 398 sensors (CPU/ASIC/system-airflow temps, PSU temperature + fan tachometers - no PSU voltage/current/power on this hardware, per-port DOM temp). Load ENTITY-MIB/ENTITY-SENSOR-MIB locally or snmpwalk renders generic mib-2.47/.99 OIDs instead of symbolic names.
+        - sonic.sensor.raw's stored value can truncate at 65535 bytes if inspected directly for debugging; discovery itself is unaffected (see README).
+        - SNMP traps for temperature (reportedly 4.5.3+) not implemented here - polling only.
+        - UCD-SNMP-MIB confirmed POPULATED - memory items return real data despite living under the private enterprises branch.
+        - hrStorageTable reports Docker bind-mount pseudo-filesystems alongside real memory pools; {$VFS.FS.FSNAME.NOT_MATCHES} filters them out.
+        - No swap on SONiC (flash storage) - swap items read 0/"Not supported" harmlessly; disable at the host level if you want them gone.
+      vendor:
+        name: community-templates
+        version: 7.0-0
+      templates:
+        - name: 'Linux by SNMP'
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 35b68edf08e14e808e4a98a9840700b9
+          name: 'Sensor table walk (raw)'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.99.1.1.1.1,1.3.6.1.2.1.99.1.1.1.2,1.3.6.1.2.1.99.1.1.1.3,1.3.6.1.2.1.99.1.1.1.4,1.3.6.1.2.1.47.1.1.1.1.2]'
+          key: sonic.sensor.raw
+          delay: 15m
+          history: '0'
+          value_type: TEXT
+          description: |
+            Raw walk of entPhySensorType/Scale/Precision/Value (ENTITY-SENSOR-MIB) and entPhysicalDescr (ENTITY-MIB). Master item for sonic.sensor.discovery/sonic.sensor.chassis.discovery, which parse it in JS rather than discovery[] - needed to cross-reference each port's transceiver type against its per-lane DOM sensors, which live at a different index.
+          tags:
+            - tag: component
+              value: raw
+      discovery_rules:
+        - uuid: dc2d40ed23384df2b88083142aa43543
+          name: 'Sensor discovery (ports)'
+          type: DEPENDENT
+          key: sonic.sensor.discovery
+          description: |
+            MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
+            Port-associated sensors (temperature, fan, voltage, current) via entPhySensorTable, named from entPhysicalDescr at the same index ({#SENSOR_IFNAME} non-empty) - see sonic.sensor.chassis.discovery for everything else. Confirmed POPULATED on the tested hardware (DellEMC-S5232f-C32, SONiC 4.6.0 Standard): CPU/ASIC/system temp, PSU temp, fan tachometers, per-port DOM temp (no PSU voltage/current/power on this hardware - see README).
+            Parses sonic.sensor.raw's raw text directly (not discovery[]) to cross-reference each port's transceiver type and skip DOM lanes it doesn't support, and to drop entPhysicalTable's pure container/aggregate entries (chassis, fan tray, PSU-as-a-whole, MGMT), which have neither an entPhySensorType nor entPhySensorValue.
+          master_item:
+            key: sonic.sensor.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var raw = value;
+                  function parseColumn(oidPrefix) {
+                      var map = {};
+                      var re = new RegExp('\\.?' + oidPrefix.replace(/\\./g, '\\\\.') + '\\.([0-9]+)[ \\t]*=[ \\t]*(?:[A-Za-z0-9_-]+:[ \\t]*)?([^\\r\\n]*)', 'g');
+                      var m;
+                      while ((m = re.exec(raw)) !== null) {
+                          var v = m[2].replace(/\\r$/, '').replace(/\\s+$/, '');
+                          if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+                              v = v.slice(1, -1);
+                          }
+                          map[m[1]] = v;
+                      }
+                      return map;
+                  }
+                  var typeMap = parseColumn('1.3.6.1.2.1.99.1.1.1.1');
+                  var scaleMap = parseColumn('1.3.6.1.2.1.99.1.1.1.2');
+                  var precMap = parseColumn('1.3.6.1.2.1.99.1.1.1.3');
+                  var valueMap = parseColumn('1.3.6.1.2.1.99.1.1.1.4');
+                  var descrMap = parseColumn('1.3.6.1.2.1.47.1.1.1.1.2');
+
+                  // Map each port to how many DOM lanes its actual transceiver supports, from the
+                  // transceiver container's own entPhysicalDescr entry (e.g. "SFP for Eth1/34" -> 1,
+                  // "QSFP28 for Eth1/1" -> 4). Double-density variants (SFP-DD, QSFP-DD) and OSFP
+                  // ("Octal" - 8 lanes, not a QSFP variant despite the name) are listed before their
+                  // plain counterparts so the more specific match wins. Confirmed against a real walk
+                  // for SFP/QSFP28 only - SFP-DD/QSFP-DD/OSFP lane counts are correct by spec but their
+                  // entPhysicalDescr text has not been seen on real hardware; a port not found here at
+                  // all (unrecognized form factor) is left unrestricted rather than risk hiding data.
+                  var laneCounts = {'SFP-DD': 2, 'QSFP-DD': 8, 'OSFP': 8, 'SFP': 1, 'QSFP': 4};
+                  var maxLanes = {};
+                  for (var pidx in descrMap) {
+                      var tm = descrMap[pidx].match(/^(SFP-DD|QSFP-DD|OSFP|SFP|QSFP)[A-Za-z0-9+]* for (\S+)$/i);
+                      if (tm) {
+                          maxLanes[tm[2]] = laneCounts[tm[1].toUpperCase()];
+                      }
+                  }
+
+                  var units = {'1':'','2':'','3':'V','4':'V','5':'mA','6':'mW','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
+                  var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
+
+                  var result = [];
+                  for (var idx in valueMap) {
+                      if (!/^-?[0-9]+$/.test(valueMap[idx])) continue;
+                      var type = typeMap[idx];
+                      if (!/^[0-9]+$/.test(type)) continue;
+                      var descr = descrMap[idx];
+                      if (descr === undefined) continue;
+
+                      var kind = kinds[type] || 'Value';
+                      // Dell's SONiC agent reports fan tachometers as entPhySensorType=unknown(2) rather
+                      // than rpm(10) - override by name since the type code alone doesn't tell us "Fan speed" here.
+                      if (descr.indexOf('Tachometers for ') === 0) kind = 'Fan speed';
+
+                      // Descriptions come in a few shapes:
+                      //   "DOM RX Power Sensor for Eth1/1/1" -> per-lane on a breakout port
+                      //   "DOM Temperature Sensor for Eth1/1" -> per-port, real interface suffix
+                      //   "Tachometers for FAN 1"            -> "for <id>", but not an interface
+                      //   "Temperature for PSU 1"            -> same, and prefix just repeats the kind
+                      //   "CPU On-board"                     -> no "for" at all
+                      var ifname = '', label = descr, display = descr, lane = 1;
+                      var m = descr.match(/^(.*) for (.+)$/);
+                      if (m) {
+                          var prefix = m[1].replace(/ Sensor$/, '');
+                          var suffix = m[2];
+                          if (/^[A-Za-z]+[0-9]+(\/[0-9]+)*$/.test(suffix)) {
+                              // A real interface name, possibly a specific lane on a breakout port
+                              // (Eth1/1/1..4). Tag with just the parent port (first two segments) so it
+                              // matches the ifName the linked "Linux by SNMP" template tags its own
+                              // interface items with, but keep the full lane path in the display name.
+                              var parts = suffix.split('/');
+                              ifname = parts.slice(0, 2).join('/');
+                              lane = parts.length > 2 ? parseInt(parts[2], 10) : 1;
+                              label = prefix;
+                              display = suffix + ' ' + prefix;
+                          } else if (prefix.toLowerCase() === kind.toLowerCase() || prefix === 'Tachometers') {
+                              // prefix only repeats what {#SENSOR_KIND} already says - keep just the
+                              // identifying part ("FAN 1", "PSU 1")
+                              label = suffix;
+                              display = suffix;
+                          } else {
+                              label = prefix + ' ' + suffix;
+                              display = label;
+                          }
+                      }
+
+                      if (ifname === '') continue; // port-associated sensors only - see sonic.sensor.chassis.discovery
+
+                      // Skip lanes beyond what this port's actual transceiver supports (e.g. lanes 2-4 on a
+                      // single-lane SFP port, which structurally don't exist and always read unavailable).
+                      var limit = maxLanes[ifname];
+                      if (limit !== undefined && lane > limit) continue;
+
+                      label = label.replace(/ Sensor$/, '');
+                      display = display.replace(/ Sensor$/, '');
+                      // Merge every PSU sub-sensor ("PSU1 Airflow", "PSU 1 FAN 1", "PSU 1") into one
+                      // "PSU 1" sensor tag value - the display name keeps the full detail, only the
+                      // tag (used for grouping/filtering) collapses.
+                      var psuMatch = label.match(/PSU\s?([0-9]+)/i);
+                      if (psuMatch) label = 'PSU ' + psuMatch[1];
+
+                      // Component classification, so these line up with the linked "Linux by SNMP"
+                      // template's own component tags (e.g. filter component:cpu to see both CPU
+                      // utilization and CPU On-board temperature together) instead of one flat "sensor".
+                      var component = 'chassis';
+                      if (descr === 'CPU On-board') component = 'cpu';
+                      else if (descr === 'ASIC On-board') component = 'asic';
+                      else if (/PSU/i.test(descr)) component = 'psu';
+                      else if (/FAN|Tachometers/i.test(descr)) component = 'fan';
+                      else if (ifname) component = 'network';
+
+                      result.push({
+                          '{#SNMPINDEX}': idx,
+                          '{#SENSOR_TYPE}': type,
+                          '{#SENSOR_SCALE}': scaleMap[idx],
+                          '{#SENSOR_PRECISION}': precMap[idx],
+                          '{#SENSOR_DESCR}': descr,
+                          '{#SENSOR_UNIT}': (kind === 'Fan speed') ? 'rpm' : (units[type] || ''),
+                          '{#SENSOR_KIND}': kind,
+                          '{#SENSOR_IFNAME}': ifname,
+                          '{#SENSOR_LABEL}': label,
+                          '{#SENSOR_DISPLAY}': display,
+                          '{#SENSOR_NAME}': (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind),
+                          '{#SENSOR_COMPONENT}': component
+                      });
+                  }
+                  return JSON.stringify(result);
+
+          item_prototypes:
+            - uuid: 503fcabadcca42eb8da8aac17ab745f2
+              name: '{#SENSOR_DISPLAY}: Status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.99.1.1.1.5.{#SNMPINDEX}'
+              key: 'sonic.sensor.status[{#SENSOR_DISPLAY}]'
+              delay: 5m
+              trends: '0'
+              description: |
+                MIB: ENTITY-SENSOR-MIB
+                entPhySensorOperStatus: ok(1), unavailable(2), nonoperational(3).
+              valuemap:
+                name: 'ENTITY-SENSOR-MIB::entPhySensorOperStatus'
+              tags:
+                - tag: component
+                  value: '{#SENSOR_COMPONENT}'
+                - tag: interface
+                  value: '{#SENSOR_IFNAME}'
+                - tag: measurement
+                  value: '{#SENSOR_KIND}'
+                - tag: sensor
+                  value: '{#SENSOR_LABEL}'
+              trigger_prototypes:
+                - uuid: 59740febceef462db58398ff810329e6
+                  expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SENSOR_DISPLAY}])=3'
+                  name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
+                  priority: HIGH
+                  tags:
+                    - tag: interface
+                      value: '{#SENSOR_IFNAME}'
+                    - tag: scope
+                      value: availability
+                - uuid: e2dc6ce718624099ba09963c8001068b
+                  expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SENSOR_DISPLAY}])=2 and {$SENSOR.DOM.IGNORE:"{#SENSOR_IFNAME}"}=0'
+                  name: 'SONiC: {#SENSOR_DISPLAY} is unavailable'
+                  priority: WARNING
+                  description: 'unavailable(2) often is not a fault - non-operational(3) is. Two benign causes: an unrecognized transceiver form factor left lane-unrestricted, or a non-optical transceiver (e.g. SFP-to-RJ45 copper) with no laser/photodiode, so RX/TX power and TX bias read unavailable on every lane. Set {$SENSOR.DOM.IGNORE:"<ifname>"}=1 at the host level (parent port) to silence.'
+                  dependencies:
+                    - name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
+                      expression: 'last(/SONiC by SNMP/sonic.sensor.status[{#SENSOR_DISPLAY}])=3'
+                  tags:
+                    - tag: interface
+                      value: '{#SENSOR_IFNAME}'
+                    - tag: scope
+                      value: availability
+            - uuid: 9c4a7ef907e04bdbaa8b8b4808929e63
+              name: '{#SENSOR_NAME}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.99.1.1.1.4.{#SNMPINDEX}'
+              key: 'sonic.sensor.value[{#SENSOR_DISPLAY}]'
+              delay: 3m
+              value_type: FLOAT
+              units: '{#SENSOR_UNIT}'
+              description: |
+                MIB: ENTITY-SENSOR-MIB
+                entPhySensorValue, normalized using entPhySensorScale/Precision per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType. Power/current (RX/TX optical power, TX bias) are further scaled to mW/mA, unreadable otherwise as raw watts/amps. See {#SENSOR_UNIT} for the resulting unit.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var scale = parseInt('{#SENSOR_SCALE}', 10);
+                      var precision = parseInt('{#SENSOR_PRECISION}', 10);
+                      var type = '{#SENSOR_TYPE}';
+                      var exponents = {1:-24,2:-21,3:-18,4:-15,5:-12,6:-9,7:-6,8:-3,9:0,10:3,11:6,12:9,13:12,14:15,15:18,16:21,17:24};
+                      var exp = (exponents[scale] !== undefined ? exponents[scale] : 0) - precision;
+                      var result = parseFloat(value) * Math.pow(10, exp);
+                      if (type === '5' || type === '6') {
+                          result = result * 1000; // amperes/watts -> milliamps/milliwatts (this rule is port/DOM-associated only)
+                      }
+                      return result;
+              tags:
+                - tag: component
+                  value: '{#SENSOR_COMPONENT}'
+                - tag: interface
+                  value: '{#SENSOR_IFNAME}'
+                - tag: measurement
+                  value: '{#SENSOR_KIND}'
+                - tag: sensor
+                  value: '{#SENSOR_LABEL}'
+              trigger_prototypes:
+                - uuid: 4132e84b44534961b35b514b9e6a42bd
+                  expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
+                  name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
+                  priority: HIGH
+                  description: 'Only fires for Celsius sensors (entPhySensorType=8); the check is baked into the expression.'
+                  tags:
+                    - tag: interface
+                      value: '{#SENSOR_IFNAME}'
+                    - tag: scope
+                      value: availability
+                - uuid: 504e936f83bc48449a4c523a4f9e7234
+                  expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.WARN}'
+                  name: 'SONiC: {#SENSOR_DISPLAY} temperature is too high'
+                  priority: WARNING
+                  description: 'Only meaningful for Celsius-type sensors (entPhySensorType=8).'
+                  dependencies:
+                    - name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
+                      expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
+                  tags:
+                    - tag: interface
+                      value: '{#SENSOR_IFNAME}'
+                    - tag: scope
+                      value: availability
+        - uuid: 7f3622aeae6a4ae6bd742e205c015cf2
+          name: 'Sensor discovery (chassis)'
+          type: DEPENDENT
+          key: sonic.sensor.chassis.discovery
+          description: |
+            MIB: ENTITY-SENSOR-MIB, ENTITY-MIB
+            Everything NOT port-associated ({#SENSOR_IFNAME} empty) via entPhySensorTable, named from entPhysicalDescr at the same index - see sonic.sensor.discovery for port sensors (same parsing approach, no lanes to limit here). Confirmed POPULATED on the tested hardware: CPU/ASIC/system temp, PSU temp, fan tachometers (no PSU voltage/current/power on this hardware - see README).
+            entPhysicalTable also has pure container/aggregate entries (chassis, fan tray, individual fan, PSU-as-a-whole, MGMT) with neither an entPhySensorType nor entPhySensorValue - the JS below filters those out by requiring both to look like real numbers (445 physical entities, 398 with an actual sensor row, 47 without).
+          master_item:
+            key: sonic.sensor.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var raw = value;
+                  function parseColumn(oidPrefix) {
+                      var map = {};
+                      var re = new RegExp('\\.?' + oidPrefix.replace(/\\./g, '\\\\.') + '\\.([0-9]+)[ \\t]*=[ \\t]*(?:[A-Za-z0-9_-]+:[ \\t]*)?([^\\r\\n]*)', 'g');
+                      var m;
+                      while ((m = re.exec(raw)) !== null) {
+                          var v = m[2].replace(/\\r$/, '').replace(/\\s+$/, '');
+                          if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+                              v = v.slice(1, -1);
+                          }
+                          map[m[1]] = v;
+                      }
+                      return map;
+                  }
+                  var typeMap = parseColumn('1.3.6.1.2.1.99.1.1.1.1');
+                  var scaleMap = parseColumn('1.3.6.1.2.1.99.1.1.1.2');
+                  var precMap = parseColumn('1.3.6.1.2.1.99.1.1.1.3');
+                  var valueMap = parseColumn('1.3.6.1.2.1.99.1.1.1.4');
+                  var descrMap = parseColumn('1.3.6.1.2.1.47.1.1.1.1.2');
+
+                  var units = {'1':'','2':'','3':'V','4':'V','5':'mA','6':'mW','7':'Hz','8':'°C','9':'%RH','10':'rpm','11':'cmm','12':''};
+                  var kinds = {'1':'Value','2':'Value','3':'AC voltage','4':'DC voltage','5':'Current','6':'Power','7':'Frequency','8':'Temperature','9':'Humidity','10':'Fan speed','11':'Airflow','12':'State'};
+
+                  var result = [];
+                  for (var idx in valueMap) {
+                      if (!/^-?[0-9]+$/.test(valueMap[idx])) continue;
+                      var type = typeMap[idx];
+                      if (!/^[0-9]+$/.test(type)) continue;
+                      var descr = descrMap[idx];
+                      if (descr === undefined) continue;
+
+                      var kind = kinds[type] || 'Value';
+                      // Dell's SONiC agent reports fan tachometers as entPhySensorType=unknown(2) rather
+                      // than rpm(10) - override by name since the type code alone doesn't tell us "Fan speed" here.
+                      if (descr.indexOf('Tachometers for ') === 0) kind = 'Fan speed';
+
+                      // Descriptions come in a few shapes:
+                      //   "DOM RX Power Sensor for Eth1/1/1" -> per-lane on a breakout port
+                      //   "DOM Temperature Sensor for Eth1/1" -> per-port, real interface suffix
+                      //   "Tachometers for FAN 1"            -> "for <id>", but not an interface
+                      //   "Temperature for PSU 1"            -> same, and prefix just repeats the kind
+                      //   "CPU On-board"                     -> no "for" at all
+                      var ifname = '', label = descr, display = descr, lane = 1;
+                      var m = descr.match(/^(.*) for (.+)$/);
+                      if (m) {
+                          var prefix = m[1].replace(/ Sensor$/, '');
+                          var suffix = m[2];
+                          if (/^[A-Za-z]+[0-9]+(\/[0-9]+)*$/.test(suffix)) {
+                              // A real interface name, possibly a specific lane on a breakout port
+                              // (Eth1/1/1..4). Tag with just the parent port (first two segments) so it
+                              // matches the ifName the linked "Linux by SNMP" template tags its own
+                              // interface items with, but keep the full lane path in the display name.
+                              var parts = suffix.split('/');
+                              ifname = parts.slice(0, 2).join('/');
+                              lane = parts.length > 2 ? parseInt(parts[2], 10) : 1;
+                              label = prefix;
+                              display = suffix + ' ' + prefix;
+                          } else if (prefix.toLowerCase() === kind.toLowerCase() || prefix === 'Tachometers') {
+                              // prefix only repeats what {#SENSOR_KIND} already says - keep just the
+                              // identifying part ("FAN 1", "PSU 1")
+                              label = suffix;
+                              display = suffix;
+                          } else {
+                              label = prefix + ' ' + suffix;
+                              display = label;
+                          }
+                      }
+
+                      if (ifname !== '') continue; // everything NOT port-associated - see sonic.sensor.discovery
+
+                      label = label.replace(/ Sensor$/, '');
+                      display = display.replace(/ Sensor$/, '');
+                      // Merge every PSU sub-sensor ("PSU1 Airflow", "PSU 1 FAN 1", "PSU 1") into one
+                      // "PSU 1" sensor tag value - the display name keeps the full detail, only the
+                      // tag (used for grouping/filtering) collapses.
+                      var psuMatch = label.match(/PSU\s?([0-9]+)/i);
+                      if (psuMatch) label = 'PSU ' + psuMatch[1];
+
+                      // Component classification, so these line up with the linked "Linux by SNMP"
+                      // template's own component tags (e.g. filter component:cpu to see both CPU
+                      // utilization and CPU On-board temperature together) instead of one flat "sensor".
+                      var component = 'chassis';
+                      if (descr === 'CPU On-board') component = 'cpu';
+                      else if (descr === 'ASIC On-board') component = 'asic';
+                      else if (/PSU/i.test(descr)) component = 'psu';
+                      else if (/FAN|Tachometers/i.test(descr)) component = 'fan';
+                      else if (ifname) component = 'network';
+
+                      result.push({
+                          '{#SNMPINDEX}': idx,
+                          '{#SENSOR_TYPE}': type,
+                          '{#SENSOR_SCALE}': scaleMap[idx],
+                          '{#SENSOR_PRECISION}': precMap[idx],
+                          '{#SENSOR_DESCR}': descr,
+                          '{#SENSOR_UNIT}': (kind === 'Fan speed') ? 'rpm' : (units[type] || ''),
+                          '{#SENSOR_KIND}': kind,
+                          '{#SENSOR_IFNAME}': ifname,
+                          '{#SENSOR_LABEL}': label,
+                          '{#SENSOR_DISPLAY}': display,
+                          '{#SENSOR_NAME}': (display.toLowerCase().indexOf(kind.toLowerCase()) !== -1) ? display : (display + ': ' + kind),
+                          '{#SENSOR_COMPONENT}': component
+                      });
+                  }
+                  return JSON.stringify(result);
+
+          item_prototypes:
+            - uuid: ff61fd195baa4f02b0949008c41ed22a
+              name: '{#SENSOR_DISPLAY}: Status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.99.1.1.1.5.{#SNMPINDEX}'
+              key: 'sonic.sensor.chassis.status[{#SENSOR_DISPLAY}]'
+              delay: 5m
+              trends: '0'
+              description: |
+                MIB: ENTITY-SENSOR-MIB
+                entPhySensorOperStatus: ok(1), unavailable(2), nonoperational(3).
+              valuemap:
+                name: 'ENTITY-SENSOR-MIB::entPhySensorOperStatus'
+              tags:
+                - tag: component
+                  value: '{#SENSOR_COMPONENT}'
+                - tag: measurement
+                  value: '{#SENSOR_KIND}'
+                - tag: sensor
+                  value: '{#SENSOR_LABEL}'
+              trigger_prototypes:
+                - uuid: 79374d6486194dab9d9ef0f4b98dd3d0
+                  expression: 'last(/SONiC by SNMP/sonic.sensor.chassis.status[{#SENSOR_DISPLAY}])=3'
+                  name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: d07f5e0405d64f1e865e2ea3c780a3bf
+                  expression: 'last(/SONiC by SNMP/sonic.sensor.chassis.status[{#SENSOR_DISPLAY}])=2'
+                  name: 'SONiC: {#SENSOR_DISPLAY} is unavailable'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'SONiC: {#SENSOR_DISPLAY} is non-operational'
+                      expression: 'last(/SONiC by SNMP/sonic.sensor.chassis.status[{#SENSOR_DISPLAY}])=3'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: fbbef933b20d4f639fde8a27ec320011
+              name: '{#SENSOR_NAME}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.99.1.1.1.4.{#SNMPINDEX}'
+              key: 'sonic.sensor.chassis.value[{#SENSOR_DISPLAY}]'
+              delay: 3m
+              value_type: FLOAT
+              units: '{#SENSOR_UNIT}'
+              description: |
+                MIB: ENTITY-SENSOR-MIB
+                entPhySensorValue, normalized using entPhySensorScale/Precision per RFC 3433: actual value = raw * 10^(scale exponent) / 10^precision. {#SENSOR_KIND} is derived from entPhySensorType.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var scale = parseInt('{#SENSOR_SCALE}', 10);
+                      var precision = parseInt('{#SENSOR_PRECISION}', 10);
+                      var exponents = {1:-24,2:-21,3:-18,4:-15,5:-12,6:-9,7:-6,8:-3,9:0,10:3,11:6,12:9,13:12,14:15,15:18,16:21,17:24};
+                      var exp = (exponents[scale] !== undefined ? exponents[scale] : 0) - precision;
+                      return parseFloat(value) * Math.pow(10, exp);
+              tags:
+                - tag: component
+                  value: '{#SENSOR_COMPONENT}'
+                - tag: measurement
+                  value: '{#SENSOR_KIND}'
+                - tag: sensor
+                  value: '{#SENSOR_LABEL}'
+              trigger_prototypes:
+                - uuid: 1976053d52af48c3b892f7db4282e846
+                  expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.chassis.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
+                  name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
+                  priority: HIGH
+                  description: 'Only fires for Celsius sensors (entPhySensorType=8); the check is baked into the expression.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 651c45bf11ab4a8aa2eb9060fb7071fe
+                  expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.chassis.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.WARN}'
+                  name: 'SONiC: {#SENSOR_DISPLAY} temperature is too high'
+                  priority: WARNING
+                  description: 'Only meaningful for Celsius-type sensors (entPhySensorType=8).'
+                  dependencies:
+                    - name: 'SONiC: {#SENSOR_DISPLAY} temperature is critical'
+                      expression: '{#SENSOR_TYPE}=8 and last(/SONiC by SNMP/sonic.sensor.chassis.value[{#SENSOR_DISPLAY}])>{$SENSOR.TEMP.CRIT}'
+                  tags:
+                    - tag: scope
+                      value: availability
+
+      tags:
+        - tag: class
+          value: network
+        - tag: target
+          value: sonic
+      macros:
+        - macro: '{$SENSOR.DOM.IGNORE}'
+          value: '0'
+          description: 'Set to 1 with an interface context (e.g. {$SENSOR.DOM.IGNORE:"Eth1/34"}=1 at the host level, parent port not lane) to silence the "is unavailable" trigger for that port''s DOM sensors - covers unrecognized transceiver form factors and non-optical transceivers (no laser/photodiode). Does not affect non-operational(3), which still alerts.'
+        - macro: '{$SENSOR.TEMP.CRIT}'
+          value: '65'
+          description: 'Critical threshold (deg C) for ENTITY-SENSOR-MIB celsius(8)-type sensors.'
+        - macro: '{$SENSOR.TEMP.WARN}'
+          value: '55'
+          description: 'Warning threshold (deg C) for ENTITY-SENSOR-MIB celsius(8)-type sensors.'
+        - macro: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+          value: ^(/dev|/sys|/run|/proc|/etc|/host|/tmp|/var/tmp|.+/shm$)
+          description: 'Overrides the "Linux by SNMP" default - filters Docker bind-mount pseudo-filesystems SONiC''s hrStorageTable reports alongside real memory pools. Adjust if your build differs.'
+      valuemaps:
+        - uuid: 01c35e38a61340b28de01151df2186fc
+          name: 'ENTITY-SENSOR-MIB::entPhySensorOperStatus'
+          mappings:
+            - value: '1'
+              newvalue: ok
+            - value: '2'
+              newvalue: unavailable
+            - value: '3'
+              newvalue: nonoperational
