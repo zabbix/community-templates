@@ -16,6 +16,230 @@ zabbix_export:
       groups:
         - name: Templates/Virtualization
       items:
+        - uuid: c45a577215ad485082a40f8e6c0597bc
+          name: 'PVE manager package version'
+          type: DEPENDENT
+          key: pve.apt.manager.version
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Installed pve-manager version. Source: /nodes/{node}/apt/versions.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[?(@.Package=="pve-manager")].Version.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pve.apt.versions.raw
+          tags:
+            - tag: PVE
+              value: APT
+        - uuid: 4c6198e8bdf14a628f46026f0286317d
+          name: 'APT repository errors'
+          type: DEPENDENT
+          key: pve.apt.repos.errors
+          delay: '0'
+          description: 'Number of unparsable APT repository files. Source: /nodes/{node}/apt/repositories.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.errors.length()
+          master_item:
+            key: pve.apt.repos.raw
+          tags:
+            - tag: PVE
+              value: APT
+          triggers:
+            - uuid: 6cd0c610281c42a3b32c3b1a18f204f7
+              expression: 'last(/Template Proxmox VE REST API/pve.apt.repos.errors)>{$PVE.APT.REPO.ERRORS.MAX}'
+              name: 'APT repository files are broken on {HOST.NAME}'
+              opdata: 'Broken files: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'At least one APT repository file cannot be parsed. Updates will fail until this is fixed.'
+        - uuid: b5b24417bef745dd8b8bfe73cd670974
+          name: 'PVE APT repositories raw'
+          type: HTTP_AGENT
+          key: pve.apt.repos.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/apt/repositories. Requires Sys.Audit on /nodes/{node}.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/repositories'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: ed86ccf27d174856b34603273da954dd
+          name: 'APT repository warnings'
+          type: DEPENDENT
+          key: pve.apt.repos.warnings
+          delay: '0'
+          description: 'Number of APT repository warnings, for example the enterprise repository being enabled without a subscription. Source: /nodes/{node}/apt/repositories.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.infos[?(@.kind=="warning")].length()'
+          master_item:
+            key: pve.apt.repos.raw
+          tags:
+            - tag: PVE
+              value: APT
+          triggers:
+            - uuid: 5fe993f6929a4e05ab7bca6e61c8b631
+              expression: 'last(/Template Proxmox VE REST API/pve.apt.repos.warnings)>{$PVE.APT.REPO.WARN.MAX}'
+              name: 'APT repository configuration has warnings on {HOST.NAME}'
+              opdata: 'Warnings: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'PVE reports a problem with the repository configuration, for example the enterprise repository being enabled without a subscription. A host on the no-subscription repository reports one warning permanently, raise {$PVE.APT.REPO.WARN.MAX} to 1 there.'
+              manual_close: 'YES'
+        - uuid: 5525d09ef8c84b9abcd6bccfa90ecf5b
+          name: 'Running kernel (proxmox-ve)'
+          type: DEPENDENT
+          key: pve.apt.running.kernel
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Kernel release the node is currently booted into. Source: /nodes/{node}/apt/versions, package proxmox-ve.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[?(@.Package=="proxmox-ve")].RunningKernel.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pve.apt.versions.raw
+          tags:
+            - tag: PVE
+              value: APT
+        - uuid: 2d333630c4b0498b94ce00a7cd35fc47
+          name: 'PVE APT pending updates raw'
+          type: HTTP_AGENT
+          key: pve.apt.update.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          status: DISABLED
+          description: 'Master item. Raw JSON from /nodes/{node}/apt/update. DISABLED by default: this endpoint requires Sys.Modify on /nodes/{node}, which PVEAuditor does not grant. Enable only if you accept giving the monitoring token write level permissions.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/update'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 184a3ada22ad4082a7bddc6f3d6a0abe
+          name: 'APT pending updates'
+          type: DEPENDENT
+          key: pve.apt.updates.count
+          delay: '0'
+          status: DISABLED
+          description: 'Number of pending package updates. DISABLED by default because the master item requires Sys.Modify.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.length()
+          master_item:
+            key: pve.apt.update.raw
+          tags:
+            - tag: PVE
+              value: APT
+          triggers:
+            - uuid: 516ffe6de3804b97aa29d41e333deba3
+              expression: 'last(/Template Proxmox VE REST API/pve.apt.updates.count)>{$PVE.APT.UPDATES.MAX}'
+              name: '{ITEM.LASTVALUE} package update(s) pending on {HOST.NAME}'
+              status: DISABLED
+              priority: INFO
+              description: 'Disabled by default, like the item it depends on. The master item needs Sys.Modify, which PVEAuditor does not grant.'
+              manual_close: 'YES'
+        - uuid: 123ab12e63c04426a943c63fc1539230
+          name: 'PVE APT versions raw'
+          type: HTTP_AGENT
+          key: pve.apt.versions.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/apt/versions. Requires Sys.Audit on /nodes/{node}.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/versions'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 95c94b814aa84f569872151d7249b7a0
+          name: 'PVE backup active raw'
+          type: HTTP_AGENT
+          key: pve.backup.active.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/tasks with source=active and typefilter=vzdump, so it carries only backup tasks that are running right now. The task list defaults to source=archive, where a task appears only once it has finished, which is why a running backup is invisible to pve.backup.raw and why a backup that never finishes produces no signal there at all. Returns an empty list while no backup runs. Requires Sys.Audit on /nodes/{node}.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks?source=active&typefilter=vzdump'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 4b7c777084034f50803f8c03d363b265
+          name: 'Backup jobs configured'
+          type: DEPENDENT
+          key: pve.backup.jobs.count
+          delay: '0'
+          description: 'Number of vzdump backup job definitions in the cluster. Zero means nothing is scheduled at all, regardless of how many guests exist. Source: /cluster/backup.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.length()
+          master_item:
+            key: pve.backup.jobs.raw
+          tags:
+            - tag: PVE
+              value: Backup
+          triggers:
+            - uuid: 27abcc86c4424e11b36b25b92f9fdf0b
+              expression: 'last(/Template Proxmox VE REST API/pve.backup.jobs.count)<{$PVE.BACKUP.JOBS.MIN}'
+              name: 'Fewer backup jobs configured than expected on {HOST.NAME}'
+              opdata: 'Configured jobs: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Fewer vzdump backup job definitions exist than {$PVE.BACKUP.JOBS.MIN} expects. With no job at all nothing is backed up, and since no run is attempted there is no failed task to alert on either. Discovery of the individual jobs stops in the same moment, so the per job triggers go away instead of firing.'
+              manual_close: 'YES'
+        - uuid: 53f4ab57c4784fb78b62cdecb54b644c
+          name: 'PVE backup jobs raw'
+          type: HTTP_AGENT
+          key: pve.backup.jobs.raw
+          delay: '600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/backup, the configured vzdump backup job definitions. This is the job side of backup monitoring: pve.backup.raw watches the runs, this item watches whether a job exists at all, is enabled and is still being scheduled. A job that was switched off or is no longer advanced by the scheduler starts no run, so it produces no failed task and would otherwise stay invisible. Requires Sys.Audit on /.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
         - uuid: 9a98e0c1e615419d8c3fc835aba5b216
           name: 'PVE backup raw'
           type: HTTP_AGENT
@@ -191,6 +415,71 @@ zabbix_export:
             - name: Accept
               value: application/json
           output_format: JSON
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: b9d09de6571e41eb9f6b5500b510c377
+          name: 'Backup running'
+          type: DEPENDENT
+          key: pve.backup.running
+          delay: '0'
+          trends: '0'
+          description: 'Number of backup tasks running on this node right now, normally 0 or 1. The value is a counter rather than a forced 0 or 1: if two vzdump tasks ever overlap the item shows 2 and stays readable, only the value map has no entry for it. Source: /nodes/{node}/tasks with source=active.'
+          valuemap:
+            name: 'Backup running'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.length()
+          master_item:
+            key: pve.backup.active.raw
+          tags:
+            - tag: PVE
+              value: Backup
+          triggers:
+            - uuid: c94e008565344aca9077f48fdc06c951
+              expression: 'min(/Template Proxmox VE REST API/pve.backup.running,{$PVE.BACKUP.RUN.MAX})>0'
+              name: 'Backup has been running for more than {$PVE.BACKUP.RUN.MAX} on {HOST.NAME}'
+              opdata: 'Running since: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'A backup task has been running without interruption for the whole period. This is the one backup failure the task archive cannot show: a run that never finishes never reaches the archive, so the status, end time and message items keep reporting the previous successful run and nothing else would ever fire. Check the running task in the PVE task viewer and the target storage.'
+              manual_close: 'YES'
+        - uuid: b481215ab6764b049dbbd06ead48fa94
+          name: 'Backup running since'
+          type: DEPENDENT
+          key: pve.backup.running.since
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          units: unixtime
+          description: 'Start time of the backup that is running right now, available the moment it starts. Zero means no backup is running: the source list is then empty, the JSONPath finds nothing, and the error handler supplies the zero. This is the real start time, unlike Backup starttime, which only moves once the run has finished and reached the task archive. A trend over a Unix timestamp carries no meaning, so trends stay off.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*].starttime.first()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: pve.backup.active.raw
+          tags:
+            - tag: PVE
+              value: Backup
+        - uuid: b08a4d2843444e51a668c4b5b2a907a8
+          name: 'PVE certificates raw'
+          type: HTTP_AGENT
+          key: pve.certificates.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/certificates/info. Needs no special permission.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/certificates/info'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
           tags:
             - tag: PVE
               value: Raw
@@ -381,7 +670,6 @@ zabbix_export:
           key: pve.cpu.utilization
           delay: '0'
           value_type: FLOAT
-          trends: 365d
           units: '%'
           description: 'CPU utilization of the PVE host in percent (0-100). Source: /nodes/{node}/status → data.cpu * 100.'
           preprocessing:
@@ -517,7 +805,6 @@ zabbix_export:
           key: pve.loadaverage.fifteen
           delay: '0'
           value_type: FLOAT
-          trends: 365d
           description: 'System load average over the last 15 minutes. Source: /nodes/{node}/status → data.loadavg[2].'
           preprocessing:
             - type: JSONPATH
@@ -534,7 +821,6 @@ zabbix_export:
           key: pve.loadaverage.fiveminute
           delay: '0'
           value_type: FLOAT
-          trends: 365d
           description: 'System load average over the last 5 minutes. Source: /nodes/{node}/status → data.loadavg[1].'
           preprocessing:
             - type: JSONPATH
@@ -551,7 +837,6 @@ zabbix_export:
           key: pve.loadaverage.oneminute
           delay: '0'
           value_type: FLOAT
-          trends: 365d
           description: 'System load average over the last 1 minute. Source: /nodes/{node}/status → data.loadavg[0].'
           preprocessing:
             - type: JSONPATH
@@ -601,7 +886,6 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.free
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'RAM available for new workloads on the PVE host in bytes, cache and reclaimable memory included. Source: /nodes/{node}/status → data.memory.available. Together with the used value this adds up to the installed total, which data.memory.free does not.'
           preprocessing:
@@ -618,7 +902,6 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.total
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'Total installed RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.total.'
           preprocessing:
@@ -635,7 +918,6 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.used
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'Used RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.used.'
           preprocessing:
@@ -644,6 +926,18 @@ zabbix_export:
                 - $.data.memory.used
           master_item:
             key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: 7fe8daafaf8f423dbf3410fef13b850f
+          name: 'PVE memory utilization'
+          type: CALCULATED
+          key: pve.memory.util
+          delay: '60'
+          value_type: FLOAT
+          units: '%'
+          params: '(last(/{HOST.HOST}/pve.memory.used) / last(/{HOST.HOST}/pve.memory.total)) * 100'
+          description: 'Memory utilization of the PVE host in percent, derived from pve.memory.used and pve.memory.total.'
           tags:
             - tag: PVE
               value: Memory
@@ -739,12 +1033,72 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Raw
+        - uuid: e3599fe40f064de6b99f9d2c3a8d0699
+          name: 'Guests without backup job'
+          type: DEPENDENT
+          key: pve.notbackedup.count
+          delay: '0'
+          description: 'Number of guests not covered by any backup job. Source: /cluster/backup-info/not-backed-up.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.length()
+          master_item:
+            key: pve.notbackedup.raw
+          tags:
+            - tag: PVE
+              value: Backup
+          triggers:
+            - uuid: f93aea89718e469ea4c5468ca601fbed
+              expression: 'last(/Template Proxmox VE REST API/pve.notbackedup.count)>{$PVE.NOTBACKEDUP.MAX}'
+              name: '{ITEM.LASTVALUE} guest(s) not covered by any backup job'
+              opdata: 'Guests without backup: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'PVE reports guests that no backup job includes. This catches the classic case of a VM created after the backup job was defined.'
+              manual_close: 'YES'
+        - uuid: 00243f5dd5d043bcb694b46b7fa7e3f5
+          name: 'PVE guests without backup raw'
+          type: HTTP_AGENT
+          key: pve.notbackedup.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/backup-info/not-backed-up, the guests not covered by any backup job. Requires Sys.Audit on /.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup-info/not-backed-up'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 5be835074ad9406abcf7ed723dffc949
+          name: 'PVE replication raw'
+          type: HTTP_AGENT
+          key: pve.replication.raw
+          delay: '300'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/replication. The list endpoint already carries the job state (last_sync, fail_count, error, duration), so no extra call per job is needed. Requires VM.Audit on the guests.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/replication'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
         - uuid: 8ffa4568f4d4410dad143171f541d544
           name: 'Disk rootfs avail'
           type: DEPENDENT
           key: pve.rootfs.avail
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'Available free space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.avail.'
           preprocessing:
@@ -761,7 +1115,6 @@ zabbix_export:
           type: DEPENDENT
           key: pve.rootfs.size
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'Total size of the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.total.'
           preprocessing:
@@ -778,7 +1131,6 @@ zabbix_export:
           type: DEPENDENT
           key: pve.rootfs.used
           delay: '0'
-          trends: 365d
           units: Bytes
           description: 'Used space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.used.'
           preprocessing:
@@ -790,6 +1142,37 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Disk
+        - uuid: 4284e670220b4548a3d0e2b71e205e74
+          name: 'Disk rootfs utilization'
+          type: CALCULATED
+          key: pve.rootfs.util
+          delay: '60'
+          value_type: FLOAT
+          units: '%'
+          params: '(last(/{HOST.HOST}/pve.rootfs.used) / last(/{HOST.HOST}/pve.rootfs.size)) * 100'
+          description: 'Root filesystem utilization of the PVE host in percent, derived from pve.rootfs.used and pve.rootfs.size.'
+          tags:
+            - tag: PVE
+              value: Filesystem
+        - uuid: fc58a4bcb2ad418ca5948dbee16cecbb
+          name: 'PVE services raw'
+          type: HTTP_AGENT
+          key: pve.services.raw
+          delay: '60'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/services. Requires Sys.Audit on /nodes/{node}.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/services'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
         - uuid: 6e6cfbb1bd554a6c94e3c712a4387900
           name: 'PVE CPU sockets'
           type: DEPENDENT
@@ -822,6 +1205,9 @@ zabbix_export:
               value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
             - name: Accept
               value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
           triggers:
             - uuid: 4cc6e8941efc4a3592f6dd22f2056969
               expression: 'nodata(/Template Proxmox VE REST API/pve.status,300)=1'
@@ -830,9 +1216,6 @@ zabbix_export:
               priority: HIGH
               description: 'The Proxmox VE REST API has not returned data for 5 minutes. Check connectivity, API token, and PVE service status.'
               manual_close: 'YES'
-          tags:
-            - tag: PVE
-              value: Raw
         - uuid: e7ccf26004ff4d73b849ec2f0ba9f3a5
           name: 'PVE storage raw'
           type: HTTP_AGENT
@@ -852,6 +1235,182 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Raw
+        - uuid: dd8b6f60eee343af828ed3b496e69a06
+          name: 'Subscription level'
+          type: DEPENDENT
+          key: pve.subscription.level
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Subscription level code. Absent without a subscription, the value is then discarded instead of turning the item unsupported.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.level
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pve.subscription.raw
+          tags:
+            - tag: PVE
+              value: Subscription
+        - uuid: a900f847f83843e6b93f9e12feb050d4
+          name: 'Subscription next due date'
+          type: DEPENDENT
+          key: pve.subscription.nextduedate
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Next due date as reported by PVE, a plain date string. The numeric form for alerting is in pve.subscription.nextduedate.epoch.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.nextduedate
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pve.subscription.raw
+          tags:
+            - tag: PVE
+              value: Subscription
+        - uuid: d3ed6d06a2194635b5580d04303e143d
+          name: 'Subscription expiry'
+          type: DEPENDENT
+          key: pve.subscription.nextduedate.epoch
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          units: unixtime
+          description: 'Expiry date as a Unix timestamp so the remaining time can be compared. PVE reports nextduedate as a plain date string, unlike the certificate endpoint which already delivers an epoch. Zabbix has no preprocessing step that parses a date, hence the one line of JavaScript. Without a subscription the field is absent and the value is discarded.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.nextduedate
+              error_handler: DISCARD_VALUE
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // PVE reports nextduedate as YYYY-MM-DD. Anchored to UTC so the
+                  // result does not shift with the server timezone. An unexpected
+                  // format throws, which turns the item visibly unsupported instead
+                  // of silently producing a wrong date.
+                  var t = Date.parse(value + 'T00:00:00Z');
+                  if (isNaN(t)) {
+                      throw 'unexpected nextduedate format: ' + value;
+                  }
+                  return Math.floor(t / 1000);
+          master_item:
+            key: pve.subscription.raw
+          tags:
+            - tag: PVE
+              value: Subscription
+          triggers:
+            - uuid: 3e3366874a4d4191a88632af4344bcce
+              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)-now()<{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
+              name: 'PVE subscription expires in less than {$PVE.SUBSCRIPTION.EXPIRE.DAYS} on {HOST.NAME}'
+              opdata: 'Expires on: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Advance warning before the subscription runs out, so it can be renewed in time. Depends on the expired trigger, so only one of the two is open at a time.'
+              dependencies:
+                - name: 'PVE subscription has expired on {HOST.NAME}'
+                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+            - uuid: 7350199fa4884df6bf61d5797c37cf4a
+              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+              name: 'PVE subscription has expired on {HOST.NAME}'
+              opdata: 'Expired on: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'The subscription period has ended. Access to the enterprise repository is gone, updates from it will fail. Needs no enable macro: without a subscription PVE does not report a due date, so the item stays empty and this trigger cannot fire on community hosts.'
+        - uuid: 31d2b788dfcc4fcfbe0fd4e02294b579
+          name: 'PVE subscription raw'
+          type: HTTP_AGENT
+          key: pve.subscription.raw
+          delay: '3600'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/{node}/subscription. Needs no special permission. Without a subscription the endpoint returns HTTP 200 and status notfound.'
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/subscription'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: c9a7c697ce26494a9eb98d233d41862f
+          name: 'Subscription status'
+          type: DEPENDENT
+          key: pve.subscription.status
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Subscription status: active, notfound, invalid, expired or suspended. Source: /nodes/{node}/subscription.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.status
+          master_item:
+            key: pve.subscription.raw
+          tags:
+            - tag: PVE
+              value: Subscription
+          triggers:
+            - uuid: 57b2f7fad21f4672874712a66208931a
+              expression: 'last(/Template Proxmox VE REST API/pve.subscription.status)<>"active" and {$PVE.SUBSCRIPTION.ALERT}=1'
+              name: 'PVE subscription is not active on {HOST.NAME} ({ITEM.LASTVALUE})'
+              priority: WARNING
+              description: 'Status is notfound, invalid, expired or suspended. Off by default, set {$PVE.SUBSCRIPTION.ALERT}=1 on hosts that are meant to carry a subscription. Depends on the expired trigger so a lapsed subscription raises one problem, not two.'
+              dependencies:
+                - name: 'PVE subscription has expired on {HOST.NAME}'
+                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+        - uuid: b3016c59c0024f8fa5306198d1d1b73b
+          name: 'PVE swap free'
+          type: DEPENDENT
+          key: pve.swap.free
+          delay: '0'
+          units: Bytes
+          description: 'Free swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.free. Reports 0 on hosts without swap.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.free
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: f2ae0c9f82084184954595f19a9ed722
+          name: 'PVE swap total'
+          type: DEPENDENT
+          key: pve.swap.total
+          delay: '0'
+          units: Bytes
+          description: 'Configured swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.total. Reports 0 on hosts without swap.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.total
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
+        - uuid: 9d49a6ae2695427a84790e829970669d
+          name: 'PVE swap used'
+          type: DEPENDENT
+          key: pve.swap.used
+          delay: '0'
+          units: Bytes
+          description: 'Used swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.used. Swap filling up while memory is not tight usually means pages were evicted during an earlier peak and never came back.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.swap.used
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: Memory
         - uuid: fc7f8aba309848fe818a194eae131210
           name: 'PVE boot mode'
           type: DEPENDENT
@@ -890,57 +1449,6 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Boot
-        - uuid: b3016c59c0024f8fa5306198d1d1b73b
-          name: 'PVE swap free'
-          type: DEPENDENT
-          key: pve.swap.free
-          delay: '0'
-          trends: 365d
-          units: Bytes
-          description: 'Free swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.free. Reports 0 on hosts without swap.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.data.swap.free
-          master_item:
-            key: pve.status
-          tags:
-            - tag: PVE
-              value: Memory
-        - uuid: f2ae0c9f82084184954595f19a9ed722
-          name: 'PVE swap total'
-          type: DEPENDENT
-          key: pve.swap.total
-          delay: '0'
-          trends: 365d
-          units: Bytes
-          description: 'Configured swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.total. Reports 0 on hosts without swap.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.data.swap.total
-          master_item:
-            key: pve.status
-          tags:
-            - tag: PVE
-              value: Memory
-        - uuid: 9d49a6ae2695427a84790e829970669d
-          name: 'PVE swap used'
-          type: DEPENDENT
-          key: pve.swap.used
-          delay: '0'
-          trends: 365d
-          units: Bytes
-          description: 'Used swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.used. Swap filling up while memory is not tight usually means pages were evicted during an earlier peak and never came back.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.data.swap.used
-          master_item:
-            key: pve.status
-          tags:
-            - tag: PVE
-              value: Memory
         - uuid: 8cbc645bf73d4654afa40ff9245ac67c
           name: 'PVE tasks raw'
           type: HTTP_AGENT
@@ -1150,68 +1658,6 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Version
-        - uuid: 7fe8daafaf8f423dbf3410fef13b850f
-          name: 'PVE memory utilization'
-          type: CALCULATED
-          key: pve.memory.util
-          delay: '60'
-          value_type: FLOAT
-          units: '%'
-          params: '(last(/{HOST.HOST}/pve.memory.used) / last(/{HOST.HOST}/pve.memory.total)) * 100'
-          description: 'Memory utilization of the PVE host in percent, derived from pve.memory.used and pve.memory.total.'
-          tags:
-            - tag: PVE
-              value: Memory
-        - uuid: 4284e670220b4548a3d0e2b71e205e74
-          name: 'Disk rootfs utilization'
-          type: CALCULATED
-          key: pve.rootfs.util
-          delay: '60'
-          value_type: FLOAT
-          units: '%'
-          params: '(last(/{HOST.HOST}/pve.rootfs.used) / last(/{HOST.HOST}/pve.rootfs.size)) * 100'
-          description: 'Root filesystem utilization of the PVE host in percent, derived from pve.rootfs.used and pve.rootfs.size.'
-          tags:
-            - tag: PVE
-              value: Filesystem
-        - uuid: fc58a4bcb2ad418ca5948dbee16cecbb
-          name: 'PVE services raw'
-          type: HTTP_AGENT
-          key: pve.services.raw
-          delay: '60'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/services. Requires Sys.Audit on /nodes/{node}.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/services'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: 5be835074ad9406abcf7ed723dffc949
-          name: 'PVE replication raw'
-          type: HTTP_AGENT
-          key: pve.replication.raw
-          delay: '300'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/replication. The list endpoint already carries the job state (last_sync, fail_count, error, duration), so no extra call per job is needed. Requires VM.Audit on the guests.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/replication'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
         - uuid: 8673bb46b5d446598493cabb23888df7
           name: 'PVE ZFS pools raw'
           type: HTTP_AGENT
@@ -1231,404 +1677,6 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Raw
-        - uuid: 00243f5dd5d043bcb694b46b7fa7e3f5
-          name: 'PVE guests without backup raw'
-          type: HTTP_AGENT
-          key: pve.notbackedup.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /cluster/backup-info/not-backed-up, the guests not covered by any backup job. Requires Sys.Audit on /.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup-info/not-backed-up'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: b5b24417bef745dd8b8bfe73cd670974
-          name: 'PVE APT repositories raw'
-          type: HTTP_AGENT
-          key: pve.apt.repos.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/apt/repositories. Requires Sys.Audit on /nodes/{node}.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/repositories'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: 123ab12e63c04426a943c63fc1539230
-          name: 'PVE APT versions raw'
-          type: HTTP_AGENT
-          key: pve.apt.versions.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/apt/versions. Requires Sys.Audit on /nodes/{node}.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/versions'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: 2d333630c4b0498b94ce00a7cd35fc47
-          name: 'PVE APT pending updates raw'
-          type: HTTP_AGENT
-          key: pve.apt.update.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          status: DISABLED
-          description: 'Master item. Raw JSON from /nodes/{node}/apt/update. DISABLED by default: this endpoint requires Sys.Modify on /nodes/{node}, which PVEAuditor does not grant. Enable only if you accept giving the monitoring token write level permissions.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/apt/update'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: 31d2b788dfcc4fcfbe0fd4e02294b579
-          name: 'PVE subscription raw'
-          type: HTTP_AGENT
-          key: pve.subscription.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/subscription. Needs no special permission. Without a subscription the endpoint returns HTTP 200 and status notfound.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/subscription'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: b08a4d2843444e51a668c4b5b2a907a8
-          name: 'PVE certificates raw'
-          type: HTTP_AGENT
-          key: pve.certificates.raw
-          delay: '3600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/certificates/info. Needs no special permission.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/certificates/info'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: e3599fe40f064de6b99f9d2c3a8d0699
-          name: 'Guests without backup job'
-          type: DEPENDENT
-          key: pve.notbackedup.count
-          delay: '0'
-          value_type: UNSIGNED
-          trends: 365d
-          description: 'Number of guests not covered by any backup job. Source: /cluster/backup-info/not-backed-up.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.length()'
-          master_item:
-            key: pve.notbackedup.raw
-          tags:
-            - tag: PVE
-              value: Backup
-        - uuid: 4c6198e8bdf14a628f46026f0286317d
-          name: 'APT repository errors'
-          type: DEPENDENT
-          key: pve.apt.repos.errors
-          delay: '0'
-          value_type: UNSIGNED
-          trends: 365d
-          description: 'Number of unparsable APT repository files. Source: /nodes/{node}/apt/repositories.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.errors.length()'
-          master_item:
-            key: pve.apt.repos.raw
-          tags:
-            - tag: PVE
-              value: APT
-        - uuid: ed86ccf27d174856b34603273da954dd
-          name: 'APT repository warnings'
-          type: DEPENDENT
-          key: pve.apt.repos.warnings
-          delay: '0'
-          value_type: UNSIGNED
-          trends: 365d
-          description: 'Number of APT repository warnings, for example the enterprise repository being enabled without a subscription. Source: /nodes/{node}/apt/repositories.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.infos[?(@.kind=="warning")].length()'
-          master_item:
-            key: pve.apt.repos.raw
-          tags:
-            - tag: PVE
-              value: APT
-        - uuid: 184a3ada22ad4082a7bddc6f3d6a0abe
-          name: 'APT pending updates'
-          type: DEPENDENT
-          key: pve.apt.updates.count
-          delay: '0'
-          value_type: UNSIGNED
-          trends: 365d
-          status: DISABLED
-          description: 'Number of pending package updates. DISABLED by default because the master item requires Sys.Modify.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.length()'
-          master_item:
-            key: pve.apt.update.raw
-          tags:
-            - tag: PVE
-              value: APT
-        - uuid: c45a577215ad485082a40f8e6c0597bc
-          name: 'PVE manager package version'
-          type: DEPENDENT
-          key: pve.apt.manager.version
-          delay: '0'
-          value_type: CHAR
-          trends: '0'
-          description: 'Installed pve-manager version. Source: /nodes/{node}/apt/versions.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[?(@.Package=="pve-manager")].Version.first()'
-              error_handler: DISCARD_VALUE
-          master_item:
-            key: pve.apt.versions.raw
-          tags:
-            - tag: PVE
-              value: APT
-        - uuid: 5525d09ef8c84b9abcd6bccfa90ecf5b
-          name: 'Running kernel (proxmox-ve)'
-          type: DEPENDENT
-          key: pve.apt.running.kernel
-          delay: '0'
-          value_type: CHAR
-          trends: '0'
-          description: 'Kernel release the node is currently booted into. Source: /nodes/{node}/apt/versions, package proxmox-ve.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[?(@.Package=="proxmox-ve")].RunningKernel.first()'
-              error_handler: DISCARD_VALUE
-          master_item:
-            key: pve.apt.versions.raw
-          tags:
-            - tag: PVE
-              value: APT
-        - uuid: c9a7c697ce26494a9eb98d233d41862f
-          name: 'Subscription status'
-          type: DEPENDENT
-          key: pve.subscription.status
-          delay: '0'
-          value_type: CHAR
-          trends: '0'
-          description: 'Subscription status: active, notfound, invalid, expired or suspended. Source: /nodes/{node}/subscription.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.status'
-          master_item:
-            key: pve.subscription.raw
-          tags:
-            - tag: PVE
-              value: Subscription
-        - uuid: dd8b6f60eee343af828ed3b496e69a06
-          name: 'Subscription level'
-          type: DEPENDENT
-          key: pve.subscription.level
-          delay: '0'
-          value_type: CHAR
-          trends: '0'
-          description: 'Subscription level code. Absent without a subscription, the value is then discarded instead of turning the item unsupported.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.level'
-              error_handler: DISCARD_VALUE
-          master_item:
-            key: pve.subscription.raw
-          tags:
-            - tag: PVE
-              value: Subscription
-        - uuid: a900f847f83843e6b93f9e12feb050d4
-          name: 'Subscription next due date'
-          type: DEPENDENT
-          key: pve.subscription.nextduedate
-          delay: '0'
-          value_type: CHAR
-          trends: '0'
-          description: 'Next due date as reported by PVE, a plain date string. The numeric form for alerting is in pve.subscription.nextduedate.epoch.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.nextduedate'
-              error_handler: DISCARD_VALUE
-          master_item:
-            key: pve.subscription.raw
-          tags:
-            - tag: PVE
-              value: Subscription
-        - uuid: d3ed6d06a2194635b5580d04303e143d
-          name: 'Subscription expiry'
-          type: DEPENDENT
-          key: pve.subscription.nextduedate.epoch
-          delay: '0'
-          value_type: FLOAT
-          units: unixtime
-          trends: '0'
-          description: 'Expiry date as a Unix timestamp so the remaining time can be compared. PVE reports nextduedate as a plain date string, unlike the certificate endpoint which already delivers an epoch. Zabbix has no preprocessing step that parses a date, hence the one line of JavaScript. Without a subscription the field is absent and the value is discarded.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.nextduedate'
-              error_handler: DISCARD_VALUE
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  // PVE reports nextduedate as YYYY-MM-DD. Anchored to UTC so the
-                  // result does not shift with the server timezone. An unexpected
-                  // format throws, which turns the item visibly unsupported instead
-                  // of silently producing a wrong date.
-                  var t = Date.parse(value + 'T00:00:00Z');
-                  if (isNaN(t)) {
-                      throw 'unexpected nextduedate format: ' + value;
-                  }
-                  return Math.floor(t / 1000);
-          master_item:
-            key: pve.subscription.raw
-          tags:
-            - tag: PVE
-              value: Subscription
-        - uuid: 53f4ab57c4784fb78b62cdecb54b644c
-          name: 'PVE backup jobs raw'
-          type: HTTP_AGENT
-          key: pve.backup.jobs.raw
-          delay: '600'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /cluster/backup, the configured vzdump backup job definitions. This is the job side of backup monitoring: pve.backup.raw watches the runs, this item watches whether a job exists at all, is enabled and is still being scheduled. A job that was switched off or is no longer advanced by the scheduler starts no run, so it produces no failed task and would otherwise stay invisible. Requires Sys.Audit on /.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: 4b7c777084034f50803f8c03d363b265
-          name: 'Backup jobs configured'
-          type: DEPENDENT
-          key: pve.backup.jobs.count
-          delay: '0'
-          value_type: UNSIGNED
-          trends: 365d
-          description: 'Number of vzdump backup job definitions in the cluster. Zero means nothing is scheduled at all, regardless of how many guests exist. Source: /cluster/backup.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.length()'
-          master_item:
-            key: pve.backup.jobs.raw
-          tags:
-            - tag: PVE
-              value: Backup
-        - uuid: 95c94b814aa84f569872151d7249b7a0
-          name: 'PVE backup active raw'
-          type: HTTP_AGENT
-          key: pve.backup.active.raw
-          delay: '60'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/tasks with source=active and typefilter=vzdump, so it carries only backup tasks that are running right now. The task list defaults to source=archive, where a task appears only once it has finished, which is why a running backup is invisible to pve.backup.raw and why a backup that never finishes produces no signal there at all. Returns an empty list while no backup runs. Requires Sys.Audit on /nodes/{node}.'
-          timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks?source=active&typefilter=vzdump'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
-        - uuid: b9d09de6571e41eb9f6b5500b510c377
-          name: 'Backup running'
-          type: DEPENDENT
-          key: pve.backup.running
-          delay: '0'
-          value_type: UNSIGNED
-          trends: '0'
-          valuemap:
-            name: 'Backup running'
-          description: 'Number of backup tasks running on this node right now, normally 0 or 1. The value is a counter rather than a forced 0 or 1: if two vzdump tasks ever overlap the item shows 2 and stays readable, only the value map has no entry for it. Source: /nodes/{node}/tasks with source=active.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data.length()'
-          master_item:
-            key: pve.backup.active.raw
-          tags:
-            - tag: PVE
-              value: Backup
-        - uuid: b481215ab6764b049dbbd06ead48fa94
-          name: 'Backup running since'
-          type: DEPENDENT
-          key: pve.backup.running.since
-          delay: '0'
-          value_type: FLOAT
-          units: unixtime
-          trends: '0'
-          description: 'Start time of the backup that is running right now, available the moment it starts. Zero means no backup is running: the source list is then empty, the JSONPath finds nothing, and the error handler supplies the zero. This is the real start time, unlike Backup starttime, which only moves once the run has finished and reached the task archive. A trend over a Unix timestamp carries no meaning, so trends stay off.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[*].starttime.first()'
-              error_handler: CUSTOM_VALUE
-              error_handler_params: '0'
-          master_item:
-            key: pve.backup.active.raw
-          tags:
-            - tag: PVE
-              value: Backup
       discovery_rules:
         - uuid: 91bb690f87b743cb8045704ac4a4c9e0
           name: 'Discover backup'
@@ -1638,6 +1686,22 @@ zabbix_export:
           lifetime_type: DELETE_IMMEDIATELY
           lifetime: '0'
           item_prototypes:
+            - uuid: 92c26ec56dfd4ec9b420851f7feb5f48
+              name: 'Backup duration {#ID}'
+              type: CALCULATED
+              key: 'backup.duration[{#BCKPID}]'
+              delay: '300'
+              value_type: FLOAT
+              units: s
+              params: 'last(/{HOST.HOST}/backup.endtime[{#BCKPID}]) - last(/{HOST.HOST}/backup.starttime[{#BCKPID}])'
+              description: 'How long the last finished backup of {#ID} took, in seconds. Derived from the end and start timestamps of the same run, both of which arrive together when the task reaches the archive. The value therefore describes the last completed run, never the one in progress.'
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BCKPID}'
+                - tag: vmid
+                  value: '{#BCKPID}'
             - uuid: b4dc3c9faf174b36a46ce730a1e0953e
               name: 'Backup endtime {#ID}'
               type: DEPENDENT
@@ -1744,37 +1808,20 @@ zabbix_export:
                   value: '{#BCKPID}'
                 - tag: vmid
                   value: '{#BCKPID}'
-              trigger_prototypes:
-                - uuid: 6c0aa697138548fe8407c82d28d31a4a
-                  expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALERT:"{#BCKPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/backup.endtime[{#BCKPID}],{$BACKUP.ALERT.WINDOW})=1'
-                  name: 'Backup for {#ID} failed'
-                  event_name: 'Backup for {#ID} failed: {?last(//backup.message[{#BCKPID}])}'
-                  opdata: 'Backup status: {ITEM.LASTVALUE}'
-                  priority: HIGH
-                  description: |
-                    0. OK: All clear, no errors detected
-                    1. running: VM/CT is currently active
-                    2. stopped: VM/CT has been shut down
-                    3. error: General execution failure; check logs for details
-                    4. unknown error: Cannot classify status, please check Proxmox for details
-                  manual_close: 'YES'
-            - uuid: 92c26ec56dfd4ec9b420851f7feb5f48
-              name: 'Backup duration {#ID}'
-              type: CALCULATED
-              key: 'backup.duration[{#BCKPID}]'
-              delay: '300'
-              value_type: FLOAT
-              units: s
-              trends: 365d
-              params: 'last(/{HOST.HOST}/backup.endtime[{#BCKPID}]) - last(/{HOST.HOST}/backup.starttime[{#BCKPID}])'
-              description: 'How long the last finished backup of {#ID} took, in seconds. Derived from the end and start timestamps of the same run, both of which arrive together when the task reaches the archive. The value therefore describes the last completed run, never the one in progress.'
-              tags:
-                - tag: PVE
-                  value: Backup
-                - tag: PVE
-                  value: '{#BCKPID}'
-                - tag: vmid
-                  value: '{#BCKPID}'
+          trigger_prototypes:
+            - uuid: 6c0aa697138548fe8407c82d28d31a4a
+              expression: 'last(/Template Proxmox VE REST API/backup.status[{#BCKPID}])>=2 and {$ENABLE_BACKUP_ALERT:"{#BCKPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/backup.endtime[{#BCKPID}],{$BACKUP.ALERT.WINDOW})=1'
+              name: 'Backup for {#ID} failed'
+              event_name: 'Backup for {#ID} failed: {?last(//backup.message[{#BCKPID}])}'
+              opdata: 'Backup status: {ITEM.LASTVALUE}'
+              priority: HIGH
+              description: |
+                0. OK: All clear, no errors detected
+                1. running: VM/CT is currently active
+                2. stopped: VM/CT has been shut down
+                3. error: General execution failure; check logs for details
+                4. unknown error: Cannot classify status, please check Proxmox for details
+              manual_close: 'YES'
           graph_prototypes:
             - uuid: 1f9f9b88b6394562ae09774bf5190e68
               name: 'Backup status {#ID}'
@@ -1791,6 +1838,177 @@ zabbix_export:
               path: $.bckpid
             - lld_macro: '{#ID}'
               path: $.id
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: d82f27394dbb4634a7802e256d63d054
+          name: 'Discover backup jobs'
+          type: DEPENDENT
+          key: discover.backup.jobs
+          delay: '0'
+          description: 'Discovers the vzdump backup job definitions from /cluster/backup. Counterpart to Discover backup, which discovers the runs: a job that was disabled or is no longer scheduled starts no run, so the run side stays silent about it.'
+          item_prototypes:
+            - uuid: 9503145719074bfcb1ab65c4a9882da0
+              name: 'Backup job {#BACKUP_JOB_ID} enabled'
+              type: DEPENDENT
+              key: 'backup.job.enabled[{#BACKUP_JOB_ID}]'
+              delay: '0'
+              trends: '0'
+              description: 'Whether this backup job is active. A disabled job stays configured and visible in the PVE interface but never runs and never reports a failure. Schedule of this job: {#BACKUP_JOB_SCHEDULE}, target storage: {#BACKUP_JOB_STORAGE}.'
+              valuemap:
+                name: 'Backup job enabled'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")].enabled.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.backup.jobs.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BACKUP_JOB_ID}'
+              trigger_prototypes:
+                - uuid: 9213166e3c774322a4bc6e31d87b4198
+                  expression: 'last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=0 and {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"}=1'
+                  name: 'Backup job {#BACKUP_JOB_ID} is disabled on {HOST.NAME}'
+                  opdata: 'Schedule: {#BACKUP_JOB_SCHEDULE}, storage: {#BACKUP_JOB_STORAGE}'
+                  priority: WARNING
+                  description: 'The job is still configured but switched off, so it never runs and produces no failed task to alert on. If the job is off on purpose, set {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"} to 0 for that one job.'
+                  manual_close: 'YES'
+            - uuid: a60711d6b85c4225bbd2cb0eb4367015
+              name: 'Backup job {#BACKUP_JOB_ID} next run'
+              type: DEPENDENT
+              key: 'backup.job.nextrun[{#BACKUP_JOB_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              trends: '0'
+              units: unixtime
+              description: 'Timestamp of the next run as computed by the PVE scheduler. The API field is called next-run with a hyphen, which is why the JSONPath addresses it in bracket notation. A trend over a Unix timestamp carries no meaning, so trends stay off. The value is stored only when it changes, so the item history is one entry per scheduler advance and the stale trigger below can work without a script. A disabled job carries no next run and the value is discarded instead of turning the item unsupported.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")]["next-run"].first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.backup.jobs.raw
+              tags:
+                - tag: PVE
+                  value: Backup
+                - tag: PVE
+                  value: '{#BACKUP_JOB_ID}'
+          trigger_prototypes:
+            - uuid: 6279740f47ca48d3adf8795d408d722c
+              expression: 'nodata(/Template Proxmox VE REST API/backup.job.nextrun[{#BACKUP_JOB_ID}],{$PVE.BACKUP.JOB.STALE})=1 and last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=1'
+              name: 'Backup job {#BACKUP_JOB_ID} has not been rescheduled for {$PVE.BACKUP.JOB.STALE}'
+              opdata: 'Next run: {ITEM.LASTVALUE1}, schedule: {#BACKUP_JOB_SCHEDULE}'
+              priority: AVERAGE
+              description: 'PVE moves the next run forward after every completed run, so the timestamp changes at least once per scheduling interval. It has not changed within {$PVE.BACKUP.JOB.STALE} while the job is enabled, which means the scheduler is no longer advancing this job. The task list cannot show this because no run is ever started. Look at the pvescheduler service on the node first. The macro must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs, and it must carry a time unit such as 2d.'
+              manual_close: 'YES'
+          master_item:
+            key: pve.backup.jobs.raw
+          lld_macro_paths:
+            - lld_macro: '{#BACKUP_JOB_ID}'
+              path: $.id
+            - lld_macro: '{#BACKUP_JOB_SCHEDULE}'
+              path: $.schedule
+            - lld_macro: '{#BACKUP_JOB_STORAGE}'
+              path: $.storage
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: fc425a072e654624bdcb690f816894f9
+          name: 'Discover certificates'
+          type: DEPENDENT
+          key: discover.certificates
+          delay: '0'
+          description: 'Discovers the certificates of the node: pve-root-ca.pem, pve-ssl.pem and, if configured, pveproxy-ssl.pem from a custom or ACME certificate.'
+          item_prototypes:
+            - uuid: 6cc4542bb31644218df1ab33e8a59cbd
+              name: 'Certificate issuer {#CERT_FILE}'
+              type: DEPENDENT
+              key: 'cert.issuer[{#CERT_FILE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Certificate issuer name.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.filename=="{#CERT_FILE}")].issuer.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.certificates.raw
+              tags:
+                - tag: PVE
+                  value: Certificate
+                - tag: PVE
+                  value: '{#CERT_FILE}'
+            - uuid: 34c34d3714f642caa995220ac55d4cbc
+              name: 'Certificate expiry {#CERT_FILE}'
+              type: DEPENDENT
+              key: 'cert.notafter[{#CERT_FILE}]'
+              delay: '0'
+              value_type: FLOAT
+              trends: '0'
+              units: unixtime
+              description: 'notAfter timestamp. PVE already delivers a Unix epoch, so no conversion is needed.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.filename=="{#CERT_FILE}")].notafter.first()'
+              master_item:
+                key: pve.certificates.raw
+              tags:
+                - tag: PVE
+                  value: Certificate
+                - tag: PVE
+                  value: '{#CERT_FILE}'
+              trigger_prototypes:
+                - uuid: f259a1bd684b48ec89304dafcd4cb29f
+                  expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<{$PVE.CERT.EXPIRE.DAYS}'
+                  name: 'Certificate {#CERT_FILE} expires in less than {$PVE.CERT.EXPIRE.DAYS} on {HOST.NAME}'
+                  priority: WARNING
+                  description: 'Applies to pve-ssl.pem, pve-root-ca.pem and any custom or ACME certificate. The cluster CA runs for 50 years, the node certificate for two.'
+                  dependencies:
+                    - name: 'Certificate {#CERT_FILE} has expired on {HOST.NAME}'
+                      expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<0'
+                - uuid: 1a30b199323f48aea3f672c249264da5
+                  expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<0'
+                  name: 'Certificate {#CERT_FILE} has expired on {HOST.NAME}'
+                  priority: AVERAGE
+                  description: 'The certificate is past its notAfter date. Clients and the web interface reject it, and API clients that verify the chain stop connecting. The advance warning depends on this trigger, so only one of the two is open at a time.'
+            - uuid: 89ee399fb63440c4b39c734fab870ac2
+              name: 'Certificate subject {#CERT_FILE}'
+              type: DEPENDENT
+              key: 'cert.subject[{#CERT_FILE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Certificate subject name.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.filename=="{#CERT_FILE}")].subject.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.certificates.raw
+              tags:
+                - tag: PVE
+                  value: Certificate
+                - tag: PVE
+                  value: '{#CERT_FILE}'
+          master_item:
+            key: pve.certificates.raw
+          lld_macro_paths:
+            - lld_macro: '{#CERT_FILE}'
+              path: $.filename
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -1829,6 +2047,32 @@ zabbix_export:
                   name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) SMART health not PASSED on {HOST.NAME}'
                   priority: HIGH
                   description: 'SMART health check for disk {#DISK_DEV} returned a non-PASSED status. Immediate investigation recommended.'
+                  manual_close: 'YES'
+            - uuid: 8f6a409c8d1c40dd8ddb78d029f7dcbc
+              name: 'Disk {#DISK_DEV} size'
+              type: DEPENDENT
+              key: 'disk.size[{#DISK_DEV}]'
+              delay: '0'
+              units: Bytes
+              description: 'Total size of physical disk {#DISK_DEV} ({#DISK_MODEL}) in bytes. Source: /nodes/{node}/disks/list.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.devpath=="{#DISK_DEV}")].size.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.disks.raw
+              tags:
+                - tag: PVE
+                  value: Disk
+                - tag: PVE
+                  value: '{#DISK_DEV}'
+              trigger_prototypes:
+                - uuid: 273bb1dc1ff74d379f4c7b1c88c82fcf
+                  expression: 'nodata(/Template Proxmox VE REST API/disk.size[{#DISK_DEV}],{$DISK.MISSING.TIME})=1'
+                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) is no longer reported by {HOST.NAME}'
+                  priority: AVERAGE
+                  description: 'Proxmox VE has stopped listing this disk. Either the disk was removed on purpose or it dropped off the bus. The disk list is refreshed hourly, so {$DISK.MISSING.TIME} must stay well above one hour.'
                   manual_close: 'YES'
             - uuid: 57d697c2516d49aaadeca4f761b082dc
               name: 'Disk {#DISK_DEV} SMART raw'
@@ -1896,7 +2140,6 @@ zabbix_export:
                           }
                       }
                       throw 'no temperature in SMART data';
-                  error_handler: DISCARD_VALUE
               master_item:
                 key: 'disk.smart.raw[{#DISK_DEV}]'
               tags:
@@ -1912,39 +2155,12 @@ zabbix_export:
                   priority: WARNING
                   description: 'The disk has stayed above the temperature threshold for 10 minutes. Set {$DISK.TEMP.MAX:"{#DISK_DEV}"} to raise the threshold for a single disk.'
                   manual_close: 'YES'
-            - uuid: 8f6a409c8d1c40dd8ddb78d029f7dcbc
-              name: 'Disk {#DISK_DEV} size'
-              type: DEPENDENT
-              key: 'disk.size[{#DISK_DEV}]'
-              delay: '0'
-              units: Bytes
-              description: 'Total size of physical disk {#DISK_DEV} ({#DISK_MODEL}) in bytes. Source: /nodes/{node}/disks/list.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.devpath=="{#DISK_DEV}")].size.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.disks.raw
-              tags:
-                - tag: PVE
-                  value: Disk
-                - tag: PVE
-                  value: '{#DISK_DEV}'
-              trigger_prototypes:
-                - uuid: 273bb1dc1ff74d379f4c7b1c88c82fcf
-                  expression: 'nodata(/Template Proxmox VE REST API/disk.size[{#DISK_DEV}],{$DISK.MISSING.TIME})=1'
-                  name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) is no longer reported by {HOST.NAME}'
-                  priority: AVERAGE
-                  description: 'Proxmox VE has stopped listing this disk. Either the disk was removed on purpose or it dropped off the bus. The disk list is refreshed hourly, so {$DISK.MISSING.TIME} must stay well above one hour.'
-                  manual_close: 'YES'
             - uuid: 11439521679e47f8a1e96261a5e98e4d
               name: 'Disk {#DISK_DEV} wearout'
               type: DEPENDENT
               key: 'disk.wearout[{#DISK_DEV}]'
               delay: '0'
               value_type: FLOAT
-              trends: 365d
               units: '%'
               description: 'SSD wearout indicator for disk {#DISK_DEV} in percent remaining life (100% = new, 0% = worn out). Only meaningful for SSDs and NVMe, rotating disks report N/A and are discarded. Source: /nodes/{node}/disks/list. The SMART endpoint does not return this value.'
               preprocessing:
@@ -1993,7 +2209,7 @@ zabbix_export:
               filter:
                 conditions:
                   - macro: '{#DISK_TYPE}'
-                    value: '^hdd$'
+                    value: ^hdd$
                     formulaid: A
               operations:
                 - operationobject: ITEM_PROTOTYPE
@@ -2375,6 +2591,38 @@ zabbix_export:
                   value: '{#VMID}'
                 - tag: vmid
                   value: '{#VMID}'
+            - uuid: 76d6224657f04293aec967ec29938c07
+              name: 'Node of {#VMID}'
+              type: DEPENDENT
+              key: 'lxc.node[{#VMID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Cluster node the LXC container is currently running on. Changes when the guest is migrated. Source: /cluster/resources -> entry with type=lxc and this vmid, field node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].node.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: pve.cluster.resources.raw
+              tags:
+                - tag: LXC-Container
+                  value: Node
+                - tag: LXC-Container
+                  value: '{#VMID}'
+                - tag: vmid
+                  value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: 5609a6c57fb342308e04beab00d469ee
+                  expression: 'change(/Template Proxmox VE REST API/lxc.node[{#VMID}])<>0'
+                  name: 'LXC {#VMID} has been migrated to another node'
+                  priority: INFO
+                  description: 'The cluster node running LXC {#VMID} changed since the previous check, which indicates a migration.'
+                  manual_close: 'YES'
             - uuid: ce7c0a635f1a40eeab81f76e560938fd
               name: 'LXC status {#VMID}'
               type: DEPENDENT
@@ -2490,38 +2738,6 @@ zabbix_export:
                   value: '{#VMID}'
                 - tag: vmid
                   value: '{#VMID}'
-            - uuid: 76d6224657f04293aec967ec29938c07
-              name: 'Node of {#VMID}'
-              type: DEPENDENT
-              key: 'lxc.node[{#VMID}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Cluster node the LXC container is currently running on. Changes when the guest is migrated. Source: /cluster/resources -> entry with type=lxc and this vmid, field node.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].node.first()'
-                  error_handler: DISCARD_VALUE
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - 1h
-              master_item:
-                key: pve.cluster.resources.raw
-              tags:
-                - tag: LXC-Container
-                  value: Node
-                - tag: LXC-Container
-                  value: '{#VMID}'
-                - tag: vmid
-                  value: '{#VMID}'
-              trigger_prototypes:
-                - uuid: 5609a6c57fb342308e04beab00d469ee
-                  expression: 'change(/Template Proxmox VE REST API/lxc.node[{#VMID}])<>0'
-                  name: 'LXC {#VMID} has been migrated to another node'
-                  priority: INFO
-                  description: 'The cluster node running LXC {#VMID} changed since the previous check, which indicates a migration.'
-                  manual_close: 'YES'
           trigger_prototypes:
             - uuid: 2dc3bee99506415d9461edbbdb9ce115
               expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1 and last(/Template Proxmox VE REST API/lxc.uptime[{#VMID}])<600'
@@ -2642,14 +2858,14 @@ zabbix_export:
           master_item:
             key: pve.cluster.resources.raw
           lld_macro_paths:
-            - lld_macro: '{#VMID}'
-              path: $.vmid
-            - lld_macro: '{#VM_NAME}'
-              path: $.name
             - lld_macro: '{#NODE}'
               path: $.node
             - lld_macro: '{#TEMPLATE}'
               path: $.template
+            - lld_macro: '{#VMID}'
+              path: $.vmid
+            - lld_macro: '{#VM_NAME}'
+              path: $.name
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -2662,12 +2878,12 @@ zabbix_export:
           filter:
             evaltype: AND
             conditions:
-              - macro: '{#IFACE_TYPE}'
-                value: '^(bridge|bond|eth|en|vlan).*'
-                formulaid: A
               - macro: '{#IFACE}'
                 value: '{$IFACE.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
+                formulaid: A
+              - macro: '{#IFACE_TYPE}'
+                value: '^(bridge|bond|eth|en|vlan).*'
                 formulaid: B
           description: 'Discovers host network interfaces from /nodes/{node}/network. Filters to relevant types (bridge, bond, eth/en*, vlan) and excludes the interface names matching {$IFACE.NOT_MATCHES}, which by default drops the per-guest interfaces Proxmox creates for VMs and containers.'
           item_prototypes:
@@ -2692,15 +2908,6 @@ zabbix_export:
                   value: Network
                 - tag: PVE
                   value: '{#IFACE}'
-              trigger_prototypes:
-                - uuid: 9ad045fbeefa4b9db50fdae75cce9a9f
-                  expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=0 and last(/Template Proxmox VE REST API/iface.autostart[{#IFACE}])=1 and max(/Template Proxmox VE REST API/iface.active[{#IFACE}],{$IFACE.ACTIVE.WINDOW})=1'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=1'
-                  name: 'Network interface {#IFACE} is down on {HOST.NAME}'
-                  priority: AVERAGE
-                  description: 'Host network interface {#IFACE} is no longer active/up. All three conditions must hold: the interface is down, it is configured to start automatically, and it was active at least once within {$IFACE.ACTIVE.WINDOW}. Interfaces that are configured but were never actually up do not raise this trigger.'
-                  manual_close: 'YES'
             - uuid: 9a5222d23474453985777d17eb16a70f
               name: 'Network interface {#IFACE} autostart'
               type: DEPENDENT
@@ -2745,6 +2952,15 @@ zabbix_export:
                   value: Network
                 - tag: PVE
                   value: '{#IFACE}'
+          trigger_prototypes:
+            - uuid: 9ad045fbeefa4b9db50fdae75cce9a9f
+              expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=0 and last(/Template Proxmox VE REST API/iface.autostart[{#IFACE}])=1 and max(/Template Proxmox VE REST API/iface.active[{#IFACE}],{$IFACE.ACTIVE.WINDOW})=1'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Template Proxmox VE REST API/iface.active[{#IFACE}])=1'
+              name: 'Network interface {#IFACE} is down on {HOST.NAME}'
+              priority: AVERAGE
+              description: 'Host network interface {#IFACE} is no longer active/up. All three conditions must hold: the interface is down, it is configured to start automatically, and it was active at least once within {$IFACE.ACTIVE.WINDOW}. Interfaces that are configured but were never actually up do not raise this trigger.'
+              manual_close: 'YES'
           graph_prototypes:
             - uuid: 92d3124033794ee4ada71893d6960b9c
               name: 'Network interface {#IFACE} status'
@@ -2876,6 +3092,94 @@ zabbix_export:
           lld_macro_paths:
             - lld_macro: '{#NODE_NAME}'
               path: $.node
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+        - uuid: 387f61cb46f74e369013f9cfe29b9868
+          name: 'Discover PVE services'
+          type: DEPENDENT
+          key: discover.pve.services
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#SERVICE}'
+                value: '{$PVE.SERVICE.MATCHES}'
+                formulaid: A
+          description: 'Discovers the systemd units PVE manages. The default filter covers the services that must run on every node, standalone or clustered. corosync and the HA services are excluded by default because they are legitimately inactive on a standalone node.'
+          item_prototypes:
+            - uuid: b1c4f04ea721446b9e0886c5e663b7f3
+              name: 'Service active state {#SERVICE}'
+              type: DEPENDENT
+              key: 'pve.service.active_state[{#SERVICE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Systemd ActiveState: active, inactive or failed.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.service=="{#SERVICE}")]["active-state"].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.services.raw
+              tags:
+                - tag: PVE
+                  value: Service
+                - tag: PVE
+                  value: '{#SERVICE}'
+            - uuid: d8c668d940794d55bd3730acf2066a54
+              name: 'Service state {#SERVICE}'
+              type: DEPENDENT
+              key: 'pve.service.state[{#SERVICE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Systemd SubState, for example running, dead or exited.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.service=="{#SERVICE}")].state.first()'
+              master_item:
+                key: pve.services.raw
+              tags:
+                - tag: PVE
+                  value: Service
+                - tag: PVE
+                  value: '{#SERVICE}'
+              trigger_prototypes:
+                - uuid: 13832b562b7b4ef8a7faa050c9e025c2
+                  expression: 'last(/Template Proxmox VE REST API/pve.service.state[{#SERVICE}])<>"running" and {$PVE.SERVICE.STATE.ALERT:"{#SERVICE}"}=1'
+                  name: 'PVE service {#SERVICE} is not running on {HOST.NAME}'
+                  priority: AVERAGE
+                  description: 'Systemd SubState of the service is no longer running. Use {$PVE.SERVICE.STATE.ALERT:"<service>"}=0 to silence a single service, and {$PVE.SERVICE.MATCHES} to control which services are discovered at all.'
+            - uuid: e5b0f194a5474cd5bd603c870316dfbc
+              name: 'Service unit state {#SERVICE}'
+              type: DEPENDENT
+              key: 'pve.service.unit_state[{#SERVICE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Systemd UnitFileState: enabled, disabled, masked or static.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.service=="{#SERVICE}")]["unit-state"].first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.services.raw
+              tags:
+                - tag: PVE
+                  value: Service
+                - tag: PVE
+                  value: '{#SERVICE}'
+          master_item:
+            key: pve.services.raw
+          lld_macro_paths:
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#SVC_DESC}'
+              path: $.desc
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -3199,6 +3503,38 @@ zabbix_export:
                   value: '{#VMID}'
                 - tag: vmid
                   value: '{#VMID}'
+            - uuid: d5d1d8eb64244dbab48feca0fae0ff48
+              name: 'Node of {#VMID}'
+              type: DEPENDENT
+              key: 'vm.node[{#VMID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Cluster node the VM is currently running on. Changes when the guest is migrated. Source: /cluster/resources -> entry with type=qemu and this vmid, field node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].node.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: pve.cluster.resources.raw
+              tags:
+                - tag: QEMU/KVM-VMs
+                  value: Node
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+                - tag: vmid
+                  value: '{#VMID}'
+              trigger_prototypes:
+                - uuid: 0906752ddc0b419593430b655042ce2f
+                  expression: 'change(/Template Proxmox VE REST API/vm.node[{#VMID}])<>0'
+                  name: 'VM {#VMID} has been migrated to another node'
+                  priority: INFO
+                  description: 'The cluster node running VM {#VMID} changed since the previous check, which indicates a migration.'
+                  manual_close: 'YES'
             - uuid: af362128b77d4de6b966c158b913ae65
               name: 'Disk size of {#VMID}'
               type: DEPENDENT
@@ -3317,38 +3653,6 @@ zabbix_export:
                   value: '{#VMID}'
                 - tag: vmid
                   value: '{#VMID}'
-            - uuid: d5d1d8eb64244dbab48feca0fae0ff48
-              name: 'Node of {#VMID}'
-              type: DEPENDENT
-              key: 'vm.node[{#VMID}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Cluster node the VM is currently running on. Changes when the guest is migrated. Source: /cluster/resources -> entry with type=qemu and this vmid, field node.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].node.first()'
-                  error_handler: DISCARD_VALUE
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - 1h
-              master_item:
-                key: pve.cluster.resources.raw
-              tags:
-                - tag: QEMU/KVM-VMs
-                  value: Node
-                - tag: QEMU/KVM-VMs
-                  value: '{#VMID}'
-                - tag: vmid
-                  value: '{#VMID}'
-              trigger_prototypes:
-                - uuid: 0906752ddc0b419593430b655042ce2f
-                  expression: 'change(/Template Proxmox VE REST API/vm.node[{#VMID}])<>0'
-                  name: 'VM {#VMID} has been migrated to another node'
-                  priority: INFO
-                  description: 'The cluster node running VM {#VMID} changed since the previous check, which indicates a migration.'
-                  manual_close: 'YES'
           trigger_prototypes:
             - uuid: 4b7ca0a0681a43a4a10eb0647292cc90
               expression: 'last(/Template Proxmox VE REST API/vm.status[{#VMID}])=1 and last(/Template Proxmox VE REST API/vm.uptime[{#VMID}])<600'
@@ -3437,18 +3741,152 @@ zabbix_export:
           master_item:
             key: pve.cluster.resources.raw
           lld_macro_paths:
-            - lld_macro: '{#VMID}'
-              path: $.vmid
-            - lld_macro: '{#VM_NAME}'
-              path: $.name
             - lld_macro: '{#NODE}'
               path: $.node
             - lld_macro: '{#TEMPLATE}'
               path: $.template
+            - lld_macro: '{#VMID}'
+              path: $.vmid
+            - lld_macro: '{#VM_NAME}'
+              path: $.name
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data[?(@.type=="qemu")]'
+        - uuid: fb81ff142f814e40b1b0f850dd5280e6
+          name: 'Discover replication jobs'
+          type: DEPENDENT
+          key: discover.replication
+          delay: '0'
+          description: 'Discovers ZFS replication jobs. The list endpoint already carries the job state, so no extra request per job is required. Yields nothing on nodes without replication.'
+          item_prototypes:
+            - uuid: e7d91ba232e8415d9e262e3fd052a184
+              name: 'Replication duration {#REPL_ID}'
+              type: DEPENDENT
+              key: 'repl.duration[{#REPL_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              description: 'Duration of the last run in seconds.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#REPL_ID}")].duration.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.replication.raw
+              tags:
+                - tag: PVE
+                  value: Replication
+                - tag: PVE
+                  value: '{#REPL_ID}'
+            - uuid: ce87dde3040a4b73ae078022a2a81cea
+              name: 'Replication error {#REPL_ID}'
+              type: DEPENDENT
+              key: 'repl.error[{#REPL_ID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Error message of the last failed run. Absent while the job is healthy, the value is then discarded instead of turning the item unsupported.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#REPL_ID}")].error.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.replication.raw
+              tags:
+                - tag: PVE
+                  value: Replication
+                - tag: PVE
+                  value: '{#REPL_ID}'
+            - uuid: 9ea05f2ef30b49c783cfb5f5516c2a3e
+              name: 'Replication fail count {#REPL_ID}'
+              type: DEPENDENT
+              key: 'repl.fail_count[{#REPL_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Consecutive failures of this job. Absent before the first run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#REPL_ID}")].fail_count.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.replication.raw
+              tags:
+                - tag: PVE
+                  value: Replication
+                - tag: PVE
+                  value: '{#REPL_ID}'
+              trigger_prototypes:
+                - uuid: 9d0695a301e54a4dbb9590dd62e79a37
+                  expression: 'last(/Template Proxmox VE REST API/repl.fail_count[{#REPL_ID}])>{$PVE.REPL.FAIL.MAX}'
+                  name: 'Replication job {#REPL_ID} failing on {HOST.NAME}'
+                  event_name: 'Replication job {#REPL_ID} failing: {?last(//repl.error[{#REPL_ID}])}'
+                  priority: AVERAGE
+                  description: 'PVE counts consecutive failures of this replication job. The event name carries the error message PVE reported for the last run.'
+            - uuid: 40786cb4039d42c8bc5703ca03635c1e
+              name: 'Replication last sync {#REPL_ID}'
+              type: DEPENDENT
+              key: 'repl.last_sync[{#REPL_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              trends: '0'
+              units: unixtime
+              description: 'Timestamp of the last successful sync. Absent before the first successful run.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#REPL_ID}")].last_sync.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.replication.raw
+              tags:
+                - tag: PVE
+                  value: Replication
+                - tag: PVE
+                  value: '{#REPL_ID}'
+              trigger_prototypes:
+                - uuid: 19f563e0e5ff48de8c738f2c1ca160c0
+                  expression: 'fuzzytime(/Template Proxmox VE REST API/repl.last_sync[{#REPL_ID}],{$PVE.REPL.LAG})=0'
+                  name: 'Replication job {#REPL_ID} has not synced for {$PVE.REPL.LAG}'
+                  priority: WARNING
+                  description: 'Last successful sync is older than {$PVE.REPL.LAG}. Raise the macro for jobs with a wide schedule, it must stay above the replication interval.'
+            - uuid: 3021e56037464324a99f53e163a34b53
+              name: 'Replication last try {#REPL_ID}'
+              type: DEPENDENT
+              key: 'repl.last_try[{#REPL_ID}]'
+              delay: '0'
+              value_type: FLOAT
+              trends: '0'
+              units: unixtime
+              description: 'Timestamp of the last attempt, successful or not.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#REPL_ID}")].last_try.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.replication.raw
+              tags:
+                - tag: PVE
+                  value: Replication
+                - tag: PVE
+                  value: '{#REPL_ID}'
+          master_item:
+            key: pve.replication.raw
+          lld_macro_paths:
+            - lld_macro: '{#REPL_GUEST}'
+              path: $.guest
+            - lld_macro: '{#REPL_ID}'
+              path: $.id
+            - lld_macro: '{#REPL_TARGET}'
+              path: $.target
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
         - uuid: 14efa82386b54af18a8e26377422dd57
           name: 'Discover storage'
           type: DEPENDENT
@@ -3832,20 +4270,20 @@ zabbix_export:
                   value: Tasks
                 - tag: vmid
                   value: '{#GRPID}'
-              trigger_prototypes:
-                - uuid: 19e5d067d25941169192a9ff6461b787
-                  expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALERT:"{#GRPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/task.endtime[{#GRPID},{#TYPE}],{$TASK.ALERT.WINDOW})=1'
-                  name: 'Proxmox task {#TYPE} {#ID} failed'
-                  event_name: 'Proxmox task {#TYPE} {#ID} failed: {?last(//task.message[{#GRPID},{#TYPE}])}'
-                  opdata: 'Current task status: {ITEM.LASTVALUE}'
-                  priority: WARNING
-                  description: |
-                    A task of type {#TYPE} for VM/CT {#ID} finished with a status other than OK.
-                    The problem clears as soon as a later task of the same id and type succeeds, and it expires on its own once the failure is older than {$TASK.ALERT.WINDOW}, because Proxmox VE only keeps the most recent tasks in its task list.
-                    Use context macro to suppress per-task:
-                    {$ENABLE_TASK_ALERT:"{#GRPID}"}=0 suppresses this trigger for a specific task.
-                    {$ENABLE_TASK_ALERT}=0 disables all task failure alerts globally.
-                  manual_close: 'YES'
+          trigger_prototypes:
+            - uuid: 19e5d067d25941169192a9ff6461b787
+              expression: 'last(/Template Proxmox VE REST API/task.status[{#GRPID},{#TYPE}])>1 and {$ENABLE_TASK_ALERT:"{#GRPID}"}=1 and fuzzytime(/Template Proxmox VE REST API/task.endtime[{#GRPID},{#TYPE}],{$TASK.ALERT.WINDOW})=1'
+              name: 'Proxmox task {#TYPE} {#ID} failed'
+              event_name: 'Proxmox task {#TYPE} {#ID} failed: {ITEM.VALUE}'
+              opdata: 'Current task status: {ITEM.LASTVALUE}'
+              priority: WARNING
+              description: |
+                A task of type {#TYPE} for VM/CT {#ID} finished with a status other than OK.
+                The problem clears as soon as a later task of the same id and type succeeds, and it expires on its own once the failure is older than {$TASK.ALERT.WINDOW}, because Proxmox VE only keeps the most recent tasks in its task list.
+                Use context macro to suppress per-task:
+                {$ENABLE_TASK_ALERT:"{#GRPID}"}=0 suppresses this trigger for a specific task.
+                {$ENABLE_TASK_ALERT}=0 disables all task failure alerts globally.
+              manual_close: 'YES'
           graph_prototypes:
             - uuid: 3d3673ff518e45a2979ecfbb6aa8b5e6
               name: 'Task status {#TYPE} {#ID}'
@@ -4014,94 +4452,6 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.body.data[*]'
-        - uuid: 387f61cb46f74e369013f9cfe29b9868
-          name: 'Discover PVE services'
-          type: DEPENDENT
-          key: discover.pve.services
-          delay: '0'
-          filter:
-            conditions:
-              - macro: '{#SERVICE}'
-                value: '{$PVE.SERVICE.MATCHES}'
-                formulaid: A
-          description: 'Discovers the systemd units PVE manages. The default filter covers the services that must run on every node, standalone or clustered. corosync and the HA services are excluded by default because they are legitimately inactive on a standalone node.'
-          item_prototypes:
-            - uuid: d8c668d940794d55bd3730acf2066a54
-              name: 'Service state {#SERVICE}'
-              type: DEPENDENT
-              key: 'pve.service.state[{#SERVICE}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Systemd SubState, for example running, dead or exited.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.service=="{#SERVICE}")].state.first()'
-              master_item:
-                key: pve.services.raw
-              tags:
-                - tag: PVE
-                  value: Service
-                - tag: PVE
-                  value: '{#SERVICE}'
-              trigger_prototypes:
-                - uuid: 13832b562b7b4ef8a7faa050c9e025c2
-                  expression: 'last(/Template Proxmox VE REST API/pve.service.state[{#SERVICE}])<>"running" and {$PVE.SERVICE.STATE.ALERT:"{#SERVICE}"}=1'
-                  name: 'PVE service {#SERVICE} is not running on {HOST.NAME}'
-                  priority: AVERAGE
-                  description: 'Systemd SubState of the service is no longer running. Use {$PVE.SERVICE.STATE.ALERT:"<service>"}=0 to silence a single service, and {$PVE.SERVICE.MATCHES} to control which services are discovered at all.'
-            - uuid: e5b0f194a5474cd5bd603c870316dfbc
-              name: 'Service unit state {#SERVICE}'
-              type: DEPENDENT
-              key: 'pve.service.unit_state[{#SERVICE}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Systemd UnitFileState: enabled, disabled, masked or static.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.service=="{#SERVICE}")]["unit-state"].first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.services.raw
-              tags:
-                - tag: PVE
-                  value: Service
-                - tag: PVE
-                  value: '{#SERVICE}'
-            - uuid: b1c4f04ea721446b9e0886c5e663b7f3
-              name: 'Service active state {#SERVICE}'
-              type: DEPENDENT
-              key: 'pve.service.active_state[{#SERVICE}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Systemd ActiveState: active, inactive or failed.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.service=="{#SERVICE}")]["active-state"].first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.services.raw
-              tags:
-                - tag: PVE
-                  value: Service
-                - tag: PVE
-                  value: '{#SERVICE}'
-          master_item:
-            key: pve.services.raw
-          lld_macro_paths:
-            - lld_macro: '{#SERVICE}'
-              path: $.service
-            - lld_macro: '{#SVC_DESC}'
-              path: $.desc
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[*]'
         - uuid: 92df286f4a31496c887b1992534efb2c
           name: 'Discover ZFS pools'
           type: DEPENDENT
@@ -4109,13 +4459,87 @@ zabbix_export:
           delay: '0'
           description: 'Discovers local ZFS pools. Yields nothing on nodes without ZFS. The master item needs Sys.Audit on / and turns unsupported with HTTP 403 otherwise.'
           item_prototypes:
+            - uuid: f29490ff777948a2a8dbca4014d8fbfd
+              name: 'ZFS pool allocated {#ZPOOL}'
+              type: DEPENDENT
+              key: 'zfs.alloc[{#ZPOOL}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bytes
+              description: 'Allocated bytes in the pool.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name=="{#ZPOOL}")].alloc.first()'
+              master_item:
+                key: pve.zfs.raw
+              tags:
+                - tag: PVE
+                  value: ZFS
+                - tag: PVE
+                  value: '{#ZPOOL}'
+            - uuid: 2167f0fa32e24ac9803b5aa3cd346bbe
+              name: 'ZFS pool dedup ratio {#ZPOOL}'
+              type: DEPENDENT
+              key: 'zfs.dedup[{#ZPOOL}]'
+              delay: '0'
+              value_type: FLOAT
+              trends: '0'
+              description: 'Deduplication ratio, 1.0 when dedup is off.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name=="{#ZPOOL}")].dedup.first()'
+              master_item:
+                key: pve.zfs.raw
+              tags:
+                - tag: PVE
+                  value: ZFS
+                - tag: PVE
+                  value: '{#ZPOOL}'
+            - uuid: 673b04f727fa43ddaec262e4b73edb20
+              name: 'ZFS pool fragmentation {#ZPOOL}'
+              type: DEPENDENT
+              key: 'zfs.frag[{#ZPOOL}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              description: 'Free space fragmentation in percent.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name=="{#ZPOOL}")].frag.first()'
+              master_item:
+                key: pve.zfs.raw
+              tags:
+                - tag: PVE
+                  value: ZFS
+                - tag: PVE
+                  value: '{#ZPOOL}'
+            - uuid: 65fb9ba3975e4f7bb54ff6991aa9a2b2
+              name: 'ZFS pool free {#ZPOOL}'
+              type: DEPENDENT
+              key: 'zfs.free[{#ZPOOL}]'
+              delay: '0'
+              value_type: FLOAT
+              units: Bytes
+              description: 'Free bytes in the pool.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.name=="{#ZPOOL}")].free.first()'
+              master_item:
+                key: pve.zfs.raw
+              tags:
+                - tag: PVE
+                  value: ZFS
+                - tag: PVE
+                  value: '{#ZPOOL}'
             - uuid: 9dbc38322f79490b8e0e76c7c015ddbb
               name: 'ZFS pool health {#ZPOOL}'
               type: DEPENDENT
               key: 'zfs.health[{#ZPOOL}]'
               delay: '0'
-              value_type: UNSIGNED
-              trends: 365d
               description: 'zpool health as a number so it can be graphed and used on a dashboard. 0 is ONLINE, everything above is a fault. The value map turns it back into the zpool wording.'
               valuemap:
                 name: 'ZFS pool health'
@@ -4176,98 +4600,12 @@ zabbix_export:
               key: 'zfs.size[{#ZPOOL}]'
               delay: '0'
               value_type: FLOAT
-              units: 'Bytes'
-              trends: 365d
+              units: Bytes
               description: 'Total pool size in bytes.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.name=="{#ZPOOL}")].size.first()'
-              master_item:
-                key: pve.zfs.raw
-              tags:
-                - tag: PVE
-                  value: ZFS
-                - tag: PVE
-                  value: '{#ZPOOL}'
-            - uuid: f29490ff777948a2a8dbca4014d8fbfd
-              name: 'ZFS pool allocated {#ZPOOL}'
-              type: DEPENDENT
-              key: 'zfs.alloc[{#ZPOOL}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 'Bytes'
-              trends: 365d
-              description: 'Allocated bytes in the pool.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.name=="{#ZPOOL}")].alloc.first()'
-              master_item:
-                key: pve.zfs.raw
-              tags:
-                - tag: PVE
-                  value: ZFS
-                - tag: PVE
-                  value: '{#ZPOOL}'
-            - uuid: 65fb9ba3975e4f7bb54ff6991aa9a2b2
-              name: 'ZFS pool free {#ZPOOL}'
-              type: DEPENDENT
-              key: 'zfs.free[{#ZPOOL}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 'Bytes'
-              trends: 365d
-              description: 'Free bytes in the pool.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.name=="{#ZPOOL}")].free.first()'
-              master_item:
-                key: pve.zfs.raw
-              tags:
-                - tag: PVE
-                  value: ZFS
-                - tag: PVE
-                  value: '{#ZPOOL}'
-            - uuid: 673b04f727fa43ddaec262e4b73edb20
-              name: 'ZFS pool fragmentation {#ZPOOL}'
-              type: DEPENDENT
-              key: 'zfs.frag[{#ZPOOL}]'
-              delay: '0'
-              value_type: FLOAT
-              units: '%'
-              trends: 365d
-              description: 'Free space fragmentation in percent.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.name=="{#ZPOOL}")].frag.first()'
-              master_item:
-                key: pve.zfs.raw
-              tags:
-                - tag: PVE
-                  value: ZFS
-                - tag: PVE
-                  value: '{#ZPOOL}'
-              trigger_prototypes:
-                - uuid: ed2b6ba1d4cb4b029e7b75c0ff414ea0
-                  expression: 'last(/Template Proxmox VE REST API/zfs.frag[{#ZPOOL}])>{$ZFS.FRAG.WARN:"{#ZPOOL}"} and last(/Template Proxmox VE REST API/zfs.util[{#ZPOOL}])>{$ZFS.FRAG.UTIL.MIN:"{#ZPOOL}"}'
-                  name: 'ZFS pool {#ZPOOL} free space is fragmented on {HOST.NAME}'
-                  priority: WARNING
-                  description: 'Fragmentation describes the free space, not the stored data, so on its own it costs nothing. It starts to hurt once the pool is also fairly full, because the allocator then has to satisfy writes from ever smaller free segments. The trigger therefore requires both {$ZFS.FRAG.WARN} and {$ZFS.FRAG.UTIL.MIN} to be exceeded. Freeing space and removing old snapshots helps, defragmenting a zpool is not possible.'
-            - uuid: 2167f0fa32e24ac9803b5aa3cd346bbe
-              name: 'ZFS pool dedup ratio {#ZPOOL}'
-              type: DEPENDENT
-              key: 'zfs.dedup[{#ZPOOL}]'
-              delay: '0'
-              value_type: FLOAT
-              trends: '0'
-              description: 'Deduplication ratio, 1.0 when dedup is off.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.name=="{#ZPOOL}")].dedup.first()'
               master_item:
                 key: pve.zfs.raw
               tags:
@@ -4303,319 +4641,17 @@ zabbix_export:
                   dependencies:
                     - name: 'ZFS pool {#ZPOOL} usage above {$ZFS.UTIL.CRIT:"{#ZPOOL}"}% on {HOST.NAME}'
                       expression: 'last(/Template Proxmox VE REST API/zfs.util[{#ZPOOL}])>{$ZFS.UTIL.CRIT:"{#ZPOOL}"}'
+          trigger_prototypes:
+            - uuid: ed2b6ba1d4cb4b029e7b75c0ff414ea0
+              expression: 'last(/Template Proxmox VE REST API/zfs.frag[{#ZPOOL}])>{$ZFS.FRAG.WARN:"{#ZPOOL}"} and last(/Template Proxmox VE REST API/zfs.util[{#ZPOOL}])>{$ZFS.FRAG.UTIL.MIN:"{#ZPOOL}"}'
+              name: 'ZFS pool {#ZPOOL} free space is fragmented on {HOST.NAME}'
+              priority: WARNING
+              description: 'Fragmentation describes the free space, not the stored data, so on its own it costs nothing. It starts to hurt once the pool is also fairly full, because the allocator then has to satisfy writes from ever smaller free segments. The trigger therefore requires both {$ZFS.FRAG.WARN} and {$ZFS.FRAG.UTIL.MIN} to be exceeded. Freeing space and removing old snapshots helps, defragmenting a zpool is not possible.'
           master_item:
             key: pve.zfs.raw
           lld_macro_paths:
             - lld_macro: '{#ZPOOL}'
               path: $.name
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[*]'
-        - uuid: fb81ff142f814e40b1b0f850dd5280e6
-          name: 'Discover replication jobs'
-          type: DEPENDENT
-          key: discover.replication
-          delay: '0'
-          description: 'Discovers ZFS replication jobs. The list endpoint already carries the job state, so no extra request per job is required. Yields nothing on nodes without replication.'
-          item_prototypes:
-            - uuid: 9ea05f2ef30b49c783cfb5f5516c2a3e
-              name: 'Replication fail count {#REPL_ID}'
-              type: DEPENDENT
-              key: 'repl.fail_count[{#REPL_ID}]'
-              delay: '0'
-              value_type: FLOAT
-              trends: 365d
-              description: 'Consecutive failures of this job. Absent before the first run.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#REPL_ID}")].fail_count.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.replication.raw
-              tags:
-                - tag: PVE
-                  value: Replication
-                - tag: PVE
-                  value: '{#REPL_ID}'
-              trigger_prototypes:
-                - uuid: 9d0695a301e54a4dbb9590dd62e79a37
-                  expression: 'last(/Template Proxmox VE REST API/repl.fail_count[{#REPL_ID}])>{$PVE.REPL.FAIL.MAX}'
-                  name: 'Replication job {#REPL_ID} failing on {HOST.NAME}'
-                  event_name: 'Replication job {#REPL_ID} failing: {?last(//repl.error[{#REPL_ID}])}'
-                  priority: AVERAGE
-                  description: 'PVE counts consecutive failures of this replication job. The event name carries the error message PVE reported for the last run.'
-            - uuid: 40786cb4039d42c8bc5703ca03635c1e
-              name: 'Replication last sync {#REPL_ID}'
-              type: DEPENDENT
-              key: 'repl.last_sync[{#REPL_ID}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 'unixtime'
-              trends: '0'
-              description: 'Timestamp of the last successful sync. Absent before the first successful run.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#REPL_ID}")].last_sync.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.replication.raw
-              tags:
-                - tag: PVE
-                  value: Replication
-                - tag: PVE
-                  value: '{#REPL_ID}'
-              trigger_prototypes:
-                - uuid: 19f563e0e5ff48de8c738f2c1ca160c0
-                  expression: 'fuzzytime(/Template Proxmox VE REST API/repl.last_sync[{#REPL_ID}],{$PVE.REPL.LAG})=0'
-                  name: 'Replication job {#REPL_ID} has not synced for {$PVE.REPL.LAG}'
-                  priority: WARNING
-                  description: 'Last successful sync is older than {$PVE.REPL.LAG}. Raise the macro for jobs with a wide schedule, it must stay above the replication interval.'
-            - uuid: 3021e56037464324a99f53e163a34b53
-              name: 'Replication last try {#REPL_ID}'
-              type: DEPENDENT
-              key: 'repl.last_try[{#REPL_ID}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 'unixtime'
-              trends: '0'
-              description: 'Timestamp of the last attempt, successful or not.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#REPL_ID}")].last_try.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.replication.raw
-              tags:
-                - tag: PVE
-                  value: Replication
-                - tag: PVE
-                  value: '{#REPL_ID}'
-            - uuid: e7d91ba232e8415d9e262e3fd052a184
-              name: 'Replication duration {#REPL_ID}'
-              type: DEPENDENT
-              key: 'repl.duration[{#REPL_ID}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 's'
-              trends: 365d
-              description: 'Duration of the last run in seconds.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#REPL_ID}")].duration.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.replication.raw
-              tags:
-                - tag: PVE
-                  value: Replication
-                - tag: PVE
-                  value: '{#REPL_ID}'
-            - uuid: ce87dde3040a4b73ae078022a2a81cea
-              name: 'Replication error {#REPL_ID}'
-              type: DEPENDENT
-              key: 'repl.error[{#REPL_ID}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Error message of the last failed run. Absent while the job is healthy, the value is then discarded instead of turning the item unsupported.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#REPL_ID}")].error.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.replication.raw
-              tags:
-                - tag: PVE
-                  value: Replication
-                - tag: PVE
-                  value: '{#REPL_ID}'
-          master_item:
-            key: pve.replication.raw
-          lld_macro_paths:
-            - lld_macro: '{#REPL_ID}'
-              path: $.id
-            - lld_macro: '{#REPL_GUEST}'
-              path: $.guest
-            - lld_macro: '{#REPL_TARGET}'
-              path: $.target
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[*]'
-        - uuid: fc425a072e654624bdcb690f816894f9
-          name: 'Discover certificates'
-          type: DEPENDENT
-          key: discover.certificates
-          delay: '0'
-          description: 'Discovers the certificates of the node: pve-root-ca.pem, pve-ssl.pem and, if configured, pveproxy-ssl.pem from a custom or ACME certificate.'
-          item_prototypes:
-            - uuid: 34c34d3714f642caa995220ac55d4cbc
-              name: 'Certificate expiry {#CERT_FILE}'
-              type: DEPENDENT
-              key: 'cert.notafter[{#CERT_FILE}]'
-              delay: '0'
-              value_type: FLOAT
-              units: 'unixtime'
-              trends: '0'
-              description: 'notAfter timestamp. PVE already delivers a Unix epoch, so no conversion is needed.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.filename=="{#CERT_FILE}")].notafter.first()'
-              master_item:
-                key: pve.certificates.raw
-              tags:
-                - tag: PVE
-                  value: Certificate
-                - tag: PVE
-                  value: '{#CERT_FILE}'
-              trigger_prototypes:
-                - uuid: f259a1bd684b48ec89304dafcd4cb29f
-                  expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<{$PVE.CERT.EXPIRE.DAYS}'
-                  name: 'Certificate {#CERT_FILE} expires in less than {$PVE.CERT.EXPIRE.DAYS} on {HOST.NAME}'
-                  priority: WARNING
-                  description: 'Applies to pve-ssl.pem, pve-root-ca.pem and any custom or ACME certificate. The cluster CA runs for 50 years, the node certificate for two.'
-                  dependencies:
-                    - name: 'Certificate {#CERT_FILE} has expired on {HOST.NAME}'
-                      expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<0'
-                - uuid: 1a30b199323f48aea3f672c249264da5
-                  expression: 'last(/Template Proxmox VE REST API/cert.notafter[{#CERT_FILE}])-now()<0'
-                  name: 'Certificate {#CERT_FILE} has expired on {HOST.NAME}'
-                  priority: AVERAGE
-                  description: 'The certificate is past its notAfter date. Clients and the web interface reject it, and API clients that verify the chain stop connecting. The advance warning depends on this trigger, so only one of the two is open at a time.'
-            - uuid: 89ee399fb63440c4b39c734fab870ac2
-              name: 'Certificate subject {#CERT_FILE}'
-              type: DEPENDENT
-              key: 'cert.subject[{#CERT_FILE}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Certificate subject name.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.filename=="{#CERT_FILE}")].subject.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.certificates.raw
-              tags:
-                - tag: PVE
-                  value: Certificate
-                - tag: PVE
-                  value: '{#CERT_FILE}'
-            - uuid: 6cc4542bb31644218df1ab33e8a59cbd
-              name: 'Certificate issuer {#CERT_FILE}'
-              type: DEPENDENT
-              key: 'cert.issuer[{#CERT_FILE}]'
-              delay: '0'
-              value_type: CHAR
-              trends: '0'
-              description: 'Certificate issuer name.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.filename=="{#CERT_FILE}")].issuer.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.certificates.raw
-              tags:
-                - tag: PVE
-                  value: Certificate
-                - tag: PVE
-                  value: '{#CERT_FILE}'
-          master_item:
-            key: pve.certificates.raw
-          lld_macro_paths:
-            - lld_macro: '{#CERT_FILE}'
-              path: $.filename
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - '$.data[*]'
-        - uuid: d82f27394dbb4634a7802e256d63d054
-          name: 'Discover backup jobs'
-          type: DEPENDENT
-          key: discover.backup.jobs
-          delay: '0'
-          description: 'Discovers the vzdump backup job definitions from /cluster/backup. Counterpart to Discover backup, which discovers the runs: a job that was disabled or is no longer scheduled starts no run, so the run side stays silent about it.'
-          item_prototypes:
-            - uuid: 9503145719074bfcb1ab65c4a9882da0
-              name: 'Backup job {#BACKUP_JOB_ID} enabled'
-              type: DEPENDENT
-              key: 'backup.job.enabled[{#BACKUP_JOB_ID}]'
-              delay: '0'
-              value_type: UNSIGNED
-              trends: '0'
-              valuemap:
-                name: 'Backup job enabled'
-              description: 'Whether this backup job is active. A disabled job stays configured and visible in the PVE interface but never runs and never reports a failure. Schedule of this job: {#BACKUP_JOB_SCHEDULE}, target storage: {#BACKUP_JOB_STORAGE}.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")].enabled.first()'
-                  error_handler: DISCARD_VALUE
-              master_item:
-                key: pve.backup.jobs.raw
-              tags:
-                - tag: PVE
-                  value: Backup
-                - tag: PVE
-                  value: '{#BACKUP_JOB_ID}'
-              trigger_prototypes:
-                - uuid: 9213166e3c774322a4bc6e31d87b4198
-                  expression: 'last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=0 and {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"}=1'
-                  name: 'Backup job {#BACKUP_JOB_ID} is disabled on {HOST.NAME}'
-                  opdata: 'Schedule: {#BACKUP_JOB_SCHEDULE}, storage: {#BACKUP_JOB_STORAGE}'
-                  priority: WARNING
-                  description: 'The job is still configured but switched off, so it never runs and produces no failed task to alert on. If the job is off on purpose, set {$PVE.BACKUP.JOB.ALERT:"{#BACKUP_JOB_ID}"} to 0 for that one job.'
-                  manual_close: 'YES'
-            - uuid: a60711d6b85c4225bbd2cb0eb4367015
-              name: 'Backup job {#BACKUP_JOB_ID} next run'
-              type: DEPENDENT
-              key: 'backup.job.nextrun[{#BACKUP_JOB_ID}]'
-              delay: '0'
-              value_type: FLOAT
-              units: unixtime
-              trends: '0'
-              description: 'Timestamp of the next run as computed by the PVE scheduler. The API field is called next-run with a hyphen, which is why the JSONPath addresses it in bracket notation. A trend over a Unix timestamp carries no meaning, so trends stay off. The value is stored only when it changes, so the item history is one entry per scheduler advance and the stale trigger below can work without a script. A disabled job carries no next run and the value is discarded instead of turning the item unsupported.'
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.data[?(@.id=="{#BACKUP_JOB_ID}")]["next-run"].first()'
-                  error_handler: DISCARD_VALUE
-                - type: DISCARD_UNCHANGED
-                  parameters:
-                    - ''
-              master_item:
-                key: pve.backup.jobs.raw
-              tags:
-                - tag: PVE
-                  value: Backup
-                - tag: PVE
-                  value: '{#BACKUP_JOB_ID}'
-              trigger_prototypes:
-                - uuid: 6279740f47ca48d3adf8795d408d722c
-                  expression: 'nodata(/Template Proxmox VE REST API/backup.job.nextrun[{#BACKUP_JOB_ID}],{$PVE.BACKUP.JOB.STALE})=1 and last(/Template Proxmox VE REST API/backup.job.enabled[{#BACKUP_JOB_ID}])=1'
-                  name: 'Backup job {#BACKUP_JOB_ID} has not been rescheduled for {$PVE.BACKUP.JOB.STALE}'
-                  opdata: 'Next run: {ITEM.LASTVALUE1}, schedule: {#BACKUP_JOB_SCHEDULE}'
-                  priority: AVERAGE
-                  description: 'PVE moves the next run forward after every completed run, so the timestamp changes at least once per scheduling interval. It has not changed within {$PVE.BACKUP.JOB.STALE} while the job is enabled, which means the scheduler is no longer advancing this job. The task list cannot show this because no run is ever started. Look at the pvescheduler service on the node first. The macro must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs, and it must carry a time unit such as 2d.'
-                  manual_close: 'YES'
-          master_item:
-            key: pve.backup.jobs.raw
-          lld_macro_paths:
-            - lld_macro: '{#BACKUP_JOB_ID}'
-              path: $.id
-            - lld_macro: '{#BACKUP_JOB_SCHEDULE}'
-              path: $.schedule
-            - lld_macro: '{#BACKUP_JOB_STORAGE}'
-              path: $.storage
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -4664,7 +4700,7 @@ zabbix_export:
           value: 7d
           description: 'Lookback window for the network interface down trigger. The interface must have been active at least once within this period, otherwise it is treated as configured but never used and does not alert. The value must include a time unit (e.g. 7d, 24h).'
         - macro: '{$IFACE.NOT_MATCHES}'
-          value: '^(tap|veth|fwbr|fwpr|fwln)'
+          value: ^(tap|veth|fwbr|fwpr|fwln)
           description: 'LLD filter: host network interface names to exclude (regex). The default drops the per-guest interfaces Proxmox creates for VMs and containers, which appear and disappear together with the guest.'
         - macro: '{$LXC.CPU.HIGH}'
           value: '99'
@@ -4672,12 +4708,57 @@ zabbix_export:
         - macro: '{$LXC.CPU.WARN}'
           value: '85'
           description: 'Warning threshold for LXC CPU utilization (%) over 5 minutes.'
-        - macro: '{$NODE.CPU.UTIL.MAX}'
-          value: '90'
-          description: 'Node CPU utilization (%) before the high CPU trigger fires. The threshold used to be hardcoded in the trigger expression.'
         - macro: '{$MEMORY.UTIL.MAX}'
           value: '90'
           description: 'Warning threshold for memory utilization of the PVE host itself (%). Guest memory is not covered by this macro.'
+        - macro: '{$NODE.CPU.UTIL.MAX}'
+          value: '90'
+          description: 'Node CPU utilization (%) before the high CPU trigger fires. The threshold used to be hardcoded in the trigger expression.'
+        - macro: '{$PVE.APT.REPO.ERRORS.MAX}'
+          value: '0'
+          description: 'Tolerated number of unparsable APT repository files before alerting.'
+        - macro: '{$PVE.APT.REPO.WARN.MAX}'
+          value: '0'
+          description: 'Tolerated number of APT repository warnings. A host on the no-subscription repository permanently reports one warning, set this to 1 there.'
+        - macro: '{$PVE.APT.UPDATES.MAX}'
+          value: '0'
+          description: 'Tolerated number of pending package updates. Only relevant if the disabled apt/update items are switched on.'
+        - macro: '{$PVE.BACKUP.JOB.ALERT}'
+          value: '1'
+          description: 'Disabled backup job trigger. Set to 0 to suppress it everywhere, or use the context form {$PVE.BACKUP.JOB.ALERT:"backup-a5c9d88a-bc0e"}=0 to silence one job that is switched off on purpose.'
+        - macro: '{$PVE.BACKUP.JOB.STALE}'
+          value: 2d
+          description: 'How long the next run of an enabled backup job may stay unchanged before the trigger fires. PVE advances the timestamp after every completed run, so the value must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs. The value must include a time unit, for example 2d or 36h. Context form {$PVE.BACKUP.JOB.STALE:"backup-a5c9d88a-bc0e"} widens it for a single job with a wide schedule.'
+        - macro: '{$PVE.BACKUP.JOBS.MIN}'
+          value: '1'
+          description: 'Minimum number of vzdump backup job definitions expected on this cluster. Set to 0 on hosts that are deliberately backed up from somewhere else.'
+        - macro: '{$PVE.BACKUP.RUN.MAX}'
+          value: 3h
+          description: 'How long a backup may run before it is treated as stuck. The value must include a time unit, for example 3h or 90m, and must stay above the normal runtime of the longest job, otherwise the trigger fires during every regular run.'
+        - macro: '{$PVE.CERT.EXPIRE.DAYS}'
+          value: 21d
+          description: 'Lead time before certificate expiry. Must include a time unit, for example 21d.'
+        - macro: '{$PVE.NOTBACKEDUP.MAX}'
+          value: '0'
+          description: 'Tolerated number of guests without a backup job. Raise it if some guests are deliberately excluded from backup.'
+        - macro: '{$PVE.REPL.FAIL.MAX}'
+          value: '0'
+          description: 'Tolerated consecutive failures of a replication job. Use the context form {$PVE.REPL.FAIL.MAX:"105-0"} for a single job.'
+        - macro: '{$PVE.REPL.LAG}'
+          value: 2h
+          description: 'Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. Must include a time unit.'
+        - macro: '{$PVE.SERVICE.MATCHES}'
+          value: ^(pve-cluster|pvedaemon|pveproxy|pvestatd|pve-firewall)$
+          description: 'Which PVE services are discovered. corosync, pve-ha-lrm and pve-ha-crm are excluded by default because they are legitimately inactive on a standalone node. In a cluster extend the regex accordingly.'
+        - macro: '{$PVE.SERVICE.STATE.ALERT}'
+          value: '1'
+          description: 'Enables the service state trigger. Use the context form {$PVE.SERVICE.STATE.ALERT:"pveproxy"}=0 to silence a single service.'
+        - macro: '{$PVE.SUBSCRIPTION.ALERT}'
+          value: '0'
+          description: 'Set to 1 on hosts that are meant to carry a subscription. Off by default so community hosts do not alert on status notfound.'
+        - macro: '{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
+          value: 30d
+          description: 'Lead time before the subscription expires. Must include a time unit, for example 30d. The expiry triggers need no enable macro: hosts without a subscription report no due date, so the item stays empty.'
         - macro: '{$PVE.USER.EXPIRE.TIME}'
           value: '172800'
           description: 'Seconds before user account expiration to trigger warning (default 172800 = 2 days).'
@@ -4705,51 +4786,18 @@ zabbix_export:
         - macro: '{$ROOTFS.UTIL.WARN}'
           value: '90'
           description: 'Warning threshold for root filesystem utilization (%).'
-        - macro: '{$SWAP.UTIL.MAX}'
-          value: '80'
-          description: 'Warning threshold for swap utilization of the PVE host (%). The trigger stays silent on hosts that have no swap configured.'
         - macro: '{$STORAGE.UTIL.CRIT}'
           value: '90'
           description: 'Critical threshold for storage utilization (%). Triggers when storage used exceeds this value.'
         - macro: '{$STORAGE.UTIL.WARN}'
           value: '80'
           description: 'Warning threshold for storage utilization (%). Triggers when storage used exceeds this value.'
+        - macro: '{$SWAP.UTIL.MAX}'
+          value: '80'
+          description: 'Warning threshold for swap utilization of the PVE host (%). The trigger stays silent on hosts that have no swap configured.'
         - macro: '{$TASK.ALERT.WINDOW}'
           value: 1h
           description: 'How long a failed task keeps alerting. The problem clears earlier if a later task of the same id and type succeeds. Proxmox VE only keeps the most recent tasks in its task list, so without this window a one-off failure would alert forever. The value must include a time unit, for example 1h or 30m.'
-        - macro: '{$PVE.APT.REPO.ERRORS.MAX}'
-          value: '0'
-          description: 'Tolerated number of unparsable APT repository files before alerting.'
-        - macro: '{$PVE.APT.REPO.WARN.MAX}'
-          value: '0'
-          description: 'Tolerated number of APT repository warnings. A host on the no-subscription repository permanently reports one warning, set this to 1 there.'
-        - macro: '{$PVE.APT.UPDATES.MAX}'
-          value: '0'
-          description: 'Tolerated number of pending package updates. Only relevant if the disabled apt/update items are switched on.'
-        - macro: '{$PVE.CERT.EXPIRE.DAYS}'
-          value: 21d
-          description: 'Lead time before certificate expiry. Must include a time unit, for example 21d.'
-        - macro: '{$PVE.NOTBACKEDUP.MAX}'
-          value: '0'
-          description: 'Tolerated number of guests without a backup job. Raise it if some guests are deliberately excluded from backup.'
-        - macro: '{$PVE.REPL.FAIL.MAX}'
-          value: '0'
-          description: 'Tolerated consecutive failures of a replication job. Use the context form {$PVE.REPL.FAIL.MAX:"105-0"} for a single job.'
-        - macro: '{$PVE.REPL.LAG}'
-          value: 2h
-          description: 'Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. Must include a time unit.'
-        - macro: '{$PVE.SERVICE.MATCHES}'
-          value: '^(pve-cluster|pvedaemon|pveproxy|pvestatd|pve-firewall)$'
-          description: 'Which PVE services are discovered. corosync, pve-ha-lrm and pve-ha-crm are excluded by default because they are legitimately inactive on a standalone node. In a cluster extend the regex accordingly.'
-        - macro: '{$PVE.SERVICE.STATE.ALERT}'
-          value: '1'
-          description: 'Enables the service state trigger. Use the context form {$PVE.SERVICE.STATE.ALERT:"pveproxy"}=0 to silence a single service.'
-        - macro: '{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
-          value: 30d
-          description: 'Lead time before the subscription expires. Must include a time unit, for example 30d. The expiry triggers need no enable macro: hosts without a subscription report no due date, so the item stays empty.'
-        - macro: '{$PVE.SUBSCRIPTION.ALERT}'
-          value: '0'
-          description: 'Set to 1 on hosts that are meant to carry a subscription. Off by default so community hosts do not alert on status notfound.'
         - macro: '{$ZFS.FRAG.UTIL.MIN}'
           value: '70'
           description: 'Pool usage (%) that must be reached before the fragmentation warning fires. Fragmented free space only costs write performance on a pool that is also filling up. Use the context form {$ZFS.FRAG.UTIL.MIN:"rpool"} per pool.'
@@ -4762,733 +4810,685 @@ zabbix_export:
         - macro: '{$ZFS.UTIL.WARN}'
           value: '80'
           description: 'ZFS pool usage (%) for the average severity trigger. ZFS performance degrades noticeably above 80%.'
-        - macro: '{$PVE.BACKUP.JOBS.MIN}'
-          value: '1'
-          description: 'Minimum number of vzdump backup job definitions expected on this cluster. Set to 0 on hosts that are deliberately backed up from somewhere else.'
-        - macro: '{$PVE.BACKUP.JOB.STALE}'
-          value: 2d
-          description: 'How long the next run of an enabled backup job may stay unchanged before the trigger fires. PVE advances the timestamp after every completed run, so the value must stay above the scheduling interval of the job, otherwise the trigger fires between two normal runs. The value must include a time unit, for example 2d or 36h. Context form {$PVE.BACKUP.JOB.STALE:"backup-a5c9d88a-bc0e"} widens it for a single job with a wide schedule.'
-        - macro: '{$PVE.BACKUP.JOB.ALERT}'
-          value: '1'
-          description: 'Disabled backup job trigger. Set to 0 to suppress it everywhere, or use the context form {$PVE.BACKUP.JOB.ALERT:"backup-a5c9d88a-bc0e"}=0 to silence one job that is switched off on purpose.'
-        - macro: '{$PVE.BACKUP.RUN.MAX}'
-          value: 3h
-          description: 'How long a backup may run before it is treated as stuck. The value must include a time unit, for example 3h or 90m, and must stay above the normal runtime of the longest job, otherwise the trigger fires during every regular run.'
       dashboards:
-      - uuid: a6999e1b8414408ab403f86cba2b272b
-        name: Proxmox VE - Monitoring Dashboard
-        auto_start: 'NO'
-        pages:
-        - name: Overview
-          widgets:
-          - type: item
-            name: Cluster
-            x: '0'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.name
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Quorum
-            x: '12'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.quorum
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Nodes online
-            x: '24'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.nodes.online
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Guests running
-            x: '36'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.vms.running
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Guests total
-            x: '48'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.vms.total
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Uptime
-            x: '60'
-            y: '0'
-            width: '12'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.uptime
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: gauge
-            name: CPU utilization
-            x: '0'
-            y: '2'
-            width: '24'
-            height: '5'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cpu.utilization
-            - type: STRING
-              name: units
-              value: '%'
-            - type: INTEGER
-              name: min
-              value: '0'
-            - type: INTEGER
-              name: max
-              value: '100'
-            - type: STRING
-              name: thresholds.0.color
-              value: FFBF59
-            - type: STRING
-              name: thresholds.0.threshold
-              value: '80'
-            - type: STRING
-              name: thresholds.1.color
-              value: E45959
-            - type: STRING
-              name: thresholds.1.threshold
-              value: '90'
-          - type: gauge
-            name: Memory utilization
-            x: '24'
-            y: '2'
-            width: '24'
-            height: '5'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.memory.util
-            - type: STRING
-              name: units
-              value: '%'
-            - type: INTEGER
-              name: min
-              value: '0'
-            - type: INTEGER
-              name: max
-              value: '100'
-            - type: STRING
-              name: thresholds.0.color
-              value: FFBF59
-            - type: STRING
-              name: thresholds.0.threshold
-              value: '80'
-            - type: STRING
-              name: thresholds.1.color
-              value: E45959
-            - type: STRING
-              name: thresholds.1.threshold
-              value: '90'
-          - type: gauge
-            name: Root filesystem
-            x: '48'
-            y: '2'
-            width: '24'
-            height: '5'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.rootfs.util
-            - type: STRING
-              name: units
-              value: '%'
-            - type: INTEGER
-              name: min
-              value: '0'
-            - type: INTEGER
-              name: max
-              value: '100'
-            - type: STRING
-              name: thresholds.0.color
-              value: FFBF59
-            - type: STRING
-              name: thresholds.0.threshold
-              value: '80'
-            - type: STRING
-              name: thresholds.1.color
-              value: E45959
-            - type: STRING
-              name: thresholds.1.threshold
-              value: '90'
-          - type: svggraph
-            name: CPU utilization
-            x: '0'
-            y: '7'
-            width: '36'
-            height: '6'
-            fields:
-            - type: STRING
-              name: ds.0.color
-              value: 1976D2
-            - type: STRING
-              name: ds.0.items.0
-              value: PVE CPU utilization
-            - type: INTEGER
-              name: ds.0.type
-              value: '0'
-            - type: STRING
-              name: reference
-              value: PVOV1
-          - type: piechart
-            name: Memory
-            x: '36'
-            y: '7'
-            width: '18'
-            height: '6'
-            fields:
-            - type: STRING
-              name: ds.0.items.0
-              value: PVE memory used
-            - type: STRING
-              name: ds.0.color
-              value: E45959
-            - type: STRING
-              name: ds.1.items.0
-              value: PVE memory available
-            - type: STRING
-              name: ds.1.color
-              value: 00C48C
-          - type: piechart
-            name: Root filesystem
-            x: '54'
-            y: '7'
-            width: '18'
-            height: '6'
-            fields:
-            - type: STRING
-              name: ds.0.items.0
-              value: Disk rootfs used
-            - type: STRING
-              name: ds.0.color
-              value: E45959
-            - type: STRING
-              name: ds.1.items.0
-              value: Disk rootfs avail
-            - type: STRING
-              name: ds.1.color
-              value: 00C48C
-          - type: problems
-            name: Problems
-            x: '0'
-            y: '13'
-            width: '72'
-            height: '8'
-            fields: []
-        - name: Virtual machines
-          widgets:
-          - type: itemnavigator
-            name: Browse by guest
-            x: '0'
-            y: '0'
-            width: '18'
-            height: '14'
-            fields:
-            - type: STRING
-              name: items.0
-              value: '*'
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '4'
-            - type: STRING
-              name: item_tags.0.tag
-              value: QEMU/KVM-VMs
-            - type: INTEGER
-              name: group_by.0.attribute
-              value: '3'
-            - type: STRING
-              name: group_by.0.tag_name
-              value: vmid
-            - type: INTEGER
-              name: show_lines
-              value: '100'
-            - type: STRING
-              name: reference
-              value: PVVM1
-            - type: STRING
-              name: item_tags.0.value
-              value: ''
-          - type: honeycomb
-            name: VM status
-            x: '18'
-            y: '0'
-            width: '54'
-            height: '6'
-            fields:
-            - type: STRING
-              name: items.0
-              value: VM status *
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: QEMU/KVM-VMs
-            - type: STRING
-              name: item_tags.0.value
-              value: Status
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVVM2
-          - type: item
-            name: Selected item
-            x: '18'
-            y: '6'
-            width: '18'
-            height: '4'
-            fields:
-            - type: STRING
-              name: itemid._reference
-              value: PVVM1._itemid
-            - type: INTEGER
-              name: show.1
-              value: '1'
-            - type: INTEGER
-              name: show.2
-              value: '2'
-            - type: INTEGER
-              name: show.3
-              value: '3'
-          - type: graph
-            name: History of selected item
-            x: '36'
-            y: '6'
-            width: '36'
-            height: '8'
-            fields:
-            - type: STRING
-              name: itemid._reference
-              value: PVVM1._itemid
-            - type: INTEGER
-              name: source_type
-              value: '1'
-        - name: LXC containers
-          widgets:
-          - type: itemnavigator
-            name: Browse by guest
-            x: '0'
-            y: '0'
-            width: '18'
-            height: '14'
-            fields:
-            - type: STRING
-              name: items.0
-              value: '*'
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '4'
-            - type: STRING
-              name: item_tags.0.tag
-              value: LXC-Container
-            - type: INTEGER
-              name: group_by.0.attribute
-              value: '3'
-            - type: STRING
-              name: group_by.0.tag_name
-              value: vmid
-            - type: INTEGER
-              name: show_lines
-              value: '100'
-            - type: STRING
-              name: reference
-              value: PVLX1
-            - type: STRING
-              name: item_tags.0.value
-              value: ''
-          - type: honeycomb
-            name: Container status
-            x: '18'
-            y: '0'
-            width: '54'
-            height: '6'
-            fields:
-            - type: STRING
-              name: items.0
-              value: LXC status *
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: LXC-Container
-            - type: STRING
-              name: item_tags.0.value
-              value: Status
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVLX2
-          - type: item
-            name: Selected item
-            x: '18'
-            y: '6'
-            width: '18'
-            height: '4'
-            fields:
-            - type: STRING
-              name: itemid._reference
-              value: PVLX1._itemid
-            - type: INTEGER
-              name: show.1
-              value: '1'
-            - type: INTEGER
-              name: show.2
-              value: '2'
-            - type: INTEGER
-              name: show.3
-              value: '3'
-          - type: graph
-            name: History of selected item
-            x: '36'
-            y: '6'
-            width: '36'
-            height: '8'
-            fields:
-            - type: STRING
-              name: itemid._reference
-              value: PVLX1._itemid
-            - type: INTEGER
-              name: source_type
-              value: '1'
-        - name: Storage and disks
-          widgets:
-          - type: honeycomb
-            name: Storage utilization
-            x: '0'
-            y: '0'
-            width: '24'
-            height: '7'
-            fields:
-            - type: STRING
-              name: items.0
-              value: Storage utilization *
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: STRING
-              name: item_tags.0.value
-              value: Storage
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVST1
-          - type: honeycomb
-            name: Disk health
-            x: '24'
-            y: '0'
-            width: '24'
-            height: '7'
-            fields:
-            - type: STRING
-              name: items.0
-              value: Disk * health
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: STRING
-              name: item_tags.0.value
-              value: Disk
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVST2
-          - type: honeycomb
-            name: Disk temperature
-            x: '48'
-            y: '0'
-            width: '24'
-            height: '7'
-            fields:
-            - type: STRING
-              name: items.0
-              value: Disk * temperature
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: STRING
-              name: item_tags.0.value
-              value: Disk
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVST4
-            - type: STRING
-              name: thresholds.0.color
-              value: FFBF59
-            - type: STRING
-              name: thresholds.0.threshold
-              value: '50'
-            - type: STRING
-              name: thresholds.1.color
-              value: E45959
-            - type: STRING
-              name: thresholds.1.threshold
-              value: '60'
-          - type: itemnavigator
-            name: Browse all host items
-            x: '0'
-            y: '7'
-            width: '18'
-            height: '8'
-            fields:
-            - type: STRING
-              name: items.0
-              value: '*'
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '4'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: INTEGER
-              name: group_by.0.attribute
-              value: '3'
-            - type: STRING
-              name: group_by.0.tag_name
-              value: PVE
-            - type: INTEGER
-              name: show_lines
-              value: '100'
-            - type: STRING
-              name: reference
-              value: PVST3
-            - type: STRING
-              name: item_tags.0.value
-              value: ''
-          - type: graph
-            name: History of selected item
-            x: '18'
-            y: '7'
-            width: '54'
-            height: '8'
-            fields:
-            - type: STRING
-              name: itemid._reference
-              value: PVST3._itemid
-            - type: INTEGER
-              name: source_type
-              value: '1'
-        - name: Nodes and HA
-          widgets:
-          - type: honeycomb
-            name: Node status
-            x: '0'
-            y: '0'
-            width: '36'
-            height: '6'
-            fields:
-            - type: STRING
-              name: items.0
-              value: Node status *
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: STRING
-              name: item_tags.0.value
-              value: Node
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVND1
-          - type: honeycomb
-            name: HA resource states
-            x: '36'
-            y: '0'
-            width: '36'
-            height: '6'
-            fields:
-            - type: STRING
-              name: items.0
-              value: HA state of *
-            - type: INTEGER
-              name: item_tags.0.operator
-              value: '1'
-            - type: STRING
-              name: item_tags.0.tag
-              value: PVE
-            - type: STRING
-              name: item_tags.0.value
-              value: HA
-            - type: STRING
-              name: primary_label
-              value: '{ITEM.NAME}'
-            - type: STRING
-              name: reference
-              value: PVND2
-          - type: item
-            name: HA manager
-            x: '0'
-            y: '6'
-            width: '18'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.ha.manager.status
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Nodes offline
-            x: '18'
-            y: '6'
-            width: '18'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.cluster.nodes.offline
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Kernel
-            x: '36'
-            y: '6'
-            width: '18'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.current.kernel
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
-          - type: item
-            name: Boot mode
-            x: '54'
-            y: '6'
-            width: '18'
-            height: '2'
-            fields:
-            - type: ITEM
-              name: itemid.0
-              value:
-                host: Template Proxmox VE REST API
-                key: pve.system.boot.mode
-            - type: INTEGER
-              name: show.1
-              value: '2'
-            - type: INTEGER
-              name: show.2
-              value: '3'
+        - uuid: a6999e1b8414408ab403f86cba2b272b
+          name: 'Proxmox VE - Monitoring Dashboard'
+          auto_start: 'NO'
+          pages:
+            - name: Overview
+              widgets:
+                - type: item
+                  name: Cluster
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.name
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: gauge
+                  name: 'CPU utilization'
+                  'y': '2'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cpu.utilization
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFBF59
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E45959
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                - type: svggraph
+                  name: 'CPU utilization'
+                  'y': '7'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 1976D2
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'PVE CPU utilization'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: PVOV1
+                - type: problems
+                  name: Problems
+                  'y': '13'
+                  width: '72'
+                  height: '8'
+                - type: item
+                  name: Quorum
+                  x: '12'
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.quorum
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: 'Nodes online'
+                  x: '24'
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.online
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: gauge
+                  name: 'Memory utilization'
+                  x: '24'
+                  'y': '2'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.memory.util
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFBF59
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E45959
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                - type: item
+                  name: 'Guests running'
+                  x: '36'
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.running
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: piechart
+                  name: Memory
+                  x: '36'
+                  'y': '7'
+                  width: '18'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E45959
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'PVE memory used'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 00C48C
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'PVE memory available'
+                - type: item
+                  name: 'Guests total'
+                  x: '48'
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.vms.total
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: gauge
+                  name: 'Root filesystem'
+                  x: '48'
+                  'y': '2'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.rootfs.util
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFBF59
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '80'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E45959
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '90'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                - type: piechart
+                  name: 'Root filesystem'
+                  x: '54'
+                  'y': '7'
+                  width: '18'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E45959
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Disk rootfs used'
+                    - type: STRING
+                      name: ds.1.color
+                      value: 00C48C
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Disk rootfs avail'
+                - type: item
+                  name: Uptime
+                  x: '60'
+                  width: '12'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.uptime
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+            - name: 'Virtual machines'
+              widgets:
+                - type: itemnavigator
+                  name: 'Browse by guest'
+                  width: '18'
+                  height: '14'
+                  fields:
+                    - type: INTEGER
+                      name: group_by.0.attribute
+                      value: '3'
+                    - type: STRING
+                      name: group_by.0.tag_name
+                      value: vmid
+                    - type: STRING
+                      name: items.0
+                      value: '*'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '4'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: QEMU/KVM-VMs
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: ''
+                    - type: STRING
+                      name: reference
+                      value: PVVM1
+                    - type: INTEGER
+                      name: show_lines
+                      value: '100'
+                - type: honeycomb
+                  name: 'VM status'
+                  x: '18'
+                  width: '54'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'VM status *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: QEMU/KVM-VMs
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Status
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVVM2
+                - type: item
+                  name: 'Selected item'
+                  x: '18'
+                  'y': '6'
+                  width: '18'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVVM1._itemid
+                    - type: INTEGER
+                      name: show.1
+                      value: '1'
+                    - type: INTEGER
+                      name: show.2
+                      value: '2'
+                    - type: INTEGER
+                      name: show.3
+                      value: '3'
+                - type: graph
+                  name: 'History of selected item'
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVVM1._itemid
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+            - name: 'LXC containers'
+              widgets:
+                - type: itemnavigator
+                  name: 'Browse by guest'
+                  width: '18'
+                  height: '14'
+                  fields:
+                    - type: INTEGER
+                      name: group_by.0.attribute
+                      value: '3'
+                    - type: STRING
+                      name: group_by.0.tag_name
+                      value: vmid
+                    - type: STRING
+                      name: items.0
+                      value: '*'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '4'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: LXC-Container
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: ''
+                    - type: STRING
+                      name: reference
+                      value: PVLX1
+                    - type: INTEGER
+                      name: show_lines
+                      value: '100'
+                - type: honeycomb
+                  name: 'Container status'
+                  x: '18'
+                  width: '54'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'LXC status *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: LXC-Container
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Status
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVLX2
+                - type: item
+                  name: 'Selected item'
+                  x: '18'
+                  'y': '6'
+                  width: '18'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVLX1._itemid
+                    - type: INTEGER
+                      name: show.1
+                      value: '1'
+                    - type: INTEGER
+                      name: show.2
+                      value: '2'
+                    - type: INTEGER
+                      name: show.3
+                      value: '3'
+                - type: graph
+                  name: 'History of selected item'
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVLX1._itemid
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+            - name: 'Storage and disks'
+              widgets:
+                - type: honeycomb
+                  name: 'Storage utilization'
+                  width: '24'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Storage utilization *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Storage
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVST1
+                - type: itemnavigator
+                  name: 'Browse all host items'
+                  'y': '7'
+                  width: '18'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: group_by.0.attribute
+                      value: '3'
+                    - type: STRING
+                      name: group_by.0.tag_name
+                      value: PVE
+                    - type: STRING
+                      name: items.0
+                      value: '*'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '4'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: ''
+                    - type: STRING
+                      name: reference
+                      value: PVST3
+                    - type: INTEGER
+                      name: show_lines
+                      value: '100'
+                - type: graph
+                  name: 'History of selected item'
+                  x: '18'
+                  'y': '7'
+                  width: '54'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVST3._itemid
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
+                - type: honeycomb
+                  name: 'Disk health'
+                  x: '24'
+                  width: '24'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Disk * health'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Disk
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVST2
+                - type: honeycomb
+                  name: 'Disk temperature'
+                  x: '48'
+                  width: '24'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Disk * temperature'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Disk
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVST4
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFBF59
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '50'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E45959
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '60'
+            - name: 'Nodes and HA'
+              widgets:
+                - type: honeycomb
+                  name: 'Node status'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Node status *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Node
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVND1
+                - type: item
+                  name: 'HA manager'
+                  'y': '6'
+                  width: '18'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.ha.manager.status
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: 'Nodes offline'
+                  x: '18'
+                  'y': '6'
+                  width: '18'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.cluster.nodes.offline
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: honeycomb
+                  name: 'HA resource states'
+                  x: '36'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'HA state of *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: HA
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVND2
+                - type: item
+                  name: Kernel
+                  x: '36'
+                  'y': '6'
+                  width: '18'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.current.kernel
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
+                - type: item
+                  name: 'Boot mode'
+                  x: '54'
+                  'y': '6'
+                  width: '18'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template Proxmox VE REST API'
+                        key: pve.system.boot.mode
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '3'
       valuemaps:
         - uuid: 4f48a8938054422b8cf484adaec102ee
           name: 'Backup job enabled'
@@ -5625,15 +5625,6 @@ zabbix_export:
       name: 'High CPU average'
       opdata: 'Current cpu average: {ITEM.LASTVALUE1}'
       priority: WARNING
-    - uuid: e63733b354ef41c4aa800990b8f2ae73
-      expression: |
-        last(/Template Proxmox VE REST API/pve.swap.total)>0
-        and last(/Template Proxmox VE REST API/pve.swap.used) / last(/Template Proxmox VE REST API/pve.swap.total) * 100 > {$SWAP.UTIL.MAX}
-      name: 'High swap usage on {HOST.NAME} (>{$SWAP.UTIL.MAX}%)'
-      opdata: 'Swap used: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
-      priority: WARNING
-      description: 'Swap on the PVE host is filling up. The first condition keeps the trigger silent on hosts without swap instead of turning it unsupported.'
-      manual_close: 'YES'
     - uuid: d7b8381cedda4cd0bcb28053cd731ddf
       expression: '(last(/Template Proxmox VE REST API/pve.memory.used) / last(/Template Proxmox VE REST API/pve.memory.total)) * 100 > {$MEMORY.UTIL.MAX}'
       name: 'High memory usage on {HOST.NAME} (>{$MEMORY.UTIL.MAX}%)'
@@ -5652,75 +5643,20 @@ zabbix_export:
       dependencies:
         - name: 'High root filesystem usage on {HOST.NAME} (>{$ROOTFS.UTIL.CRIT}%)'
           expression: '((last(/Template Proxmox VE REST API/pve.rootfs.used) / last(/Template Proxmox VE REST API/pve.rootfs.size)) * 100) > {$ROOTFS.UTIL.CRIT}'
+    - uuid: e63733b354ef41c4aa800990b8f2ae73
+      expression: |
+        last(/Template Proxmox VE REST API/pve.swap.total)>0
+        and last(/Template Proxmox VE REST API/pve.swap.used) / last(/Template Proxmox VE REST API/pve.swap.total) * 100 > {$SWAP.UTIL.MAX}
+      name: 'High swap usage on {HOST.NAME} (>{$SWAP.UTIL.MAX}%)'
+      opdata: 'Swap used: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+      priority: WARNING
+      description: 'Swap on the PVE host is filling up. The first condition keeps the trigger silent on hosts without swap instead of turning it unsupported.'
+      manual_close: 'YES'
     - uuid: 429391e580264ef398145055ff85100a
       expression: 'last(/Template Proxmox VE REST API/pve.cluster.vms.running)<last(/Template Proxmox VE REST API/pve.cluster.vms.total)'
       name: '{ITEM.LASTVALUE} of {?last(//pve.cluster.vms.total)} VMs/LXC running'
       priority: INFO
       description: 'One or more VMs or LXC containers are not in running state.'
-      manual_close: 'YES'
-    - uuid: f93aea89718e469ea4c5468ca601fbed
-      expression: 'last(/Template Proxmox VE REST API/pve.notbackedup.count)>{$PVE.NOTBACKEDUP.MAX}'
-      name: '{ITEM.LASTVALUE} guest(s) not covered by any backup job'
-      opdata: 'Guests without backup: {ITEM.LASTVALUE1}'
-      priority: WARNING
-      description: 'PVE reports guests that no backup job includes. This catches the classic case of a VM created after the backup job was defined.'
-      manual_close: 'YES'
-    - uuid: 6cd0c610281c42a3b32c3b1a18f204f7
-      expression: 'last(/Template Proxmox VE REST API/pve.apt.repos.errors)>{$PVE.APT.REPO.ERRORS.MAX}'
-      name: 'APT repository files are broken on {HOST.NAME}'
-      opdata: 'Broken files: {ITEM.LASTVALUE1}'
-      priority: WARNING
-      description: 'At least one APT repository file cannot be parsed. Updates will fail until this is fixed.'
-    - uuid: 5fe993f6929a4e05ab7bca6e61c8b631
-      expression: 'last(/Template Proxmox VE REST API/pve.apt.repos.warnings)>{$PVE.APT.REPO.WARN.MAX}'
-      name: 'APT repository configuration has warnings on {HOST.NAME}'
-      opdata: 'Warnings: {ITEM.LASTVALUE1}'
-      priority: INFO
-      description: 'PVE reports a problem with the repository configuration, for example the enterprise repository being enabled without a subscription. A host on the no-subscription repository reports one warning permanently, raise {$PVE.APT.REPO.WARN.MAX} to 1 there.'
-      manual_close: 'YES'
-    - uuid: 516ffe6de3804b97aa29d41e333deba3
-      expression: 'last(/Template Proxmox VE REST API/pve.apt.updates.count)>{$PVE.APT.UPDATES.MAX}'
-      name: '{ITEM.LASTVALUE} package update(s) pending on {HOST.NAME}'
-      priority: INFO
-      status: DISABLED
-      description: 'Disabled by default, like the item it depends on. The master item needs Sys.Modify, which PVEAuditor does not grant.'
-      manual_close: 'YES'
-    - uuid: 7350199fa4884df6bf61d5797c37cf4a
-      expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
-      name: 'PVE subscription has expired on {HOST.NAME}'
-      opdata: 'Expired on: {ITEM.LASTVALUE1}'
-      priority: AVERAGE
-      description: 'The subscription period has ended. Access to the enterprise repository is gone, updates from it will fail. Needs no enable macro: without a subscription PVE does not report a due date, so the item stays empty and this trigger cannot fire on community hosts.'
-    - uuid: 3e3366874a4d4191a88632af4344bcce
-      expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)-now()<{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
-      name: 'PVE subscription expires in less than {$PVE.SUBSCRIPTION.EXPIRE.DAYS} on {HOST.NAME}'
-      opdata: 'Expires on: {ITEM.LASTVALUE1}'
-      priority: WARNING
-      description: 'Advance warning before the subscription runs out, so it can be renewed in time. Depends on the expired trigger, so only one of the two is open at a time.'
-      dependencies:
-        - name: 'PVE subscription has expired on {HOST.NAME}'
-          expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
-    - uuid: 57b2f7fad21f4672874712a66208931a
-      expression: 'last(/Template Proxmox VE REST API/pve.subscription.status)<>"active" and {$PVE.SUBSCRIPTION.ALERT}=1'
-      name: 'PVE subscription is not active on {HOST.NAME} ({ITEM.LASTVALUE})'
-      priority: WARNING
-      description: 'Status is notfound, invalid, expired or suspended. Off by default, set {$PVE.SUBSCRIPTION.ALERT}=1 on hosts that are meant to carry a subscription. Depends on the expired trigger so a lapsed subscription raises one problem, not two.'
-      dependencies:
-        - name: 'PVE subscription has expired on {HOST.NAME}'
-          expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
-    - uuid: 27abcc86c4424e11b36b25b92f9fdf0b
-      expression: 'last(/Template Proxmox VE REST API/pve.backup.jobs.count)<{$PVE.BACKUP.JOBS.MIN}'
-      name: 'Fewer backup jobs configured than expected on {HOST.NAME}'
-      opdata: 'Configured jobs: {ITEM.LASTVALUE1}'
-      priority: WARNING
-      description: 'Fewer vzdump backup job definitions exist than {$PVE.BACKUP.JOBS.MIN} expects. With no job at all nothing is backed up, and since no run is attempted there is no failed task to alert on either. Discovery of the individual jobs stops in the same moment, so the per job triggers go away instead of firing.'
-      manual_close: 'YES'
-    - uuid: c94e008565344aca9077f48fdc06c951
-      expression: 'min(/Template Proxmox VE REST API/pve.backup.running,{$PVE.BACKUP.RUN.MAX})>0'
-      name: 'Backup has been running for more than {$PVE.BACKUP.RUN.MAX} on {HOST.NAME}'
-      opdata: 'Running since: {ITEM.LASTVALUE1}'
-      priority: AVERAGE
-      description: 'A backup task has been running without interruption for the whole period. This is the one backup failure the task archive cannot show: a run that never finishes never reaches the archive, so the status, end time and message items keep reporting the previous successful run and nothing else would ever fire. Check the running task in the PVE task viewer and the target storage.'
       manual_close: 'YES'
   graphs:
     - uuid: bbdef5c2775146b4ad30ac91ad877624
