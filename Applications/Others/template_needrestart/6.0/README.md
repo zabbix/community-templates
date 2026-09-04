@@ -21,7 +21,7 @@ apt install needrestart
 
 
 ```
-UserParameter=needrestart.kernel,sudo needrestart -b -r l -k | grep 'NEEDRESTART-KSTA:' | grep -Eo '[0-9]'  
+UserParameter=needrestart.kernel,sudo needrestart -b -r l -k | awk '/NEEDRESTART-KSTA:/ {found=1; print (NF >= 2 ? $2 : "0")} END {if (!found) print "0"}'
 UserParameter=needrestart.libs,sudo needrestart -b -r l -l | grep NEEDRESTART-SVC | wc -l
 ```
 
