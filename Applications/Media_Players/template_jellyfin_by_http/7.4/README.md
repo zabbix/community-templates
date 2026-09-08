@@ -137,6 +137,8 @@ The storage endpoint is handled defensively. If the Jellyfin version does not pr
 - Plugins requiring restart
 - Plugin discovery with status, version and uninstall flag
 
+Jellyfin can return several installed versions or pending-restart entries with the same plugin ID. Discovery creates one set of items per ID and uses the first API entry, matching the status/version lookups and preserving existing item keys. The aggregate plugin counters still evaluate all API entries, including entries requiring a restart.
+
 ### Scheduled tasks
 
 - Scheduled task count
@@ -226,3 +228,16 @@ The storage endpoint is handled defensively. If the Jellyfin version does not pr
 
 - Jellyfin OpenAPI stable specification: <https://repo.jellyfin.org/releases/openapi/jellyfin-openapi-stable.json>
 - Jellyfin OpenAPI archive: <https://repo.jellyfin.org/releases/openapi/>
+- Jellyfin authentication format: <https://gist.github.com/nielsvanvelzen/ea047d9028f676185832e51ffaf12a6f>
+
+## Validation
+
+Validated on 2026-09-08 using an isolated Zabbix 7.4.13 instance querying a live Jellyfin 12.0.0 server. The previous template reproduced HTTP 401 on all nine master items. Importing the update preserved the existing item IDs. After the update, all nine master items, 319 dependent items (including 263 discovered items), and all four discovery rules completed without unsupported-item or discovery errors. API availability reported `1` and the version item reported `12.0.0`.
+
+The three plugin-discovery regression tests cover duplicate versions sharing an ID, fallback names that coincide with JavaScript object properties, and an empty plugin list. Run them from this directory with Python 3, PyYAML and Node.js installed:
+
+```sh
+python files/test_plugin_discovery.py
+```
+
+Import into the production Zabbix 7.4.14 server and runtime compatibility with older Jellyfin versions were not tested in this validation.
