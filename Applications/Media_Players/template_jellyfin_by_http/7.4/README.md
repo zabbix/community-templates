@@ -59,7 +59,15 @@ That corresponds to:
 
 ## Creating the API key
 
-In Jellyfin, go to **Dashboard -> Advanced -> API Keys** and create a key for Zabbix. The template sends it in the `X-MediaBrowser-Token` header.
+In Jellyfin, go to **Dashboard -> Advanced -> API Keys** and create a key for Zabbix. The template sends it as `Authorization: MediaBrowser Token="<API key>"`.
+
+## Upgrading to Jellyfin 12
+
+Jellyfin 12 disables legacy authentication by default. Older revisions of this template use `X-MediaBrowser-Token`, causing all nine master items to fail with HTTP 401. Import the updated template with **Update existing** enabled for templates and items, and retain the host's existing secret `{$JELLYFIN.API.TOKEN}` macro. The updated template uses the supported authorization header for every endpoint; enabling legacy authentication in Jellyfin is unnecessary.
+
+The activity log request also uses `sortBy=DateCreated&sortOrder=Descending`. Jellyfin 12 validates this parameter and rejects the older `sortBy=Date` with HTTP 400.
+
+After importing, execute the nine script master items on the linked host or wait for their polling intervals (up to 15 minutes with the defaults). Verify that the master items become supported, dependent items receive new values, and all four discovery rules complete without errors. `Jellyfin: API available` should report `1`, and the API-unavailable problem should recover once the trigger is evaluated with fresh data.
 
 ## Monitored API areas
 
