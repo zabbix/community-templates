@@ -42,7 +42,7 @@ context macros reserved for forward-compatible extensions. This baseline does
 not reference them in item or trigger expressions.
 
 The exported HTTP items have TLS peer and host verification disabled to support
-appliance certificates in labs. Install the issuing CA on the Zabbix server or
+appliance certificates in non-production environments. Install the issuing CA on the Zabbix server or
 proxy and enable both checks before production use.
 
 ## Metrics and alerts
