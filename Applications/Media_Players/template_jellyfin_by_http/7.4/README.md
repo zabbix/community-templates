@@ -240,4 +240,6 @@ The three plugin-discovery regression tests cover duplicate versions sharing an 
 python files/test_plugin_discovery.py
 ```
 
-Import into the production Zabbix 7.4.14 server and runtime compatibility with older Jellyfin versions were not tested in this validation.
+The update was subsequently imported into production Zabbix 7.4.14 on the same date. All 325 existing item IDs and host macro records were preserved. Discovery added nine items; all 334 items became supported, all 325 dependent items received new values, and all four discovery rules completed without errors. The existing API-unavailable problem recovered automatically. The existing template group was reused without enabling template-group creation in the import rules.
+
+Runtime compatibility with older Jellyfin versions was not tested.
