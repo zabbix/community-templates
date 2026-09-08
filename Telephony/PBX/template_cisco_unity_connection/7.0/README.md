@@ -1,11 +1,19 @@
 # Cisco Unity Connection 15 by API
 
+## Release 7.0-5 — 2026-09-07
+
+Parse certificate notAfter from ASN.1 Validity and reject non-finite/null CPU samples without reporting collection success.
+
+No new requests, polling changes, item keys or trigger thresholds.
+
+Zabbix 7.0.29 import, stored version, semantic re-export and isolated stored-script runtime checks passed during the September 7–8 acceptance run. A controlled service test encountered a Stop timeout and unsupported transition states; the service was restored, but the required outage/alarm/recovery test did not pass. This update is not a production-release approval.
+
 ## Overview
 
 Monitors Cisco Unity Connection 15 through read-only VMREST/CUPI, Cisco
 Serviceability PerfMon, ControlCenter SOAP, and Cisco VOS Certificate
 Management APIs. The template is exported for Zabbix 7.0 and stores its
-template release as `vendor.name: Zabbix` and `vendor.version: 7.0-4`.
+template release as `vendor.name: Zabbix` and `vendor.version: 7.0-5`.
 
 Maintainer: DevYves89
 

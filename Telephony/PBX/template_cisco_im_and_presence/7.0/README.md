@@ -1,11 +1,19 @@
 # Cisco IM and Presence 15 by API
 
+## Release 7.0-4 — 2026-09-07
+
+Parse certificate notAfter from ASN.1 Validity; reject missing service states rather than borrowing another record; use the canonical YAML for all deployment helpers to preserve CStatus validation.
+
+No new requests, polling changes, item keys or trigger thresholds.
+
+Zabbix 7.0.29 import, stored version, semantic re-export, isolated stored-script checks and the actual shared CUP import path passed during the September 7–8 acceptance run. Overall acceptance failed: swap utilization remains unsupported despite valid source counters on two tested nodes; the controlled service outage remains untested. This update is not a production-release approval.
+
 ## Overview
 
 Monitors Cisco Unified Presence (CUP), now named Cisco IM and Presence Service
 (IM&P), through read-only Cisco Serviceability PerfMon and ControlCenter SOAP.
 The self-contained template is exported for Zabbix 7.0 and stores its release
-as `vendor.name: Zabbix` and `vendor.version: 7.0-3`.
+as `vendor.name: Zabbix` and `vendor.version: 7.0-4`.
 
 Maintainer: DevYves89
 

@@ -1,11 +1,19 @@
 # Cisco Unified Communications Manager 15 by API
 
+## Release 7.0-10 — 2026-09-07
+
+Fixed exact ControlCenter service identity and record boundaries for state, reason and uptime; parse certificate notAfter from ASN.1 Validity; reject non-finite/null CPU samples without reporting collection success.
+
+No new requests, polling changes, item keys or trigger thresholds.
+
+Zabbix 7.0.29 import, stored version, semantic re-export and isolated stored-script runtime checks passed during the September 7–8 acceptance run. Overall acceptance is not complete: Subscriber identity/failover verification, legacy SIP-discovery reconciliation and dashboard readability remain open. This update is not a production-release approval.
+
 ## Overview
 
 Monitors Cisco Unified Communications Manager 15 through read-only AXL,
 RISPort70, PerfMon, ControlCenter SOAP, and Cisco VOS Certificate Management
 APIs. The template is exported for Zabbix 7.0 and stores its template release
-as `vendor.name: Zabbix` and `vendor.version: 7.0-9`.
+as `vendor.name: Zabbix` and `vendor.version: 7.0-10`.
 
 Maintainer: DevYves89
 
