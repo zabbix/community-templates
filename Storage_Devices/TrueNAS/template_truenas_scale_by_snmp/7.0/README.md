@@ -85,7 +85,7 @@ The community repository also contains `TrueNAS by WebSocket API` for Zabbix
 7.4 deployments; it is not an in-place replacement for this Zabbix 7.0 SNMP
 template.
 
-## Source and license
+## Source
 
 Upstream project:
 <https://github.com/tr1plus/zabbix_truenas_SCALE_snmp>
@@ -94,9 +94,6 @@ Vendored from upstream commit
 `5722edab3e2f7337817faee869569f6d257119bd` dated 2026-06-09. The dashboard
 widget order and one graph sort order were normalized so repeated Zabbix 7.0
 imports remain stable; monitored OIDs and item definitions are unchanged.
-
-The template is distributed under GNU GPL v2 or later. See
-`files/LICENSE.upstream`.
 
 ## Author
 
