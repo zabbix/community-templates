@@ -1,0 +1,594 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 77a0c394c1b9463eb4add12bc4d7a405
+      name: Templates/Applications
+  templates:
+    - uuid: 6da2bdddd420497cab2b6447845c35ca
+      template: 'PowerDNS Recursor by HTTP'
+      name: 'PowerDNS Recursor by HTTP'
+      description: |
+        PowerDNS Recursor 5.x monitoring through the built-in HTTP API.
+        The template targets the standard deployment model: one Recursor per
+        monitored host, DNS service on port 53, and the HTTP API on port 8082.
+        One HTTP Agent master item collects all statistics; dependent items
+        extract individual metrics. No helper script, UserParameter, sudoers
+        rule, or rec_control invocation is required.
+      vendor:
+        name: Community
+        version: 2.0.0
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 6c31535aff9c481c8a743f2e1ed65a58
+          name: 'PowerDNS Recursor: DNS TCP service availability'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,{HOST.CONN},{$PDNS.RECURSOR.DNS.PORT}]'
+          description: 'Checks whether the Recursor accepts TCP connections on the standard DNS service port. The default port is 53.'
+          valuemap:
+            name: 'PowerDNS Recursor service state'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 0ba5b0c4958245d2a7a8adbe8efc4221
+              expression: 'max(/PowerDNS Recursor by HTTP/net.tcp.service[tcp,{HOST.CONN},{$PDNS.RECURSOR.DNS.PORT}],3m)=0'
+              name: 'PowerDNS Recursor: DNS TCP service is unavailable'
+              priority: HIGH
+              description: 'The Recursor has not accepted TCP connections on the configured DNS port for three minutes.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 0e574d9805e942fab5b4c34bfa1a5455
+          name: 'PowerDNS Recursor: API statistics'
+          type: HTTP_AGENT
+          key: pdns.recursor.api.statistics
+          history: '0'
+          value_type: TEXT
+          description: 'Raw statistics returned by the PowerDNS Recursor HTTP API. All metric items depend on this single request.'
+          timeout: '{$PDNS.RECURSOR.HTTP.TIMEOUT}'
+          url: '{$PDNS.RECURSOR.API.SCHEME}://{HOST.CONN}:{$PDNS.RECURSOR.API.PORT}/api/v1/servers/localhost/statistics'
+          headers:
+            - name: X-API-Key
+              value: '{$PDNS.RECURSOR.API.KEY}'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 3b5850ec2c954706ad9394d674904894
+              expression: 'nodata(/PowerDNS Recursor by HTTP/pdns.recursor.api.statistics,3m)=1'
+              name: 'PowerDNS Recursor: API statistics are unavailable'
+              priority: HIGH
+              description: 'No Recursor API statistics have been received for three minutes.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: ddb2141d7c304e858af2b5007c88ec68
+          name: 'PowerDNS Recursor: Packet cache hit ratio (5m)'
+          type: CALCULATED
+          key: pdns.recursor.cache.packet.hit.ratio
+          value_type: FLOAT
+          units: '%'
+          params: '100 * avg(//pdns.recursor.rate[packetcache-hits],5m) / (avg(//pdns.recursor.rate[packetcache-hits],5m) + avg(//pdns.recursor.rate[packetcache-misses],5m))'
+          description: 'Five-minute packet-cache hit ratio calculated from hit and miss operation rates.'
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 52fd19bc677d40c0b39f6cfe7f0953c2
+          name: 'PowerDNS Recursor: Record cache hit ratio (5m)'
+          type: CALCULATED
+          key: pdns.recursor.cache.record.hit.ratio
+          value_type: FLOAT
+          units: '%'
+          params: '100 * avg(//pdns.recursor.rate[cache-hits],5m) / (avg(//pdns.recursor.rate[cache-hits],5m) + avg(//pdns.recursor.rate[cache-misses],5m))'
+          description: 'Five-minute record-cache hit ratio calculated from hit and miss operation rates.'
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 78d6b61766584b6d82e7068e6825ee02
+          name: 'PowerDNS Recursor: Outgoing queries per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[all-outqueries]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "all-outqueries")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: 63070c8e3d654574b8fe9ca0809e26ca
+          name: 'PowerDNS Recursor: Record cache hits per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[cache-hits]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "cache-hits")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 20abe66975bb4462ab12a8646d89fe06
+          name: 'PowerDNS Recursor: Record cache misses per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[cache-misses]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "cache-misses")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: babcee62af62400483e9e2955b77830d
+          name: 'PowerDNS Recursor: IPv6 questions per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[ipv6-questions]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "ipv6-questions")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: b0a67a9c45a347b7b41c23801a69837c
+          name: 'PowerDNS Recursor: NXDOMAIN answers per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[nxdomain-answers]'
+          value_type: FLOAT
+          units: rps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "nxdomain-answers")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: answers
+        - uuid: 7f8584a5d266446da22b1f09fe62aa23
+          name: 'PowerDNS Recursor: Outgoing timeouts per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[outgoing-timeouts]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "outgoing-timeouts")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: errors
+        - uuid: bf1cae046ba94daebb39dd8e2c74b94e
+          name: 'PowerDNS Recursor: Over-capacity drops per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[over-capacity-drops]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "over-capacity-drops")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: drops
+          triggers:
+            - uuid: 5944cfbe8fd349a78f2e6540fbc1c337
+              expression: 'min(/PowerDNS Recursor by HTTP/pdns.recursor.rate[over-capacity-drops],5m)>0'
+              name: 'PowerDNS Recursor: Queries are being dropped due to capacity'
+              priority: HIGH
+              description: 'The worker-thread capacity limit has caused drops continuously during the last five minutes.'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: c124dab8fb224fea9c40b4b309fb8b57
+          name: 'PowerDNS Recursor: Packet cache hits per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[packetcache-hits]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "packetcache-hits")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 923d47a03e4b4dc8aaaddb8f73e80aeb
+          name: 'PowerDNS Recursor: Packet cache misses per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[packetcache-misses]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "packetcache-misses")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 7a0bce4578ea4bee8552852293f3b892
+          name: 'PowerDNS Recursor: Policy drops per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[policy-drops]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "policy-drops")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: policy
+        - uuid: 42fa3fc004f1450c8f96d8f4c6906535
+          name: 'PowerDNS Recursor: Policy NXDOMAIN results per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[policy-result-nxdomain]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "policy-result-nxdomain")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: policy
+        - uuid: 759567e3d65c43bc819d36ed233d2e01
+          name: 'PowerDNS Recursor: Questions per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[questions]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "questions")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: cde18cec7a45460ab9632e515fc98a83
+          name: 'PowerDNS Recursor: SERVFAIL answers per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[servfail-answers]'
+          value_type: FLOAT
+          units: rps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "servfail-answers")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: errors
+        - uuid: 3eb42142528247cd93952b4066ad8e08
+          name: 'PowerDNS Recursor: TCP questions per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[tcp-questions]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "tcp-questions")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: traffic
+        - uuid: 6b2699f499214c69be1ec9880d4c94b8
+          name: 'PowerDNS Recursor: Too-old drops per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[too-old-drops]'
+          value_type: FLOAT
+          units: qps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "too-old-drops")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: drops
+        - uuid: d812d56a05a742b0b0ed1e017a48f837
+          name: 'PowerDNS Recursor: UDP receive-buffer errors per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[udp-recvbuf-errors]'
+          value_type: FLOAT
+          units: eps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "udp-recvbuf-errors")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: network
+        - uuid: cb7f15b196814a62ab3383e4a062fec1
+          name: 'PowerDNS Recursor: UDP6 receive-buffer errors per second'
+          type: DEPENDENT
+          key: 'pdns.recursor.rate[udp6-recvbuf-errors]'
+          value_type: FLOAT
+          units: eps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "udp6-recvbuf-errors")].value.first()'
+              error_handler: DISCARD_VALUE
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: network
+        - uuid: a7a2b1906b134e719993d44a73c3a457
+          name: 'PowerDNS Recursor: Record cache entries'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[cache-entries]'
+          units: entries
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "cache-entries")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: 30b27a45d9dd429bbb291f88db9e54e6
+          name: 'PowerDNS Recursor: Concurrent queries'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[concurrent-queries]'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "concurrent-queries")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: queries
+        - uuid: 2d89e08d5ee44ca485b5dd39ede3e39f
+          name: 'PowerDNS Recursor: Packet cache entries'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[packetcache-entries]'
+          units: entries
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "packetcache-entries")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: cache
+        - uuid: e1c6754dde934e48ab4c1307000c107f
+          name: 'PowerDNS Recursor: Query-answer latency'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[qa-latency]'
+          units: us
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "qa-latency")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: latency
+        - uuid: 41dd2e03f7784a6b8b4ff60963354d93
+          name: 'PowerDNS Recursor: Real memory usage'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[real-memory-usage]'
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "real-memory-usage")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: memory
+        - uuid: 9bf1955ca6844c0ba3d8d1cd3751c825
+          name: 'PowerDNS Recursor: Security status'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[security-status]'
+          valuemap:
+            name: 'PowerDNS security status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "security-status")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: security
+        - uuid: 80f85172fb9144aa86be9d92f5111a5d
+          name: 'PowerDNS Recursor: Uptime'
+          type: DEPENDENT
+          key: 'pdns.recursor.value[uptime]'
+          units: uptime
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name == "uptime")].value.first()'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: pdns.recursor.api.statistics
+          tags:
+            - tag: component
+              value: system
+      macros:
+        - macro: '{$PDNS.RECURSOR.API.KEY}'
+          type: SECRET_TEXT
+          description: 'PowerDNS Recursor API key. Zabbix stores it as a secret and sends it in the X-API-Key header.'
+        - macro: '{$PDNS.RECURSOR.API.PORT}'
+          value: '8082'
+          description: 'PowerDNS Recursor built-in HTTP API port.'
+        - macro: '{$PDNS.RECURSOR.API.SCHEME}'
+          value: http
+          description: 'Use http or https according to the Recursor webservice configuration.'
+        - macro: '{$PDNS.RECURSOR.DNS.PORT}'
+          value: '53'
+          description: 'DNS service port. The community template uses the standard DNS port by default.'
+        - macro: '{$PDNS.RECURSOR.HTTP.TIMEOUT}'
+          value: 10s
+          description: 'HTTP Agent timeout for the Recursor API request.'
+      valuemaps:
+        - uuid: 34d1b633f12b4c5fbe2d5e754974cf99
+          name: 'PowerDNS Recursor service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 505f7339b515404c9d2386c63b81e23d
+          name: 'PowerDNS security status'
+          mappings:
+            - value: '0'
+              newvalue: 'Resolution failure'
+            - value: '1'
+              newvalue: OK
+            - value: '2'
+              newvalue: 'Upgrade recommended'
+            - value: '3'
+              newvalue: 'Upgrade mandatory'
+  graphs:
+    - uuid: 73d66bfbd15a48e0a7cb32b5443ea7e1
+      name: 'PowerDNS Recursor: Cache hit ratios'
+      graph_items:
+        - color: 1A7C11
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: pdns.recursor.cache.record.hit.ratio
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: pdns.recursor.cache.packet.hit.ratio
+    - uuid: f9ce6bb8babd4a1e8fe4077a1d123559
+      name: 'PowerDNS Recursor: Cache operation rates'
+      graph_items:
+        - color: 2E7D32
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[cache-hits]'
+        - sortorder: '1'
+          color: F9A825
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[cache-misses]'
+        - sortorder: '2'
+          color: 1565C0
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[packetcache-hits]'
+        - sortorder: '3'
+          color: C62828
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[packetcache-misses]'
+    - uuid: f1d648a07cbd48f791378da90b729980
+      name: 'PowerDNS Recursor: Error and drop rates'
+      graph_items:
+        - color: C62828
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[servfail-answers]'
+        - sortorder: '1'
+          color: EF6C00
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[outgoing-timeouts]'
+        - sortorder: '2'
+          color: 6A1B9A
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[over-capacity-drops]'
+        - sortorder: '3'
+          color: 1565C0
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[too-old-drops]'
+    - uuid: 660a4451a6844a0ab6c5b778e72572d8
+      name: 'PowerDNS Recursor: Query rates'
+      graph_items:
+        - color: 1A7C11
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[questions]'
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'PowerDNS Recursor by HTTP'
+            key: 'pdns.recursor.rate[all-outqueries]'
