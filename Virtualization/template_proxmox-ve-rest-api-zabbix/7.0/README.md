@@ -50,11 +50,9 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
    - **Datacenter → Permissions → Add → API Token Permission**
    - Path: `/` · Token: `zabbix@pam!Zabbix` · Role: `PVEAuditor` · Propagate: ✓ → **Add**
 
-`PVEAuditor` also covers the Ceph endpoints.
+> **Permissions:** `PVEAuditor` covers every item enabled by default, Ceph included. Disks and ZFS need `Sys.Audit` on path `/`, not on `/nodes/{node}`. An item without permission turns unsupported (HTTP 403); check that the role is set on `/` with **Propagate** enabled.
 
-> **Note for pending updates:** `/nodes/{node}/apt/update` is the only endpoint in this template that requires `Sys.Modify` rather than `Sys.Audit`, so `PVEAuditor` cannot read it. The corresponding master item `pve.apt.update.raw` and its dependent item are therefore **disabled by default**. Enable them only if you accept granting the monitoring token write level permissions. The repository state is monitored through `/nodes/{node}/apt/repositories` instead, which only needs `Sys.Audit`.
-
-> **Note for disk monitoring:** `/nodes/{node}/disks/list` requires the `Sys.Audit` privilege. `PVEAuditor` includes this privilege. If disk items show "not supported", verify that the role is applied with **Propagate** enabled and that the token has the correct path `/`.
+> **Pending updates:** `/nodes/{node}/apt/update` needs `Sys.Modify`, which `PVEAuditor` does not have. The item `pve.apt.update.raw` and its dependent item are therefore **disabled by default**. The repository state is monitored through `/nodes/{node}/apt/repositories`, which only needs `Sys.Audit`.
 
 ---
 
@@ -69,7 +67,7 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
    - Group: e.g. `Virtual machines`
    - Interfaces: leave empty (template uses HTTP agent, no Zabbix agent needed)
 4. Set the required macros on the host (see below)
-5. **Cluster with several nodes:** create one host per node as above, each with `{$PVE_IP}` and `{$PVE_NODE}` of its own node, and set `{$PVE.DATACENTER.PAUSE}` to `1-7,00:00-24:00` on all of them but one. Guests, node states, quorum, HA, backup jobs, users, SDN and Ceph are the same on every node; without the pause they are requested and alerted once per node.
+5. **Cluster with several nodes:** create one host per node as above, each with `{$PVE_IP}` and `{$PVE_NODE}` of its own node, and set `{$PVE.DATACENTER.PAUSE}` to `1-7,00:00-24:00` on all of them but one. Guests, node states, quorum, HA, backup jobs, users, SDN and Ceph are the same on every node; without the pause they are requested and alerted once per node. Set the macro before the host collects its first data, otherwise the datacenter items of that host keep their last values and their problems stay open until closed.
 
 | Host | `{$PVE_IP}` / `{$PVE_NODE}` | `{$PVE.DATACENTER.PAUSE}` |
 |------|-----------------------------|---------------------------|
@@ -119,10 +117,10 @@ A standalone node needs nothing beyond steps 1-4.
 | `{$STORAGE.UTIL.CRIT}` | `90` | Storage pool critical threshold (%) |
 | `{$CLUSTER.NODES.OFFLINE.MAX}` | `0` | Max. tolerated offline nodes (raise during maintenance) |
 | `{$DISK.WEAROUT.MIN}` | `20` | Min. SSD wearout remaining before warning (%) |
-| `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days) |
+| `{$PVE.USER.EXPIRE.TIME}` | `172800` | Seconds before user expiry to warn (172800 = 2 days). Context form per user. |
 | `{$DISK.TEMP.MAX}` | `60` | Disk temperature threshold (degrees Celsius). Context form `{$DISK.TEMP.MAX:"/dev/sda"}` raises it for one disk. |
-| `{$NODE.CPU.UTIL.MAX}` | `90` | Node CPU utilization (%) before the high CPU trigger fires. This threshold used to be hardcoded in the trigger expression. |
-| `{$ZFS.UTIL.WARN}` | `80` | ZFS pool usage (%) for the average severity trigger. ZFS performance degrades noticeably above 80%. Context form `{$ZFS.UTIL.WARN:"rpool"}`. |
+| `{$NODE.CPU.UTIL.MAX}` | `90` | Node CPU utilization (%) before the high CPU trigger fires. |
+| `{$ZFS.UTIL.WARN}` | `80` | ZFS pool usage (%) for the average severity trigger. Context form `{$ZFS.UTIL.WARN:"rpool"}`. |
 | `{$ZFS.UTIL.CRIT}` | `90` | ZFS pool usage (%) for the high severity trigger. |
 | `{$ZFS.FRAG.WARN}` | `60` | ZFS free space fragmentation (%) before warning. |
 | `{$ZFS.FRAG.UTIL.MIN}` | `70` | Pool usage (%) that must also be reached before the fragmentation warning fires. Context form per pool. |
@@ -143,13 +141,13 @@ Values must carry a time unit.
 
 | Macro | Default | Description |
 |-------|---------|-------------|
-| `{$TASK.ALERT.WINDOW}` | `1h` | How long a failed task keeps alerting. Proxmox VE only keeps the most recent tasks, so without this window a one-off failure would alert forever. |
+| `{$TASK.ALERT.WINDOW}` | `1h` | How long a failed task keeps alerting. |
 | `{$BACKUP.ALERT.WINDOW}` | `24h` | How long a failed backup keeps alerting. |
 | `{$PVE.BACKUP.RUN.MAX}` | `3h` | How long a single backup may run before it is reported as hanging. |
 | `{$PVE.BACKUP.JOB.STALE}` | `2d` | Maximum time a backup job may go without a next run. |
-| `{$DISK.MISSING.TIME}` | `3h` | How long a disk may be absent from the disk list before the missing disk trigger fires. The list refreshes hourly. |
+| `{$DISK.MISSING.TIME}` | `3h` | How long a disk may be absent from the disk list before the missing disk trigger fires. |
 | `{$IFACE.ACTIVE.WINDOW}` | `7d` | An interface must have been up once within this window before the interface down trigger fires. |
-| `{$PVE.REPL.LAG}` | `2h` | Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. |
+| `{$PVE.REPL.LAG}` | `2h` | Maximum age of the last successful replication. Must stay above the replication schedule. |
 | `{$PVE.CERT.EXPIRE.DAYS}` | `21d` | Lead time before certificate expiry. |
 | `{$PVE.SUBSCRIPTION.EXPIRE.DAYS}` | `30d` | Lead time before the subscription expires. |
 | `{$CEPH.HEALTH.WARN.PERIOD}` | `15m` | How long Ceph must stay at HEALTH_WARN or worse before the warning fires. |
@@ -161,7 +159,7 @@ Values must carry a time unit.
 | Macro | Default | Description |
 |-------|---------|-------------|
 | `{$IFACE.NOT_MATCHES}` | `^(tap\|veth\|fwbr\|fwpr\|fwln)` | Host interface names excluded from discovery. The default drops the per-guest interfaces Proxmox creates. |
-| `{$PVE.SERVICE.MATCHES}` | `^(pve-cluster\|pvedaemon\|pveproxy\|pvestatd\|pve-firewall\|pvescheduler\|pve-ha-crm\|pve-ha-lrm)$` | Which PVE services are discovered. These run on every node, standalone or clustered. `corosync` only runs on cluster members, add it on those hosts. |
+| `{$PVE.SERVICE.MATCHES}` | `^(pve-cluster\|pvedaemon\|pveproxy\|pvestatd\|pve-firewall\|pvescheduler\|pve-ha-crm\|pve-ha-lrm)$` | Which PVE services are discovered. `corosync` only runs on cluster members, add it on those hosts. |
 | `{$CEPH.POOL.NOT_MATCHES}` | `CHANGE_IF_NEEDED` | Ceph pools whose name matches are not discovered. |
 
 ### Alert Enable/Disable Macros
@@ -217,7 +215,7 @@ Every rule handles an empty list: a cluster without HA, replication jobs, contai
 
 | Trigger | Severity | Description |
 |---------|----------|-------------|
-| PVE API not reachable | High | No data from API for 5 minutes. When the API is gone this is the cause of every other outage, so it outranks the individual failures. |
+| PVE API not reachable | High | No data from API for 5 minutes |
 | High CPU usage | Average | PVE host CPU sustained high, threshold via `{$NODE.CPU.UTIL.MAX}` |
 | High load average | Average | Load average ≥ number of CPUs |
 | High memory usage | Average | Configurable via `{$MEMORY.UTIL.MAX}` |
@@ -225,12 +223,12 @@ Every rule handles an empty list: a cluster without HA, replication jobs, contai
 | Cluster lost quorum | Disaster | Only fires on actual clusters, not standalone nodes |
 | Cluster nodes offline | High | Configurable tolerance via `{$CLUSTER.NODES.OFFLINE.MAX}` |
 | VMs/LXC not all running | Info | Cluster-wide: running count < total count |
-| Guests not covered by any backup job | Warning | From `/cluster/backup-info/not-backed-up`. Catches the guest that was created after the backup job was defined. |
+| Guests not covered by any backup job | Warning | Catches the guest that was created after the backup job was defined |
 | APT repository files are broken | Warning | At least one repository file cannot be parsed, updates will fail |
 | APT repository configuration has warnings | Info | For example the enterprise repository enabled without a subscription |
 | Package updates pending | Info | Disabled by default, like the item it depends on |
 | PVE subscription has expired | Average | The subscription period has ended, the enterprise repository is no longer accessible |
-| PVE subscription expires soon | Warning | Advance warning via `{$PVE.SUBSCRIPTION.EXPIRE.DAYS}`, depends on the expired trigger so only one is open at a time |
+| PVE subscription expires soon | Warning | Advance warning via `{$PVE.SUBSCRIPTION.EXPIRE.DAYS}` |
 | PVE subscription is not active | Warning | Status invalid, suspended or notfound. Off by default, see `{$PVE.SUBSCRIPTION.ALERT}` |
 | HA manager (CRM) has stopped updating its status | High | The CRM master reports `old timestamp - dead?` |
 | HA manager (CRM) reports time drift | Warning | The CRM master reports `detected time drift!` |
@@ -264,7 +262,7 @@ Every rule handles an empty list: a cluster without HA, replication jobs, contai
 | Backup running longer than `{$PVE.BACKUP.RUN.MAX}` | Average |
 | Backup job disabled, too few jobs / job not rescheduled for `{$PVE.BACKUP.JOB.STALE}` | Warning / Average |
 | Task failed | Warning |
-| User account expiring within 2 days | Warning |
+| User account expiring within `{$PVE.USER.EXPIRE.TIME}` | Warning |
 | Node offline | High |
 | Network interface down | Warning |
 | HA resource in error state | High |
@@ -303,7 +301,7 @@ Every rule handles an empty list: a cluster without HA, replication jobs, contai
 | Ceph pool utilization over warning / critical threshold | Warning / High |
 | Ceph pool with min_size 1 | Warning |
 
-The messages of the active Ceph health checks are in the item `Ceph health checks`. Zabbix shortens item values to 20 characters in trigger names, operational data and descriptions, so the triggers point to that item instead of repeating the text.
+The messages of the active Ceph health checks are in the item `Ceph health checks`.
 
 ---
 
@@ -324,27 +322,10 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 
 ## 7. Notes
 
-- **Cluster support:** Guest discovery and all guest metrics come from `/cluster/resources`, so VMs and containers on every node are monitored from a single Zabbix host and a live migration does not break their items. Each guest carries a `{#NODE}` macro and a `Node of <vmid>` item, and an informational trigger fires when that value changes. Five guest values are not part of `/cluster/resources`: QEMU balloon size, balloon minimum and machine type, plus LXC swap and maximum swap. They are read from `/nodes/{#NODE}/.../status/current`, the node the guest runs on, so they are correct for guests on every node.
-- **Datacenter pause:** The requests for datacenter-wide data carry the flexible interval `0/{$PVE.DATACENTER.PAUSE}`. Zabbix does not poll an item during a flexible interval of 0, so with `1-7,00:00-24:00` no guest, HA, backup job, user, SDN or Ceph data is requested on that host at all, nothing is discovered and no datacenter trigger fires. The syntax of the value is the Zabbix time period, the same as for flexible intervals. Zabbix polls a new item once when it is created, before the host macro is in effect; three preprocessing steps discard that value on a paused host, so it cannot leave a stale datacenter problem behind. Partial pauses, for example `1-7,00:00-06:00` to skip the night, are not discarded and simply poll less. When the pause is set on a host that already collected the datacenter data, the request that was already scheduled still runs once, then the requests stop. The datacenter items and discovered guests of that host keep their last values, and problems they raised stay open until closed; setting the macro before the first data avoids that.
-- **Node-scoped data:** Disks, host network interfaces, storage, tasks, time, version and host status are read per node from `{$PVE_NODE}`. To monitor several nodes in that depth, add one Zabbix host per PVE node with its own `{$PVE_NODE}`.
-- **Single-node without cluster:** Fully supported. `pve.cluster.quorum` returns `1` and `pve.cluster.name` returns `standalone`, the quorum-lost trigger will not fire.
-- **Load on large clusters:** Guest metrics come from a single `/cluster/resources` request per minute. Zabbix indexes the JSONPath filters of the dependent items, so the cost per guest stays flat as the cluster grows. The only per guest request is the status call above; its interval and scope are set with `{$PVE.GUEST.DETAIL.INTERVAL}` and `{$PVE.GUEST.DETAIL.VMID.MATCHES}`. Values that rarely change, such as names, sizes, versions and states, are only stored when they change. Only values that are drawn in graphs or evaluated over a time window are written again once an hour. Storage, services, tasks and running backups are polled every 5 minutes: `/nodes/{node}/storage` alone takes more than a second per call, and the shortest trigger window on these values is 15 minutes.
-- **Disk monitoring:** Requires `Sys.Audit` privilege. If disk items show "not supported", check that the API token role is applied with Propagate enabled at path `/`.
-- **HA monitoring:** Only relevant if PVE HA is configured. If no HA resources exist, discovery returns nothing and the rule stays supported. HA data is read from `/cluster/ha/status/current`, which carries the CRM master status, one entry per node LRM and one entry per HA-managed service. PVE reports the CRM and LRM states as text such as `pve (active, <timestamp>)`; a regular expression keeps only the state, so the value only changes when the state does. The plain `/cluster/ha/status` path is a directory index only and returns no status data.
-- **Ceph:** PVE answers every Ceph call with HTTP 500 and `{"data":null,"message":...}` while Ceph is not set up. The Ceph master items accept that status, so they stay supported without Ceph, and the item `Ceph API message` shows the reason. The Ceph items are created by a discovery that only finds something when a Ceph status is returned. OSD and pool data is read from `/nodes/localhost/...`: `localhost` is the node that answers the API call, so the paths work on every node.
-- **Backups:** Backup runs are read with `typefilter=vzdump`. PVE returns only the 50 most recent tasks, and on a node with snapshot or file push automation the unfiltered list can hold no backup at all.
-- **Timeouts:** Every HTTP item sets its timeout explicitly, 20 seconds for the API calls and 10 seconds for the per guest status request. Without it Zabbix falls back to 3 seconds, which `/nodes/{node}/disks/list` exceeds on nodes with several disks.
-- **Reachability:** The "PVE API not reachable" trigger evaluates `pve.uptime`. `nodata()` cannot evaluate the raw API items because they keep no history.
-- **SSD wearout:** Read from `/nodes/{node}/disks/list`, not from the SMART endpoint, which does not return this value. Disks that report a non-numeric wearout, such as rotating disks, are discarded instead of turning the item unsupported.
-- **CPU I/O wait:** Read from the `wait` field of `/nodes/{node}/status`, which is fetched anyway, so it costs no extra request. High values point to slow or overloaded storage.
-- **CPU temperatures:** Not available through the PVE REST API. Requires an agent or custom script.
-- **Physical NIC traffic:** Not available either. `/nodes/{node}/netstat` returns per-guest tap devices and resets its counters on every read, so there are no byte counters for `eno1` or `vmbr0`. `/nodes/{node}/rrddata` only carries the node aggregate.
-- **ZFS:** `/nodes/{node}/disks/zfs` requires `Sys.Audit` on `/`, not on `/nodes/{node}`. On nodes without ZFS the discovery simply returns nothing and stays supported.
-- **Replication:** The list endpoint already carries the job state, so no extra request per job is needed. Fields such as `last_sync` and `error` are absent before the first run or while the job is healthy; those items discard the value instead of turning unsupported.
-- **Subscription:** `/nodes/{node}/subscription` needs no special permission and answers with HTTP 200 even without a subscription, reporting status `notfound`. Unlike the certificate endpoint it reports `nextduedate` as a plain date string rather than an epoch, so a single JavaScript preprocessing line converts it for the expiry triggers. Without a subscription there is no due date, the item reports `0` and the expiry triggers ignore it.
-- **Permission errors:** The API answers with HTTP 403, so an item lacking permissions turns visibly unsupported rather than silently staying empty.
-- **ZFS pool health:** Stored as a number with a value map rather than as text, so it can be graphed and shown on a dashboard. 0 is ONLINE, everything above is a fault. The mapping is done with preprocessing steps, not with a script. A state outside the seven known zpool states leaves text in place and the item turns visibly unsupported instead of reporting a wrong number.
-- **Long term data:** Numeric performance and capacity items keep 7 days of history and 365 days of trends. Timestamp items such as `last_sync` or `notafter` deliberately keep trends disabled, a trend over a Unix timestamp carries no meaning.
+- **Guests:** VMs and containers of every node are monitored from a single Zabbix host, and a live migration keeps their items and history.
+- **Node-scoped data:** Disks, host network interfaces, storage, services, ZFS, replication, certificates and tasks come from the node in `{$PVE_NODE}`. For this data on every node, add one Zabbix host per node (see installation step 5).
+- **Ceph:** Without Ceph the Ceph items stay supported and the item `Ceph API message` shows why no Ceph data exists.
+- **Not available through the API:** CPU temperatures and traffic of physical NICs such as `eno1` or `vmbr0`. Use the Zabbix agent for those.
 
 ---
 
@@ -355,6 +336,3 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 <img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-22" src="https://github.com/user-attachments/assets/091a82e9-3eef-4fd6-84a4-2a806189fe50" />
 <img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-29" src="https://github.com/user-attachments/assets/f06dde1f-3244-448d-b9e1-3e9e038b68f2" />
 <img width="3801" height="2145" alt="Bildschirmfoto vom 2026-08-16 23-53-33" src="https://github.com/user-attachments/assets/ba551cbb-49c3-452c-ac75-887503af2e8e" />
-
-
-
