@@ -69,12 +69,12 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
    - Group: e.g. `Virtual machines`
    - Interfaces: leave empty (template uses HTTP agent, no Zabbix agent needed)
 4. Set the required macros on the host (see below)
-5. **Cluster with several nodes:** create one host per node as above, each with `{$PVE_IP}` and `{$PVE_NODE}` of its own node, and set `{$PVE.DATACENTER.COLLECT}` to `0` on all of them but one. Guests, node states, quorum, HA, backup jobs, users, SDN and Ceph are the same on every node; without the switch they are queried and alerted once per node.
+5. **Cluster with several nodes:** create one host per node as above, each with `{$PVE_IP}` and `{$PVE_NODE}` of its own node, and set `{$PVE.DATACENTER.PAUSE}` to `1-7,00:00-24:00` on all of them but one. Guests, node states, quorum, HA, backup jobs, users, SDN and Ceph are the same on every node; without the pause they are requested and alerted once per node.
 
-| Host | `{$PVE_IP}` / `{$PVE_NODE}` | `{$PVE.DATACENTER.COLLECT}` |
-|------|-----------------------------|-----------------------------|
-| `pve01` | node pve01 | `1` (default) |
-| `pve02`, `pve03`, ... | their own node | `0` |
+| Host | `{$PVE_IP}` / `{$PVE_NODE}` | `{$PVE.DATACENTER.PAUSE}` |
+|------|-----------------------------|---------------------------|
+| `pve01` | node pve01 | `7,23:59-24:00` (default) |
+| `pve02`, `pve03`, ... | their own node | `1-7,00:00-24:00` |
 
 A standalone node needs nothing beyond steps 1-4.
 
@@ -99,7 +99,7 @@ A standalone node needs nothing beyond steps 1-4.
 
 | Macro | Default | Description |
 |-------|---------|-------------|
-| `{$PVE.DATACENTER.COLLECT}` | `1` | Collect the datacenter-wide data on this host: guests on all nodes, node states, quorum, HA, backup jobs, users, SDN and Ceph. In a cluster keep `1` on one host and set `0` on the others. |
+| `{$PVE.DATACENTER.PAUSE}` | `7,23:59-24:00` | Period in which the datacenter-wide data is not requested on this host: guests on all nodes, node states, quorum, HA, backup jobs, users, SDN and Ceph. In a cluster keep the default on one host and set `1-7,00:00-24:00` on the others. The default only skips the last minute of the week. |
 | `{$PVE.GUEST.DETAIL.INTERVAL}` | `10m` | Interval of the per guest status request that supplies balloon size, machine type and LXC swap. One request per guest, keep it long in large clusters. |
 | `{$PVE.GUEST.DETAIL.VMID.MATCHES}` | `.*` | Only guests whose VMID matches get the per guest status request. `^$` switches it off for all guests. |
 
@@ -325,10 +325,10 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 ## 7. Notes
 
 - **Cluster support:** Guest discovery and all guest metrics come from `/cluster/resources`, so VMs and containers on every node are monitored from a single Zabbix host and a live migration does not break their items. Each guest carries a `{#NODE}` macro and a `Node of <vmid>` item, and an informational trigger fires when that value changes. Five guest values are not part of `/cluster/resources`: QEMU balloon size, balloon minimum and machine type, plus LXC swap and maximum swap. They are read from `/nodes/{#NODE}/.../status/current`, the node the guest runs on, so they are correct for guests on every node.
-- **Datacenter switch:** `{$PVE.DATACENTER.COLLECT}=0` drops the datacenter-wide data right after the request with a single validation step, so no guest, HA, backup job, user, SDN or Ceph item is discovered on that host and no datacenter trigger fires. The requests themselves still run at their interval, Zabbix cannot switch off an HTTP item by macro.
+- **Datacenter pause:** The requests for datacenter-wide data carry the flexible interval `0/{$PVE.DATACENTER.PAUSE}`. Zabbix does not poll an item during a flexible interval of 0, so with `1-7,00:00-24:00` no guest, HA, backup job, user, SDN or Ceph data is requested on that host at all, nothing is discovered and no datacenter trigger fires. The syntax of the value is the Zabbix time period, the same as for flexible intervals. Zabbix polls a new item once when it is created, before the host macro is in effect; three preprocessing steps discard that value on a paused host, so it cannot leave a stale datacenter problem behind. Partial pauses, for example `1-7,00:00-06:00` to skip the night, are not discarded and simply poll less. When the pause is set on a host that already collected the datacenter data, the request that was already scheduled still runs once, then the requests stop. The datacenter items and discovered guests of that host keep their last values, and problems they raised stay open until closed; setting the macro before the first data avoids that.
 - **Node-scoped data:** Disks, host network interfaces, storage, tasks, time, version and host status are read per node from `{$PVE_NODE}`. To monitor several nodes in that depth, add one Zabbix host per PVE node with its own `{$PVE_NODE}`.
 - **Single-node without cluster:** Fully supported. `pve.cluster.quorum` returns `1` and `pve.cluster.name` returns `standalone`, the quorum-lost trigger will not fire.
-- **Load on large clusters:** Guest metrics come from a single `/cluster/resources` request per minute. Zabbix indexes the JSONPath filters of the dependent items, so the cost per guest stays flat as the cluster grows. The only per guest request is the status call above; its interval and scope are set with `{$PVE.GUEST.DETAIL.INTERVAL}` and `{$PVE.GUEST.DETAIL.VMID.MATCHES}`. Values that rarely change, such as names, sizes, versions and states, are only stored when they change or once an hour.
+- **Load on large clusters:** Guest metrics come from a single `/cluster/resources` request per minute. Zabbix indexes the JSONPath filters of the dependent items, so the cost per guest stays flat as the cluster grows. The only per guest request is the status call above; its interval and scope are set with `{$PVE.GUEST.DETAIL.INTERVAL}` and `{$PVE.GUEST.DETAIL.VMID.MATCHES}`. Values that rarely change, such as names, sizes, versions and states, are only stored when they change. Only values that are drawn in graphs or evaluated over a time window are written again once an hour. Storage, services, tasks and running backups are polled every 5 minutes: `/nodes/{node}/storage` alone takes more than a second per call, and the shortest trigger window on these values is 15 minutes.
 - **Disk monitoring:** Requires `Sys.Audit` privilege. If disk items show "not supported", check that the API token role is applied with Propagate enabled at path `/`.
 - **HA monitoring:** Only relevant if PVE HA is configured. If no HA resources exist, discovery returns nothing and the rule stays supported. HA data is read from `/cluster/ha/status/current`, which carries the CRM master status, one entry per node LRM and one entry per HA-managed service. PVE reports the CRM and LRM states as text such as `pve (active, <timestamp>)`; a regular expression keeps only the state, so the value only changes when the state does. The plain `/cluster/ha/status` path is a directory index only and returns no status data.
 - **Ceph:** PVE answers every Ceph call with HTTP 500 and `{"data":null,"message":...}` while Ceph is not set up. The Ceph master items accept that status, so they stay supported without Ceph, and the item `Ceph API message` shows the reason. The Ceph items are created by a discovery that only finds something when a Ceph status is returned. OSD and pool data is read from `/nodes/localhost/...`: `localhost` is the node that answers the API call, so the paths work on every node.
@@ -336,6 +336,7 @@ The template includes a pre-built dashboard **"Proxmox VE - Monitoring Dashboard
 - **Timeouts:** Every HTTP item sets its timeout explicitly, 20 seconds for the API calls and 10 seconds for the per guest status request. Without it Zabbix falls back to 3 seconds, which `/nodes/{node}/disks/list` exceeds on nodes with several disks.
 - **Reachability:** The "PVE API not reachable" trigger evaluates `pve.uptime`. `nodata()` cannot evaluate the raw API items because they keep no history.
 - **SSD wearout:** Read from `/nodes/{node}/disks/list`, not from the SMART endpoint, which does not return this value. Disks that report a non-numeric wearout, such as rotating disks, are discarded instead of turning the item unsupported.
+- **CPU I/O wait:** Read from the `wait` field of `/nodes/{node}/status`, which is fetched anyway, so it costs no extra request. High values point to slow or overloaded storage.
 - **CPU temperatures:** Not available through the PVE REST API. Requires an agent or custom script.
 - **Physical NIC traffic:** Not available either. `/nodes/{node}/netstat` returns per-guest tap devices and resets its counters on every read, so there are no byte counters for `eno1` or `vmbr0`. `/nodes/{node}/rrddata` only carries the node aggregate.
 - **ZFS:** `/nodes/{node}/disks/zfs` requires `Sys.Audit` on `/`, not on `/nodes/{node}`. On nodes without ZFS the discovery simply returns nothing and stays supported.
