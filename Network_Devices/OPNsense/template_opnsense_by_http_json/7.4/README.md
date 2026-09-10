@@ -3,9 +3,9 @@
 ## Overview
 
 This template monitors OPNsense firewalls via the built-in REST API using HTTP JSON agent requests.
-It collects data about system resources (CPU, memory, disk, uptime), firewall states and actions,
-gateway health, network interfaces, CARP high-availability status, WireGuard peers, certificates and UPS status
-via NUT (Network UPS Tools).
+It collects data about system resources (CPU, memory, disk, uptime), configured cron jobs, firewall states and actions,
+gateway health, network interfaces, CARP, pfsync and XMLRPC high-availability status, WireGuard peers,
+certificates, and UPS status via NUT (Network UPS Tools).
 
 The template uses OPNsense API key/secret authentication and requires no agent installation
 on the firewall.
@@ -25,11 +25,14 @@ on the firewall.
   - `diagnostics/traffic`
   - `routes/gateway`
   - `core/firmware`
+  - `core/hasync`
+  - `core/hasync_status`
+  - `cron/settings`
   - `nut/diagnostics`
-  - `ipsec/sessions/searchPhase(1|2)` 
+  - `ipsec/sessions/searchPhase(1|2)`
   - `wireguard/service/show`
   - `trust/cert`
-  
+
 ### Permissions
 
 | Privilege ID                           | UI Name                                   |
@@ -39,8 +42,11 @@ on the firewall.
 | page-status-carp                       | Interfaces: Virtual IPs: Status           |
 | page-status-trafficgraph               | Reporting: Traffic                        |
 | page-system-firmware-manualupdate      | System: Firmware                          |
+| page-system-cron                       | System: Settings: Cron                    |
+| page-system-hasync                     | System: High Availability                 |
 | page-system-gateways                   | System: Gateways                          |
 | page-system-login-logout               | Lobby: Dashboard                          |
+| page-status-habackup                    | Status: HA backup                         |
 | page-status-ipsec                      | Status: IPsec                             |
 | page-wireguard-diagnostics             | VPN: WireGuard: Status                    |
 | page-system-certmanager                | Trust: Certificates                       |
@@ -79,49 +85,56 @@ on the firewall.
 
 ## Macros Used
 
-| Macro                             | Default Value                                                                                            | Description                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `{$OPNS.KEY}`                     | *(empty)*                                                                                                | OPNsense API key. **Required.**                                        |
-| `{$OPNS.SECRET}`                  | *(empty)*                                                                                                | OPNsense API secret. **Required.**                                     |
-| `{$OPNS.PORT}`                    | *(empty)*                                                                                                | OPNsense API port (default: 443)                                       |
-| `{$OPNS.CPU.LOAD.MAX}`            | `2`                                                                                                      | Maximum CPU load average before triggering a warning.                  |
-| `{$OPNS.MEMORY.UTIL.MAX}`         | `90`                                                                                                     | Maximum memory utilization (%) before triggering an alert.             |
-| `{$OPNS.STATE.TABLE.UTIL.MAX}`    | `90`                                                                                                     | Maximum state table utilization (%) before triggering a warning.       |
-| `{$OPNS.GW.MIN.PACKET.LOSS}`      | `10`                                                                                                     | Packet loss (%) to trigger a gateway packet loss alert.                |
-| `{$OPNS.GW.HIGH.PACKET.LOSS}`     | `50`                                                                                                     | Packet loss (%) to trigger a high packet loss alert.                   |
-| `{$OPNS.LICENSE.EXPIRY.WARN}`     | `30`                                                                                                     | Days before OPNsense Business license expiry to trigger a warning.     |
-| `{$OPNS.FS.FSNAME.MATCHES}`       | `.+`                                                                                                     | Regex filter for filesystem discovery – included mount points.         |
-| `{$OPNS.FS.FSNAME.NOT_MATCHES}`   | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)`                                                                    | Regex filter for filesystem discovery – excluded mount points.         |
-| `{$OPNS.FS.FSTYPE.MATCHES}`       | `^(btrfs\|ext2\|ext3\|ext4\|reiser\|xfs\|ffs\|ufs\|jfs\|jfs2\|vxfs\|hfs\|apfs\|refs\|ntfs\|fat32\|zfs)$` | Regex filter for filesystem discovery – included filesystem types.     |
-| `{$OPNS.FS.FSTYPE.NOT_MATCHES}`   | `^\s$`                                                                                                   | Regex filter for filesystem discovery – excluded filesystem types.     |
-| `{$OPNS.FS.PUSED.MAX.WARN}`       | `90`                                                                                                     | Warning threshold for filesystem space utilization (%).                |
-| `{$OPNS.FS.PUSED.MAX.CRIT}`       | `95`                                                                                                     | Critical threshold for filesystem space utilization (%).               |
-| `{$OPNS.NUT.BAT.LOW}`             | `30`                                                                                                     | Battery charge (%) below which a warning is triggered.                 |
-| `{$OPNS.NUT.BAT.RUNTIME}`         | `600`                                                                                                    | Remaining battery runtime (seconds) below which an alert is triggered. |
-| `{$OPNS.NUT.HIGH.LOAD}`           | `80`                                                                                                     | UPS load (%) above which a warning is triggered.                       |
-| `{$OPNS.WG.INSTANCE.MATCHES}`     | `.+`                                                                                                     | Regex filter for WireGuard instances to discover.                      |
-| `{$OPNS.WG.INSTANCE.NOT_MATCHES}` | `^$`                                                                                                     | Regex filter for WireGuard instances to exclude from discovery.        |
-| `{$OPNS.WG.PEER.MATCHES}`         | `.+`                                                                                                     | Regex filter for WireGuard peers to discover.                          |
-| `{$OPNS.WG.PEER.NOT_MATCHES}`     | `^$`                                                                                                     | Regex filter for WireGuard peers to exclude from discovery.            |
+| Macro | Default Value | Description |
+|-------|---------------|-------------|
+| `{$OPNS.KEY}` | *(empty)* | OPNsense API key used as the HTTP Basic authentication username. **Required.** |
+| `{$OPNS.SECRET}` | *(empty, secret text)* | OPNsense API secret used as the HTTP Basic authentication password. **Required.** |
+| `{$OPNS.PORT}` | `443` | OPNsense API port. |
+| `{$OPNS.CPU.LOAD.MAX}` | `2` | Maximum CPU load average before triggering a warning. |
+| `{$OPNS.CRON.JOB.MATCHES}` | `.+` | Regex filter for cron job descriptions to discover. |
+| `{$OPNS.CRON.JOB.NOT_MATCHES}` | `^$` | Regex filter for cron job descriptions to exclude from discovery. |
+| `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Maximum memory utilization (%) before triggering an alert. |
+| `{$OPNS.STATE.TABLE.UTIL.MAX}` | `90` | Maximum state table utilization (%) before triggering a warning. |
+| `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Packet loss (%) to trigger a gateway packet loss alert. |
+| `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Packet loss (%) to trigger a high packet loss alert. |
+| `{$OPNS.HA.ENABLED}` | `true` | Enables HA triggers and HA discovery. Set to `false` on standalone firewalls without an HA setup. |
+| `{$OPNS.HA.CARP.STATUS.MATCHES}` | `^(MASTER\|BACKUP)$` | Accepted CARP status regex. Override it with a VIP-address macro context to enforce `MASTER` or `BACKUP` on a node. |
+| `{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` | `1` | Minimum number of remote creator IDs expected in the synchronized state table. |
+| `{$OPNS.HA.ROLE}` | `MASTER` | HA node role. Set to `MASTER` on the XMLRPC synchronization source or `BACKUP` on the receiving node. |
+| `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before OPNsense Business license expiry to trigger a warning. |
+| `{$OPNS.FS.FSNAME.MATCHES}` | `.+` | Regex filter for filesystem discovery – included mount points. |
+| `{$OPNS.FS.FSNAME.NOT_MATCHES}` | `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Regex filter for filesystem discovery – excluded mount points. |
+| `{$OPNS.FS.FSTYPE.MATCHES}` | `^(btrfs\|ext2\|ext3\|ext4\|reiser\|xfs\|ffs\|ufs\|jfs\|jfs2\|vxfs\|hfs\|apfs\|refs\|ntfs\|fat32\|zfs)$` | Regex filter for filesystem discovery – included filesystem types. |
+| `{$OPNS.FS.FSTYPE.NOT_MATCHES}` | `^\s$` | Regex filter for filesystem discovery – excluded filesystem types. |
+| `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Warning threshold for filesystem space utilization (%). |
+| `{$OPNS.FS.PUSED.MAX.CRIT}` | `95` | Critical threshold for filesystem space utilization (%). |
+| `{$OPNS.NUT.BAT.LOW}` | `30` | Battery charge (%) below which a warning is triggered. |
+| `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining battery runtime (seconds) below which an alert is triggered. |
+| `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load (%) above which a warning is triggered. |
+| `{$OPNS.WG.INSTANCE.MATCHES}` | `.+` | Regex filter for WireGuard instances to discover. |
+| `{$OPNS.WG.INSTANCE.NOT_MATCHES}` | `^$` | Regex filter for WireGuard instances to exclude from discovery. |
+| `{$OPNS.WG.PEER.MATCHES}` | `.+` | Regex filter for WireGuard peers to discover. |
+| `{$OPNS.WG.PEER.NOT_MATCHES}` | `^$` | Regex filter for WireGuard peers to exclude from discovery. |
 
 ## Items Collected
 
 ### System Items
 
-| Name                            | Key                               | Type       | Update Interval | Description                                                                            |
-| ------------------------------- | --------------------------------- | ---------- | --------------- | -------------------------------------------------------------------------------------- |
-| CPU load                        | `opns.cpu.load`                   | Dependent  | –               | System load average (1 min).                                                           |
-| System Uptime                   | `opns.system.uptime`              | Dependent  | –               | Uptime converted to seconds. Displayed in Zabbix uptime format.                        |
-| Total Memory                    | `opns.memory.total`               | Dependent  | –               | Total physical memory in bytes.                                                        |
-| Used Memory                     | `opns.memory.used`                | Dependent  | –               | Used memory in bytes.                                                                  |
-| ARC Memory                      | `opns.memory.arc`                 | Dependent  | –               | ZFS ARC memory usage in bytes.                                                         |
-| Memory utilization in %         | `opns.memory.util`                | Calculated | –               | Percentage of used memory relative to total memory.                                    |
-| Licensed until                  | `opns.product.licenseuntil`       | Dependent  | –               | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
-| Firmware update status          | `opns.firmware.update.status`     | Dependent  | –               | Firmware update status (`none`, `update`, `upgrade`, or `error`).                      |
-| Firmware update status message  | `opns.firmware.update.status_msg` | Dependent  | –               | Human-readable firmware update status message.                                         |
-| Firmware update count           | `opns.firmware.update.count`      | Dependent  | –               | Number of available firmware package or set updates.                                   |
-| Firmware update packages        | `opns.firmware.update.packages`   | Dependent  | –               | List of available package or set updates.                                              |
-| Firmware update requires reboot | `opns.firmware.update.reboot`     | Dependent  | –               | Returns `1` when the available firmware update requires a reboot.                      |
+| Name | Key | Type | Update Interval | Description |
+|------|-----|------|-----------------|-------------|
+| CPU load | `opns.cpu.load` | Dependent | – | System load average (1 min). |
+| System Uptime | `opns.system.uptime` | Dependent | – | Uptime converted to seconds. Displayed in Zabbix uptime format. |
+| Total Memory | `opns.memory.total` | Dependent | – | Total physical memory in bytes. |
+| Used Memory | `opns.memory.used` | Dependent | – | Used memory in bytes. |
+| ARC Memory | `opns.memory.arc` | Dependent | – | ZFS ARC memory usage in bytes. Returns `0` when ARC data is absent, for example on UFS systems. |
+| Memory utilization in % | `opns.memory.util` | Calculated | – | Percentage of used memory relative to total memory. |
+| Licensed until | `opns.product.licenseuntil` | Dependent | – | OPNsense Business Edition license expiry (Unix timestamp). Returns `0` if not present. |
+| Firmware update status | `opns.firmware.update.status` | Dependent | – | Firmware update status (`none`, `update`, `upgrade`, or `error`). |
+| Firmware update status message | `opns.firmware.update.status_msg` | Dependent | – | Human-readable firmware update status message. |
+| Firmware update count | `opns.firmware.update.count` | Dependent | – | Number of available firmware package or set updates. |
+| Firmware update packages | `opns.firmware.update.packages` | Dependent | – | List of available package or set updates. |
+| Firmware update requires reboot | `opns.firmware.update.reboot` | Dependent | – | Returns `1` when the available firmware update requires a reboot. |
+| Cron job count | `opns.cron.job.count` | Dependent | – | Number of configured OPNsense cron jobs. |
 
 ### Firewall Items
 
@@ -130,6 +143,25 @@ on the firewall.
 | Firewall states current       | `opns.fw.states.current` | Dependent  | Current number of active firewall states.       |
 | Firewall states max           | `opns.fw.states.max`     | Dependent  | Maximum number of allowed firewall states.      |
 | States table utilization in % | `opns.states.util`       | Calculated | Percentage of the state table currently in use. |
+
+### High Availability Items
+
+| Name | Key | Description |
+|------|-----|-------------|
+| CARP VIP count | `opns.ha.carp.vip.count` | Number of configured CARP-mode VIPs. |
+| CARP is allowed | `opns.ha.carp.allowed` | Global CARP enable state. |
+| CARP maintenance mode | `opns.ha.carp.maintenance` | Persistent CARP maintenance state (`0` = inactive, `1` = active). |
+| CARP demotion level | `opns.ha.carp.demotion` | Current CARP demotion counter. |
+| CARP status message | `opns.ha.carp.status_message` | Global warning text reported by OPNsense. |
+| HA pfsync is configured | `opns.ha.pfsync.configured` | Whether a pfsync interface is configured. |
+| HA pfsync interface/peer/version/defer | `opns.ha.pfsync.*` | Effective state-synchronization configuration. |
+| HA pfsync remote node count | `opns.ha.pfsync.remote.count` | Remote creator IDs currently visible in the PF state table. |
+| HA configuration synchronization is configured | `opns.ha.config_sync.configured` | Whether an XMLRPC synchronization target is configured. |
+| HA configuration synchronization target | `opns.ha.config_sync.target` | Configured XMLRPC peer address. |
+| HA configuration synchronization items | `opns.ha.config_sync.items` | Configuration sections selected for XMLRPC synchronization. |
+| HA peer is reachable through XMLRPC | `opns.ha.peer.reachable` | Result of an XMLRPC firmware-version probe to the configured peer. |
+| HA peer firmware/base/kernel version | `opns.ha.peer.version*` | Versions returned by the peer. |
+| HA peer firmware version matches | `opns.ha.peer.version.match` | Whether local and remote OPNsense core versions match. |
 
 ### UPS Items (NUT)
 
@@ -172,37 +204,43 @@ on the firewall.
 These items fetch raw JSON from the OPNsense API and serve as master items for dependent
 items and discovery rules.
 
-| Name                     | Key                           | Update Interval | API Endpoint                                                                   |
-| ------------------------ | ----------------------------- | --------------- | ------------------------------------------------------------------------------ |
-| RAW Load                 | `opns.raw.load`               | 5m              | `/api/diagnostics/system/system_time`                                          |
-| RAW Memorystatus         | `opns.raw.memory.status`      | 5m              | `/api/diagnostics/system/systemResources`                                      |
-| RAW Disk                 | `opns.raw.disk`               | 5m              | `/api/diagnostics/system/system_disk`                                          |
-| RAW Gatewaystatus        | `opns.raw.gateway.status`     | 1m              | `/api/routes/gateway/status`                                                   |
-| RAW Firewall States      | `opns.raw.fw.states`          | 1m              | `/api/diagnostics/firewall/pfStates`                                           |
-| RAW Firewallaction       | `opns.raw.fw.action`          | 1m              | `/api/diagnostics/firewall/stats?group_by=action`                              |
-| RAW Firewall Interfaces  | `opns.raw.fw.interface.stat`  | 1m              | `/api/diagnostics/firewall/pf_statistics/interfaces`                           |
-| RAW Interfaces           | `opns.raw.interfaces.stat`    | 1m              | `/api/diagnostics/traffic/_interface`                                          |
-| RAW Carp Interfaces      | `opns.raw.interfaces.carp`    | 1m              | `/api/diagnostics/interface/get_vip_status`                                    |
-| RAW Product Info         | `opns.raw.product.info`       | 30m             | `/api/core/firmware/info`                                                      |
-| RAW Firmware Status      | `opns.raw.firmware.status`    | 1d              | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
-| RAW UPS                  | `opns.ups.raw`                | 5m              | `/api/nut/diagnostics/upsstatus` *(disabled by default)*                       |
-| RAW WireGuard            | `opns.wireguard.raw`          | 1m              | `/api/wireguard/service/show`                                                  |
+| Name | Key | Update Interval | API Endpoint |
+|------|-----|-----------------|--------------|
+| RAW Load | `opns.raw.load` | 5m | `/api/diagnostics/system/system_time` |
+| RAW Memorystatus | `opns.raw.memory.status` | 5m | `/api/diagnostics/system/systemResources` |
+| RAW Disk | `opns.raw.disk` | 5m | `/api/diagnostics/system/system_disk` |
+| RAW Cron Jobs | `opns.raw.cron.jobs` | 5m | `/api/cron/settings/searchJobs` |
+| RAW Gatewaystatus | `opns.raw.gateway.status` | 1m | `/api/routes/gateway/status` |
+| RAW Firewall States | `opns.raw.fw.states` | 1m | `/api/diagnostics/firewall/pfStates` |
+| RAW Firewallaction | `opns.raw.fw.action` | 1m | `/api/diagnostics/firewall/stats?group_by=action` |
+| RAW Firewall Interfaces | `opns.raw.fw.interface.stat` | 1m | `/api/diagnostics/firewall/pf_statistics/interfaces` |
+| RAW Interfaces | `opns.raw.interfaces.stat` | 1m | `/api/diagnostics/traffic/_interface` |
+| RAW Carp Interfaces | `opns.raw.interfaces.carp` | 1m | `/api/diagnostics/interface/get_vip_status` |
+| RAW HA Settings | `opns.raw.ha.settings` | 5m | `/api/core/hasync/get` *(credentials are removed during preprocessing)* |
+| RAW HA pfsync Nodes | `opns.raw.ha.pfsync.nodes` | 1m | `/api/diagnostics/interface/get_pfsync_nodes` |
+| RAW HA Peer Version | `opns.raw.ha.peer.version` | 5m | `/api/core/hasync_status/version` |
+| RAW HA Peer Services | `opns.raw.ha.peer.services` | 5m | `/api/core/hasync_status/services` |
+| RAW Product Info | `opns.raw.product.info` | 30m | `/api/core/firmware/info` |
+| RAW Firmware Status | `opns.raw.firmware.status` | 6h | `/api/core/firmware/status` *(POST; runs update probe before fetching status)* |
+| RAW UPS | `opns.ups.raw` | 5m | `/api/nut/diagnostics/upsstatus` *(disabled by default)* |
+| RAW WireGuard | `opns.wireguard.raw` | 1m | `/api/wireguard/service/show` |
 | RAW Trust - Certificates | `opns.raw.trust.certificates` | 5m              | `/api/trust/cert/search/`                                                      |
 
 ## Triggers
 
 ### System Triggers
 
-| Name                                    | Severity    | Description                                                                                          |
-| --------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| No data from OPNsense                   | **High**    | No data received from `opns.raw.gateway.status` for 5 minutes – API is unreachable.                  |
-| CPU load is high                        | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes.                                               |
-| Memory utilization is high              | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes.                                |
-| OPNSense Business License expires soon  | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
-| OPNsense firmware updates are available | **Info**    | Firmware update status is `update` or `upgrade` and at least one update is available.                |
-| OPNsense firmware update check failed   | **Warning** | Firmware update check returned `error`.                                                              |
-| State table usage is high               | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values.              |
-| {HOST.NAME} has been restarted          | **Info**    | System uptime is less than 600 seconds (10 minutes).                                                 |
+| Name | Severity | Description |
+|------|----------|-------------|
+| No data from OPNsense | **High** | No data received from `opns.raw.gateway.status` for 5 minutes – API is unreachable. |
+| CPU load is high | **Warning** | CPU load exceeds `{$OPNS.CPU.LOAD.MAX}` for 5 minutes. |
+| Memory utilization is high | **Average** | Memory utilization exceeds `{$OPNS.MEMORY.UTIL.MAX}` % for 5 minutes. |
+| OPNSense Business License expires soon | **Average** | License expires in less than `{$OPNS.LICENSE.EXPIRY.WARN}` days. Only relevant for Business Edition. |
+| OPNsense firmware updates are available | **Info** | Firmware update status is `update` or `upgrade` and at least one update is available. |
+| OPNsense firmware update check failed | **Warning** | Firmware update check returned `error`. |
+| State table usage is high | **Warning** | State table utilization exceeds `{$OPNS.STATE.TABLE.UTIL.MAX}` % for the last 3 values. |
+| {HOST.NAME} has been restarted | **Info** | System uptime is less than 600 seconds (10 minutes). |
+| Cron job [{#CRON.DESCRIPTION}] is disabled | **Warning** | A discovered OPNsense cron job is disabled. |
 
 ### UPS Triggers
 
@@ -214,6 +252,23 @@ items and discovery rules.
 | Battery charge is below {$OPNS.NUT.BAT.LOW} | **Warning**  | Battery charge is below `{$OPNS.NUT.BAT.LOW}` % (default: 30%).                        |
 | Remaining battery runtime is low            | **High**     | Estimated runtime is below `{$OPNS.NUT.BAT.RUNTIME}` seconds (default: 600s / 10 min). |
 
+### High Availability Triggers
+
+| Name | Severity | Description |
+|------|----------|-------------|
+| CARP is disabled | **High** | Global CARP operation is disabled while CARP VIPs exist. |
+| CARP persistent maintenance mode is active | **Warning** | The node remains in persistent maintenance mode. |
+| CARP demotion level is elevated | **Warning** | A positive demotion level can prevent promotion to MASTER. |
+| CARP reports a status warning | **Warning** | OPNsense returned a global CARP warning message. |
+| CARP status changed for VIP {#CARP.ADDRESS} | **High** | A CARP failover or failback occurred. |
+| CARP status is unexpected for VIP {#CARP.ADDRESS} | **High** | The status does not match `{$OPNS.HA.CARP.STATUS.MATCHES:"{#CARP.ADDRESS}"}`. |
+| HA state synchronization is not configured | **Warning** | CARP VIPs exist, but pfsync is disabled. |
+| No remote pfsync state creator is visible | **Warning** | Fewer remote creator IDs than configured were seen for 10 minutes. |
+| HA configuration synchronization is not configured | **Warning** | The node role is `MASTER`, but no XMLRPC synchronization target is configured. |
+| HA peer is not reachable through XMLRPC | **High** | The configured XMLRPC peer did not answer for 10 minutes. |
+| HA peer firmware version differs | **Warning** | Local and remote OPNsense core versions differ. |
+| HA peer service […] is not running | **High** | A checkable service reported by the HA peer is stopped. |
+
 ### WireGuard Triggers
 
 | Name                                      | Severity | Description                                                                                                                           |
@@ -223,7 +278,22 @@ items and discovery rules.
 
 ## Discovery Rules
 
-### 1. Disk Discovery
+### 1. Cron Job Discovery
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.cron.job.discovery` |
+| Type | Dependent (master: `opns.raw.cron.jobs`) |
+| Filters | `{#CRON.DESCRIPTION}` configurable via macros |
+| Keep lost resources | 1d |
+
+Each configured job exposes its enabled state, configd command, and five-field cron schedule. A
+warning is raised when a discovered job is disabled. The OPNsense Cron API exposes configuration,
+not per-run exit codes; this discovery therefore does not assert that a command completed successfully.
+
+---
+
+### 2. Disk Discovery
 
 | Property            | Value                                               |
 | ------------------- | --------------------------------------------------- |
@@ -251,7 +321,7 @@ items and discovery rules.
 
 ---
 
-### 2. Gateway Discovery
+### 3. Gateway Discovery
 
 | Property            | Value                                         |
 | ------------------- | --------------------------------------------- |
@@ -281,7 +351,7 @@ items and discovery rules.
 
 ---
 
-### 3. FW Action Discovery
+### 4. FW Action Discovery
 
 | Property            | Value                                    |
 | ------------------- | ---------------------------------------- |
@@ -304,33 +374,54 @@ items and discovery rules.
 
 ---
 
-### 4. Interface CARP Discovery
+### 5. Interface CARP Discovery
 
-| Property            | Value                                          |
-| ------------------- | ---------------------------------------------- |
-| Key                 | `opns.interface.carp.discovery`                |
-| Type                | Dependent (master: `opns.raw.interfaces.carp`) |
-| LLD Macro           | `{#OPNS.INTERFACE.NAME}` → `$.interface`      |
-| Keep lost resources | 1d                                             |
+| Property | Value |
+|----------|-------|
+| Key | `opns.interface.carp.discovery` |
+| Type | Dependent (master: `opns.raw.interfaces.carp`) |
+| LLD Macros | `{#CARP.ADDRESS}`, `{#CARP.INTERFACE}`, `{#CARP.VHID}`, `{#CARP.MODE}` |
+| Filter | CARP-mode VIPs only; IP aliases are excluded |
+| Keep lost resources | 1d |
 
 **Item Prototypes:**
 
-| Name                                  | Key                                        | Description                                                                           |
-| ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Carp Status of {#OPNS.INTERFACE.NAME} | `opns.carp.status[{#OPNS.INTERFACE.NAME}]` | CARP status of the VIP (MASTER, BACKUP, INIT). Uses discard unchanged heartbeat (2h). |
+| Name | Key | Description |
+|------|-----|-------------|
+| CARP VIP {#CARP.ADDRESS} (…): Advertisement base | `opns.carp.advbase["{#CARP.ADDRESS}"]` | CARP advertisement base interval. |
+| CARP VIP {#CARP.ADDRESS} (…): Advertisement skew | `opns.carp.advskew["{#CARP.ADDRESS}"]` | CARP advertisement skew used in role election. |
+| CARP VIP {#CARP.ADDRESS} (…): Status | `opns.carp.status["{#CARP.ADDRESS}"]` | CARP status of the individual VIP (MASTER, BACKUP, INIT, DISABLED). Uses discard unchanged heartbeat (2h). |
 
 **Trigger Prototypes:**
 
-| Name                                          | Severity | Description                                       |
-| --------------------------------------------- | -------- | ------------------------------------------------- |
-| Carp Status Changed on {#OPNS.INTERFACE.NAME} | **High** | CARP status changed – indicates a failover event. |
+| Name | Severity | Description |
+|------|----------|-------------|
+| CARP status changed for VIP {#CARP.ADDRESS} | **High** | CARP status changed – indicates a failover or failback event. |
+| CARP status is unexpected for VIP {#CARP.ADDRESS} | **High** | Status does not match the accepted regex. |
 
 > **Note:** If no CARP interfaces are configured, the discovery returns a custom error and
 > no items are created.
 
 ---
 
-### 5. Interface Stats Discovery
+### 6. HA Peer Service Discovery
+
+Discovers checkable services returned by `/api/core/hasync_status/services` and raises a high-severity
+problem when a remote service remains stopped for 10 minutes. Services marked `nocheck` by OPNsense
+are excluded.
+
+---
+
+### 7. HA pfsync Node Discovery
+
+Discovers creator IDs present in the PF state table and records whether each ID belongs to the local
+node. The aggregate remote-node trigger is evidence-based: a quiet HA peer that has created no
+currently retained states may not appear even when pfsync transport itself is functional. Adjust
+`{$OPNS.HA.PFSYNC.REMOTE.NODES.MIN}` if this signal is not appropriate for the installation.
+
+---
+
+### 8. Interface Stats Discovery
 
 | Property   | Value                                                                          |
 | ---------- | ------------------------------------------------------------------------------ |
@@ -372,7 +463,7 @@ items and discovery rules.
 
 ---
 
-### 6. WireGuard Instance Discovery
+### 9. WireGuard Instance Discovery
 
 | Property            | Value                                                                                                 |
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -398,7 +489,7 @@ items and discovery rules.
 
 ---
 
-### 7. WireGuard Peer Discovery
+### 10. WireGuard Peer Discovery
 
 | Property            | Value                                                                                                                                                                                          |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -427,6 +518,26 @@ items and discovery rules.
 | --------------------------------------- | -------- | ------------------------------------------------ |
 | WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
 
+---
+
+### 11. Certificates Discovery
+
+| Property | Value |
+|----------|-------|
+| Key | `opns.trust.certificates.discovery` |
+| Type | Dependent (master: `opns.raw.trust.certificates`) |
+| LLD Macros | `{#DESCRIPTION}` → `$..descr.first()` |
+
+**Item Prototypes:**
+
+| Name | Key | Unit | Description |
+|------|-----|------|-------------|
+| {#DESCRIPTION} commonname | `opns.trust.certificates.discovery.commonname[{#DESCRIPTION}]` | – | Certificate CN (common name). |
+| {#DESCRIPTION} is in use | `opns.trust.certificates.discovery.in_use[{#DESCRIPTION}]` | Boolean | Shows whether the certificate is used or assigned. |
+| {#DESCRIPTION} is user | `opns.trust.certificates.discovery.is_user[{#DESCRIPTION}]` | Boolean | User certificate (for example, user VPN) or system certificate (for example, site-to-site VPN). |
+| {#DESCRIPTION} valid from | `opns.trust.certificates.discovery.valid_from[{#DESCRIPTION}]` | unixtime | Certificate validity start. |
+| {#DESCRIPTION} valid to | `opns.trust.certificates.discovery.valid_to[{#DESCRIPTION}]` | unixtime | Certificate validity end. |
+
 ## UPS Monitoring (NUT)
 
 OPNsense includes a built-in NUT (Network UPS Tools) plugin that exposes UPS status via its
@@ -446,28 +557,6 @@ from this JSON using standard JSONPath preprocessing – no external scripts req
 2. Connect a supported UPS via USB or network
 3. In Zabbix, navigate to the host and **enable the item** `RAW UPS` (`opns.ups.raw`)
 4. All dependent UPS items and triggers will start collecting data automatically
-
----
-
-### 8. Certificates Discovery
-
-| Property            | Value                                             |
-| ------------------- | ------------------------------------------------- |
-| Key                 | `opns.trust.certificates.discovery`               |
-| Type                | Dependent (master: `opns.raw.trust.certificates`) |
-| LLD Macros          | `{#DESCRIPTION}` → `$..descr.first()`            |
-
-**Item Prototypes:**
-
-| Name                      | Key                                                            | Unit      | Description                                                                    |
-| ------------------------- | -------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------ |
-| {#DESCRIPTION} commonname | `opns.trust.certificates.discovery.commonname[{#DESCRIPTION}]` | -         | Certificate CN (common name)                                                   |
-| {#DESCRIPTION} is in use  | `opns.trust.certificates.discovery.in_use[{#DESCRIPTION}]`     | (Boolean) | Shows if certificate is used / assigned                                        |
-| {#DESCRIPTION} is user    | `opns.trust.certificates.discovery.is_user[{#DESCRIPTION}]`    | (Boolean) | User certificate (User VPN) or system certificate (e. g. for Site-to-Site VPN) |
-| {#DESCRIPTION} valid from | `opns.trust.certificates.discovery.valid_from[{#DESCRIPTION}]` | unixtime  | Certificate valid from                                                         |
-| {#DESCRIPTION} valid to   | `opns.trust.certificates.discovery.valid_to[{#DESCRIPTION}]`   | unixtime  | Certificate valid to                                                           |
-
----
 
 ## Value mapping
 
