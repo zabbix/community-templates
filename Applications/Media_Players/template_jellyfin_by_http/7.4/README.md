@@ -59,7 +59,15 @@ That corresponds to:
 
 ## Creating the API key
 
-In Jellyfin, go to **Dashboard -> Advanced -> API Keys** and create a key for Zabbix. The template sends it in the `X-MediaBrowser-Token` header.
+In Jellyfin, go to **Dashboard -> Advanced -> API Keys** and create a key for Zabbix. The template sends it as `Authorization: MediaBrowser Token="<API key>"`.
+
+## Upgrading to Jellyfin 12
+
+Jellyfin 12 disables legacy authentication by default. Older revisions of this template use `X-MediaBrowser-Token`, causing all nine master items to fail with HTTP 401. Import the updated template with **Update existing** enabled for templates and items, and retain the host's existing secret `{$JELLYFIN.API.TOKEN}` macro. The updated template uses the supported authorization header for every endpoint; enabling legacy authentication in Jellyfin is unnecessary.
+
+The activity log request also uses `sortBy=DateCreated&sortOrder=Descending`. Jellyfin 12 validates this parameter and rejects the older `sortBy=Date` with HTTP 400.
+
+After importing, execute the nine script master items on the linked host or wait for their polling intervals (up to 15 minutes with the defaults). Verify that the master items become supported, dependent items receive new values, and all four discovery rules complete without errors. `Jellyfin: API available` should report `1`, and the API-unavailable problem should recover once the trigger is evaluated with fresh data.
 
 ## Monitored API areas
 
@@ -128,6 +136,8 @@ The storage endpoint is handled defensively. If the Jellyfin version does not pr
 - Plugins with non-OK status
 - Plugins requiring restart
 - Plugin discovery with status, version and uninstall flag
+
+Jellyfin can return several installed versions or pending-restart entries with the same plugin ID. Discovery creates one set of items per ID and uses the first API entry, matching the status/version lookups and preserving existing item keys. The aggregate plugin counters still evaluate all API entries, including entries requiring a restart.
 
 ### Scheduled tasks
 
@@ -218,3 +228,18 @@ The storage endpoint is handled defensively. If the Jellyfin version does not pr
 
 - Jellyfin OpenAPI stable specification: <https://repo.jellyfin.org/releases/openapi/jellyfin-openapi-stable.json>
 - Jellyfin OpenAPI archive: <https://repo.jellyfin.org/releases/openapi/>
+- Jellyfin authentication format: <https://gist.github.com/nielsvanvelzen/ea047d9028f676185832e51ffaf12a6f>
+
+## Validation
+
+Validated on 2026-09-08 using an isolated Zabbix 7.4.13 instance querying a live Jellyfin 12.0.0 server. The previous template reproduced HTTP 401 on all nine master items. Importing the update preserved the existing item IDs. After the update, all nine master items, 319 dependent items (including 263 discovered items), and all four discovery rules completed without unsupported-item or discovery errors. API availability reported `1` and the version item reported `12.0.0`.
+
+The three plugin-discovery regression tests cover duplicate versions sharing an ID, fallback names that coincide with JavaScript object properties, and an empty plugin list. Run them from this directory with Python 3, PyYAML and Node.js installed:
+
+```sh
+python files/test_plugin_discovery.py
+```
+
+The update was subsequently imported into production Zabbix 7.4.14 on the same date. All 325 existing item IDs and host macro records were preserved. Discovery added nine items; all 334 items became supported, all 325 dependent items received new values, and all four discovery rules completed without errors. The existing API-unavailable problem recovered automatically. The existing template group was reused without enabling template-group creation in the import rules.
+
+Runtime compatibility with older Jellyfin versions was not tested.
