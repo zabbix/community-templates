@@ -78,7 +78,7 @@ PVEAPIToken=zabbix@pam!Zabbix=<token-secret>
 
 A standalone node needs nothing beyond steps 1-4.
 
-**Upgrading:** Name and UUID of the template are unchanged, so an import updates it in place and keeps the history. Only if you imported the short-lived variant with the two templates `Proxmox VE Cluster by REST API` and `Proxmox VE Node by REST API`: unlink `Proxmox VE Node by REST API` from all hosts first, then import. The import renames the other one back to `Template Proxmox VE REST API` and adds the node items again. Delete `Proxmox VE Node by REST API` afterwards.
+**Upgrading:** Name and UUID of the template are unchanged, so an import updates it in place and keeps the history.
 
 ---
 
