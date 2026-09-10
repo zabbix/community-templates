@@ -1,0 +1,1061 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: c374798c0cb7497f82bfb1863fcdeb3e
+      name: Templates/Telephony
+  templates:
+    - uuid: c1a0ac6a26694668951da78e5bbe1168
+      template: 'Cisco Unified Communications Manager 15 cluster by API'
+      name: 'Cisco Unified Communications Manager 15 cluster by API'
+      description: 'Optional agentless cluster-impact monitoring for one CUCM 15 cluster. Link once to a virtual Zabbix cluster host, not to a CUCM node. Host setup: set {$CUCM.AXL.URL} to the Publisher endpoint, {$CUCM.API.USER}, {$CUCM.API.PASSWORD}, and {$CUCM.CLUSTER.SOURCE.HOSTGROUP} (only enabled Publisher/Subscriber core-template hosts); {$CUCM.HTTP.PROXY} and {$CUCM.CLUSTER.NODE.URLS} are optional. It requires Cisco Unified Communications Manager 15 by API 7.0-9 or later on every source host: its RegisteredHardwarePhones item has the required exact node:{HOST.HOST} tag. A read-only Publisher AXL collector lists process nodes, CallManager Groups, and Device Pools, then reads each bounded group to obtain member order; each discovered node receives a bounded direct ControlCenter Cisco CallManager state check. Existing core-template RegisteredHardwarePhones values are aggregated by Zabbix, so this template does not call RISPort70 or listPhone and does not discover individual phones. It deliberately does not collect or write CUCM software versions or host inventory. Contextual {$CUCM.CLUSTER.NODE.EXPECTED:"{#NODE}"} and {$CUCM.CLUSTER.CMG.EXPECTED:"{#CMGROUP}"} opt in to node and CallManager Group alerts. Maintainer: DevYves89.'
+      vendor:
+        name: Zabbix
+        version: 7.0-7
+      groups:
+        - name: Templates/Telephony
+      items:
+        - uuid: da319ba4a83a4d0c8490659a35f9d2db
+          name: 'CUCM internal: cluster topology raw/master'
+          type: SCRIPT
+          key: cucm.cluster.topology.raw
+          delay: '{$CUCM.CLUSTER.TOPOLOGY.INTERVAL}'
+          history: '1d'
+          value_type: TEXT
+          trends: '0'
+          params: |
+            var p=JSON.parse(value);
+            function post(body,action){
+                var q=new HttpRequest(),r,s;
+                q.setHttpAuth(HTTPAUTH_BASIC,p.username,p.password);
+                if(p.proxy)q.setProxy(p.proxy);
+                q.addHeader('Content-Type: text/xml; charset=utf-8');
+                q.addHeader('SOAPAction: '+action);
+                r=q.post(p.axl_url+'/axl/',body);s=q.getStatus();
+                if(s<200||s>=300)throw 'AXL returned HTTP '+s;
+                if(/<(?:[^:>]+:)?Fault\b/i.test(r))throw 'AXL SOAP fault';
+                return r;
+            }
+            function envelope(operation,content){
+                return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a="http://www.cisco.com/AXL/API/'+p.version+'"><s:Body><a:'+operation+'>'+content+'</a:'+operation+'></s:Body></s:Envelope>';
+            }
+            function xmlText(value){
+                return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+            }
+            function field(body,name){
+                var x=new RegExp('<(?:[^:>]+:)?'+name+'(?:\\s[^>]*)?>\\s*([^<]*)\\s*</(?:[^:>]+:)?'+name+'>','i').exec(body);
+                return x?x[1].trim():'';
+            }
+            function blocks(xml,name){
+                var r=new RegExp('<(?:[^:>]+:)?'+name+'\\b[^>]*>([\\s\\S]*?)</(?:[^:>]+:)?'+name+'>','gi'),a=[],m;
+                while((m=r.exec(xml))!==null)a.push(m[1]);
+                return a;
+            }
+            function label(value,kind){
+                value=(value||'').trim();
+                if(!value||value.length>255||/[\x00-\x1f{}"]/.test(value))throw 'invalid '+kind;
+                return value;
+            }
+            function nodeName(value){
+                value=label(value,'node identity');
+                if(!/^[A-Za-z0-9_.:-]+$/.test(value))throw 'invalid node identity';
+                return value;
+            }
+            function nodeAlias(value){
+                return nodeName(value).toLowerCase().replace(/\.$/,'').split('.')[0];
+            }
+            function memberNodeAliases(value){
+                /* CUCM can store a CallManager service identity as CM_<node-short-name>. */
+                var primary=nodeAlias(value),aliases=[primary],match=/^cm_([a-z0-9_.:-]+)$/i.exec(primary);
+                if(match)aliases.push(match[1]);
+                return aliases;
+            }
+            function nodeUrl(value,kind){
+                value=label(value,kind);
+                if(!/^https:\/\/[A-Za-z0-9.:[\]-]+(?::\d{1,5})?$/i.test(value))throw 'invalid '+kind;
+                return value.replace(/\/$/,'');
+            }
+            function endpointKey(value){
+                /* HTTPS without a port and HTTPS on 8443 address the same CUCM API endpoint. */
+                return nodeUrl(value,'node ControlCenter URL').toLowerCase().replace(/:8443$/,'');
+            }
+            function nodeUrlMappings(value){
+                var parsed,seen={};
+                try{parsed=JSON.parse(value||'{}');}catch(error){throw 'invalid node URL mapping JSON';}
+                if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw 'invalid node URL mapping';
+                Object.keys(parsed).forEach(function(name){
+                    var endpoint;
+                    nodeName(name);parsed[name]=nodeUrl(String(parsed[name]),'node URL mapping');endpoint=endpointKey(parsed[name]);
+                    if(seen[endpoint])throw 'multiple node URL mappings target the same ControlCenter endpoint';
+                    seen[endpoint]=name;
+                });
+                return parsed;
+            }
+            function cap(value,kind){
+                value=String(value===undefined?'':value).trim();
+                if(!/^\d+$/.test(value))throw 'invalid '+kind;
+                value=Number(value);
+                if(!isFinite(value)||Math.floor(value)!==value||value<1||value>12)throw 'invalid '+kind;
+                return value;
+            }
+            function resolveMember(value,nodes){
+                value=nodeName(value);
+                if(nodes[value])return value;
+                var exact=[],aliases=[],canonical=value.toLowerCase().replace(/\.$/,''),requestedAliases=memberNodeAliases(value);
+                Object.keys(nodes).forEach(function(name){
+                    var normalized=name.toLowerCase().replace(/\.$/,'');
+                    if(normalized===canonical)exact.push(name);
+                    if(requestedAliases.indexOf(nodeAlias(name))!==-1)aliases.push(name);
+                });
+                if(exact.length===1)return exact[0];
+                if(exact.length>1)throw 'ambiguous case-insensitive process node identity';
+                if(aliases.length===1)return aliases[0];
+                if(aliases.length>1)throw 'ambiguous short-name process node identity';
+                /* Safe diagnostic context: identities only, never request credentials or XML. */
+                throw 'CallManager Group member cannot be resolved to a process node: member='+value+'; process_nodes='+Object.keys(nodes).sort().join(',')+'; member_aliases='+requestedAliases.join(',');
+            }
+            function positive(value,kind){
+                if(!/^\d+$/.test(value))throw 'invalid '+kind;
+                value=Number(value);
+                if(!isFinite(value)||Math.floor(value)!==value||value<0||value>3)throw 'invalid '+kind;
+                return value;
+            }
+            var processXml=post(envelope('listProcessNode','<searchCriteria><name>%</name></searchCriteria><returnedTags><name></name><nodeUsage></nodeUsage><processNodeRole></processNodeRole></returnedTags>'),'"CUCM:DB ver='+p.version+' listProcessNode"');
+            var groupXml=post(envelope('listCallManagerGroup','<searchCriteria><name>%</name></searchCriteria><returnedTags><name></name></returnedTags>'),'"CUCM:DB ver='+p.version+' listCallManagerGroup"');
+            var poolXml=post(envelope('listDevicePool','<searchCriteria><name>%</name></searchCriteria><returnedTags><name></name><callManagerGroupName></callManagerGroupName></returnedTags>'),'"CUCM:DB ver='+p.version+' listDevicePool"');
+            if(!/listProcessNodeResponse/i.test(processXml)||!/listCallManagerGroupResponse/i.test(groupXml)||!/listDevicePoolResponse/i.test(poolXml))throw 'invalid AXL topology response';
+            var nodes={},nodeBlocks=blocks(processXml,'processNode'),configuredNodeUrls=nodeUrlMappings(p.node_urls),maxNodes=cap(p.max_nodes,'process-node cap'),maxGroups=cap(p.max_cmgroups,'CallManager Group cap');
+            if(!nodeBlocks.length)throw 'AXL returned no process nodes';
+            for(var i=0;i<nodeBlocks.length;i++){
+                var name=nodeName(field(nodeBlocks[i],'name'));
+                if(nodes[name])throw 'duplicate AXL process-node identity';
+                nodes[name]={name:name,usage:label(field(nodeBlocks[i],'nodeUsage')||'Not reported','node usage'),role:label(field(nodeBlocks[i],'processNodeRole')||'Not reported','node role'),url:nodeUrl(configuredNodeUrls[name]||('https://'+name+':8443'),'node ControlCenter URL'),cmgroups:[],devicepools:[]};
+            }
+            Object.keys(configuredNodeUrls).forEach(function(name){if(!nodes[name])throw 'node URL mapping references an unresolved process node';});
+            var endpoints={};Object.keys(nodes).forEach(function(name){var endpoint=endpointKey(nodes[name].url);if(endpoints[endpoint])throw 'multiple process nodes target the same ControlCenter endpoint';endpoints[endpoint]=name;});
+            if(Object.keys(nodes).length>maxNodes)throw 'discovered CUCM node count exceeds configured cap';
+            var groups={},groupBlocks=blocks(groupXml,'callManagerGroup');
+            if(!groupBlocks.length)throw 'AXL returned no CallManager Groups';
+            for(i=0;i<groupBlocks.length;i++){
+                var groupName=label(field(groupBlocks[i],'name'),'CallManager Group name');
+                if(groups[groupName])throw 'duplicate AXL CallManager Group identity';
+                groups[groupName]={name:groupName,members:[]};
+            }
+            if(Object.keys(groups).length>maxGroups)throw 'discovered CallManager Group count exceeds configured cap';
+            Object.keys(groups).sort().forEach(function(groupName){
+                var groupDetailXml=post(envelope('getCallManagerGroup','<name>'+xmlText(groupName)+'</name>'),'"CUCM:DB ver='+p.version+' getCallManagerGroup"');
+                if(!/getCallManagerGroupResponse/i.test(groupDetailXml))throw 'invalid AXL CallManager Group detail response';
+                var detailBlocks=blocks(groupDetailXml,'callManagerGroup');
+                if(detailBlocks.length!==1)throw 'invalid AXL CallManager Group detail cardinality';
+                if(label(field(detailBlocks[0],'name'),'CallManager Group detail name')!==groupName)throw 'CallManager Group detail identity mismatch';
+                var members=[],memberBlocks=blocks(detailBlocks[0],'member'),priorities={};
+                if(!memberBlocks.length)throw 'CallManager Group has no members';
+                for(var j=0;j<memberBlocks.length;j++){
+                    var rawMember=field(memberBlocks[j],'callManagerName')||field(memberBlocks[j],'processNodeName');
+                    var member=resolveMember(rawMember,nodes);
+                    var priority=positive(field(memberBlocks[j],'priority'),'CallManager Group member priority');
+                    if(!nodes[member])throw 'CallManager Group member cannot be resolved to a process node';
+                    if(priorities[priority])throw 'duplicate CallManager Group member priority';
+                    /* Preserve the bounded raw AXL identity for one-day internal auditability. */
+                    priorities[priority]=1;members.push({name:member,priority:priority,raw_name:rawMember});
+                }
+                members.sort(function(a,b){return a.priority-b.priority;});
+                for(j=0;j<members.length;j++)nodes[members[j].name].cmgroups.push(groupName);
+                groups[groupName]={name:groupName,members:members};
+            });
+            var pools={},poolBlocks=blocks(poolXml,'devicePool');
+            for(i=0;i<poolBlocks.length;i++){
+                var poolName=label(field(poolBlocks[i],'name'),'Device Pool name');
+                var poolGroup=label(field(poolBlocks[i],'callManagerGroupName'),'Device Pool CallManager Group');
+                if(pools[poolName])throw 'duplicate AXL Device Pool identity';
+                if(!groups[poolGroup])throw 'Device Pool references an unresolved CallManager Group';
+                pools[poolName]={name:poolName,cmgroup:poolGroup};
+            }
+            Object.keys(pools).forEach(function(pool){
+                var group=groups[pools[pool].cmgroup];
+                group.members.forEach(function(member){nodes[member.name].devicepools.push(pool);});
+            });
+            var resultNodes=[];
+            Object.keys(nodes).sort().forEach(function(name){
+                var node=nodes[name];
+                if(!node.cmgroups.length)return;
+                node.cmgroups.sort();node.devicepools.sort();resultNodes.push(node);
+            });
+            if(!resultNodes.length)throw 'no process nodes belong to a CallManager Group';
+            var resultGroups=[];Object.keys(groups).sort().forEach(function(name){resultGroups.push(groups[name]);});
+            var resultPools=[];Object.keys(pools).sort().forEach(function(name){resultPools.push(pools[name]);});
+            return JSON.stringify({schema:1,nodes:resultNodes,cmgroups:resultGroups,devicepools:resultPools});
+          description: 'Internal fail-closed Publisher AXL topology collector. It lists process nodes, CallManager Groups, and Device Pools, then reads each bounded CallManager Group detail to obtain ordered members. Malformed, duplicate, unresolved, inconsistent, or over-cap data is rejected before any topology value is published.'
+          timeout: '45s'
+          parameters:
+            - name: axl_url
+              value: '{$CUCM.AXL.URL}'
+            - name: max_cmgroups
+              value: '{$CUCM.CLUSTER.MAX.CMGROUPS}'
+            - name: max_nodes
+              value: '{$CUCM.CLUSTER.MAX.NODES}'
+            - name: node_urls
+              value: '{$CUCM.CLUSTER.NODE.URLS}'
+            - name: password
+              value: '{$CUCM.API.PASSWORD}'
+            - name: proxy
+              value: '{$CUCM.HTTP.PROXY}'
+            - name: username
+              value: '{$CUCM.API.USER}'
+            - name: version
+              value: '{$CUCM.API.VERSION}'
+          tags:
+            - tag: component
+              value: topology
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: internal
+            - tag: source
+              value: axl
+        - uuid: 3764c6e2cd924d6896846e4d725bb5c7
+          name: 'CUCM cluster: topology health'
+          type: DEPENDENT
+          key: cucm.cluster.topology.health
+          delay: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.nodes)||!Array.isArray(p.cmgroups)||!Array.isArray(p.devicepools))throw ''invalid cluster topology payload'';return 1;'
+          master_item:
+            key: cucm.cluster.topology.raw
+          tags:
+            - tag: component
+              value: topology
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: axl
+          valuemap:
+            name: 'CUCM cluster collection health'
+          description: 'Successful fully normalized AXL topology collection. Transport or validation failure intentionally leaves no new value.'
+          triggers:
+            - uuid: d78bb9dc9cf24a50809e680529e83818
+              expression: 'nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.topology.health,{$CUCM.CLUSTER.TOPOLOGY.NODATA})=1'
+              name: 'CUCM cluster topology has no valid refresh for {$CUCM.CLUSTER.TOPOLOGY.NODATA}'
+              opdata: 'No successful topology snapshot for {$CUCM.CLUSTER.TOPOLOGY.NODATA}'
+              priority: HIGH
+              description: 'The topology master produced no valid snapshot for three default collection intervals. Existing topology data is not trusted as current after this window.'
+              tags:
+                - tag: component
+                  value: topology
+                - tag: entity
+                  value: cluster
+        - uuid: fec4b5e4213341848fc1f56ba652d405
+          name: 'CUCM cluster: discovered nodes'
+          type: DEPENDENT
+          key: cucm.cluster.topology.nodes
+          delay: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.nodes)||!p.nodes.length)throw ''invalid topology nodes'';return p.nodes.length;'
+          master_item:
+            key: cucm.cluster.topology.raw
+          tags:
+            - tag: component
+              value: topology
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: axl
+          description: 'Process nodes that are valid members of at least one CallManager Group.'
+        - uuid: c170fd9e9ec2427d8b7d7f4d90407f9f
+          name: 'CUCM cluster: CallManager Groups'
+          type: DEPENDENT
+          key: cucm.cluster.topology.cmgroups
+          delay: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.cmgroups)||!p.cmgroups.length)throw ''invalid topology CallManager Groups'';return p.cmgroups.length;'
+          master_item:
+            key: cucm.cluster.topology.raw
+          tags:
+            - tag: component
+              value: topology
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: axl
+          description: 'AXL-discovered CallManager Group count.'
+        - uuid: 32e121a41e7244829f9be3867cc75f54
+          name: 'CUCM cluster: Device Pools'
+          type: DEPENDENT
+          key: cucm.cluster.topology.devicepools
+          delay: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.devicepools))throw ''invalid topology Device Pools'';return p.devicepools.length;'
+          master_item:
+            key: cucm.cluster.topology.raw
+          tags:
+            - tag: component
+              value: topology
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: axl
+          description: 'AXL-discovered Device Pool count with a resolved CallManager Group.'
+        - uuid: 9dd87cd527124cf5be7c62ce178263ee
+          name: 'CUCM cluster: core-template source nodes'
+          type: CALCULATED
+          key: cucm.cluster.sources.total
+          delay: '5m'
+          params: 'count(exists_foreach(/*/cucm.callmanager.registered.hardware?[group="{$CUCM.CLUSTER.SOURCE.HOSTGROUP}"]))'
+          tags:
+            - tag: component
+              value: cluster
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          description: 'Enabled CUCM-core RegisteredHardwarePhones items selected by the configured source host group. This includes configured source items even before their first successful value.'
+        - uuid: bdef2d30165543af9dd93b713e4cc906
+          name: 'CUCM cluster: fresh core-template source nodes'
+          type: CALCULATED
+          key: cucm.cluster.sources.fresh
+          delay: '5m'
+          params: 'count(last_foreach(/*/cucm.callmanager.registered.hardware?[group="{$CUCM.CLUSTER.SOURCE.HOSTGROUP}"],{$CUCM.CLUSTER.SOURCE.FRESHNESS}))'
+          tags:
+            - tag: component
+              value: cluster
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          description: 'Source nodes with a supported RegisteredHardwarePhones value no older than the configured freshness interval.'
+        - uuid: 2083c0c027e34587b67667a4a6ec3abf
+          name: 'CUCM cluster: core-template source completeness'
+          type: CALCULATED
+          key: cucm.cluster.sources.complete
+          delay: '5m'
+          params: 'last(//cucm.cluster.sources.total)>0 and last(//cucm.cluster.sources.total)=last(//cucm.cluster.topology.nodes) and last(//cucm.cluster.sources.fresh)=last(//cucm.cluster.topology.nodes)'
+          tags:
+            - tag: component
+              value: cluster
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          valuemap:
+            name: 'CUCM cluster source completeness'
+          description: '1 only when the configured source host group has the same cardinality as the discovered topology, all group sources are fresh, and every discovered process node has exactly one fresh core-template value selected by its exact node:{HOST.HOST} tag. Registration impact therefore never aggregates arbitrary, missing, or ambiguous host-group members.'
+          triggers:
+            - uuid: 737afb6506ea425db0f349fe06b883c1
+              expression: 'nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.sources.complete,10m)=1 or (count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.sources.complete,10m)>=3 and max(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.sources.complete,10m)=0)'
+              name: 'CUCM cluster core-template inputs are incomplete or stale'
+              opdata: 'Topology nodes:{?last(//cucm.cluster.topology.nodes)}; Sources:{?last(//cucm.cluster.sources.total)}; Fresh:{?last(//cucm.cluster.sources.fresh)}; Core sources ready:{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'For ten minutes, the configured core source group has been absent, stale, cardinality-mismatched, or unsupported, or an exact discovered-node source is unavailable. Topology collection has its own explicit health alert and independently gates registration-impact alerts.'
+              tags:
+                - tag: component
+                  value: cluster
+                - tag: entity
+                  value: cluster
+        - uuid: 5309118e49e442998fccb45b6526a95d
+          name: 'CUCM cluster: registered hardware phones'
+          type: CALCULATED
+          key: cucm.cluster.registration.total
+          delay: '5m'
+          params: 'sum(last_foreach(/*/cucm.callmanager.registered.hardware?[group="{$CUCM.CLUSTER.SOURCE.HOSTGROUP}" and tag="metric:registered-hardware-phones"],{$CUCM.CLUSTER.SOURCE.FRESHNESS}))'
+          tags:
+            - tag: component
+              value: registration
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          description: 'Sum of fresh per-discovered-node RegisteredHardwarePhones values, each selected from the CUCM core template by the exact node:{HOST.HOST} tag. It starts no CUCM API request and never aggregates arbitrary source-host-group members.'
+        - uuid: ad5521a7ccc44d27867b291a60cb7ec9
+          name: 'CUCM cluster: registered-phone seven-day baseline'
+          type: CALCULATED
+          key: cucm.cluster.registration.baseline
+          delay: '5m'
+          params: 'avg(//cucm.cluster.registration.total,{$CUCM.CLUSTER.PHONE.BASELINE.WINDOW})'
+          tags:
+            - tag: component
+              value: registration
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          description: 'Rolling mean of the cluster template''s own aggregate registration total. It is valid only after the configured minimum sample count.'
+        - uuid: 5988c7419a954db797a69e03f7bf143f
+          name: 'CUCM cluster: registration baseline ready'
+          type: CALCULATED
+          key: cucm.cluster.registration.baseline.ready
+          delay: '5m'
+          params: 'count(//cucm.cluster.registration.total,{$CUCM.CLUSTER.PHONE.BASELINE.WINDOW})>={$CUCM.CLUSTER.PHONE.BASELINE.MIN.SAMPLES} and last(//cucm.cluster.registration.baseline)>0'
+          tags:
+            - tag: component
+              value: registration
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          valuemap:
+            name: 'CUCM cluster baseline readiness'
+          description: 'Prevents registration-impact alerting until enough aggregate samples and a non-zero seven-day baseline exist.'
+        - uuid: 71eee756b3ab40a5a262c820e14d761f
+          name: 'CUCM cluster: registered-phone baseline percentage'
+          type: CALCULATED
+          key: cucm.cluster.registration.baseline.pct
+          delay: '5m'
+          params: '100*last(//cucm.cluster.registration.total)/max(last(//cucm.cluster.registration.baseline),1)'
+          tags:
+            - tag: component
+              value: registration
+            - tag: entity
+              value: cluster
+            - tag: scope
+              value: operator
+            - tag: source
+              value: zabbix
+          units: '%'
+          description: 'Current aggregate registration divided by the rolling baseline. Interpret only when registration baseline ready is Yes; impact triggers are explicitly gated on that item.'
+          triggers:
+            - uuid: 2c4b587107e24f68a3918704920e66a2
+              expression: 'nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.topology.health,{$CUCM.CLUSTER.TOPOLOGY.NODATA})=0 and last(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.sources.complete)=1 and last(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.registration.baseline.ready)=1 and count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.registration.baseline.pct,10m,"le",{$CUCM.CLUSTER.PHONE.DISASTER.PCT})>=3'
+              name: 'CUCM cluster hardware-phone registration has severe impact'
+              opdata: 'Registered:{?last(//cucm.cluster.registration.total)}; Baseline:{?last(//cucm.cluster.registration.baseline)}; Percent:{ITEM.LASTVALUE1}%; Sources:{?last(//cucm.cluster.sources.fresh)}/{?last(//cucm.cluster.sources.total)}'
+              priority: DISASTER
+              description: 'Fresh complete core sources and a current valid topology report registration at or below the configured Disaster baseline percentage for three five-minute samples. This is confirmed cluster-wide registration impact, not a claim about an individual Device Pool.'
+              tags:
+                - tag: component
+                  value: registration
+                - tag: entity
+                  value: cluster
+            - uuid: 968e8ce1c43d4b14addca1b9648eb8fa
+              expression: 'nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.topology.health,{$CUCM.CLUSTER.TOPOLOGY.NODATA})=0 and last(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.sources.complete)=1 and last(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.registration.baseline.ready)=1 and count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.registration.baseline.pct,10m,"gt",{$CUCM.CLUSTER.PHONE.DISASTER.PCT})>=3 and count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.registration.baseline.pct,10m,"le",{$CUCM.CLUSTER.PHONE.HIGH.PCT})>=3'
+              name: 'CUCM cluster hardware-phone registration is materially reduced'
+              opdata: 'Registered:{?last(//cucm.cluster.registration.total)}; Baseline:{?last(//cucm.cluster.registration.baseline)}; Percent:{ITEM.LASTVALUE1}%; Sources:{?last(//cucm.cluster.sources.fresh)}/{?last(//cucm.cluster.sources.total)}'
+              priority: HIGH
+              description: 'Fresh complete core sources and a current valid topology report registration above Disaster but at or below High baseline percentage for three five-minute samples. The lower boundary is exclusive and the upper boundary inclusive.'
+              tags:
+                - tag: component
+                  value: registration
+                - tag: entity
+                  value: cluster
+      discovery_rules:
+        - uuid: ccd6de79cb324ac0ac82ec2e523022ba
+          name: 'CUCM cluster node discovery'
+          type: DEPENDENT
+          key: cucm.cluster.node.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 01c42a44a70e46d0bfb2ebb3606210ca
+              name: 'CUCM cluster node {#NODE}: CallManager state'
+              type: HTTP_AGENT
+              key: 'cucm.cluster.node.callmanager.state[{#NODE}]'
+              delay: '{$CUCM.CLUSTER.NODE.RUNTIME.INTERVAL}'
+              description: 'Validated ControlCenter Cisco CallManager runtime state for this discovered topology node. The response body is discarded after preprocessing; a transport, SOAP fault, malformed payload, or unrecognized state produces no valid item value.'
+              timeout: '30s'
+              url: '{#NODE.URL}/controlcenterservice2/services/ControlCenterServices'
+              posts: '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://schemas.cisco.com/ast/soap"><soapenv:Body><ns:soapGetServiceStatus><ns:ServiceStatus>Cisco CallManager</ns:ServiceStatus></ns:soapGetServiceStatus></soapenv:Body></soapenv:Envelope>'
+              authtype: BASIC
+              username: '{$CUCM.API.USER}'
+              password: '{$CUCM.API.PASSWORD}'
+              http_proxy: '{$CUCM.HTTP.PROXY}'
+              request_method: POST
+              headers:
+                - name: Content-Type
+                  value: 'text/xml; charset=utf-8'
+                - name: SOAPAction
+                  value: '""'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'if(value.indexOf(''soapGetServiceStatusResponse'')<0||/<(?:[^:>]+:)?Fault\b/i.test(value))throw ''invalid ControlCenter response'';var r=/<(?:[^:>]+:)?item\b[^>]*>[\s\S]*?<(?:(?:[^:>]+):)?ServiceName>\s*Cisco CallManager\s*<\/[^>]*ServiceName>[\s\S]*?<(?:(?:[^:>]+):)?ServiceStatus>\s*([^<]+)\s*<\/[^>]*ServiceStatus>[\s\S]*?<\/[^>]*item>/i.exec(value);if(!r)throw ''Cisco CallManager state absent'';if(r[1]===''Started'')return 1;if(r[1]===''Stopped'')return 2;throw ''unrecognized Cisco CallManager state'';'
+              valuemap:
+                name: 'CUCM cluster CallManager state'
+              tags:
+                - tag: component
+                  value: cluster
+                - tag: entity
+                  value: node
+                - tag: scope
+                  value: operator
+                - tag: source
+                  value: controlcenter
+                - tag: node
+                  value: '{#NODE}'
+              trigger_prototypes:
+                - uuid: 73c42b1d7f5e41c6aa1173547136c7b8
+                  expression: '{$CUCM.CLUSTER.NODE.EXPECTED:"{#NODE}"}=1 and (nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.node.callmanager.state[{#NODE}],10m)=1 or (count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.node.callmanager.state[{#NODE}],10m)>=3 and min(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.node.callmanager.state[{#NODE}],10m)=2))'
+                  name: 'CUCM cluster node {#NODE} CallManager is unavailable'
+                  opdata: 'Node:{#NODE}; State:{ITEM.LASTVALUE1}; CMGs:{#NODE.CMGS}; Device pools:{#NODE.DEVICEPOOLS}'
+                  priority: HIGH
+                  description: 'Expected node has no valid CallManager state for ten minutes or reported Stopped throughout three five-minute checks. Affected CallManager Groups and Device Pools are topology context, not a per-device registration claim.'
+                  tags:
+                    - tag: component
+                      value: cluster
+                    - tag: entity
+                      value: node
+            - uuid: e5262f0b4cde4f9c8bf433c7259b78fa
+              name: 'CUCM cluster node {#NODE}: registered hardware phones source'
+              type: CALCULATED
+              key: 'cucm.cluster.source.node.registration[{#NODE}]'
+              delay: '5m'
+              params: 'sum(last_foreach(/*/cucm.callmanager.registered.hardware?[group="{$CUCM.CLUSTER.SOURCE.HOSTGROUP}" and tag="node:{#NODE}"],{$CUCM.CLUSTER.SOURCE.FRESHNESS}))'
+              description: 'Exact tagged cross-host input from the CUCM core template for this discovered process-node identity. The core RegisteredHardwarePhones item carries node:{HOST.HOST}; a missing, unsupported, stale, or non-unique source is excluded from the aggregate and blocks registration-impact triggers through the completeness gate.'
+              tags:
+                - tag: component
+                  value: registration
+                - tag: entity
+                  value: node
+                - tag: scope
+                  value: operator
+                - tag: source
+                  value: zabbix
+                - tag: node
+                  value: '{#NODE}'
+            - uuid: 24a2b3ff954f410db51d480fa08bc52c
+              name: 'CUCM internal: cluster node {#NODE} registration source completeness'
+              type: CALCULATED
+              key: 'cucm.cluster.source.node.complete[{#NODE}]'
+              delay: '5m'
+              params: 'count(last_foreach(/*/cucm.callmanager.registered.hardware?[group="{$CUCM.CLUSTER.SOURCE.HOSTGROUP}" and tag="node:{#NODE}"],{$CUCM.CLUSTER.SOURCE.FRESHNESS}))'
+              description: 'Number of fresh exact node:{HOST.HOST}-tagged CUCM-core registration inputs for this discovered process node. It must be exactly one; zero blocks registration-impact alerts for a missing or stale mapping and more than one blocks them for an ambiguous mapping.'
+              tags:
+                - tag: component
+                  value: registration
+                - tag: entity
+                  value: node
+                - tag: scope
+                  value: internal
+                - tag: source
+                  value: zabbix
+                - tag: node
+                  value: '{#NODE}'
+          master_item:
+            key: cucm.cluster.topology.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.nodes))throw ''invalid cluster topology payload'';var a=[],seen={};p.nodes.forEach(function(r){var n=r[''name''];if(typeof n!==''string''||!n||seen[n])throw ''invalid or duplicate topology identity'';seen[n]=1;a.push({''{#NODE}'':r[''name''],''{#NODE.URL}'':r[''url''],''{#NODE.CMGS}'':r.cmgroups.join('', ''),''{#NODE.DEVICEPOOLS}'':r.devicepools.join('', '')});});return JSON.stringify({data:a});'
+        - uuid: ca1f1144392243f8930587a74ac453f9
+          name: 'CUCM cluster CallManager Group discovery'
+          type: DEPENDENT
+          key: cucm.cluster.cmgroup.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 9b6171554a3b444389b640adbe1dfbeb
+              name: 'CUCM internal: CallManager Group {#CMGROUP} member snapshot'
+              type: DEPENDENT
+              key: 'cucm.cluster.cmgroup.members.snapshot[{#CMGROUP}]'
+              delay: '0'
+              description: 'Internal successful-AXL topology snapshot used by the five-minute sustainable resilience calculation. Filter scope=internal; operators should use the configured-members item.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var p=JSON.parse(value),n=''{#CMGROUP}'';for(var i=0;i<p.cmgroups.length;i++){var r=p.cmgroups[i];if(r.name===n){if(!Array.isArray(r.members)||!r.members.length)throw ''CallManager Group members absent'';return r.members.length;}}throw ''CallManager Group absent'';'
+              master_item:
+                key: cucm.cluster.topology.raw
+              tags:
+                - tag: component
+                  value: topology
+                - tag: entity
+                  value: cm_group
+                - tag: scope
+                  value: internal
+                - tag: source
+                  value: axl
+                - tag: cm_group
+                  value: '{#CMGROUP}'
+            - uuid: 88bb2ef650f0440186f63a10696861e4
+              name: 'CUCM cluster CallManager Group {#CMGROUP}: configured members'
+              type: CALCULATED
+              key: 'cucm.cluster.cmgroup.members[{#CMGROUP}]'
+              delay: '5m'
+              params: 'last(//cucm.cluster.cmgroup.members.snapshot[{#CMGROUP}])'
+              description: 'Number of AXL-configured, ordered CallManager Group members, re-evaluated every five minutes without a CUCM request. This is a topology resilience measurement, not a runtime availability count.'
+              tags:
+                - tag: component
+                  value: topology
+                - tag: entity
+                  value: cm_group
+                - tag: scope
+                  value: operator
+                - tag: source
+                  value: zabbix
+                - tag: cm_group
+                  value: '{#CMGROUP}'
+              trigger_prototypes:
+                - uuid: 3f804eb12bd649d59fb1a99aba642722
+                  expression: '{$CUCM.CLUSTER.CMG.EXPECTED:"{#CMGROUP}"}=1 and nodata(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.topology.health,{$CUCM.CLUSTER.TOPOLOGY.NODATA})=0 and count(/Cisco Unified Communications Manager 15 cluster by API/cucm.cluster.cmgroup.members[{#CMGROUP}],10m,"lt",2)>=3'
+                  name: 'CUCM cluster CallManager Group {#CMGROUP} has no failover member'
+                  opdata: 'CMG:{#CMGROUP}; Members:{ITEM.LASTVALUE1}; Ordered nodes:{#CMGROUP.MEMBERS}'
+                  priority: WARNING
+                  description: 'Expected CallManager Group has had fewer than two configured members for three five-minute calculated samples while topology is still fresh. This is a resilience-configuration gap, not an asserted current service outage.'
+                  tags:
+                    - tag: component
+                      value: topology
+                    - tag: entity
+                      value: cm_group
+            - uuid: 81c13e9ea4b540b888a31d4b88fda488
+              name: 'CUCM cluster CallManager Group {#CMGROUP}: ordered members'
+              type: DEPENDENT
+              key: 'cucm.cluster.cmgroup.ordered.members[{#CMGROUP}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'AXL member order, rendered as priority:node. CUCM Device Pools refer to this group for primary/secondary/tertiary failover policy.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var p=JSON.parse(value),n=''{#CMGROUP}'';for(var i=0;i<p.cmgroups.length;i++){var r=p.cmgroups[i];if(r.name===n){return r.members.map(function(m){return m.priority+'':''+m.name;}).join('', '');}}throw ''CallManager Group absent'';'
+              master_item:
+                key: cucm.cluster.topology.raw
+              tags:
+                - tag: component
+                  value: topology
+                - tag: entity
+                  value: cm_group
+                - tag: scope
+                  value: operator
+                - tag: source
+                  value: axl
+                - tag: cm_group
+                  value: '{#CMGROUP}'
+          master_item:
+            key: cucm.cluster.topology.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.cmgroups))throw ''invalid cluster topology payload'';var a=[],seen={};p.cmgroups.forEach(function(r){var n=r[''name''];if(typeof n!==''string''||!n||seen[n])throw ''invalid or duplicate topology identity'';seen[n]=1;a.push({''{#CMGROUP}'':r[''name''],''{#CMGROUP.MEMBERS}'':r.members.map(function(m){return m.priority+'':''+m.name;}).join('', '')});});return JSON.stringify({data:a});'
+        - uuid: 5a534c57d5e34d238a398366bd792f30
+          name: 'CUCM cluster Device Pool discovery'
+          type: DEPENDENT
+          key: cucm.cluster.devicepool.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 83a5aae5db254f94885fcd1f6ce2b41b
+              name: 'CUCM cluster Device Pool {#DEVICEPOOL}: CallManager Group'
+              type: DEPENDENT
+              key: 'cucm.cluster.devicepool.cmgroup[{#DEVICEPOOL}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'AXL-assigned CallManager Group for this Device Pool. This enriches node-outage context; it is not individual-phone registration discovery.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var p=JSON.parse(value),n=''{#DEVICEPOOL}'';for(var i=0;i<p.devicepools.length;i++){var r=p.devicepools[i];if(r.name===n){if(typeof r.cmgroup!==''string''||!r.cmgroup)throw ''Device Pool CallManager Group absent'';return r.cmgroup;}}throw ''Device Pool absent'';'
+              master_item:
+                key: cucm.cluster.topology.raw
+              tags:
+                - tag: component
+                  value: topology
+                - tag: entity
+                  value: device_pool
+                - tag: scope
+                  value: operator
+                - tag: source
+                  value: axl
+                - tag: device_pool
+                  value: '{#DEVICEPOOL}'
+          master_item:
+            key: cucm.cluster.topology.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var p=JSON.parse(value);if(p.schema!==1||!Array.isArray(p.devicepools))throw ''invalid cluster topology payload'';var a=[],seen={};p.devicepools.forEach(function(r){var n=r[''name''];if(typeof n!==''string''||!n||seen[n])throw ''invalid or duplicate topology identity'';seen[n]=1;a.push({''{#DEVICEPOOL}'':r[''name''],''{#CMGROUP}'':r[''cmgroup'']});});return JSON.stringify({data:a});'
+      macros:
+        - macro: '{$CUCM.API.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'Secret password for the dedicated read-only CUCM application user. Override only on the virtual cluster host.'
+        - macro: '{$CUCM.API.USER}'
+          value: zabbix-monitor
+          description: 'Dedicated CUCM application user for the Publisher AXL topology collector and per-node ControlCenter status checks. Assign Standard CCM Server Monitoring plus Standard AXL API Users and Standard AXL Read Only API Access through a custom read-only AXL group.'
+        - macro: '{$CUCM.API.VERSION}'
+          value: '15.0'
+          description: 'Publisher AXL schema version used for listProcessNode, listCallManagerGroup, getCallManagerGroup, and listDevicePool.'
+        - macro: '{$CUCM.AXL.URL}'
+          value: 'https://cucm.example:8443'
+          description: 'Publisher AXL base URL. Topology is read only and must be collected from the Publisher.'
+        - macro: '{$CUCM.CLUSTER.CMG.EXPECTED:"{#CMGROUP}"}'
+          value: '0'
+          description: 'Set an exact discovered CallManager Group context to 1 only where a two-or-more-member configuration is expected. Default 0 leaves reserve/test groups visible without alerting.'
+        - macro: '{$CUCM.CLUSTER.MAX.NODES}'
+          value: '12'
+          description: 'Hard fail-closed cap for AXL-discovered process nodes. The default bounds the direct ControlCenter contribution to 2.4 requests/minute at the five-minute runtime interval.'
+        - macro: '{$CUCM.CLUSTER.MAX.CMGROUPS}'
+          value: '12'
+          description: 'Hard fail-closed cap for AXL-discovered CallManager Groups. Each group needs one read-only getCallManagerGroup detail request after the hourly list pass; increase only with an informed AXL-load review.'
+        - macro: '{$CUCM.CLUSTER.NODE.EXPECTED:"{#NODE}"}'
+          value: '0'
+          description: 'Set an exact discovered CUCM node context to 1 only where a valid Started CallManager runtime state is expected. Default 0 leaves reserve/test nodes visible without alerting.'
+        - macro: '{$CUCM.CLUSTER.NODE.URLS}'
+          value: '{}'
+          description: 'Optional JSON object mapping an exact AXL process-node FQDN to its direct ControlCenter HTTPS base URL, for example {"cucm1.example":"https://192.0.2.10:8443"}. Use only when the process-node FQDN is not resolvable by the Zabbix server/proxy. Unknown nodes, malformed JSON, non-HTTPS URLs, and credentials are rejected fail-closed; do not point multiple nodes at one endpoint.'
+        - macro: '{$CUCM.CLUSTER.NODE.RUNTIME.INTERVAL}'
+          value: '5m'
+          description: 'Per-discovered-node ControlCenter CallManager status interval. Three samples establish the ten-minute sustained node-outage condition.'
+        - macro: '{$CUCM.CLUSTER.PHONE.BASELINE.MIN.SAMPLES}'
+          value: '720'
+          description: 'Minimum five-minute aggregate registration samples before baseline impact triggers can arm. At the default interval, this is at least 2.5 days of data.'
+        - macro: '{$CUCM.CLUSTER.PHONE.BASELINE.WINDOW}'
+          value: '7d'
+          description: 'Rolling registration-baseline window for the cluster template''s aggregate registered-hardware-phone total.'
+        - macro: '{$CUCM.CLUSTER.PHONE.DISASTER.PCT}'
+          value: '50'
+          description: 'Disaster threshold: registration percentage at or below this percentage of the seven-day baseline for ten minutes.'
+        - macro: '{$CUCM.CLUSTER.PHONE.HIGH.PCT}'
+          value: '90'
+          description: 'High threshold upper bound: registration percentage above Disaster and at or below this percentage of baseline for ten minutes.'
+        - macro: '{$CUCM.CLUSTER.SOURCE.FRESHNESS}'
+          value: '6m'
+          description: 'Maximum age of each CUCM-core RegisteredHardwarePhones value. The default permits normal two-minute source polling but blocks registration impact on stale inputs.'
+        - macro: '{$CUCM.CLUSTER.SOURCE.HOSTGROUP}'
+          value: 'CUCM cluster nodes'
+          description: 'Exact Zabbix host-group name containing only enabled Publisher/Subscriber hosts with CUCM core 7.0-9+ linked. Each core host technical name must equal its AXL process-node identity so its node:{HOST.HOST} item tag can be selected. Exclude this virtual cluster host and unrelated CUCM hosts.'
+        - macro: '{$CUCM.CLUSTER.TOPOLOGY.INTERVAL}'
+          value: '1h'
+          description: 'Publisher AXL topology collection interval. Each run makes three list calls plus one read-only getCallManagerGroup detail call per discovered group, bounded by {$CUCM.CLUSTER.MAX.CMGROUPS}.'
+        - macro: '{$CUCM.CLUSTER.TOPOLOGY.NODATA}'
+          value: '3h'
+          description: 'No-success window for topology health. Default is three topology intervals; change this together with the topology interval if a different policy is required.'
+        - macro: '{$CUCM.HTTP.PROXY}'
+          description: 'Optional HTTP proxy URL for AXL and ControlCenter requests; leave empty for a direct Zabbix Server/Proxy connection.'
+      dashboards:
+        - uuid: 64b606d1d3a24694af3e1306c085dd6c
+          name: 'Cluster operations overview'
+          pages:
+            - name: Overview
+              widgets:
+                - type: item
+                  name: 'Topology health'
+                  x: '0'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.topology.health
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: item
+                  name: 'Discovered nodes'
+                  x: '12'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.topology.nodes
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: item
+                  name: 'Core-template sources'
+                  x: '24'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.sources.total
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: item
+                  name: 'Fresh sources'
+                  x: '36'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.sources.fresh
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: item
+                  name: 'Registered hardware phones'
+                  x: '48'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.registration.total
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: item
+                  name: 'Registration baseline percentage'
+                  x: '60'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.registration.baseline.pct
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                - type: svggraph
+                  name: 'Hardware-phone registrations'
+                  x: '0'
+                  y: '5'
+                  width: '36'
+                  height: '10'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: '33a02c'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.registration.total
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: '1f78b4'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.registration.baseline
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: svggraph
+                  name: 'Cluster source and topology coverage'
+                  x: '36'
+                  y: '5'
+                  width: '36'
+                  height: '10'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: '1f78b4'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.topology.nodes
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: '6a3d9a'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.sources.total
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: ff7f00
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.sources.fresh
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: INTEGER
+                      name: show_problems
+                      value: '1'
+                - type: item
+                  name: 'Source completeness'
+                  x: '0'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.sources.complete
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                  y: '15'
+                - type: item
+                  name: 'Baseline ready'
+                  x: '12'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.registration.baseline.ready
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                  y: '15'
+                - type: item
+                  name: 'CallManager Groups'
+                  x: '24'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.topology.cmgroups
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                  y: '15'
+                - type: item
+                  name: 'Device Pools'
+                  x: '36'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: ITEM
+                      name: itemid
+                      value:
+                        host: 'Cisco Unified Communications Manager 15 cluster by API'
+                        key: cucm.cluster.topology.devicepools
+                    - type: INTEGER
+                      name: show
+                      value: '2'
+                    - type: INTEGER
+                      name: show
+                      value: '4'
+                  y: '15'
+                - type: problems
+                  name: 'Current problems'
+                  y: '20'
+                  width: '72'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: CLUSTERPROBLEMS
+                    - type: INTEGER
+                      name: severities.0
+                      value: '1'
+                    - type: INTEGER
+                      name: severities.1
+                      value: '2'
+                    - type: INTEGER
+                      name: severities.2
+                      value: '3'
+                    - type: INTEGER
+                      name: severities.3
+                      value: '4'
+                    - type: INTEGER
+                      name: severities.4
+                      value: '5'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: cucm-cluster
+      valuemaps:
+        - uuid: e2371f0b04934eddb24c756bccc313f0
+          name: 'CUCM cluster collection health'
+          mappings:
+            - value: '0'
+              newvalue: 'Collection failed'
+            - value: '1'
+              newvalue: 'Collection OK'
+        - uuid: cd2077c128fd4a89a3861264f60802ba
+          name: 'CUCM cluster source completeness'
+          mappings:
+            - value: '0'
+              newvalue: 'Incomplete or stale'
+            - value: '1'
+              newvalue: 'Complete and fresh'
+        - uuid: 623dbbc59e574e91af87d4d012997c56
+          name: 'CUCM cluster baseline readiness'
+          mappings:
+            - value: '0'
+              newvalue: 'Not enough history'
+            - value: '1'
+              newvalue: 'Baseline ready'
+        - uuid: ad98a3b0f6ab42f99b2c3bd7f6f16bae
+          name: 'CUCM cluster CallManager state'
+          mappings:
+            - value: '1'
+              newvalue: Started
+            - value: '2'
+              newvalue: Stopped
