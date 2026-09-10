@@ -29,6 +29,9 @@ zabbix_export:
               parameters:
                 - '$.data[?(@.Package=="pve-manager")].Version.first()'
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.apt.versions.raw
           tags:
@@ -39,6 +42,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.apt.repos.errors
           delay: '0'
+          history: 7d
           description: 'Number of unparsable APT repository files. Source: /nodes/{node}/apt/repositories.'
           preprocessing:
             - type: JSONPATH
@@ -80,6 +84,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.apt.repos.warnings
           delay: '0'
+          history: 7d
           description: 'Number of APT repository warnings, for example the enterprise repository being enabled without a subscription. Source: /nodes/{node}/apt/repositories.'
           preprocessing:
             - type: JSONPATH
@@ -111,6 +116,9 @@ zabbix_export:
               parameters:
                 - '$.data[?(@.Package=="proxmox-ve")].RunningKernel.first()'
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.apt.versions.raw
           tags:
@@ -141,6 +149,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.apt.updates.count
           delay: '0'
+          history: 7d
           status: DISABLED
           description: 'Number of pending package updates. DISABLED by default because the master item requires Sys.Modify.'
           preprocessing:
@@ -183,7 +192,7 @@ zabbix_export:
           name: 'PVE backup active raw'
           type: HTTP_AGENT
           key: pve.backup.active.raw
-          delay: '60'
+          delay: 5m
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -203,6 +212,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.backup.jobs.count
           delay: '0'
+          history: 7d
           description: 'Number of vzdump backup job definitions in the cluster. Zero means nothing is scheduled at all, regardless of how many guests exist. Source: /cluster/backup.'
           preprocessing:
             - type: JSONPATH
@@ -225,11 +235,24 @@ zabbix_export:
           name: 'PVE backup jobs raw'
           type: HTTP_AGENT
           key: pve.backup.jobs.raw
-          delay: '600'
+          delay: '600;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /cluster/backup, the configured vzdump backup job definitions. This is the job side of backup monitoring: pve.backup.raw watches the runs, this item watches whether a job exists at all, is enabled and is still being scheduled. A job that was switched off or is no longer advanced by the scheduler starts no run, so it produces no failed task and would otherwise stay invisible. Requires Sys.Audit on /.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup'
           headers:
@@ -248,7 +271,7 @@ zabbix_export:
           history: '0'
           value_type: TEXT
           trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/tasks, filtered and grouped by JavaScript preprocessing to extract only backup tasks (vzdump/PBS), deduplicated to the most recent run per VM.'
+          description: 'Master item. Raw JSON from /nodes/{node}/tasks?typefilter=vzdump, so only backup tasks are listed and other tasks cannot push them out of the 50 entries PVE returns. JavaScript preprocessing keeps the most recent run per guest.'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
@@ -408,7 +431,7 @@ zabbix_export:
                       return JSON.stringify({ error: "Parsing failed", detail: String(err && err.message || err) });
                   }
           timeout: 20s
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks'
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/tasks?typefilter=vzdump'
           headers:
             - name: Authorization
               value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
@@ -464,6 +487,158 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Backup
+        - uuid: 3ce5bf61b33547bd885f2e416dacc85a
+          name: 'Ceph available'
+          type: DEPENDENT
+          key: pve.ceph.available
+          delay: '0'
+          history: 7d
+          description: '1 when /cluster/ceph/status returned a Ceph status, 0 otherwise. Stays 0 on clusters without Ceph.'
+          valuemap:
+            name: 'Ceph availability'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.fsid)].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: pve.ceph.status.raw
+          tags:
+            - tag: PVE
+              value: Ceph
+          triggers:
+            - uuid: 129264f6d8c44bc58ba06e18f2ae6db1
+              expression: 'last(/Template Proxmox VE REST API/pve.ceph.available)=0 and count(/Template Proxmox VE REST API/pve.ceph.available,1d,"eq","1")>0'
+              name: 'Ceph status cannot be read'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Ceph was readable within the last day and the API now returns no status. The reason is in the item "Ceph API message"; a common one is lost monitor quorum, which blocks all Ceph I/O. On a cluster where Ceph was removed on purpose the problem resolves itself after a day.'
+              manual_close: 'YES'
+        - uuid: 8c40a405e20c4eb9a7d9c5a567fbe538
+          name: 'Ceph API message'
+          type: DEPENDENT
+          key: pve.ceph.message
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Error text PVE returned instead of a Ceph status, for example "binary not installed" on nodes without Ceph. "none" while the status is readable.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.message
+              error_handler: CUSTOM_VALUE
+              error_handler_params: none
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          master_item:
+            key: pve.ceph.status.raw
+          tags:
+            - tag: PVE
+              value: Ceph
+        - uuid: 5327fbaa1cf14e2392304b1b797b98d6
+          name: 'PVE Ceph OSD raw'
+          type: HTTP_AGENT
+          key: pve.ceph.osd.raw
+          delay: '5m;0/{$PVE.DATACENTER.PAUSE}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/localhost/ceph/osd: the CRUSH tree with every OSD, its state, usage and latency, plus the cluster flags. "localhost" is the node answering the API call, so the path works on every node. HTTP 500 is accepted on purpose: PVE answers every Ceph call with 500 and {"data":null,"message":...} while Ceph is not set up, which keeps this item supported on clusters without Ceph and lets the dependent items tell "no Ceph" apart from a readable status.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/localhost/ceph/osd'
+          status_codes: '200,500'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 2bda262450b24f5bbacfdd3caa4cb9ed
+          name: 'PVE Ceph pools raw'
+          type: HTTP_AGENT
+          key: pve.ceph.pool.raw
+          delay: '5m;0/{$PVE.DATACENTER.PAUSE}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /nodes/localhost/ceph/pool: every pool with size, min_size and usage. HTTP 500 is accepted on purpose: PVE answers every Ceph call with 500 and {"data":null,"message":...} while Ceph is not set up, which keeps this item supported on clusters without Ceph and lets the dependent items tell "no Ceph" apart from a readable status.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/localhost/ceph/pool'
+          status_codes: '200,500'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
+        - uuid: 5183e2130bdd4476a4160595025d86fc
+          name: 'PVE Ceph status raw'
+          type: HTTP_AGENT
+          key: pve.ceph.status.raw
+          delay: '1m;0/{$PVE.DATACENTER.PAUSE}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Master item. Raw JSON from /cluster/ceph/status: health, monitor, manager, OSD and PG maps. HTTP 500 is accepted on purpose: PVE answers every Ceph call with 500 and {"data":null,"message":...} while Ceph is not set up, which keeps this item supported on clusters without Ceph and lets the dependent items tell "no Ceph" apart from a readable status.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
+          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/ceph/status'
+          status_codes: '200,500'
+          headers:
+            - name: Authorization
+              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+            - name: Accept
+              value: application/json
+          tags:
+            - tag: PVE
+              value: Raw
         - uuid: b08a4d2843444e51a668c4b5b2a907a8
           name: 'PVE certificates raw'
           type: HTTP_AGENT
@@ -497,9 +672,9 @@ zabbix_export:
                 - '$.data[?(@.type=="cluster")].name.first()'
               error_handler: CUSTOM_VALUE
               error_handler_params: standalone
-            - type: DISCARD_UNCHANGED_HEARTBEAT
+            - type: DISCARD_UNCHANGED
               parameters:
-                - 1d
+                - ''
           master_item:
             key: pve.cluster.raw
           tags:
@@ -507,11 +682,19 @@ zabbix_export:
               value: Cluster
         - uuid: 76a2011e68774f12b81ba29932d115af
           name: 'Cluster nodes offline'
-          type: CALCULATED
+          type: DEPENDENT
           key: pve.cluster.nodes.offline
-          delay: '60'
-          params: 'last(/{HOST.HOST}/pve.cluster.nodes.total) - last(/{HOST.HOST}/pve.cluster.nodes.online)'
-          description: 'Number of offline cluster nodes (total minus online).'
+          delay: '0'
+          history: 7d
+          description: 'Number of cluster nodes that /cluster/status lists as offline.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[?(@.type=="node" && @.online==0)].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: pve.cluster.raw
           tags:
             - tag: PVE
               value: Cluster
@@ -577,7 +760,7 @@ zabbix_export:
               expression: 'last(/Template Proxmox VE REST API/pve.cluster.quorum)=0'
               name: 'Proxmox VE cluster has lost quorum'
               priority: DISASTER
-              description: 'The cluster is not quorate. VMs with HA policies cannot be started or migrated.'
+              description: 'The cluster is not quorate. /etc/pve is read-only, so guests cannot be started, changed or migrated, and nodes with active HA resources fence themselves.'
               tags:
                 - tag: scope
                   value: availability
@@ -585,11 +768,25 @@ zabbix_export:
           name: 'PVE cluster raw'
           type: HTTP_AGENT
           key: pve.cluster.raw
-          delay: '60'
+          delay: '60;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Raw cluster status from /api2/json/cluster/status. Used as master for cluster-dependent items.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/status'
           headers:
             - name: Authorization
@@ -603,11 +800,25 @@ zabbix_export:
           name: 'PVE cluster resources raw'
           type: HTTP_AGENT
           key: pve.cluster.resources.raw
-          delay: '60'
+          delay: '60;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /cluster/resources. Aggregated view of all VMs, LXC containers, storage and nodes across the cluster.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/resources'
           headers:
             - name: Authorization
@@ -622,6 +833,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.cluster.vms.running
           delay: '0'
+          history: 7d
           description: 'Number of QEMU VMs and LXC containers currently in running state across the cluster. Source: /cluster/resources.'
           preprocessing:
             - type: JSONPATH
@@ -637,6 +849,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.cluster.vms.total
           delay: '0'
+          history: 7d
           description: 'Total number of QEMU VMs and LXC containers registered in the cluster. Source: /cluster/resources.'
           preprocessing:
             - type: JSONPATH
@@ -659,6 +872,30 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.cpuinfo.cores
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          master_item:
+            key: pve.status
+          tags:
+            - tag: PVE
+              value: CPU
+        - uuid: 1ebd528b09cd418cb91147621d492660
+          name: 'PVE CPU I/O wait'
+          type: DEPENDENT
+          key: pve.cpu.iowait
+          delay: '0'
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          description: 'Share of CPU time spent waiting for I/O in percent (0-100). Source: /nodes/{node}/status → data.wait * 100. High values point to slow or overloaded storage.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.wait
+            - type: MULTIPLIER
+              parameters:
+                - '100'
           master_item:
             key: pve.status
           tags:
@@ -669,6 +906,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.cpu.utilization
           delay: '0'
+          history: 7d
           value_type: FLOAT
           units: '%'
           description: 'CPU utilization of the PVE host in percent (0-100). Source: /nodes/{node}/status → data.cpu * 100.'
@@ -702,6 +940,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.cpuinfo.model
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -719,6 +960,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.cpuinfo.cpus
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -736,6 +980,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data["current-kernel"].release'
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -750,6 +997,7 @@ zabbix_export:
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/disks/list. Used for physical disk discovery and SMART health monitoring. Requires Sys.Audit permission on the node.'
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/list'
           headers:
             - name: Authorization
@@ -766,30 +1014,63 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
-          description: 'Status of the HA manager (CRM master), for example active or wait_for_quorum. Source: /cluster/ha/status/current, entry with type=master. Returns "unknown" when HA is not configured on this cluster.'
+          description: 'State of the HA cluster resource manager (CRM master), taken from the type=master entry of /cluster/ha/status/current. PVE reports it as "<node> (<state>, <timestamp>)"; the regex keeps only the state: active, idle, "old timestamp - dead?" or "detected time drift!". Returns "unknown" when no CRM master exists, which is the case while HA has never been configured.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$.data[?(@.type=="master")].status.first()'
               error_handler: CUSTOM_VALUE
               error_handler_params: unknown
-            - type: DISCARD_UNCHANGED_HEARTBEAT
+            - type: REGEX
               parameters:
-                - 1h
+                - '^\S+ \(([^,)]+)'
+                - \1
+              error_handler: CUSTOM_VALUE
+              error_handler_params: unknown
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.ha.raw
           tags:
             - tag: PVE
               value: HA
+          triggers:
+            - uuid: f2ebf17802504d13a6d8c17509ce36a6
+              expression: 'last(/Template Proxmox VE REST API/pve.ha.manager.status)="old timestamp - dead?"'
+              name: 'HA manager (CRM) has stopped updating its status'
+              priority: HIGH
+              description: 'The CRM master has not written its status for more than 30 seconds. HA resources are no longer managed: failed guests are not recovered and fencing decisions are not made. Check pve-ha-crm on the node named in the HA status.'
+              manual_close: 'YES'
+            - uuid: 0ff77987c4ff444cb70e80a80def1602
+              expression: 'last(/Template Proxmox VE REST API/pve.ha.manager.status)="detected time drift!"'
+              name: 'HA manager (CRM) reports time drift'
+              priority: WARNING
+              description: 'The CRM status timestamp lies in the future. The cluster nodes disagree on the time, which disturbs HA decisions. Check the time synchronisation on all nodes.'
+              manual_close: 'YES'
         - uuid: 6aebfc77121a42f98a3ecca13b158dd0
           name: 'PVE HA status raw'
           type: HTTP_AGENT
           key: pve.ha.raw
-          delay: '60'
+          delay: '60;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /cluster/ha/status/current. Contains one entry per quorum, CRM master, LRM and HA-managed service. Used for HA manager status and HA resource discovery. Note that /cluster/ha/status without /current is only a directory index and carries no status data.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/ha/status/current'
           headers:
             - name: Authorization
@@ -804,6 +1085,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.loadaverage.fifteen
           delay: '0'
+          history: 7d
           value_type: FLOAT
           description: 'System load average over the last 15 minutes. Source: /nodes/{node}/status → data.loadavg[2].'
           preprocessing:
@@ -820,6 +1102,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.loadaverage.fiveminute
           delay: '0'
+          history: 7d
           value_type: FLOAT
           description: 'System load average over the last 5 minutes. Source: /nodes/{node}/status → data.loadavg[1].'
           preprocessing:
@@ -836,6 +1119,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.loadaverage.oneminute
           delay: '0'
+          history: 7d
           value_type: FLOAT
           description: 'System load average over the last 1 minute. Source: /nodes/{node}/status → data.loadavg[0].'
           preprocessing:
@@ -876,6 +1160,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data["current-kernel"].machine'
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -886,6 +1173,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.free
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'RAM available for new workloads on the PVE host in bytes, cache and reclaimable memory included. Source: /nodes/{node}/status → data.memory.available. Together with the used value this adds up to the installed total, which data.memory.free does not.'
           preprocessing:
@@ -902,12 +1190,16 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.total
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Total installed RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.total.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.data.memory.total
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
           master_item:
             key: pve.status
           tags:
@@ -918,6 +1210,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.memory.used
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Used RAM on the PVE host in bytes. Source: /nodes/{node}/status → data.memory.used.'
           preprocessing:
@@ -934,6 +1227,7 @@ zabbix_export:
           type: CALCULATED
           key: pve.memory.util
           delay: '60'
+          history: 7d
           value_type: FLOAT
           units: '%'
           params: '(last(/{HOST.HOST}/pve.memory.used) / last(/{HOST.HOST}/pve.memory.total)) * 100'
@@ -960,24 +1254,6 @@ zabbix_export:
           tags:
             - tag: PVE
               value: CPU
-        - uuid: 56a5d7af7e034c53941a3ba7f64fff65
-          name: 'PVE lxc raw'
-          type: HTTP_AGENT
-          key: pve.nodes.lxc.raw
-          delay: '300'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/lxc. Used as source for all LXC container dependent items and discovery rules.'
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/lxc'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
         - uuid: 34f01ffa2b17450490d7015da7759c17
           name: 'PVE network raw'
           type: HTTP_AGENT
@@ -987,6 +1263,7 @@ zabbix_export:
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/network. Used for host network interface discovery.'
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/network'
           headers:
             - name: Authorization
@@ -996,33 +1273,28 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Network
-        - uuid: 9c7336fea970423989c113561052fd32
-          name: 'PVE qemu raw'
-          type: HTTP_AGENT
-          key: pve.nodes.qemu.raw
-          delay: '300'
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          description: 'Master item. Raw JSON from /nodes/{node}/qemu?full=1. Used as source for all QEMU/KVM VM dependent items and discovery rules.'
-          url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/qemu?full=1'
-          headers:
-            - name: Authorization
-              value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
-            - name: Accept
-              value: application/json
-          tags:
-            - tag: PVE
-              value: Raw
         - uuid: 294f426f0a9a492598bbf7ea7ba46d9d
           name: 'PVE nodes raw'
           type: HTTP_AGENT
           key: pve.nodes.raw
-          delay: '300'
+          delay: '300;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes. Used as source for cluster node discovery and node status items.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes'
           headers:
@@ -1038,6 +1310,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.notbackedup.count
           delay: '0'
+          history: 7d
           description: 'Number of guests not covered by any backup job. Source: /cluster/backup-info/not-backed-up.'
           preprocessing:
             - type: JSONPATH
@@ -1060,11 +1333,24 @@ zabbix_export:
           name: 'PVE guests without backup raw'
           type: HTTP_AGENT
           key: pve.notbackedup.raw
-          delay: '3600'
+          delay: '3600;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /cluster/backup-info/not-backed-up, the guests not covered by any backup job. Requires Sys.Audit on /.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/cluster/backup-info/not-backed-up'
           headers:
@@ -1099,6 +1385,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.rootfs.avail
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Available free space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.avail.'
           preprocessing:
@@ -1115,12 +1402,16 @@ zabbix_export:
           type: DEPENDENT
           key: pve.rootfs.size
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Total size of the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.total.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.data.rootfs.total
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1131,6 +1422,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.rootfs.used
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Used space on the PVE root filesystem (/) in bytes. Source: /nodes/{node}/status → data.rootfs.used.'
           preprocessing:
@@ -1147,6 +1439,7 @@ zabbix_export:
           type: CALCULATED
           key: pve.rootfs.util
           delay: '60'
+          history: 7d
           value_type: FLOAT
           units: '%'
           params: '(last(/{HOST.HOST}/pve.rootfs.used) / last(/{HOST.HOST}/pve.rootfs.size)) * 100'
@@ -1158,7 +1451,7 @@ zabbix_export:
           name: 'PVE services raw'
           type: HTTP_AGENT
           key: pve.services.raw
-          delay: '60'
+          delay: 5m
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -1185,6 +1478,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.cpuinfo.sockets
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1199,6 +1495,7 @@ zabbix_export:
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/status. Used as source for all PVE host dependent items (CPU, memory, disk, kernel, uptime, etc.).'
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/status'
           headers:
             - name: Authorization
@@ -1208,19 +1505,11 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Raw
-          triggers:
-            - uuid: 4cc6e8941efc4a3592f6dd22f2056969
-              expression: 'nodata(/Template Proxmox VE REST API/pve.status,300)=1'
-              name: 'PVE API not reachable on {HOST.NAME}'
-              opdata: 'No data for 5 minutes'
-              priority: HIGH
-              description: 'The Proxmox VE REST API has not returned data for 5 minutes. Check connectivity, API token, and PVE service status.'
-              manual_close: 'YES'
         - uuid: e7ccf26004ff4d73b849ec2f0ba9f3a5
           name: 'PVE storage raw'
           type: HTTP_AGENT
           key: pve.storage.raw
-          delay: '60'
+          delay: 5m
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -1248,6 +1537,9 @@ zabbix_export:
               parameters:
                 - $.data.level
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.subscription.raw
           tags:
@@ -1266,6 +1558,9 @@ zabbix_export:
               parameters:
                 - $.data.nextduedate
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.subscription.raw
           tags:
@@ -1279,15 +1574,20 @@ zabbix_export:
           value_type: FLOAT
           trends: '0'
           units: unixtime
-          description: 'Expiry date as a Unix timestamp so the remaining time can be compared. PVE reports nextduedate as a plain date string, unlike the certificate endpoint which already delivers an epoch. Zabbix has no preprocessing step that parses a date, hence the one line of JavaScript. Without a subscription the field is absent and the value is discarded.'
+          description: 'Subscription due date as Unix time, 0 when the node has no subscription and PVE therefore reports no due date.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.data.nextduedate
-              error_handler: DISCARD_VALUE
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
             - type: JAVASCRIPT
               parameters:
                 - |
+                  // 0 means: no subscription, so PVE reports no due date.
+                  if (value === '0') {
+                      return 0;
+                  }
                   // PVE reports nextduedate as YYYY-MM-DD. Anchored to UTC so the
                   // result does not shift with the server timezone. An unexpected
                   // format throws, which turns the item visibly unsupported instead
@@ -1304,20 +1604,20 @@ zabbix_export:
               value: Subscription
           triggers:
             - uuid: 3e3366874a4d4191a88632af4344bcce
-              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)-now()<{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
+              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)>0 and last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)-now()<{$PVE.SUBSCRIPTION.EXPIRE.DAYS}'
               name: 'PVE subscription expires in less than {$PVE.SUBSCRIPTION.EXPIRE.DAYS} on {HOST.NAME}'
               opdata: 'Expires on: {ITEM.LASTVALUE1}'
               priority: WARNING
               description: 'Advance warning before the subscription runs out, so it can be renewed in time. Depends on the expired trigger, so only one of the two is open at a time.'
               dependencies:
                 - name: 'PVE subscription has expired on {HOST.NAME}'
-                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)>0 and last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
             - uuid: 7350199fa4884df6bf61d5797c37cf4a
-              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+              expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)>0 and last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
               name: 'PVE subscription has expired on {HOST.NAME}'
               opdata: 'Expired on: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'The subscription period has ended. Access to the enterprise repository is gone, updates from it will fail. Needs no enable macro: without a subscription PVE does not report a due date, so the item stays empty and this trigger cannot fire on community hosts.'
+              description: 'The subscription period has ended. Access to the enterprise repository is gone, updates from it will fail. Hosts without a subscription report a due date of 0, which the trigger ignores.'
         - uuid: 31d2b788dfcc4fcfbe0fd4e02294b579
           name: 'PVE subscription raw'
           type: HTTP_AGENT
@@ -1349,6 +1649,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.status
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.subscription.raw
           tags:
@@ -1362,12 +1665,13 @@ zabbix_export:
               description: 'Status is notfound, invalid, expired or suspended. Off by default, set {$PVE.SUBSCRIPTION.ALERT}=1 on hosts that are meant to carry a subscription. Depends on the expired trigger so a lapsed subscription raises one problem, not two.'
               dependencies:
                 - name: 'PVE subscription has expired on {HOST.NAME}'
-                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
+                  expression: 'last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)>0 and last(/Template Proxmox VE REST API/pve.subscription.nextduedate.epoch)<now()'
         - uuid: b3016c59c0024f8fa5306198d1d1b73b
           name: 'PVE swap free'
           type: DEPENDENT
           key: pve.swap.free
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Free swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.free. Reports 0 on hosts without swap.'
           preprocessing:
@@ -1384,12 +1688,16 @@ zabbix_export:
           type: DEPENDENT
           key: pve.swap.total
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Configured swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.total. Reports 0 on hosts without swap.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.data.swap.total
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1400,6 +1708,7 @@ zabbix_export:
           type: DEPENDENT
           key: pve.swap.used
           delay: '0'
+          history: 7d
           units: Bytes
           description: 'Used swap space on the PVE host in bytes. Source: /nodes/{node}/status → data.swap.used. Swap filling up while memory is not tight usually means pages were evicted during an earlier peak and never came back.'
           preprocessing:
@@ -1424,6 +1733,9 @@ zabbix_export:
               parameters:
                 - '$.data["boot-info"].mode'
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1444,6 +1756,9 @@ zabbix_export:
               parameters:
                 - '$.data["boot-info"].secureboot'
               error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1453,7 +1768,7 @@ zabbix_export:
           name: 'PVE tasks raw'
           type: HTTP_AGENT
           key: pve.tasks.raw
-          delay: '60'
+          delay: 5m
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -1565,11 +1880,12 @@ zabbix_export:
           name: 'PVE time raw'
           type: HTTP_AGENT
           key: pve.time.raw
-          delay: '60'
+          delay: 5m
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /nodes/{node}/time. Used for timezone and localtime dependent items.'
+          timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/time'
           headers:
             - name: Authorization
@@ -1591,6 +1907,9 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data.timezone
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
           master_item:
             key: pve.time.raw
           tags:
@@ -1613,15 +1932,36 @@ zabbix_export:
           tags:
             - tag: PVE
               value: Uptime
+          triggers:
+            - uuid: 4cc6e8941efc4a3592f6dd22f2056969
+              expression: 'nodata(/Template Proxmox VE REST API/pve.uptime,300)=1'
+              name: 'PVE API not reachable on {HOST.NAME}'
+              opdata: 'No data for 5 minutes'
+              priority: HIGH
+              description: 'The Proxmox VE REST API has not returned data for 5 minutes. Check connectivity, API token, and PVE service status. Evaluated on "pve.uptime", because nodata() cannot read items that keep no history, such as the raw API item.'
+              manual_close: 'YES'
         - uuid: b23531b01ce04f8f9f96042acce215ae
           name: 'PVE user raw'
           type: HTTP_AGENT
           key: pve.user.raw
-          delay: '3600'
+          delay: '3600;0/{$PVE.DATACENTER.PAUSE}'
           history: '0'
           value_type: TEXT
           trends: '0'
           description: 'Master item. Raw JSON from /access/users. Used as source for user discovery and account expiration monitoring.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^[\s\S]*'
+                - '{$PVE.DATACENTER.PAUSE}|\0'
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^1\-7,00:00\-24:00\|'
+              error_handler: DISCARD_VALUE
+            - type: REGEX
+              parameters:
+                - '^[^|]*\|([\s\S]*)'
+                - \1
           timeout: 20s
           url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/access/users'
           headers:
@@ -1650,9 +1990,9 @@ zabbix_export:
               parameters:
                 - 'pve-manager/([0-9][0-9.]*)'
                 - \1
-            - type: DISCARD_UNCHANGED_HEARTBEAT
+            - type: DISCARD_UNCHANGED
               parameters:
-                - 1d
+                - ''
           master_item:
             key: pve.status
           tags:
@@ -1691,10 +2031,15 @@ zabbix_export:
               type: CALCULATED
               key: 'backup.duration[{#BCKPID}]'
               delay: '300'
+              history: 7d
               value_type: FLOAT
               units: s
               params: 'last(/{HOST.HOST}/backup.endtime[{#BCKPID}]) - last(/{HOST.HOST}/backup.starttime[{#BCKPID}])'
               description: 'How long the last finished backup of {#ID} took, in seconds. Derived from the end and start timestamps of the same run, both of which arrive together when the task reaches the archive. The value therefore describes the last completed run, never the one in progress.'
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               tags:
                 - tag: PVE
                   value: Backup
@@ -1707,6 +2052,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'backup.endtime[{#BCKPID}]'
               delay: '0'
+              history: 7d
               units: unixtime
               description: 'Unix timestamp of the last backup job end time for VM/CT {#ID}. Source: pve.backup.raw → data[bckpid].endtime.'
               preprocessing:
@@ -1714,6 +2060,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.bckpid=="{#BCKPID}")].endtime.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.backup.raw
               tags:
@@ -1736,6 +2085,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.bckpid=="{#BCKPID}")].status.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.backup.raw
               tags:
@@ -1748,6 +2100,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'backup.starttime[{#BCKPID}]'
               delay: '0'
+              history: 7d
               units: unixtime
               description: 'Unix timestamp of the last backup job start time for VM/CT {#ID}. Source: pve.backup.raw → data[bckpid].starttime.'
               preprocessing:
@@ -1755,6 +2108,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.bckpid=="{#BCKPID}")].starttime.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.backup.raw
               tags:
@@ -1769,6 +2125,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'backup.status[{#BCKPID}]'
               delay: '0'
+              history: 7d
               description: 'Status of the last backup job for VM/CT {#ID}. 0=OK, 1=running, 2=stopped, 3=error, 4=unknown error.'
               valuemap:
                 name: 'Backup status'
@@ -1779,7 +2136,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: REGEX
                   parameters:
-                    - '^(OK|running|stopped|error|unknown error)$'
+                    - ^(OK|running|stopped|error)$
                     - \0
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '4'
@@ -1799,6 +2156,9 @@ zabbix_export:
                   parameters:
                     - error
                     - '3'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
                 key: pve.backup.raw
               tags:
@@ -1842,6 +2202,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: d82f27394dbb4634a7802e256d63d054
           name: 'Discover backup jobs'
           type: DEPENDENT
@@ -1863,6 +2225,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.id=="{#BACKUP_JOB_ID}")].enabled.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.backup.jobs.raw
               tags:
@@ -1923,6 +2288,977 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+        - uuid: 41c0fb6e4fe3477ea292ae1b26ea6e5d
+          name: 'Discover Ceph cluster'
+          type: DEPENDENT
+          key: discover.ceph.cluster
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          description: 'Creates the Ceph items only when /cluster/ceph/status returns a Ceph status. On clusters without Ceph it discovers nothing, so no Ceph item exists and nothing is evaluated.'
+          item_prototypes:
+            - uuid: 02daa4b3b12048b68b4bff33943491ec
+              name: 'Ceph raw capacity available'
+              type: DEPENDENT
+              key: 'ceph.bytes.avail[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B
+              description: 'Raw capacity still free.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.bytes_avail
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: b00b49a29df54059b4bf4d799af43110
+              name: 'Ceph raw capacity total'
+              type: DEPENDENT
+              key: 'ceph.bytes.total[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B
+              description: 'Raw capacity of all OSDs.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.bytes_total
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: d102d94df1a1492c985b0d459327b53a
+              name: 'Ceph raw capacity used'
+              type: DEPENDENT
+              key: 'ceph.bytes.used[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B
+              description: 'Raw capacity in use, replicas included.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.bytes_used
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 52f573eec3e145fd82bb34f0358410a8
+              name: 'Ceph OSD flags'
+              type: DEPENDENT
+              key: 'ceph.flags[{#FSID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Cluster-wide OSD flags such as noout or norebalance. Ceph health reports the maintenance flags as a warning.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.flags
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: none
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: f6b09b3ddb994a788d01529bf6ea08e1
+              name: 'Ceph health checks'
+              type: DEPENDENT
+              key: 'ceph.health.checks[{#FSID}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Summary messages of all active Ceph health checks, "none" while there are none. Zabbix shortens item values to 20 characters in trigger texts, so the full list is only here.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.health.checks..message
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: none
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: a5d9dd21ae4f4d3ab21c4c6713f13d51
+              name: 'Ceph health'
+              type: DEPENDENT
+              key: 'ceph.health[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Overall Ceph health: 0 HEALTH_OK, 1 HEALTH_WARN, 2 HEALTH_ERR.'
+              valuemap:
+                name: 'Ceph health'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.health.status
+                - type: STR_REPLACE
+                  parameters:
+                    - HEALTH_OK
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - HEALTH_WARN
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - HEALTH_ERR
+                    - '2'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+              trigger_prototypes:
+                - uuid: 5305f3c7f76e4430bdc40813f3ff662e
+                  expression: 'last(/Template Proxmox VE REST API/ceph.health[{#FSID}])=2'
+                  name: 'Ceph cluster health is HEALTH_ERR'
+                  priority: HIGH
+                  description: 'Ceph reports HEALTH_ERR. Data may be unavailable or at risk. The active health checks are in the item "Ceph health checks".'
+                  manual_close: 'YES'
+                - uuid: 36ef062b9cb74ebfb569ddc49e95cbd5
+                  expression: 'min(/Template Proxmox VE REST API/ceph.health[{#FSID}],{$CEPH.HEALTH.WARN.PERIOD})>=1'
+                  name: 'Ceph cluster health is not OK for {$CEPH.HEALTH.WARN.PERIOD}'
+                  priority: WARNING
+                  description: 'Ceph has reported at least HEALTH_WARN for the whole period. Short warnings, for example during a restart, do not fire. The active health checks are in the item "Ceph health checks".'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Ceph cluster health is HEALTH_ERR'
+                      expression: 'last(/Template Proxmox VE REST API/ceph.health[{#FSID}])=2'
+            - uuid: 94f0b288d34640eda6af29999d15d364
+              name: 'Ceph manager available'
+              type: DEPENDENT
+              key: 'ceph.mgr.available[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: '1 when an active Ceph manager exists.'
+              valuemap:
+                name: 'Ceph availability'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.mgrmap.available
+                - type: BOOL_TO_DECIMAL
+                  parameters:
+                    - ''
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+              trigger_prototypes:
+                - uuid: 9565bd6d09f14fcca736dc911b838382
+                  expression: 'last(/Template Proxmox VE REST API/ceph.mgr.available[{#FSID}])=0'
+                  name: 'Ceph: no active manager'
+                  priority: HIGH
+                  description: 'No Ceph manager is active. Statistics, the dashboard and orchestration stop, and PG statistics go stale.'
+                  manual_close: 'YES'
+            - uuid: 5319295d668e4cddb72aaf201917a97a
+              name: 'Ceph manager standbys'
+              type: DEPENDENT
+              key: 'ceph.mgr.standbys[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of standby Ceph managers.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.mgrmap.standbys.length()
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 43691267ccd041b3855032a3cdfc2d03
+              name: 'Ceph monitors in quorum'
+              type: DEPENDENT
+              key: 'ceph.mons.quorum[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of monitors in the quorum.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.quorum_names.length()
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: aafe7518e9be472ca56ff4b14f3d030f
+              name: 'Ceph monitors total'
+              type: DEPENDENT
+              key: 'ceph.mons.total[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of monitors in the monitor map. PVE adds the full map to the status on current Ceph releases.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.monmap.mons.length()
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 1e79f7414de64826b6be29d36faa4cf9
+              name: 'Ceph objects degraded'
+              type: DEPENDENT
+              key: 'ceph.objects.degraded[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Objects with fewer copies than configured. Ceph omits the field while there are none.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.degraded_objects
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 45f4b285b6c948d1add664839f2ce9bf
+              name: 'Ceph objects misplaced'
+              type: DEPENDENT
+              key: 'ceph.objects.misplaced[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Objects stored in the wrong place and waiting to be moved.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.misplaced_objects
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 098fa4df416b46d6af094dd060c32295
+              name: 'Ceph objects unfound'
+              type: DEPENDENT
+              key: 'ceph.objects.unfound[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Objects Ceph cannot find on any OSD.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.unfound_objects
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+              trigger_prototypes:
+                - uuid: 1f54ac85ee624b648d8dce59b4853e2e
+                  expression: 'last(/Template Proxmox VE REST API/ceph.objects.unfound[{#FSID}])>0'
+                  name: 'Ceph: unfound objects'
+                  opdata: '{ITEM.LASTVALUE1} objects'
+                  priority: HIGH
+                  description: 'Ceph knows objects exist but cannot find any copy. I/O to them blocks, and data loss is possible if the OSDs holding them do not come back.'
+                  manual_close: 'YES'
+            - uuid: fac485651d294501a6a56683e4cf7736
+              name: 'Ceph OSDs in'
+              type: DEPENDENT
+              key: 'ceph.osds.in[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of OSDs that are in, that is, holding data.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.osdmap..num_in_osds.first()
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: a1596bb4fd264f5bbce4b91d61c11fb9
+              name: 'Ceph OSDs total'
+              type: DEPENDENT
+              key: 'ceph.osds.total[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of OSDs in the OSD map. The deep scan covers both the flat osdmap of current Ceph and the nested osdmap.osdmap of older releases.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.osdmap..num_osds.first()
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 4b000e282ce44dc3ae6cba3298df32a6
+              name: 'Ceph OSDs up'
+              type: DEPENDENT
+              key: 'ceph.osds.up[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of OSDs that are up.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.osdmap..num_up_osds.first()
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 51cbba2f71ea483095ffb1874a40abdf
+              name: 'Ceph PGs active+clean'
+              type: DEPENDENT
+              key: 'ceph.pgs.clean[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of placement groups whose state starts with active+clean. Scrubbing PGs (active+clean+scrubbing) count as clean, so routine scrubs do not raise the trigger.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.pgmap.pgs_by_state[?(@.state_name =~ "^active\\+clean")].count.sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 62255580391a4e50abad89a743569398
+              name: 'Ceph PGs total'
+              type: DEPENDENT
+              key: 'ceph.pgs.total[{#FSID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of placement groups.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.num_pgs
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 084a609a7b114d85a105d24e9758d946
+              name: 'Ceph client read'
+              type: DEPENDENT
+              key: 'ceph.read.bps[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B/s
+              description: 'Client read throughput. Ceph omits the field while it is zero.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.read_bytes_sec
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 3c08e400869045bfbe57bcf188c8607c
+              name: 'Ceph client read operations'
+              type: DEPENDENT
+              key: 'ceph.read.iops[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: ops
+              description: 'Client read operations per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.read_op_per_sec
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 828624248da64faabaf2aeb0fe6b424c
+              name: 'Ceph recovery throughput'
+              type: DEPENDENT
+              key: 'ceph.recovery.bps[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B/s
+              description: 'Data moved by recovery and backfill.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.recovering_bytes_per_sec
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 4622508a6c0f4b3b944ca0996393b8f7
+              name: 'Ceph raw capacity utilization'
+              type: CALCULATED
+              key: 'ceph.util[{#FSID}]'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              params: 'last(/{HOST.HOST}/ceph.bytes.used[{#FSID}])/last(/{HOST.HOST}/ceph.bytes.total[{#FSID}])*100'
+              description: 'Used share of the raw capacity.'
+              tags:
+                - tag: PVE
+                  value: Ceph
+              trigger_prototypes:
+                - uuid: 00f34097ac5c4b2fbf507d6f225332ce
+                  expression: 'min(/Template Proxmox VE REST API/ceph.util[{#FSID}],5m)>{$CEPH.UTIL.CRIT}'
+                  name: 'Ceph raw capacity is over {$CEPH.UTIL.CRIT}%'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'The raw capacity of the Ceph cluster is almost used up. OSDs refuse writes once they reach the full ratio, and the first OSD fills up before the cluster average does.'
+                  manual_close: 'YES'
+                - uuid: 9a40c4ef65a84ac3b564a484d5e35a50
+                  expression: 'min(/Template Proxmox VE REST API/ceph.util[{#FSID}],5m)>{$CEPH.UTIL.WARN}'
+                  name: 'Ceph raw capacity is over {$CEPH.UTIL.WARN}%'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Plan capacity: add OSDs or free space. Ceph needs spare capacity to recover from a failed host.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Ceph raw capacity is over {$CEPH.UTIL.CRIT}%'
+                      expression: 'min(/Template Proxmox VE REST API/ceph.util[{#FSID}],5m)>{$CEPH.UTIL.CRIT}'
+            - uuid: b841c1f540f745d2b0dd7c1c44b5a89c
+              name: 'Ceph client write'
+              type: DEPENDENT
+              key: 'ceph.write.bps[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: B/s
+              description: 'Client write throughput. Ceph omits the field while it is zero.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.write_bytes_sec
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+            - uuid: 78c72a99153d42d6aef4ca0c5e574b8c
+              name: 'Ceph client write operations'
+              type: DEPENDENT
+              key: 'ceph.write.iops[{#FSID}]'
+              delay: '0'
+              history: 7d
+              units: ops
+              description: 'Client write operations per second.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.pgmap.write_op_per_sec
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: pve.ceph.status.raw
+              tags:
+                - tag: PVE
+                  value: Ceph
+          trigger_prototypes:
+            - uuid: 8daf7f9034554910a24ef6baf8c0c506
+              expression: 'last(/Template Proxmox VE REST API/ceph.mons.quorum[{#FSID}])<last(/Template Proxmox VE REST API/ceph.mons.total[{#FSID}])'
+              name: 'Ceph: monitor(s) out of quorum'
+              opdata: 'In quorum: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'At least one Ceph monitor is not part of the quorum. Losing one more may cost the quorum and stop all Ceph I/O.'
+              manual_close: 'YES'
+            - uuid: 9720ba49deb049348fea7107ca45790c
+              expression: 'last(/Template Proxmox VE REST API/ceph.osds.up[{#FSID}])<last(/Template Proxmox VE REST API/ceph.osds.total[{#FSID}])'
+              name: 'Ceph: one or more OSDs are down'
+              opdata: 'Up: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'Ceph marks the affected OSDs out after a while and starts to rebalance. The OSD discovery shows which OSD is down.'
+              manual_close: 'YES'
+            - uuid: 9bcf528b1e344d1fbdc4c21ce3a3b6b4
+              expression: 'last(/Template Proxmox VE REST API/ceph.osds.in[{#FSID}])<last(/Template Proxmox VE REST API/ceph.osds.total[{#FSID}])'
+              name: 'Ceph: one or more OSDs are out'
+              opdata: 'In: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'OSDs that are out hold no data; the cluster runs with reduced capacity and redundancy until they are back in or removed.'
+              manual_close: 'YES'
+            - uuid: 817e1296e2ad447cbcedbfa4266a338f
+              expression: 'max(/Template Proxmox VE REST API/ceph.pgs.clean[{#FSID}],{$CEPH.PG.NOT_CLEAN.PERIOD})<last(/Template Proxmox VE REST API/ceph.pgs.total[{#FSID}])'
+              name: 'Ceph: placement groups not active+clean for {$CEPH.PG.NOT_CLEAN.PERIOD}'
+              opdata: 'Clean: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Some placement groups have not been active+clean at any point of the period. Recovery or backfill is stuck or the cluster lacks OSDs to restore redundancy.'
+              manual_close: 'YES'
+          graph_prototypes:
+            - uuid: 22801be025b742ea8ff5b3341af45612
+              name: 'Ceph client operations'
+              graph_items:
+                - color: 1976D2
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.read.iops[{#FSID}]'
+                - sortorder: '1'
+                  color: FF8F00
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.write.iops[{#FSID}]'
+            - uuid: b31e1896f4734671bd3139a5746a3b51
+              name: 'Ceph client throughput'
+              graph_items:
+                - color: 1976D2
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.read.bps[{#FSID}]'
+                - sortorder: '1'
+                  color: FF8F00
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.write.bps[{#FSID}]'
+                - sortorder: '2'
+                  color: 8E24AA
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.recovery.bps[{#FSID}]'
+            - uuid: 617a422cd5de4c8da524e1445e654fdd
+              name: 'Ceph raw capacity'
+              graph_items:
+                - drawtype: FILLED_REGION
+                  color: E45959
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.bytes.used[{#FSID}]'
+                - sortorder: '1'
+                  drawtype: FILLED_REGION
+                  color: 00C48C
+                  item:
+                    host: 'Template Proxmox VE REST API'
+                    key: 'ceph.bytes.avail[{#FSID}]'
+          master_item:
+            key: pve.ceph.status.raw
+          lld_macro_paths:
+            - lld_macro: '{#FSID}'
+              path: $.fsid
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.fsid)]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+        - uuid: 38786fee8d3843279cd3e58a7ba06e88
+          name: 'Discover Ceph OSDs'
+          type: DEPENDENT
+          key: discover.ceph.osd
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          description: 'Discovers every OSD in the CRUSH tree of /nodes/localhost/ceph/osd. Discovers nothing on clusters without Ceph.'
+          item_prototypes:
+            - uuid: 3e754961e3f44170bdc4e919f3fc6833
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: in'
+              type: DEPENDENT
+              key: 'ceph.osd.in[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              description: '1 when the OSD is in and holds data, 0 when it is out.'
+              valuemap:
+                name: 'Ceph OSD in'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].in.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+            - uuid: 6abbb87bb8fc4c1d832ed6336e0ee883
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: apply latency'
+              type: DEPENDENT
+              key: 'ceph.osd.latency.apply[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'Apply latency reported by the OSD.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].apply_latency_ms.first()'
+                  error_handler: DISCARD_VALUE
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+            - uuid: 66b1e3e7ef5840a1a2e05383e07ce5a5
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: commit latency'
+              type: DEPENDENT
+              key: 'ceph.osd.latency.commit[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: s
+              description: 'Commit latency reported by the OSD.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].commit_latency_ms.first()'
+                  error_handler: DISCARD_VALUE
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+              trigger_prototypes:
+                - uuid: dd54c345289e42d6b35b720fac6198fc
+                  expression: 'min(/Template Proxmox VE REST API/ceph.osd.latency.commit[{#OSD_ID}],{$CEPH.OSD.LATENCY.PERIOD})>{$CEPH.OSD.LATENCY.MAX}'
+                  name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: commit latency over {$CEPH.OSD.LATENCY.MAX}s'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The OSD has been slow for the whole period. A failing or overloaded disk slows down every pool it serves.'
+                  manual_close: 'YES'
+            - uuid: 66ebf328534d4bbabcbea7044decc8ac
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: placement groups'
+              type: DEPENDENT
+              key: 'ceph.osd.pgs[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              description: 'Placement groups on the OSD.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].pgs.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+            - uuid: 84b92a1e2b224c2aa0cf404178d97fc9
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: status'
+              type: DEPENDENT
+              key: 'ceph.osd.up[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              description: '1 when the OSD is up, 0 when it is down.'
+              valuemap:
+                name: 'Ceph OSD status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].status.first()'
+                  error_handler: DISCARD_VALUE
+                - type: STR_REPLACE
+                  parameters:
+                    - down
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - up
+                    - '1'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+              trigger_prototypes:
+                - uuid: 9f8f794b6d60448d8b45c6b1b9cdf289
+                  expression: 'last(/Template Proxmox VE REST API/ceph.osd.up[{#OSD_ID}])=0'
+                  name: 'Ceph {#OSD_NAME} on {#OSD_HOST} is down'
+                  priority: AVERAGE
+                  description: 'The OSD daemon is not running or cannot reach the monitors. Check ceph-osd@{#OSD_ID} on {#OSD_HOST} and the disk behind it.'
+                  manual_close: 'YES'
+            - uuid: 7364c68b0d5b45cbbb5ec666428b790c
+              name: 'Ceph {#OSD_NAME} on {#OSD_HOST}: utilization'
+              type: DEPENDENT
+              key: 'ceph.osd.util[{#OSD_ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: 'Used share of the OSD capacity.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.root..children[?(@.id=={#OSD_ID})].percent_used.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.ceph.osd.raw
+              tags:
+                - tag: Ceph
+                  value: OSD
+                - tag: PVE
+                  value: Ceph
+                - tag: PVE
+                  value: '{#OSD_HOST}'
+              trigger_prototypes:
+                - uuid: 277f0758d25d48e8a653dce5148cb4ed
+                  expression: 'last(/Template Proxmox VE REST API/ceph.osd.util[{#OSD_ID}])>{$CEPH.OSD.UTIL.CRIT}'
+                  name: 'Ceph {#OSD_NAME} on {#OSD_HOST} is over {$CEPH.OSD.UTIL.CRIT}% full'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'Ceph blocks writes to the whole pool once a single OSD reaches the full ratio (95% by default). Rebalance with reweight or add capacity.'
+                  manual_close: 'YES'
+                - uuid: ae43ff43bea1427d8344e0f07e103b4a
+                  expression: 'last(/Template Proxmox VE REST API/ceph.osd.util[{#OSD_ID}])>{$CEPH.OSD.UTIL.WARN}'
+                  name: 'Ceph {#OSD_NAME} on {#OSD_HOST} is over {$CEPH.OSD.UTIL.WARN}% full'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The OSD fills up faster than the cluster average; check the balancer and reweights.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Ceph {#OSD_NAME} on {#OSD_HOST} is over {$CEPH.OSD.UTIL.CRIT}% full'
+                      expression: 'last(/Template Proxmox VE REST API/ceph.osd.util[{#OSD_ID}])>{$CEPH.OSD.UTIL.CRIT}'
+          master_item:
+            key: pve.ceph.osd.raw
+          lld_macro_paths:
+            - lld_macro: '{#OSD_HOST}'
+              path: $.host
+            - lld_macro: '{#OSD_ID}'
+              path: $.id
+            - lld_macro: '{#OSD_NAME}'
+              path: $.name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data.root..children[?(@.type=="osd")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+        - uuid: d6b89f68f426497e9d9094fc6a8c4422
+          name: 'Discover Ceph pools'
+          type: DEPENDENT
+          key: discover.ceph.pools
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#POOL}'
+                value: '{$CEPH.POOL.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          description: 'Discovers the Ceph pools from /nodes/localhost/ceph/pool. Discovers nothing on clusters without Ceph. Items are keyed by pool id; the name is in the item name and tags.'
+          item_prototypes:
+            - uuid: 1fb33747160e49d2bb133ac324c70a23
+              name: 'Ceph pool {#POOL}: min_size'
+              type: DEPENDENT
+              key: 'ceph.pool.min_size[{#POOL_ID}]'
+              delay: '0'
+              history: 7d
+              description: 'Copies that must be available for the pool to accept I/O.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.pool=={#POOL_ID})].min_size.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.pool.raw
+              tags:
+                - tag: Ceph
+                  value: Pool
+                - tag: 'Ceph pool'
+                  value: '{#POOL}'
+                - tag: PVE
+                  value: Ceph
+            - uuid: f5a4af8f16ec4e068accc3e0ee78a724
+              name: 'Ceph pool {#POOL}: size'
+              type: DEPENDENT
+              key: 'ceph.pool.size[{#POOL_ID}]'
+              delay: '0'
+              history: 7d
+              description: 'Number of copies (replicated) or k+m chunks (erasure coded).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.pool=={#POOL_ID})].size.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ceph.pool.raw
+              tags:
+                - tag: Ceph
+                  value: Pool
+                - tag: 'Ceph pool'
+                  value: '{#POOL}'
+                - tag: PVE
+                  value: Ceph
+            - uuid: f40e484a4eb544f8ac149d1e785db0d8
+              name: 'Ceph pool {#POOL}: used'
+              type: DEPENDENT
+              key: 'ceph.pool.used[{#POOL_ID}]'
+              delay: '0'
+              history: 7d
+              units: B
+              description: 'Bytes used by the pool, replicas included.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.pool=={#POOL_ID})].bytes_used.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: pve.ceph.pool.raw
+              tags:
+                - tag: Ceph
+                  value: Pool
+                - tag: 'Ceph pool'
+                  value: '{#POOL}'
+                - tag: PVE
+                  value: Ceph
+            - uuid: 628894262fed4cfc974f1cd5c30991d4
+              name: 'Ceph pool {#POOL}: utilization'
+              type: DEPENDENT
+              key: 'ceph.pool.util[{#POOL_ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: 'Used share of the capacity the pool can still grow into. Ceph reports a fraction; it is converted to percent.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.pool=={#POOL_ID})].percent_used.first()'
+                  error_handler: DISCARD_VALUE
+                - type: MULTIPLIER
+                  parameters:
+                    - '100'
+              master_item:
+                key: pve.ceph.pool.raw
+              tags:
+                - tag: Ceph
+                  value: Pool
+                - tag: 'Ceph pool'
+                  value: '{#POOL}'
+                - tag: PVE
+                  value: Ceph
+              trigger_prototypes:
+                - uuid: 9695c451c930432e801650e48b096829
+                  expression: 'last(/Template Proxmox VE REST API/ceph.pool.util[{#POOL_ID}])>{$CEPH.POOL.UTIL.CRIT}'
+                  name: 'Ceph pool {#POOL} is over {$CEPH.POOL.UTIL.CRIT}% full'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'The pool is close to its usable capacity. Ceph stops writes to the pool once it is full.'
+                  manual_close: 'YES'
+                - uuid: c30e5615a2d14afeab4f90b331fac519
+                  expression: 'last(/Template Proxmox VE REST API/ceph.pool.util[{#POOL_ID}])>{$CEPH.POOL.UTIL.WARN}'
+                  name: 'Ceph pool {#POOL} is over {$CEPH.POOL.UTIL.WARN}% full'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Plan capacity for the pool.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Ceph pool {#POOL} is over {$CEPH.POOL.UTIL.CRIT}% full'
+                      expression: 'last(/Template Proxmox VE REST API/ceph.pool.util[{#POOL_ID}])>{$CEPH.POOL.UTIL.CRIT}'
+          trigger_prototypes:
+            - uuid: f2a24bf0fad8464fb784a936ff1e6e89
+              expression: 'last(/Template Proxmox VE REST API/ceph.pool.min_size[{#POOL_ID}])=1 and last(/Template Proxmox VE REST API/ceph.pool.size[{#POOL_ID}])>1'
+              name: 'Ceph pool {#POOL} accepts writes with a single copy (min_size 1)'
+              priority: WARNING
+              description: 'With min_size 1 the pool keeps writing while only one copy is left. A second failure then loses data. Set min_size to 2 for size 3.'
+          master_item:
+            key: pve.ceph.pool.raw
+          lld_macro_paths:
+            - lld_macro: '{#POOL_ID}'
+              path: $.pool
+            - lld_macro: '{#POOL}'
+              path: $.pool_name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: fc425a072e654624bdcb690f816894f9
           name: 'Discover certificates'
           type: DEPENDENT
@@ -1943,6 +3279,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.filename=="{#CERT_FILE}")].issuer.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.certificates.raw
               tags:
@@ -1963,6 +3302,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.filename=="{#CERT_FILE}")].notafter.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.certificates.raw
               tags:
@@ -1997,6 +3339,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.filename=="{#CERT_FILE}")].subject.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.certificates.raw
               tags:
@@ -2013,6 +3358,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: b3effaa7e8414b4b80f82b301646e7a2
           name: 'Discover disks'
           type: DEPENDENT
@@ -2034,6 +3381,9 @@ zabbix_export:
                     - '$.data[?(@.devpath=="{#DISK_DEV}")].health.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: UNKNOWN
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.disks.raw
               tags:
@@ -2043,16 +3393,21 @@ zabbix_export:
                   value: '{#DISK_DEV}'
               trigger_prototypes:
                 - uuid: e1ea4b0beadb4577a6b71421c12761a1
-                  expression: 'last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"PASSED"'
+                  expression: |
+                    last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"PASSED"
+                    and last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"OK"
+                    and last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"UNKNOWN"
+                    and last(/Template Proxmox VE REST API/disk.health[{#DISK_DEV}])<>"SMART Disabled"
                   name: 'Disk {#DISK_DEV} ({#DISK_MODEL}) SMART health not PASSED on {HOST.NAME}'
                   priority: HIGH
-                  description: 'SMART health check for disk {#DISK_DEV} returned a non-PASSED status. Immediate investigation recommended.'
+                  description: 'SMART health check for disk {#DISK_DEV} returned a failed status. PASSED and OK are the healthy verdicts. UNKNOWN and SMART Disabled mean the disk reports no assessment at all and are not treated as a failure.'
                   manual_close: 'YES'
             - uuid: 8f6a409c8d1c40dd8ddb78d029f7dcbc
               name: 'Disk {#DISK_DEV} size'
               type: DEPENDENT
               key: 'disk.size[{#DISK_DEV}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Total size of physical disk {#DISK_DEV} ({#DISK_MODEL}) in bytes. Source: /nodes/{node}/disks/list.'
               preprocessing:
@@ -2083,6 +3438,7 @@ zabbix_export:
               value_type: TEXT
               trends: '0'
               description: 'Master item. Raw JSON from /nodes/{node}/disks/smart for disk {#DISK_DEV}. Proxmox VE answers in two shapes: type=ata carries a list of numbered SMART attributes, type=text carries the raw smartctl output used for NVMe and SAS. Source for the disk temperature item.'
+              timeout: 20s
               url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{$PVE_NODE}/disks/smart?disk={#DISK_DEV}'
               headers:
                 - name: Authorization
@@ -2099,6 +3455,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'disk.temp[{#DISK_DEV}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: '!°C'
               description: 'Temperature of disk {#DISK_DEV} ({#DISK_MODEL}) in degrees Celsius. Read from the SMART payload of the disk. SATA and SAS disks report it as attribute 194, or 190 on drives that only expose an airflow sensor. NVMe disks report it in the composite Temperature line of the smartctl output. Disks that expose no temperature at all deliver no value.'
@@ -2160,6 +3517,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'disk.wearout[{#DISK_DEV}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: '%'
               description: 'SSD wearout indicator for disk {#DISK_DEV} in percent remaining life (100% = new, 0% = worn out). Only meaningful for SSDs and NVMe, rotating disks report N/A and are discarded. Source: /nodes/{node}/disks/list. The SMART endpoint does not return this value.'
@@ -2172,6 +3530,9 @@ zabbix_export:
                   parameters:
                     - '^[0-9]+(\.[0-9]+)?$'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.disks.raw
               tags:
@@ -2216,12 +3577,73 @@ zabbix_export:
                   operator: LIKE
                   value: wearout
                   discover: NO_DISCOVER
+        - uuid: d0da0a6c105544acb457ce5634a677cd
+          name: 'Discover HA local resource managers'
+          type: DEPENDENT
+          key: discover.ha.lrm
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          description: 'Discovers one local resource manager (LRM) per node from the type=lrm entries of /cluster/ha/status/current. PVE lists LRMs only once HA has been configured.'
+          item_prototypes:
+            - uuid: e43ad8eebabf4dc5af41accc7e621ae3
+              name: 'HA LRM state on {#HA_NODE}'
+              type: DEPENDENT
+              key: 'ha.lrm.state[{#HA_NODE}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'State of the HA local resource manager on {#HA_NODE}: active, idle, wait_for_agent_lock, lost_agent_lock, "maintenance mode", "old timestamp - dead?" or "unable to read lrm status".'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.type=="lrm" && @.node=="{#HA_NODE}")].status.first()'
+                  error_handler: DISCARD_VALUE
+                - type: REGEX
+                  parameters:
+                    - '^\S+ \(([^,)]+)'
+                    - \1
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: unknown
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.ha.raw
+              tags:
+                - tag: PVE
+                  value: HA
+                - tag: PVE
+                  value: '{#HA_NODE}'
+              trigger_prototypes:
+                - uuid: 3fef64da785b4f3a8c6aef5029dedee5
+                  expression: 'last(/Template Proxmox VE REST API/ha.lrm.state[{#HA_NODE}])="old timestamp - dead?" or last(/Template Proxmox VE REST API/ha.lrm.state[{#HA_NODE}])="unable to read lrm status" or last(/Template Proxmox VE REST API/ha.lrm.state[{#HA_NODE}])="lost_agent_lock"'
+                  name: 'HA LRM on {#HA_NODE} is not working'
+                  priority: HIGH
+                  description: 'The local resource manager on {#HA_NODE} is dead, unreadable or has lost its agent lock. HA guests on this node are not managed, and a node that lost its lock will be fenced.'
+                  manual_close: 'YES'
+                - uuid: 3c1f508cb70a4c13927ac6199c9644c6
+                  expression: 'last(/Template Proxmox VE REST API/ha.lrm.state[{#HA_NODE}])="maintenance mode"'
+                  name: 'HA node {#HA_NODE} is in maintenance mode'
+                  priority: INFO
+                  description: 'The node has been put into HA maintenance mode. HA resources are migrated away and it does not take part in recovery.'
+          master_item:
+            key: pve.ha.raw
+          lld_macro_paths:
+            - lld_macro: '{#HA_NODE}'
+              path: $.node
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[?(@.type=="lrm")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 235e7e42e382487085fdf54efa040b65
           name: 'Discover HA resources'
           type: DEPENDENT
           key: discover.ha.resources
           delay: '0'
-          description: 'Discovers HA-managed resources (VMs and containers) from the service entries of /cluster/ha/status/current. Discovers nothing when HA is not configured, without turning the rule unsupported.'
+          description: 'Discovers HA-managed resources (VMs and containers) from the service entries of /cluster/ha/status/current. Discovers nothing when HA is not configured; the empty list is handled so the rule stays supported and removed resources are cleaned up.'
           item_prototypes:
             - uuid: 1c9ba7d377414184b53b3ed14b57ef26
               name: 'HA state of {#HA_SID}'
@@ -2237,6 +3659,9 @@ zabbix_export:
                     - '$.data[?(@.sid=="{#HA_SID}")].state.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: unknown
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.ha.raw
               tags:
@@ -2245,6 +3670,12 @@ zabbix_export:
                 - tag: PVE
                   value: '{#HA_SID}'
               trigger_prototypes:
+                - uuid: 90a5858d5a2f4e0d9525aad8d8c90bde
+                  expression: 'last(/Template Proxmox VE REST API/ha.resource.state[{#HA_SID}])="fence" or last(/Template Proxmox VE REST API/ha.resource.state[{#HA_SID}])="recovery"'
+                  name: 'HA resource {#HA_SID} is being fenced or recovered'
+                  priority: HIGH
+                  description: 'The node running {#HA_SID} has failed. The CRM is fencing that node (state fence) or moving the resource to another node (state recovery). The guest is down until recovery completes.'
+                  manual_close: 'YES'
                 - uuid: 1e1ce9abf20f4d0eb649fbfe8d50d884
                   expression: 'last(/Template Proxmox VE REST API/ha.resource.state[{#HA_SID}])="error"'
                   name: 'HA resource {#HA_SID} is in error state'
@@ -2260,6 +3691,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[?(@.type=="service")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 553940a5f79343cbb87e6eef7f446131
           name: 'Discover lxc'
           type: DEPENDENT
@@ -2273,6 +3706,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.cpuusage[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: '%'
               description: 'CPU utilization of LXC container {#VMID} in percent (0-100). Source: /cluster/resources -> entry with type=lxc and this vmid, field cpu.'
@@ -2310,6 +3744,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.diskread.rate[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'LXC disk read throughput in bytes per second.'
@@ -2335,6 +3770,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.diskwrite.rate[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'LXC disk write throughput in bytes per second.'
@@ -2360,6 +3796,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.disk[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Disk space used by LXC container {#VMID} in bytes (rootfs usage). Source: /cluster/resources -> entry with type=lxc and this vmid, field disk.'
               preprocessing:
@@ -2381,6 +3818,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.maxdisk[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Total disk size allocated to LXC container {#VMID} in bytes. Source: /cluster/resources -> entry with type=lxc and this vmid, field maxdisk.'
               preprocessing:
@@ -2388,6 +3826,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].maxdisk.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -2402,6 +3843,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.maxmem[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Maximum memory allocated to LXC container {#VMID} in bytes. Source: /cluster/resources -> entry with type=lxc and this vmid, field maxmem.'
               preprocessing:
@@ -2409,6 +3851,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].maxmem.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -2423,15 +3868,19 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.maxswap[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
-              description: 'Maximum swap space allocated to LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc, field maxswap. Only collected for containers running on the node given by {$PVE_NODE}, because /cluster/resources does not carry swap values.'
+              description: 'Maximum swap space allocated of LXC container {#VMID} in bytes. Source: /nodes/{#NODE}/lxc/{#VMID}/status/current, field maxswap, because /cluster/resources does not carry swap values.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].maxswap.first()'
+                    - $.data.maxswap
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
-                key: pve.nodes.lxc.raw
+                key: 'lxc.status.raw[{#VMID}]'
               tags:
                 - tag: LXC-Container
                   value: Memory
@@ -2444,6 +3893,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.memusage[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Current memory usage of LXC container {#VMID} in bytes. Source: /cluster/resources -> entry with type=lxc and this vmid, field mem.'
               preprocessing:
@@ -2465,6 +3915,7 @@ zabbix_export:
               type: CALCULATED
               key: 'lxc.memutil[{#VMID}]'
               delay: '60'
+              history: 7d
               value_type: FLOAT
               units: '%'
               params: 'last(/{HOST.HOST}/lxc.memusage[{#VMID}]) / last(/{HOST.HOST}/lxc.maxmem[{#VMID}]) * 100'
@@ -2490,6 +3941,9 @@ zabbix_export:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].name.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '{#VM_NAME}'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -2504,6 +3958,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netin.current[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'Current network receive rate of LXC container {#VMID} in bytes/s (derived from the cumulative counter).'
@@ -2529,6 +3984,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netin[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Cumulative host-level network output (bytes received) on Proxmox host for LXC {#VMID}, since last LXC start.'
               preprocessing:
@@ -2550,6 +4006,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netout.current[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'Current network transmit rate of LXC container {#VMID} in bytes/s (derived from the cumulative counter).'
@@ -2575,6 +4032,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.netout[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Cumulative host-level network input (bytes received) on Proxmox host for LXC {#VMID}, since last LXC start.'
               preprocessing:
@@ -2623,11 +4081,35 @@ zabbix_export:
                   priority: INFO
                   description: 'The cluster node running LXC {#VMID} changed since the previous check, which indicates a migration.'
                   manual_close: 'YES'
+            - uuid: b4bb7123736a461eb815d1c0ea9e800f
+              name: 'LXC {#VMID} status raw'
+              type: HTTP_AGENT
+              key: 'lxc.status.raw[{#VMID}]'
+              delay: '{$PVE.GUEST.DETAIL.INTERVAL}'
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Master item. Raw JSON from /nodes/{#NODE}/lxc/{#VMID}/status/current, addressed through the node the guest runs on, so it works for guests on every cluster node. One request per guest: the interval is {$PVE.GUEST.DETAIL.INTERVAL}, and {$PVE.GUEST.DETAIL.VMID.MATCHES} limits or switches off these requests in large clusters.'
+              timeout: 10s
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{#NODE}/lxc/{#VMID}/status/current'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: LXC-Container
+                  value: '{#VMID}'
+                - tag: PVE
+                  value: Raw
+                - tag: vmid
+                  value: '{#VMID}'
             - uuid: ce7c0a635f1a40eeab81f76e560938fd
               name: 'LXC status {#VMID}'
               type: DEPENDENT
               key: 'lxc.status[{#VMID}]'
               delay: '0'
+              history: 7d
               description: 'Runtime status of LXC container {#VMID}. 0 = stopped, 1 = running, 2 = paused. Source: /cluster/resources -> entry with type=lxc and this vmid, field status.'
               valuemap:
                 name: 'VM  and LXC status'
@@ -2664,8 +4146,9 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: ff83e8f239e246b0a1c385029fe3941d
                   expression: |
-                    min(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
-                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and max(/Template Proxmox VE REST API/lxc.status[{#VMID}],24h)=1
+                    max(/Template Proxmox VE REST API/lxc.status[{#VMID}],900)=0
+                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1
+                    and count(/Template Proxmox VE REST API/lxc.status[{#VMID}],24h,"eq","1")>0
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'last(/Template Proxmox VE REST API/lxc.status[{#VMID}])=1'
                   name: 'LXC {#VMID} status is stopped'
@@ -2680,15 +4163,16 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.swap[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
-              description: 'Current swap usage of LXC container {#VMID} in bytes. Source: /nodes/{node}/lxc, field swap. Only collected for containers running on the node given by {$PVE_NODE}, because /cluster/resources does not carry swap values.'
+              description: 'Current swap usage of LXC container {#VMID} in bytes. Source: /nodes/{#NODE}/lxc/{#VMID}/status/current, field swap, because /cluster/resources does not carry swap values.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].swap.first()'
+                    - $.data.swap
                   error_handler: DISCARD_VALUE
               master_item:
-                key: pve.nodes.lxc.raw
+                key: 'lxc.status.raw[{#VMID}]'
               tags:
                 - tag: LXC-Container
                   value: Memory
@@ -2701,6 +4185,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.uptime[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: s
               description: 'Uptime of LXC container {#VMID} in seconds since last start. Source: /cluster/resources -> entry with type=lxc and this vmid, field uptime.'
@@ -2723,12 +4208,16 @@ zabbix_export:
               type: DEPENDENT
               key: 'lxc.vcpu[{#VMID}]'
               delay: '0'
+              history: 7d
               description: 'Number of vCPUs assigned to LXC container {#VMID}. Source: /cluster/resources -> entry with type=lxc and this vmid, field cpus.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="lxc")].maxcpu.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -2870,6 +4359,22 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[?(@.type=="lxc")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+          overrides:
+            - name: 'Skip per guest detail requests'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#VMID}'
+                    value: '{$PVE.GUEST.DETAIL.VMID.MATCHES}'
+                    operator: NOT_MATCHES_REGEX
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: '(Max\ swap\ of|status\ raw|Swap\ usage\ of)'
+                  discover: NO_DISCOVER
         - uuid: cdcb64618a174622909398a4c3f2d5d1
           name: 'Discover network interfaces'
           type: DEPENDENT
@@ -2892,6 +4397,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'iface.active[{#IFACE}]'
               delay: '0'
+              history: 7d
               description: 'Active/link state of network interface {#IFACE} on the PVE host. 1 = active, 0 = inactive.'
               valuemap:
                 name: 'Network interface active'
@@ -2913,6 +4419,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'iface.autostart[{#IFACE}]'
               delay: '0'
+              history: 7d
               description: 'Configured admin state of network interface {#IFACE}. 1 = the interface has an "auto" entry in /etc/network/interfaces and is expected to be up, 0 = not configured for automatic start. If the API does not report the field at all the item falls back to 1, so that the interface down trigger keeps working and is decided by the activity condition alone.'
               valuemap:
                 name: 'Network interface autostart'
@@ -2922,9 +4429,9 @@ zabbix_export:
                     - '$.data[?(@.iface=="{#IFACE}")].autostart.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '0'
-                - type: DISCARD_UNCHANGED_HEARTBEAT
+                - type: DISCARD_UNCHANGED
                   parameters:
-                    - 1h
+                    - ''
               master_item:
                 key: pve.nodes.network.raw
               tags:
@@ -2945,6 +4452,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.iface=="{#IFACE}")].type.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.nodes.network.raw
               tags:
@@ -2981,6 +4491,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 83905502b5b94a61b6ec0e5811338fcb
           name: 'Discover nodes'
           type: DEPENDENT
@@ -3001,6 +4513,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.node=="{#NODE_NAME}")].ssl_fingerprint.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.nodes.raw
               tags:
@@ -3014,13 +4529,18 @@ zabbix_export:
               key: 'node.status[{#NODE_NAME}]'
               delay: '0'
               trends: '0'
-              description: 'Online status of cluster node {#NODE_NAME}. 1 = online, 0 = offline. Source: /nodes → data[node].status.'
+              description: 'Online status of cluster node {#NODE_NAME}. 1 = online, 0 = offline, 2 = unknown. Source: /nodes → data[node].status. The API returns the enum online, offline or unknown, so unknown is mapped instead of leaving a string that an unsigned item cannot store.'
               valuemap:
                 name: 'Node status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.node=="{#NODE_NAME}")].status.first()'
+                - type: MATCHES_REGEX
+                  parameters:
+                    - ^(online|offline|unknown)$
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: unknown
                 - type: STR_REPLACE
                   parameters:
                     - online
@@ -3029,6 +4549,10 @@ zabbix_export:
                   parameters:
                     - offline
                     - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - unknown
+                    - '2'
               master_item:
                 key: pve.nodes.raw
               tags:
@@ -3038,8 +4562,11 @@ zabbix_export:
                   value: '{#NODE_NAME}'
               trigger_prototypes:
                 - uuid: e85b8277a1824f2daf365df1a8ce8de2
-                  expression: 'min(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=0 and {$ENABLE_NODE_STATUS_ALERT:"{#NODE_NAME}"}=1'
-                  name: 'Node status {#NODE_NAME} offline'
+                  expression: |
+                    (min(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=0
+                    or max(/Template Proxmox VE REST API/node.status[{#NODE_NAME}],900)=2)
+                    and {$ENABLE_NODE_STATUS_ALERT:"{#NODE_NAME}"}=1
+                  name: 'Node status {#NODE_NAME} not online'
                   priority: HIGH
                   description: |
                     Use the following host macros to control the "Node status" trigger for each Proxmox node:
@@ -3096,6 +4623,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 387f61cb46f74e369013f9cfe29b9868
           name: 'Discover PVE services'
           type: DEPENDENT
@@ -3106,7 +4635,7 @@ zabbix_export:
               - macro: '{#SERVICE}'
                 value: '{$PVE.SERVICE.MATCHES}'
                 formulaid: A
-          description: 'Discovers the systemd units PVE manages. The default filter covers the services that must run on every node, standalone or clustered. corosync and the HA services are excluded by default because they are legitimately inactive on a standalone node.'
+          description: 'Discovers the systemd units PVE manages. The default filter covers the services every node runs, standalone or clustered, including the HA managers and the scheduler that starts backup and replication jobs. corosync is excluded by default because it only runs once the node is part of a cluster; add it to {$PVE.SERVICE.MATCHES} on cluster nodes.'
           item_prototypes:
             - uuid: b1c4f04ea721446b9e0886c5e663b7f3
               name: 'Service active state {#SERVICE}'
@@ -3121,6 +4650,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.service=="{#SERVICE}")]["active-state"].first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.services.raw
               tags:
@@ -3140,6 +4672,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.service=="{#SERVICE}")].state.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.services.raw
               tags:
@@ -3166,6 +4701,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.service=="{#SERVICE}")]["unit-state"].first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.services.raw
               tags:
@@ -3184,6 +4722,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 1745a92cd0a04b02baa97d96e61c486d
           name: 'Discover qemu'
           type: DEPENDENT
@@ -3197,6 +4737,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.balloon[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: |
                 Balloon size on Proxmox host for VM {#VMID}
@@ -3204,10 +4745,13 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})].balloon.first()'
+                    - $.data.balloon
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
-                key: pve.nodes.qemu.raw
+                key: 'vm.status.raw[{#VMID}]'
               tags:
                 - tag: QEMU/KVM-VMs
                   value: Memory
@@ -3220,6 +4764,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.cpuusage[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: '%'
               description: 'CPU utilization of VM {#VMID} in percent (0-100). Source: /cluster/resources -> entry with type=qemu and this vmid, field cpu.'
@@ -3263,6 +4808,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.diskread.rate[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'QEMU VM disk read throughput in bytes per second.'
@@ -3288,6 +4834,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.diskwrite.rate[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'QEMU VM disk write throughput in bytes per second.'
@@ -3319,10 +4866,13 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.data[?(@.vmid=={#VMID})][''running-machine''].first()'
+                    - '$.data["running-machine"]'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
-                key: pve.nodes.qemu.raw
+                key: 'vm.status.raw[{#VMID}]'
               tags:
                 - tag: QEMU/KVM-VMs
                   value: 'Machine type'
@@ -3335,6 +4885,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.maxmem[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Maximum memory allocated to VM {#VMID} in bytes. Source: /cluster/resources -> entry with type=qemu and this vmid, field maxmem.'
               preprocessing:
@@ -3342,6 +4893,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].maxmem.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -3356,6 +4910,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.memusage[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Current memory usage of VM {#VMID} in bytes (requires QEMU guest agent or ballooning). Source: /cluster/resources -> entry with type=qemu and this vmid, field mem.'
               preprocessing:
@@ -3377,6 +4932,7 @@ zabbix_export:
               type: CALCULATED
               key: 'vm.memutil[{#VMID}]'
               delay: '60'
+              history: 7d
               value_type: FLOAT
               units: '%'
               params: 'last(/{HOST.HOST}/vm.memusage[{#VMID}]) / last(/{HOST.HOST}/vm.maxmem[{#VMID}]) * 100'
@@ -3402,6 +4958,9 @@ zabbix_export:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].name.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '{#VM_NAME}'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -3416,6 +4975,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netin.current[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'Current network receive rate of VM {#VMID} in bytes/s (derived from the cumulative counter).'
@@ -3441,6 +5001,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netin[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Cumulative host-level network input (bytes received) on Proxmox host for VM {#VMID}, since last VM start.'
               preprocessing:
@@ -3462,6 +5023,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netout.current[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bps
               description: 'Current network transmit rate of VM {#VMID} in bytes/s (derived from the cumulative counter).'
@@ -3487,6 +5049,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.netout[{#VMID}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Cumulative network bytes transmitted by VM {#VMID} since last start. Source: /cluster/resources -> entry with type=qemu and this vmid, field netout.'
               preprocessing:
@@ -3540,6 +5103,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.size.maxdisk[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bytes
               description: 'Total size of the primary boot disk of VM {#VMID} in bytes. Source: /cluster/resources -> entry with type=qemu and this vmid, field maxdisk. Note: actual disk usage requires guest agent.'
@@ -3548,6 +5112,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.vmid=={#VMID} && @.type=="qemu")].maxdisk.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -3557,11 +5124,35 @@ zabbix_export:
                   value: '{#VMID}'
                 - tag: vmid
                   value: '{#VMID}'
+            - uuid: b3f0aab825bb444bbfe35302baeed19e
+              name: 'VM {#VMID} status raw'
+              type: HTTP_AGENT
+              key: 'vm.status.raw[{#VMID}]'
+              delay: '{$PVE.GUEST.DETAIL.INTERVAL}'
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Master item. Raw JSON from /nodes/{#NODE}/qemu/{#VMID}/status/current, addressed through the node the guest runs on, so it works for guests on every cluster node. One request per guest: the interval is {$PVE.GUEST.DETAIL.INTERVAL}, and {$PVE.GUEST.DETAIL.VMID.MATCHES} limits or switches off these requests in large clusters.'
+              timeout: 10s
+              url: 'https://{$PVE_IP}:{$PVE_PORT}/api2/json/nodes/{#NODE}/qemu/{#VMID}/status/current'
+              headers:
+                - name: Authorization
+                  value: 'PVEAPIToken={$PVE_API_USER}!{$PVE_API_TOKEN_ID}={$PVE_API_TOKEN}'
+                - name: Accept
+                  value: application/json
+              tags:
+                - tag: PVE
+                  value: Raw
+                - tag: QEMU/KVM-VMs
+                  value: '{#VMID}'
+                - tag: vmid
+                  value: '{#VMID}'
             - uuid: 7a1dd24b92cb4324a8afebaf8c46db17
               name: 'VM status {#VMID}'
               type: DEPENDENT
               key: 'vm.status[{#VMID}]'
               delay: '0'
+              history: 7d
               description: 'Runtime status of VM {#VMID}. 0 = stopped, 1 = running, 2 = paused. Source: /cluster/resources -> entry with type=qemu and this vmid, field status.'
               valuemap:
                 name: 'VM  and LXC status'
@@ -3597,7 +5188,12 @@ zabbix_export:
                   value: '{#VMID}'
               trigger_prototypes:
                 - uuid: ac085aa97edb40dcb08272e859a39e36
-                  expression: 'max(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0 and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1 and max(/Template Proxmox VE REST API/vm.status[{#VMID}],24h)=1'
+                  expression: |
+                    max(/Template Proxmox VE REST API/vm.status[{#VMID}],900)=0
+                    and {$ENABLE_VM_STOP_ALERT:"{#VMID}"}=1
+                    and count(/Template Proxmox VE REST API/vm.status[{#VMID}],24h,"eq","1")>0
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Template Proxmox VE REST API/vm.status[{#VMID}])=1'
                   name: 'VM {#VMID} status is stopped'
                   priority: HIGH
                   description: |
@@ -3610,6 +5206,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.uptime[{#VMID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: s
               description: 'Uptime of VM {#VMID} in seconds since last start. Source: /cluster/resources -> entry with type=qemu and this vmid, field uptime.'
@@ -3632,6 +5229,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'vm.vcpu[{#VMID}]'
               delay: '0'
+              history: 7d
               description: 'Number of vCPUs assigned to VM {#VMID}. Source: /cluster/resources -> entry with type=qemu and this vmid, field cpus.'
               preprocessing:
                 - type: JSONPATH
@@ -3644,6 +5242,9 @@ zabbix_export:
                 - type: RTRIM
                   parameters:
                     - '"]'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.cluster.resources.raw
               tags:
@@ -3753,6 +5354,22 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[?(@.type=="qemu")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+          overrides:
+            - name: 'Skip per guest detail requests'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#VMID}'
+                    value: '{$PVE.GUEST.DETAIL.VMID.MATCHES}'
+                    operator: NOT_MATCHES_REGEX
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: '(status\ raw|Balloon\ memory|Machine\ type\ of)'
+                  discover: NO_DISCOVER
         - uuid: fb81ff142f814e40b1b0f850dd5280e6
           name: 'Discover replication jobs'
           type: DEPENDENT
@@ -3765,6 +5382,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'repl.duration[{#REPL_ID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: s
               description: 'Duration of the last run in seconds.'
@@ -3793,6 +5411,9 @@ zabbix_export:
                   parameters:
                     - '$.data[?(@.id=="{#REPL_ID}")].error.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.replication.raw
               tags:
@@ -3805,6 +5426,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'repl.fail_count[{#REPL_ID}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               description: 'Consecutive failures of this job. Absent before the first run.'
               preprocessing:
@@ -3887,6 +5509,64 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+        - uuid: a1cc411292224352a13a2dcbcf900517
+          name: 'Discover SDN zones'
+          type: DEPENDENT
+          key: discover.sdn
+          delay: '0'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          description: 'Discovers the SDN entries (zones and, from PVE 9, fabrics) per node from the type=network entries of /cluster/resources. PVE 8 lists them as type=sdn, which this rule does not cover.'
+          item_prototypes:
+            - uuid: 0e2eb7104e0040ef9c34abfe29295e5e
+              name: 'SDN {#SDN_TYPE} {#SDN} on {#NODE}: status'
+              type: DEPENDENT
+              key: 'sdn.status[{#SDN_ID}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Status of SDN {#SDN_TYPE} {#SDN} on node {#NODE} as reported by pvestatd, for example ok, pending or error.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id=="{#SDN_ID}")].status.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: pve.cluster.resources.raw
+              tags:
+                - tag: PVE
+                  value: SDN
+                - tag: PVE
+                  value: '{#NODE}'
+              trigger_prototypes:
+                - uuid: 2c77421da08e4db481fed5e3b08bac6d
+                  expression: 'last(/Template Proxmox VE REST API/sdn.status[{#SDN_ID}])="error"'
+                  name: 'SDN {#SDN_TYPE} {#SDN} on {#NODE} is in error state'
+                  priority: WARNING
+                  description: 'The SDN configuration could not be applied on {#NODE}. Guests attached to it may have no network. Check Datacenter > SDN and the node syslog.'
+                  manual_close: 'YES'
+          master_item:
+            key: pve.cluster.resources.raw
+          lld_macro_paths:
+            - lld_macro: '{#NODE}'
+              path: $.node
+            - lld_macro: '{#SDN_ID}'
+              path: $.id
+            - lld_macro: '{#SDN_TYPE}'
+              path: '$[''network-type'']'
+            - lld_macro: '{#SDN}'
+              path: $.network
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[?(@.type=="network")]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 14efa82386b54af18a8e26377422dd57
           name: 'Discover storage'
           type: DEPENDENT
@@ -3900,6 +5580,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'storage.active[{#STORAGE_NAME}]'
               delay: '0'
+              history: 7d
               description: 'Availability status of storage pool {#STORAGE_NAME}. 1 = active/available, 0 = inactive/not mounted.'
               valuemap:
                 name: 'Storage active status'
@@ -3928,6 +5609,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'storage.avail[{#STORAGE_NAME}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Free space available on storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
               preprocessing:
@@ -3953,6 +5635,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.storage=="{#STORAGE_NAME}")].content.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.storage.raw
               tags:
@@ -3972,6 +5657,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.storage=="{#STORAGE_NAME}")].type.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.storage.raw
               tags:
@@ -3992,6 +5680,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.storage=="{#STORAGE_NAME}")].shared.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.storage.raw
               tags:
@@ -4004,6 +5695,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'storage.size[{#STORAGE_NAME}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Total capacity of storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
               preprocessing:
@@ -4022,6 +5714,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'storage.used[{#STORAGE_NAME}]'
               delay: '0'
+              history: 7d
               units: Bytes
               description: 'Used space on storage pool {#STORAGE_NAME} in bytes. Source: /nodes/{node}/storage.'
               preprocessing:
@@ -4040,6 +5733,7 @@ zabbix_export:
               type: CALCULATED
               key: 'storage.util[{#STORAGE_NAME}]'
               delay: '60'
+              history: 7d
               value_type: FLOAT
               units: '%'
               params: 'last(/{HOST.HOST}/storage.used[{#STORAGE_NAME}]) / last(/{HOST.HOST}/storage.size[{#STORAGE_NAME}]) * 100'
@@ -4112,6 +5806,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: eb63de9ec0e6489e9da820ee39cd1f00
           name: 'Discover tasks'
           type: DEPENDENT
@@ -4139,6 +5835,9 @@ zabbix_export:
                   parameters:
                     - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].endtime.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.tasks.raw
               tags:
@@ -4159,6 +5858,9 @@ zabbix_export:
                   parameters:
                     - '$.body.data[?(@.grpid=="{#GRPID}" && @.type=="{#TYPE}")].status.first()'
                   error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.tasks.raw
               tags:
@@ -4185,6 +5887,9 @@ zabbix_export:
                 - type: RTRIM
                   parameters:
                     - '"]'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.tasks.raw
               tags:
@@ -4263,6 +5968,9 @@ zabbix_export:
                   parameters:
                     - 'interrupted by signal'
                     - '9'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
               master_item:
                 key: pve.tasks.raw
               tags:
@@ -4306,6 +6014,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.body.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: c16a8fe279a84b10bc7f06f3ab2bca76
           name: 'Discover users'
           type: DEPENDENT
@@ -4328,6 +6038,9 @@ zabbix_export:
                     - '$.body.data[?(@.userid==''{#USERID}'')].email.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No email address available.'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4340,12 +6053,16 @@ zabbix_export:
               type: DEPENDENT
               key: 'user.expiration[{#USERID}]'
               delay: '0'
+              history: 7d
               units: unixtime
               description: 'Account expiration date/time for PVE user {#USERID} as Unix timestamp. 0 = never expires. Source: /access/users → data[userid].expire.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - '$.body.data[?(@.userid==''{#USERID}'')].expire.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4376,6 +6093,9 @@ zabbix_export:
                     - '$.body.data[?(@.userid==''{#USERID}'')].firstname.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No first name available.'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4397,6 +6117,9 @@ zabbix_export:
                     - '$.body.data[?(@.userid==''{#USERID}'')].lastname.first()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: 'No last name available.'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4416,6 +6139,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.body.data[?(@.userid==''{#USERID}'')][''realm-type''].first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4436,6 +6162,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.body.data[?(@.userid==''{#USERID}'')].enable.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.user.raw
               tags:
@@ -4452,6 +6181,8 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.body.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
         - uuid: 92df286f4a31496c887b1992534efb2c
           name: 'Discover ZFS pools'
           type: DEPENDENT
@@ -4464,6 +6195,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.alloc[{#ZPOOL}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bytes
               description: 'Allocated bytes in the pool.'
@@ -4502,6 +6234,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.frag[{#ZPOOL}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: '%'
               description: 'Free space fragmentation in percent.'
@@ -4521,6 +6254,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.free[{#ZPOOL}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bytes
               description: 'Free bytes in the pool.'
@@ -4540,6 +6274,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.health[{#ZPOOL}]'
               delay: '0'
+              history: 7d
               description: 'zpool health as a number so it can be graphed and used on a dashboard. 0 is ONLINE, everything above is a fault. The value map turns it back into the zpool wording.'
               valuemap:
                 name: 'ZFS pool health'
@@ -4575,6 +6310,9 @@ zabbix_export:
                   parameters:
                     - SUSPENDED
                     - '6'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.zfs.raw
               tags:
@@ -4599,6 +6337,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'zfs.size[{#ZPOOL}]'
               delay: '0'
+              history: 7d
               value_type: FLOAT
               units: Bytes
               description: 'Total pool size in bytes.'
@@ -4606,6 +6345,9 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$.data[?(@.name=="{#ZPOOL}")].size.first()'
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               master_item:
                 key: pve.zfs.raw
               tags:
@@ -4618,6 +6360,7 @@ zabbix_export:
               type: CALCULATED
               key: 'zfs.util[{#ZPOOL}]'
               delay: '300'
+              history: 7d
               value_type: FLOAT
               units: '%'
               params: '100*last(//zfs.alloc[{#ZPOOL}])/last(//zfs.size[{#ZPOOL}])'
@@ -4656,10 +6399,45 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.data[*]'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
       macros:
         - macro: '{$BACKUP.ALERT.WINDOW}'
           value: 24h
           description: 'How long a failed backup keeps alerting. The problem clears earlier if a later backup of the same guest succeeds. The value must include a time unit, for example 24h or 2d.'
+        - macro: '{$CEPH.HEALTH.WARN.PERIOD}'
+          value: 15m
+          description: 'How long Ceph must stay in HEALTH_WARN or worse before the warning fires.'
+        - macro: '{$CEPH.OSD.LATENCY.MAX}'
+          value: '0.2'
+          description: 'OSD commit latency threshold in seconds.'
+        - macro: '{$CEPH.OSD.LATENCY.PERIOD}'
+          value: 30m
+          description: 'How long the OSD latency must stay over the threshold.'
+        - macro: '{$CEPH.OSD.UTIL.CRIT}'
+          value: '90'
+          description: 'OSD utilization high threshold in percent (Ceph full default is 95).'
+        - macro: '{$CEPH.OSD.UTIL.WARN}'
+          value: '80'
+          description: 'OSD utilization warning threshold in percent (Ceph nearfull default is 85).'
+        - macro: '{$CEPH.PG.NOT_CLEAN.PERIOD}'
+          value: 1h
+          description: 'How long PGs may stay not active+clean before the warning fires.'
+        - macro: '{$CEPH.POOL.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Pools whose name matches are not discovered.'
+        - macro: '{$CEPH.POOL.UTIL.CRIT}'
+          value: '90'
+          description: 'Pool utilization high threshold in percent.'
+        - macro: '{$CEPH.POOL.UTIL.WARN}'
+          value: '80'
+          description: 'Pool utilization warning threshold in percent.'
+        - macro: '{$CEPH.UTIL.CRIT}'
+          value: '85'
+          description: 'Ceph raw capacity high threshold in percent.'
+        - macro: '{$CEPH.UTIL.WARN}'
+          value: '75'
+          description: 'Ceph raw capacity warning threshold in percent.'
         - macro: '{$CLUSTER.NODES.OFFLINE.MAX}'
           value: '0'
           description: 'Maximum tolerated offline cluster nodes before triggering an alert. Set to 1+ during planned maintenance.'
@@ -4738,6 +6516,15 @@ zabbix_export:
         - macro: '{$PVE.CERT.EXPIRE.DAYS}'
           value: 21d
           description: 'Lead time before certificate expiry. Must include a time unit, for example 21d.'
+        - macro: '{$PVE.DATACENTER.PAUSE}'
+          value: '7,23:59-24:00'
+          description: 'Period in which the datacenter-wide data is not requested on this host: guests on all nodes, node states, quorum, HA, backup jobs, users, SDN and Ceph. In a cluster keep the default on one host and set 1-7,00:00-24:00 on the others, so this data is not requested and alerted once per node. The default only skips the last minute of the week.'
+        - macro: '{$PVE.GUEST.DETAIL.INTERVAL}'
+          value: 10m
+          description: 'Interval of the per guest status request (balloon, machine type, LXC swap). One request per guest, so keep it long in large clusters.'
+        - macro: '{$PVE.GUEST.DETAIL.VMID.MATCHES}'
+          value: '.*'
+          description: 'Guests whose VMID matches get the per guest status request. Set to ^$ to switch it off for all guests.'
         - macro: '{$PVE.NOTBACKEDUP.MAX}'
           value: '0'
           description: 'Tolerated number of guests without a backup job. Raise it if some guests are deliberately excluded from backup.'
@@ -4748,8 +6535,8 @@ zabbix_export:
           value: 2h
           description: 'Maximum age of the last successful replication. Must stay above the replication schedule, otherwise the trigger fires between two runs. Must include a time unit.'
         - macro: '{$PVE.SERVICE.MATCHES}'
-          value: ^(pve-cluster|pvedaemon|pveproxy|pvestatd|pve-firewall)$
-          description: 'Which PVE services are discovered. corosync, pve-ha-lrm and pve-ha-crm are excluded by default because they are legitimately inactive on a standalone node. In a cluster extend the regex accordingly.'
+          value: ^(pve-cluster|pvedaemon|pveproxy|pvestatd|pve-firewall|pvescheduler|pve-ha-crm|pve-ha-lrm)$
+          description: 'Services to discover. corosync is left out because it only runs on cluster members; add it there.'
         - macro: '{$PVE.SERVICE.STATE.ALERT}'
           value: '1'
           description: 'Enables the service state trigger. Use the context form {$PVE.SERVICE.STATE.ALERT:"pveproxy"}=0 to silence a single service.'
@@ -5414,6 +7201,30 @@ zabbix_export:
                     - type: INTEGER
                       name: show.2
                       value: '3'
+                - type: honeycomb
+                  name: 'HA local resource managers'
+                  'y': '8'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'HA LRM state on *'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: HA
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVHA1
                 - type: item
                   name: 'Nodes offline'
                   x: '18'
@@ -5489,6 +7300,117 @@ zabbix_export:
                     - type: INTEGER
                       name: show.2
                       value: '3'
+            - name: Ceph
+              widgets:
+                - type: honeycomb
+                  name: 'Ceph OSD status'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Ceph * status'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: Ceph
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: OSD
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVCE2
+                - type: itemnavigator
+                  name: 'Browse Ceph items'
+                  'y': '6'
+                  width: '18'
+                  height: '14'
+                  fields:
+                    - type: INTEGER
+                      name: group_by.0.attribute
+                      value: '3'
+                    - type: STRING
+                      name: group_by.0.tag_name
+                      value: Ceph
+                    - type: STRING
+                      name: items.0
+                      value: '*'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: PVE
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Ceph
+                    - type: STRING
+                      name: reference
+                      value: PVCE1
+                    - type: INTEGER
+                      name: show_lines
+                      value: '100'
+                - type: item
+                  name: 'Selected item'
+                  x: '18'
+                  'y': '6'
+                  width: '18'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVCE1._itemid
+                    - type: INTEGER
+                      name: show.1
+                      value: '1'
+                    - type: INTEGER
+                      name: show.2
+                      value: '2'
+                    - type: INTEGER
+                      name: show.3
+                      value: '3'
+                - type: honeycomb
+                  name: 'Ceph pool utilization'
+                  x: '36'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Ceph pool * utilization'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: Ceph
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: Pool
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: PVCE3
+                - type: graph
+                  name: 'History of selected item'
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: itemid._reference
+                      value: PVCE1._itemid
+                    - type: INTEGER
+                      name: source_type
+                      value: '1'
       valuemaps:
         - uuid: 4f48a8938054422b8cf484adaec102ee
           name: 'Backup job enabled'
@@ -5517,6 +7439,36 @@ zabbix_export:
               newvalue: error
             - value: '4'
               newvalue: 'unknown error'
+        - uuid: 7af954938cb343f5a57e5f6465b9fa81
+          name: 'Ceph availability'
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+        - uuid: 3a752a6c666e4e9186381ff4a376e9fd
+          name: 'Ceph health'
+          mappings:
+            - value: '0'
+              newvalue: HEALTH_OK
+            - value: '1'
+              newvalue: HEALTH_WARN
+            - value: '2'
+              newvalue: HEALTH_ERR
+        - uuid: 779243f27e904fc88afe2ded8e0a7830
+          name: 'Ceph OSD in'
+          mappings:
+            - value: '0'
+              newvalue: out
+            - value: '1'
+              newvalue: in
+        - uuid: 515e1541e4f644c7aab3d63cfabf134b
+          name: 'Ceph OSD status'
+          mappings:
+            - value: '0'
+              newvalue: down
+            - value: '1'
+              newvalue: up
         - uuid: 8eaed02478a54b538161d33d26c566e5
           name: 'Network interface active'
           mappings:
@@ -5538,6 +7490,8 @@ zabbix_export:
               newvalue: offline
             - value: '1'
               newvalue: online
+            - value: '2'
+              newvalue: unknown
         - uuid: 0c2c3eccf2504239a1bb1d01c84aa41f
           name: 'PVE secureboot'
           mappings:
