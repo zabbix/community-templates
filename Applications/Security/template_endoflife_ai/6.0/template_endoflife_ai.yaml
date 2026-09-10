@@ -1,0 +1,236 @@
+zabbix_export:
+  version: '6.0'
+  date: '2026-08-20T12:00:00Z'
+  groups:
+    - uuid: f2a3f0a10d174b0cad2caa17278ff202
+      name: Templates/Applications
+  templates:
+    - uuid: db900ead0a204b8591a0fd6bd278eef2
+      template: 'endoflife.ai EOL by HTTP'
+      name: 'endoflife.ai EOL by HTTP'
+      description: |
+        Monitors end-of-life status and EOL Risk Scores for the software stack you define, using the endoflife.ai API (https://endoflife.ai/api).
+
+        Setup:
+        1. Set {$EOL.STACK.BODY} to the products/versions you run (see macro description).
+        2. Optionally set {$EOL.API.KEY} (anonymous use allows 100 requests/day per IP; a free key allows 500/day — POST https://api.endoflife.ai/v1/keys/free).
+
+        One API call per hour discovers every component and updates score, status, days-to-EOL, EOL date and latest release for each.
+
+        Data: 480+ products, verified daily against vendor lifecycle pages. Risk Score methodology: https://endoflife.ai/risk-score
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 5eff71428cc642e7b96da256b2adf892
+          name: 'endoflife.ai: stack lifecycle batch'
+          type: HTTP_AGENT
+          key: eol.batch
+          delay: 1h
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Raw JSON from POST https://api.endoflife.ai/v1/batch for the stack defined in {$EOL.STACK.BODY}. All other items are derived from this single request.'
+          timeout: 30s
+          url: 'https://api.endoflife.ai/v1/batch'
+          posts: '{$EOL.STACK.BODY}'
+          headers:
+            - name: Content-Type
+              value: application/json
+            - name: X-API-Key
+              value: '{$EOL.API.KEY}'
+          request_method: POST
+          tags:
+            - tag: component
+              value: eol
+      discovery_rules:
+        - uuid: 8e726d341a664a98b32551be4e060eb1
+          name: 'EOL component discovery'
+          type: DEPENDENT
+          key: eol.discovery
+          delay: '0'
+          description: 'Discovers each product/version pair returned by the batch call. Entries the API could not resolve (unknown slug or version) are skipped.'
+          item_prototypes:
+            - uuid: 4880aa3434744c94a62be7994087808a
+              name: 'EOL Risk Score: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.score[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'endoflife.ai EOL Risk Score, 0-100. Bands: 0-25 Low, 26-50 Medium, 51-75 High, 76-100 Critical. Methodology: https://endoflife.ai/risk-score'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.results[?(@.product==''{#PRODUCT}'' && @.version==''{#VERSION}'')].score.first()'
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+            - uuid: bd3247510afb4749b1ff204bb143f084
+              name: 'EOL status: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.status[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'Lifecycle status: active (supported), warn (end-of-life within 180 days), eol (past end-of-life), unknown.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.results[?(@.product==''{#PRODUCT}'' && @.version==''{#VERSION}'')].status.first()'
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+            - uuid: a21ec821d69b43a99e8def726cb7d8cd
+              name: 'Days until EOL: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.days[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              value_type: FLOAT
+              units: days
+              description: 'Days until end-of-life; negative once end-of-life has passed. Discarded when the product has no published EOL date.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var rs = JSON.parse(value).results.filter(function (r) {
+                        return r.product === '{#PRODUCT}' && r.version === '{#VERSION}';
+                      })[0];
+                      if (!rs) throw 'component not found in batch response';
+                      if (rs.days_until_eol !== null && rs.days_until_eol !== undefined) return rs.days_until_eol;
+                      if (rs.days_past_eol !== null && rs.days_past_eol !== undefined) return -rs.days_past_eol;
+                      throw 'no end-of-life date published';
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+            - uuid: da8ab76808bf4ad485dcb729a0437cf9
+              name: 'EOL date: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.date[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'Published end-of-life date (ISO 8601).'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.results[?(@.product==''{#PRODUCT}'' && @.version==''{#VERSION}'')].eol_date.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+            - uuid: 4bd663c4cb244e0dbec10a0ac0a166f4
+              name: 'Latest release: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.latest[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'Latest patch release published for this cycle.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.results[?(@.product==''{#PRODUCT}'' && @.version==''{#VERSION}'')].latest_release.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+            - uuid: d2836429acfe4164a5dba6d427061c68
+              name: 'Risk band: {#PRODUCT} {#VERSION}'
+              type: DEPENDENT
+              key: 'eol.band[{#PRODUCT},{#VERSION}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'Risk band derived from the score: Low, Medium, High or Critical.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.results[?(@.product==''{#PRODUCT}'' && @.version==''{#VERSION}'')].band.first()'
+              master_item:
+                key: eol.batch
+              tags:
+                - tag: component
+                  value: eol
+                - tag: product
+                  value: '{#PRODUCT}'
+          trigger_prototypes:
+            - uuid: c9c73a3b957442bdbcd643ed4042563b
+              expression: 'last(/endoflife.ai EOL by HTTP/eol.status[{#PRODUCT},{#VERSION}])="eol"'
+              name: '{#PRODUCT} {#VERSION} is end-of-life'
+              priority: HIGH
+              description: 'This version no longer receives security fixes from its maintainer. Details and extended-support options: https://endoflife.ai/{#PRODUCT}'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: 0e639663c5644ad0ad73a88ad1e94d96
+              expression: 'last(/endoflife.ai EOL by HTTP/eol.status[{#PRODUCT},{#VERSION}])="warn"'
+              name: '{#PRODUCT} {#VERSION} reaches end-of-life within 180 days'
+              priority: WARNING
+              description: 'Plan the upgrade before support ends. Timeline: https://endoflife.ai/{#PRODUCT}'
+              dependencies:
+                - name: '{#PRODUCT} {#VERSION} is end-of-life'
+                  expression: 'last(/endoflife.ai EOL by HTTP/eol.status[{#PRODUCT},{#VERSION}])="eol"'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: 965a097fa9cd4e3d97366964bb4a517b
+              expression: 'last(/endoflife.ai EOL by HTTP/eol.score[{#PRODUCT},{#VERSION}])>={$EOL.SCORE.CRIT}'
+              name: 'EOL Risk Score is critical for {#PRODUCT} {#VERSION}'
+              priority: AVERAGE
+              description: 'The 0-100 EOL Risk Score (EOL recency, attack surface, CISA KEV exposure) is at or above {$EOL.SCORE.CRIT}. Score card: https://endoflife.ai/score/{#PRODUCT}/{#VERSION}'
+              dependencies:
+                - name: '{#PRODUCT} {#VERSION} is end-of-life'
+                  expression: 'last(/endoflife.ai EOL by HTTP/eol.status[{#PRODUCT},{#VERSION}])="eol"'
+              tags:
+                - tag: scope
+                  value: security
+          master_item:
+            key: eol.batch
+          lld_macro_paths:
+            - lld_macro: '{#PRODUCT}'
+              path: $.product
+            - lld_macro: '{#VERSION}'
+              path: $.version
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.results[?(@.product)]'
+      macros:
+        - macro: '{$EOL.API.KEY}'
+          value: ''
+          description: 'Optional endoflife.ai API key. Anonymous: 100 requests/day per IP (24/day used by this template''s hourly poll). Free key, 500/day: POST https://api.endoflife.ai/v1/keys/free with {"email":"you@example.com"}.'
+        - macro: '{$EOL.SCORE.CRIT}'
+          value: '76'
+          description: 'EOL Risk Score threshold for the AVERAGE-severity trigger. 76+ is the Critical band.'
+        - macro: '{$EOL.STACK.BODY}'
+          value: '{"products":[{"slug":"nodejs","version":"20"},{"slug":"postgresql","version":"16"}]}'
+          description: 'JSON body sent to POST /v1/batch — list the product slugs and versions your host runs. Slugs: https://api.endoflife.ai/v1/products. Batch limit: 5 products anonymous/free key, 25 Starter, 50 Pro. Omit "version" to score a product''s riskiest tracked cycle.'
+  triggers:
+    - uuid: b3e8bdc58da744279d05c68ec0cdd4c0
+      expression: 'nodata(/endoflife.ai EOL by HTTP/eol.batch,6h)=1'
+      name: 'endoflife.ai API: no lifecycle data received for 6h'
+      priority: WARNING
+      description: 'The hourly batch call has not returned data for 6 hours — check network access to api.endoflife.ai, the {$EOL.STACK.BODY} JSON, and rate limits (anonymous: 100 requests/day per IP).'
+      tags:
+        - tag: scope
+          value: availability
