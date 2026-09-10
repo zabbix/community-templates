@@ -10,7 +10,7 @@ The SNMP version and credentials belong to the **host interface**, not to the te
 
 **Tested against a Brocade 6505 running Fabric OS 8.0.2c, with Zabbix server 7.0.29.**
 
-*Vietnamese version: [README_vi.md](README_vi.md)*
+*Vietnamese version: [files/README_vi.md](files/README_vi.md)*
 
 ---
 

@@ -10,7 +10,7 @@ Phiên bản SNMP và thông tin xác thực đặt trên **interface của host
 
 **Đã kiểm thử trên thiết bị Brocade 6505 chạy Fabric OS 8.0.2c, với Zabbix server 7.0.29.**
 
-*Bản tiếng Anh: [README.md](README.md)*
+*Bản tiếng Anh: [../README.md](../README.md)*
 
 ---
 
