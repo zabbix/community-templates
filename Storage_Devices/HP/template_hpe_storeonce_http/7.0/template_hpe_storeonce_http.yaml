@@ -1,0 +1,2217 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 4ad3bde806e84b1cb3b76eb00a8d581f
+      name: Templates/Storage
+  templates:
+    - uuid: 06a77832905648a1b0f51a8eaf37405f
+      template: HPE StoreOnce Gen4 by HTTP
+      name: HPE StoreOnce Gen4 by HTTP
+      description: |-
+        Template for monitoring HPE StoreOnce Gen4 appliances (3620, 3640, 5200, 5250, 5650, VSA)
+        running software version 4.x via REST API.
+
+        Features:
+        - Single script master item with Bearer token authentication and graceful session logout
+        - Two-Tier monitoring architecture:
+          * Tier 1: Current State monitoring of the 5 core dashboard pillars (Data Services, Licensing, Storage, Hardware, Remote Support)
+          * Tier 2: Diagnostic Event Log via filtered Active Alerts LLD (root cause failure discovery)
+        - System & hardware inventory mapped to Zabbix Host Inventory
+        - Storage capacity, space utilization, and deduplication ratio tracking
+        - Low-level discovery for Catalyst Stores with capacity and status monitoring
+        - Low-level discovery for Power Supplies, Fans, and Storage Controllers with battery status
+        - Standalone graphs for capacity, space utilization, deduplication, and active alerts
+        - Interactive 2-page dashboard with high-level KPI cards, gauge widgets, and problem view
+
+        Setup:
+        1. Assign template to host.
+        2. Configure {$HPE.STOREONCE.USER} and {$HPE.STOREONCE.PASSWORD} macros.
+        3. Verify {$HPE.STOREONCE.API.HOST}, {$HPE.STOREONCE.API.PORT}, and {$HPE.STOREONCE.API.SCHEME}.
+      vendor:
+        name: Community
+        version: 7.0-0
+      groups:
+        - name: Templates/Storage
+      items:
+        - uuid: b8a9057d303446daa52718a8c08634cc
+          name: 'HPE StoreOnce: Get data'
+          type: SCRIPT
+          key: hpe.storeonce.get.data
+          history: '0'
+          value_type: TEXT
+          description: Retrieves authentication token, fetches all monitoring endpoints,
+            and releases session token.
+          params: |
+            var params = JSON.parse(value);
+            var fields = ['username', 'password', 'base_url'];
+            fields.forEach(function (field) {
+                if (typeof params !== 'object' || typeof params[field] === 'undefined' || params[field] === '') {
+                    throw 'Required param is not set: "' + field + '".';
+                }
+            });
+
+            var baseUrl = params.base_url.replace(/\/+$/, '');
+            var request = new HttpRequest();
+            if (params.http_proxy) {
+                request.setProxy(params.http_proxy);
+            }
+            request.addHeader('Content-Type: application/json');
+
+            // 1. Authenticate to obtain Bearer access_token
+            var authPayload = JSON.stringify({
+                username: params.username,
+                password: params.password,
+                grant_type: 'password'
+            });
+
+            var authUrl = baseUrl + '/pml/login/authenticatewithobject';
+            var authResp = request.post(authUrl, authPayload);
+
+            if (request.getStatus() < 200 || request.getStatus() >= 300) {
+                throw 'Authentication request failed with status ' + request.getStatus() + ': ' + authResp;
+            }
+
+            var token;
+            try {
+                var authJson = JSON.parse(authResp);
+                token = authJson.access_token;
+            } catch (e) {
+                throw 'Failed to parse authentication response: ' + e;
+            }
+
+            if (!token) {
+                throw 'No access_token found in authentication response.';
+            }
+
+            var data = {
+                system: null,
+                status: null,
+                storage: null,
+                dashboard: null,
+                cat_stores: null,
+                hwmonitor: null,
+                alerts: null,
+                d2d: null,
+                licensing: null,
+                support: null,
+                errors: []
+            };
+
+            // 2. Fetch endpoints using Bearer token
+            request.clearHeader();
+            request.addHeader('Authorization: Bearer ' + token);
+            request.addHeader('Accept: application/json');
+
+            function getEndpoint(name, urlPath, isOptional) {
+                var resp = request.get(baseUrl + urlPath);
+                var status = request.getStatus();
+                if (status >= 200 && status < 300) {
+                    try {
+                        return JSON.parse(resp);
+                    } catch (e) {
+                        data.errors.push('Failed to parse ' + name + ' response: ' + e);
+                        return null;
+                    }
+                } else {
+                    if (!isOptional) {
+                        data.errors.push('Endpoint ' + name + ' (' + urlPath + ') returned status ' + status);
+                    }
+                    return null;
+                }
+            }
+
+            try {
+                data.system = getEndpoint('system', '/api/v1/management-services/system/information');
+                data.status = getEndpoint('status', '/rest/status');
+                data.dashboard = getEndpoint('dashboard', '/api/v1/data-services/dashboard/overview');
+                data.cat_stores = getEndpoint('cat_stores', '/api/v1/data-services/cat/stores');
+                data.hwmonitor = getEndpoint('hwmonitor', '/hwmonitor/servers?listDetailed=true');
+
+                // Fetch alerts with pagination up to 1000 items (10 pages)
+                var alertsData = { members: [], total: 0 };
+                var pageUrl = '/rest/alerts?start=0&count=100';
+                var maxPages = 10;
+                var page = 0;
+                while (pageUrl && page < maxPages) {
+                    var aResp = getEndpoint('alerts', pageUrl, true);
+                    if (!aResp || !aResp.members) break;
+                    alertsData.members = alertsData.members.concat(aResp.members);
+                    alertsData.total = aResp.total || alertsData.members.length;
+                    page++;
+                    if (alertsData.members.length >= alertsData.total || aResp.members.length === 0) {
+                        break;
+                    }
+                    pageUrl = '/rest/alerts?start=' + alertsData.members.length + '&count=100';
+                }
+                data.alerts = alertsData;
+
+                // 1. Data Services Health
+                data.d2d = getEndpoint('d2d', '/api/v1/data-services/d2d-service/status', true);
+
+                // 2. Licensing Health
+                data.licensing = getEndpoint('licensing', '/api/v1/management-services/licensing', true);
+
+                // 3. Storage overview (try management-services, then data-services, fallback to dashboard overview)
+                data.storage = getEndpoint('storage', '/api/v1/management-services/local-storage/overview', true);
+                if (!data.storage) {
+                    data.storage = getEndpoint('storage', '/api/v1/data-services/local-storage/overview', true);
+                }
+                if (!data.storage && data.dashboard) {
+                    data.storage = {
+                        configuredStorageBytes: data.dashboard.overallLocalCapacityBytes || 0,
+                        usedBytes: data.dashboard.overallLocalDiskBytes || 0,
+                        freeBytes: data.dashboard.overallLocalFreeBytes || 0,
+                        storageHealth: 0,
+                        storageHealthString: 'UNKNOWN',
+                        simplifiedStatus: 0,
+                        simplifiedStatusString: 'UNKNOWN'
+                    };
+                } else if (!data.storage) {
+                    data.errors.push('Endpoint storage (/api/v1/management-services/local-storage/overview) unavailable');
+                }
+
+                // 4. Remote Support Health (via dynamically queried cluster name)
+                try {
+                    var clusterMgmt = getEndpoint('clustermanagement', '/pml/clustermanagement', true);
+                    if (clusterMgmt && (clusterMgmt.name || clusterMgmt.uuid)) {
+                        var cName = clusterMgmt.name || ('storeonce-' + clusterMgmt.uuid);
+                        data.support = getEndpoint('support', '/hp/rest/provisioning/' + cName + '/system/v2/support/remotesupportstatus', true);
+                    }
+                } catch (e) {
+                    // Suppress optional support error
+                }
+            } finally {
+                // 3. Gracefully delete/invalidate session to prevent token buildup on appliance
+                try {
+                    request.delete(baseUrl + '/pml/login/delete');
+                } catch (e) {
+                    // Suppress logout cleanup errors
+                }
+            }
+
+            return JSON.stringify(data);
+          parameters:
+            - name: base_url
+              value: '{$HPE.STOREONCE.API.SCHEME}://{$HPE.STOREONCE.API.HOST}:{$HPE.STOREONCE.API.PORT}/'
+            - name: username
+              value: '{$HPE.STOREONCE.USER}'
+            - name: password
+              value: '{$HPE.STOREONCE.PASSWORD}'
+            - name: http_proxy
+              value: '{$HPE.STOREONCE.HTTP_PROXY}'
+          timeout: '{$HPE.STOREONCE.DATA.TIMEOUT}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: ba9b98fef6c945c0b07b2d7e2c11cea1
+          name: 'HPE StoreOnce: API data collection errors'
+          type: DEPENDENT
+          key: hpe.storeonce.api.errors
+          history: 7d
+          value_type: TEXT
+          description: Errors encountered during API data retrieval.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errors
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: raw
+            - tag: scope
+              value: availability
+          triggers:
+            - uuid: 8eee642548b5401080d6906b4551ee25
+              expression: length(last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.api.errors))>2
+              name: 'HPE StoreOnce: There are errors in API data collection'
+              opdata: 'Errors: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |-
+                An error occurred when retrieving metrics from the StoreOnce REST API.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 0688692546e84fcb899d042808c94dcf
+          name: 'HPE StoreOnce: System name'
+          type: DEPENDENT
+          key: hpe.storeonce.system.name
+          history: 7d
+          value_type: CHAR
+          description: System name
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.hostname
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: NAME
+        - uuid: c8426272e7ec4d81ad0f3d519639a711
+          name: 'HPE StoreOnce: System model'
+          type: DEPENDENT
+          key: hpe.storeonce.system.model
+          history: 7d
+          value_type: CHAR
+          description: System model
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.productName
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: MODEL
+        - uuid: 2dacceb086b14becb7f182e60d732be5
+          name: 'HPE StoreOnce: System SKU'
+          type: DEPENDENT
+          key: hpe.storeonce.system.sku
+          history: 7d
+          value_type: CHAR
+          description: System SKU
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.productSku
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: TYPE
+        - uuid: 2e486400c2454605bbb8dfebe8868a02
+          name: 'HPE StoreOnce: System serial number'
+          type: DEPENDENT
+          key: hpe.storeonce.system.serial
+          history: 7d
+          value_type: CHAR
+          description: System serial number
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.serialNumber
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: SERIALNO_A
+        - uuid: 78f416ed976b494bbbc950e6f37d45d1
+          name: 'HPE StoreOnce: System location'
+          type: DEPENDENT
+          key: hpe.storeonce.system.location
+          history: 7d
+          value_type: CHAR
+          description: System location
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.systemLocation
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: LOCATION
+        - uuid: d021192b4ac04888acc01394a4df0f29
+          name: 'HPE StoreOnce: System contact'
+          type: DEPENDENT
+          key: hpe.storeonce.system.contact
+          history: 7d
+          value_type: CHAR
+          description: System contact
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.contactEmail
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          inventory_link: CONTACT
+        - uuid: 5ba1fbcf05794fc887a77880ba9c0650
+          name: 'HPE StoreOnce: Vendor'
+          type: DEPENDENT
+          key: hpe.storeonce.system.vendor
+          history: 7d
+          value_type: CHAR
+          description: Storage vendor name.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - return 'Hewlett Packard Enterprise';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          inventory_link: VENDOR
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+        - uuid: 5b41b7807138435f96d127648b79a96b
+          name: 'HPE StoreOnce: Software version'
+          type: DEPENDENT
+          key: hpe.storeonce.system.sw_version
+          history: 7d
+          value_type: CHAR
+          description: StoreOnce software version.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.softwareVersion
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          inventory_link: SOFTWARE
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          triggers:
+            - uuid: 7926d9b58c154d40a1ed1cbad0eb0516
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.system.sw_version,#1)<>last(/HPE
+                StoreOnce Gen4 by HTTP/hpe.storeonce.system.sw_version,#2) and length(last(/HPE
+                StoreOnce Gen4 by HTTP/hpe.storeonce.system.sw_version))>0
+              name: 'HPE StoreOnce: Software version has changed'
+              priority: INFO
+              description: |-
+                Firmware / Software version was updated on StoreOnce.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/settings
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 447847ea487b4f97b4b894a6915820ec
+          name: 'HPE StoreOnce: Operational mode'
+          type: DEPENDENT
+          key: hpe.storeonce.system.operational_mode
+          history: 7d
+          value_type: CHAR
+          description: Operational mode of the StoreOnce appliance.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system.operationalMode
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: availability
+          triggers:
+            - uuid: 57bd18e4ec2c44ae9d0c948498f9dff8
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.system.operational_mode)<>"PRODUCTION"
+              name: 'HPE StoreOnce: Operational mode is not PRODUCTION'
+              priority: WARNING
+              description: |-
+                The appliance operational mode is not PRODUCTION (e.g. MAINTENANCE or RECOVERY).
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/dashboard
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: bce34e6b341946deb72a907411ad6c76
+          name: 'HPE StoreOnce: Server management state'
+          type: DEPENDENT
+          key: hpe.storeonce.system.server_status
+          history: 7d
+          value_type: CHAR
+          description: Management server status state (ready, initializing, restarting,
+            etc.).
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status.state
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: availability
+          triggers:
+            - uuid: 6fa04fb2cd4d46f19685c2bdc02f25f1
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.system.server_status)<>"ready"
+              name: 'HPE StoreOnce: Server state is not ready'
+              priority: HIGH
+              description: |-
+                The StoreOnce management service is not in ready state.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/dashboard
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 83616b069574446793d90b27571f5ff8
+          name: 'HPE StoreOnce: Server management readiness'
+          type: DEPENDENT
+          key: hpe.storeonce.system.server_status_percent
+          history: 7d
+          value_type: FLOAT
+          description: Server management readiness
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status.percent
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: system
+            - tag: scope
+              value: notice
+          units: '%'
+        - uuid: 650ec83e32434ce1aac51cbca9c36cf6
+          name: 'HPE StoreOnce: Hardware server model'
+          type: DEPENDENT
+          key: hpe.storeonce.hw.server_model
+          history: 7d
+          value_type: CHAR
+          description: Hardware server model
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.model
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: hardware
+            - tag: scope
+              value: notice
+          inventory_link: HARDWARE
+        - uuid: 0f314fcfcfe24abeb7b2e8805d78a1de
+          name: 'HPE StoreOnce: Hardware BIOS firmware version'
+          type: DEPENDENT
+          key: hpe.storeonce.hw.bios_version
+          history: 7d
+          value_type: CHAR
+          description: Hardware BIOS firmware version
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.firmwareVersion
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: hardware
+            - tag: scope
+              value: notice
+          inventory_link: HARDWARE_FULL
+        - uuid: d99fdeb6daeb41d8a635e32131a7e59b
+          name: 'HPE StoreOnce: iLO IPv4 address'
+          type: DEPENDENT
+          key: hpe.storeonce.hw.ilo_ip
+          history: 7d
+          value_type: CHAR
+          description: iLO IPv4 address
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component[?(@.name=='iLOmodule')].value.managementIPaddress.first()
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: hardware
+            - tag: scope
+              value: notice
+          inventory_link: OOB_IP
+        - uuid: 2b249cbb2b384864a879d4988861c632
+          name: 'HPE StoreOnce: iLO model'
+          type: DEPENDENT
+          key: hpe.storeonce.hw.ilo_model
+          history: 7d
+          value_type: CHAR
+          description: iLO model
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component[?(@.name=='iLOmodule')].value.model.first()
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: hardware
+            - tag: scope
+              value: notice
+        - uuid: 52c40dc353a04d37a1de36b5b04f2ded
+          name: 'HPE StoreOnce: Hardware overall status'
+          type: DEPENDENT
+          key: hpe.storeonce.hw.overall_status
+          history: 7d
+          value_type: CHAR
+          description: Hardware overall report status.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hwmonitor.server[0].hardwareReportResponse.hardwareReport.overallStatus.value
+          tags:
+            - tag: component
+              value: hardware
+            - tag: scope
+              value: availability
+          triggers:
+            - uuid: 6fdc68b8a2fe4fbcb3f80d11c67d350d
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.overall_status)<>"OK"
+              name: 'HPE StoreOnce: Hardware overall status is not OK'
+              priority: HIGH
+              description: |-
+                Hardware monitoring has detected an issue on the underlying server hardware.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/hardware
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: a0864b354f4449c48aeaabf7aa54ef9e
+          name: 'HPE StoreOnce: Data services health status'
+          type: DEPENDENT
+          key: hpe.storeonce.dataservices.health
+          history: 7d
+          value_type: CHAR
+          description: Overall health level of StoreOnce Data Services (D2D Manager).
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.d2d.services.OverallHealth.healthLevelString
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: service
+            - tag: scope
+              value: availability
+            - tag: target
+              value: dataservices
+          triggers:
+            - uuid: 467ec43ac2144c5682d93636dc659314
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.dataservices.health)<>"OK"
+              name: 'HPE StoreOnce: Data services health is not OK'
+              opdata: 'Health: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: |-
+                StoreOnce Data Services (D2D subsystem) reported an issue or is degraded.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/data-services
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: service
+        - uuid: 28a76efa020b48a59f4288d6b83bbfdb
+          name: 'HPE StoreOnce: Data services operational state'
+          type: DEPENDENT
+          key: hpe.storeonce.dataservices.state
+          history: 7d
+          value_type: CHAR
+          description: Data services operational state
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.d2d.services.OverallHealth.healthString
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: service
+            - tag: scope
+              value: notice
+        - uuid: c3f7483391ab437395e0f6b3273a375b
+          name: 'HPE StoreOnce: Licensing status'
+          type: DEPENDENT
+          key: hpe.storeonce.licensing.status
+          history: 7d
+          value_type: CHAR
+          description: Overall licensing status of the StoreOnce appliance.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.licensing.licensingStatusEnum
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: license
+            - tag: scope
+              value: capacity
+            - tag: target
+              value: licensing
+          triggers:
+            - uuid: 35f32281562e48179c85aa12b7595f94
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.licensing.status)<>"GOOD"
+              name: 'HPE StoreOnce: Licensing status is not GOOD'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |-
+                Appliance licensing status is not GOOD (license expired, invalid or capacity exceeded).
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/licensing
+              tags:
+                - tag: scope
+                  value: capacity
+                - tag: component
+                  value: license
+        - uuid: 1caeb7b7cd5d41f5a8ce04a78e3c2444
+          name: 'HPE StoreOnce: License in grace period'
+          type: DEPENDENT
+          key: hpe.storeonce.licensing.grace_period
+          history: 7d
+          value_type: UNSIGNED
+          description: Whether the appliance is running in a license grace period
+            (1 = True, 0 = False).
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.licensing.inGracePeriod
+            - type: BOOL_TO_DECIMAL
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: license
+            - tag: scope
+              value: capacity
+          triggers:
+            - uuid: 1c79ee60d5d9409ba9325a04dfde5b3b
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.licensing.grace_period)=1
+              name: 'HPE StoreOnce: License is in grace period'
+              priority: WARNING
+              description: |-
+                The StoreOnce appliance is operating within a temporary licensing grace period.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/licensing
+              tags:
+                - tag: scope
+                  value: capacity
+                - tag: component
+                  value: license
+        - uuid: b88a9fbb08bc4d8c8e30e5687f411aab
+          name: 'HPE StoreOnce: Licensing: Licensed capacity'
+          type: DEPENDENT
+          key: hpe.storeonce.licensing.capacity_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Licensing: Licensed capacity'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.licensing.capacityBytes
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: license
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: d2d63dd3816b4b15aefc72efd00c840f
+          name: 'HPE StoreOnce: Licensing: Status summary'
+          type: DEPENDENT
+          key: hpe.storeonce.licensing.summary
+          history: 7d
+          value_type: CHAR
+          description: 'Licensing: Status summary'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.licensing.statusSummary
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: license
+            - tag: scope
+              value: notice
+        - uuid: 0928dfbd479c4ca39d9431ee1a7b05e0
+          name: 'HPE StoreOnce: Remote support status'
+          type: DEPENDENT
+          key: hpe.storeonce.support.status
+          history: 7d
+          value_type: CHAR
+          description: Connection status to HPE Remote Support servers.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var d = JSON.parse(value);
+                  if (d.support && d.support.remoteSupportStatusEnum) {
+                      return d.support.remoteSupportStatusEnum;
+                  }
+                  return 'UNKNOWN';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: support
+            - tag: scope
+              value: availability
+            - tag: target
+              value: remotesupport
+          triggers:
+            - uuid: 0376cd51e6284212a30bc57c86d36a90
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.support.status)<>"OK"
+                and last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.support.status)<>"UNKNOWN"
+              name: 'HPE StoreOnce: Remote support connection issue'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |-
+                Connection to HPE Remote Support servers is degraded or disconnected.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/support
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: support
+        - uuid: 274627b851ae4de3b405dba1a73c1a60
+          name: 'HPE StoreOnce: Remote support status details'
+          type: DEPENDENT
+          key: hpe.storeonce.support.details
+          history: 7d
+          value_type: CHAR
+          description: Detailed message regarding HPE Remote Support connection.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var d = JSON.parse(value);
+                  if (d.support && d.support.remoteSupportStatusString) {
+                      return d.support.remoteSupportStatusString;
+                  }
+                  return 'N/A';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: support
+            - tag: scope
+              value: notice
+        - uuid: 65a81d6630c2403e86d002b1246f419f
+          name: 'HPE StoreOnce: Storage: Configured capacity'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.configured_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Storage: Configured capacity'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.configuredStorageBytes
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: e80266e75b4f4686866b834598021377
+          name: 'HPE StoreOnce: Storage: Used space'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.used_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Storage: Used space'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.usedBytes
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: dbe38dade4fd4dccbc22c86aa19360b2
+          name: 'HPE StoreOnce: Storage: Free space'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.free_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Storage: Free space'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.freeBytes
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: d8b0753fdbb246249bcf1c0a47284fef
+          name: 'HPE StoreOnce: Storage: Overall deduplication ratio'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.dedupe_ratio
+          history: 7d
+          value_type: FLOAT
+          description: 'Storage: Overall deduplication ratio'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.dashboard.overallDedupeRatio
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+        - uuid: dd1c0e49a0b74aa48b029d390d486cc7
+          name: 'HPE StoreOnce: Storage: Overall capacity saved'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.saved_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Storage: Overall capacity saved'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.dashboard.overallCapacitySavedBytes
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: 0c8ef75351b7445db4c9f435435d4cca
+          name: 'HPE StoreOnce: Storage: Overall capacity saved ratio'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.saved_percent
+          history: 7d
+          value_type: FLOAT
+          description: 'Storage: Overall capacity saved ratio'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.dashboard.overallCapacitySavedPercent
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: '%'
+        - uuid: ffbf80477c094943a45061d99fc84708
+          name: 'HPE StoreOnce: Storage: Overall user data stored'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.user_bytes
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Storage: Overall user data stored'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.dashboard.overallUserBytes
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          units: B
+        - uuid: d951458f320943aa866e0a14d2d15f63
+          name: 'HPE StoreOnce: Storage space utilization'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.space_utilization
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          description: Calculated local storage space utilization percentage.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var s = JSON.parse(value).storage;
+                  if (s && s.configuredStorageBytes > 0) {
+                      return (s.usedBytes / s.configuredStorageBytes * 100).toFixed(2);
+                  }
+                  return null;
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: capacity
+          triggers:
+            - uuid: 370380a8102049a783055471f32f899c
+              expression: min(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.storage.space_utilization,5m)>{$HPE.STOREONCE.CAPACITY.WARN}
+              name: 'HPE StoreOnce: Storage capacity utilization is high'
+              opdata: 'Current: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |-
+                Local storage utilization is over {$HPE.STOREONCE.CAPACITY.WARN}%.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/storage
+              dependencies:
+                - name: 'HPE StoreOnce: Storage capacity utilization is critical'
+                  expression: min(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.storage.space_utilization,5m)>{$HPE.STOREONCE.CAPACITY.CRIT}
+              tags:
+                - tag: scope
+                  value: capacity
+            - uuid: 163199953f394f69ade5939ee836b0ca
+              expression: min(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.storage.space_utilization,5m)>{$HPE.STOREONCE.CAPACITY.CRIT}
+              name: 'HPE StoreOnce: Storage capacity utilization is critical'
+              opdata: 'Current: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: |-
+                Local storage utilization is over {$HPE.STOREONCE.CAPACITY.CRIT}%. Urgent cleanup or expansion needed.
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/storage
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 5e5ff760ae5e44ca992cba62bd37fb62
+          name: 'HPE StoreOnce: Storage health status'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.health
+          history: 7d
+          value_type: CHAR
+          description: Reported health status of local storage.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.storageHealthString
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: availability
+          triggers:
+            - uuid: d244762bc7834addb5372962640d84ee
+              expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.storage.health)<>"Good"
+                and last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.storage.health)<>"UNKNOWN"
+              name: 'HPE StoreOnce: Storage health issue detected'
+              opdata: 'Status: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: |-
+                Local storage health string is not Good (reported issue in storage hardware or filesystems).
+
+                {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/storage
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 3426cf119b814429b9ec49e2f18b149b
+          name: 'HPE StoreOnce: Storage: Simplified status'
+          type: DEPENDENT
+          key: hpe.storeonce.storage.simplified_status
+          history: 7d
+          value_type: CHAR
+          description: 'Storage: Simplified status'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.storage.simplifiedStatusString
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: storage
+            - tag: scope
+              value: availability
+        - uuid: 80c76858000043ae9a5ea497263b2cce
+          name: 'HPE StoreOnce: Alerts: Total logged'
+          type: DEPENDENT
+          key: hpe.storeonce.alerts.total
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Alerts: Total logged'
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.alerts.total
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: alerts
+            - tag: scope
+              value: notice
+        - uuid: 3683885429724fbb97f21f73d57a822c
+          name: 'HPE StoreOnce: Alerts active total count'
+          type: DEPENDENT
+          key: hpe.storeonce.alerts.active.total
+          history: 7d
+          value_type: UNSIGNED
+          description: Total count of active uncleared alerts on the appliance.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var a = JSON.parse(value).alerts;
+                  if (!a || !a.members) return 0;
+                  return a.members.filter(function(m) { return m.alertState === 'Active'; }).length;
+          tags:
+            - tag: component
+              value: alerts
+            - tag: scope
+              value: availability
+        - uuid: cc6c1fa5e450457882dbfaebd6e31e45
+          name: 'HPE StoreOnce: Alerts active critical count'
+          type: DEPENDENT
+          key: hpe.storeonce.alerts.active.critical
+          history: 7d
+          value_type: UNSIGNED
+          description: Count of active alerts with Critical severity.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var a = JSON.parse(value).alerts;
+                  if (!a || !a.members) return 0;
+                  return a.members.filter(function(m) { return m.alertState === 'Active' && m.severity === 'Critical'; }).length;
+          tags:
+            - tag: component
+              value: alerts
+            - tag: scope
+              value: notice
+        - uuid: ed0547868be44f07bb84b96f0de2a44f
+          name: 'HPE StoreOnce: Alerts active warning count'
+          type: DEPENDENT
+          key: hpe.storeonce.alerts.active.warning
+          history: 7d
+          value_type: UNSIGNED
+          description: Count of active alerts with Warning severity.
+          master_item:
+            key: hpe.storeonce.get.data
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var a = JSON.parse(value).alerts;
+                  if (!a || !a.members) return 0;
+                  return a.members.filter(function(m) { return m.alertState === 'Active' && m.severity === 'Warning'; }).length;
+          tags:
+            - tag: component
+              value: alerts
+            - tag: scope
+              value: notice
+      discovery_rules:
+        - uuid: 978545c745ff410d9a8c08ac75add093
+          name: Catalyst stores discovery
+          type: DEPENDENT
+          key: hpe.storeonce.cat.discovery
+          master_item:
+            key: hpe.storeonce.get.data
+          description: Discovers Catalyst stores defined on the appliance.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  var lld = [];
+                  if (d.cat_stores && d.cat_stores.members) {
+                      d.cat_stores.members.forEach(function(s) {
+                          lld.push({
+                              '{#STORE.ID}': '' + s.id,
+                              '{#STORE.NAME}': s.name,
+                              '{#STORE.SECURITY_MODE}': s.securityModeString || '',
+                              '{#STORE.PRIMARY_POLICY}': s.primaryTransferPolicyString || ''
+                          });
+                      });
+                  }
+                  return JSON.stringify(lld);
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#STORE.NAME}'
+                value: '{$HPE.STOREONCE.CATSTORE.LLD.FILTER.MATCHES}'
+                formulaid: A
+              - macro: '{#STORE.NAME}'
+                value: '{$HPE.STOREONCE.CATSTORE.LLD.FILTER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: f63e362a778245cdadd8774bec0e869b
+              name: 'Catalyst store [{#STORE.NAME}]: Status'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.status[{#STORE.ID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].storeStatusString.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: availability
+                - tag: store
+                  value: '{#STORE.NAME}'
+              trigger_prototypes:
+                - uuid: 96a1891b4a654414837cf8eef9d019bf
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.cat.status[{#STORE.ID}])<>"Online"
+                  name: 'Catalyst store [{#STORE.NAME}]: Store status is not Online'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: |-
+                    The Catalyst store {#STORE.NAME} is not in Online status.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/data-services/catalyst
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: a374e0dc5401418e8d85ed3867fbc958
+              name: 'Catalyst store [{#STORE.NAME}]: Health level'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.health[{#STORE.ID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].healthLevelString.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: availability
+                - tag: store
+                  value: '{#STORE.NAME}'
+              trigger_prototypes:
+                - uuid: 16032729d1f54e6d89db7c99e780262e
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.cat.health[{#STORE.ID}])<>"OK"
+                  name: 'Catalyst store [{#STORE.NAME}]: Store health is not OK'
+                  opdata: 'Health: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: |-
+                    The Catalyst store {#STORE.NAME} health level is not OK.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/data-services/catalyst
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 7a13d0ff14fe4c65b4b6f5fcb7c6b923
+              name: 'Catalyst store [{#STORE.NAME}]: User data stored'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.user_bytes[{#STORE.ID}]
+              history: 7d
+              value_type: UNSIGNED
+              units: B
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].userBytes.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: capacity
+                - tag: store
+                  value: '{#STORE.NAME}'
+            - uuid: 8080e16e7a3e4dec9aa21db689f3e45b
+              name: 'Catalyst store [{#STORE.NAME}]: Disk space used'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.disk_bytes[{#STORE.ID}]
+              history: 7d
+              value_type: UNSIGNED
+              units: B
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].diskBytes.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: capacity
+                - tag: store
+                  value: '{#STORE.NAME}'
+            - uuid: ef7c4c7aaa7b4645b6e0dcb225e21dfd
+              name: 'Catalyst store [{#STORE.NAME}]: Deduplication ratio'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.dedupe_ratio[{#STORE.ID}]
+              history: 7d
+              value_type: FLOAT
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].dedupeRatio.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: capacity
+                - tag: store
+                  value: '{#STORE.NAME}'
+            - uuid: d129c9298f304b70aeadf81355022c62
+              name: 'Catalyst store [{#STORE.NAME}]: Number of objects'
+              type: DEPENDENT
+              key: hpe.storeonce.cat.items[{#STORE.ID}]
+              history: 7d
+              value_type: UNSIGNED
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.cat_stores.members[?(@.id == '{#STORE.ID}')].numItems.first()
+              tags:
+                - tag: component
+                  value: catalyst
+                - tag: scope
+                  value: notice
+                - tag: store
+                  value: '{#STORE.NAME}'
+          graph_prototypes:
+            - uuid: 1d27fb44dd1e4f77b53e9a2d65a1099e
+              name: 'Catalyst store [{#STORE.NAME}]: Space & User Data'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: HPE StoreOnce Gen4 by HTTP
+                    key: hpe.storeonce.cat.user_bytes[{#STORE.ID}]
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: HPE StoreOnce Gen4 by HTTP
+                    key: hpe.storeonce.cat.disk_bytes[{#STORE.ID}]
+        - uuid: 723ca76f6dd543299806c10e65261b4a
+          name: Active alerts discovery
+          type: DEPENDENT
+          key: hpe.storeonce.alerts.discovery
+          master_item:
+            key: hpe.storeonce.get.data
+          description: Discovers active uncleared alarms on the StoreOnce system (Warning
+            and Critical).
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  var lld = [];
+                  if (d.alerts && d.alerts.members) {
+                      d.alerts.members.forEach(function(a) {
+                          if (a.alertState !== 'Active') return;
+                          var sev = (a.severity || a.status || '').toUpperCase();
+                          // Exclude informational and OK events
+                          if (sev === 'OK' || sev === 'INFO' || sev === 'INFORMATION') return;
+                          // Exclude administrative workflows, audit logs, and test traps
+                          var cat = (a.associatedResource && a.associatedResource.resourceCategory) ? a.associatedResource.resourceCategory.toUpperCase() : '';
+                          if (cat === 'AUTHENTICATION' || cat === 'DUAL_AUTHORIZATION' || cat === 'SNMP_AGENT') return;
+                          // Exclude historical service state changes (now monitored live via Tier 1 Data Services item)
+                          if (a.name === 'MSG_D2DMANAGER_STATE_CHANGED_CRITICAL') return;
+
+                          lld.push({
+                              '{#ALERT.UUID}': a.uuid,
+                              '{#ALERT.NAME}': a.name || 'Unknown',
+                              '{#ALERT.SEVERITY}': a.severity || a.status || 'Unknown',
+                              '{#ALERT.RESOURCE}': (a.associatedResource && a.associatedResource.resourceName) ? a.associatedResource.resourceName : 'System',
+                              '{#ALERT.EVENTCODE}': a.eventCode || '',
+                              '{#ALERT.DESC}': (a.description || '').replace(/\r?\n/g, ' ')
+                          });
+                      });
+                  }
+                  return JSON.stringify(lld);
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#ALERT.NAME}'
+                value: '{$HPE.STOREONCE.ALERT.LLD.FILTER.MATCHES}'
+                formulaid: A
+              - macro: '{#ALERT.NAME}'
+                value: '{$HPE.STOREONCE.ALERT.LLD.FILTER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: da2d393701274dc69c91491086340b1b
+              name: 'Alert [{#ALERT.NAME}] on [{#ALERT.RESOURCE}]: Status'
+              type: DEPENDENT
+              key: hpe.storeonce.alert.status[{#ALERT.UUID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value);
+                      if (!d.alerts || !d.alerts.members) return null;
+                      var a = d.alerts.members.filter(function(m) { return m.uuid === '{#ALERT.UUID}'; })[0];
+                      if (!a || a.alertState !== 'Active') return 'CLEARED';
+                      var sev = (a.severity || a.status || '').toUpperCase();
+                      if (sev === 'CRITICAL') return 'CRITICAL';
+                      if (sev === 'WARNING') return 'WARNING';
+                      return 'CLEARED';
+              tags:
+                - tag: component
+                  value: alerts
+                - tag: scope
+                  value: availability
+                - tag: alert_name
+                  value: '{#ALERT.NAME}'
+                - tag: resource
+                  value: '{#ALERT.RESOURCE}'
+              trigger_prototypes:
+                - uuid: cdfe23c0fa5f4555824e0c5e3ce33516
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.alert.status[{#ALERT.UUID}])="CRITICAL"
+                  name: 'Active Critical Alert on [{#ALERT.RESOURCE}]: {#ALERT.DESC}'
+                  opdata: 'Severity: Critical, Event: {#ALERT.EVENTCODE}'
+                  priority: HIGH
+                  description: |-
+                    StoreOnce active critical alert: {#ALERT.DESC} (Event code: {#ALERT.EVENTCODE}). This alert recovers automatically when marked as Cleared in StoreOnce.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/events
+                  tags:
+                    - tag: component
+                      value: alerts
+                    - tag: scope
+                      value: availability
+                    - tag: severity
+                      value: Critical
+                - uuid: 6b4bf8f9e0f847239602e9ed88e2ed71
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.alert.status[{#ALERT.UUID}])="WARNING"
+                  name: 'Active Warning Alert on [{#ALERT.RESOURCE}]: {#ALERT.DESC}'
+                  opdata: 'Severity: Warning, Event: {#ALERT.EVENTCODE}'
+                  priority: WARNING
+                  description: |-
+                    StoreOnce active warning alert: {#ALERT.DESC} (Event code: {#ALERT.EVENTCODE}). This alert recovers automatically when marked as Cleared in StoreOnce.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/events
+                  tags:
+                    - tag: component
+                      value: alerts
+                    - tag: scope
+                      value: availability
+                    - tag: severity
+                      value: Warning
+        - uuid: 6a1e16ebd7bd4b9c8960cdfbbfc83346
+          name: Power supplies discovery
+          type: DEPENDENT
+          key: hpe.storeonce.hw.psu.discovery
+          master_item:
+            key: hpe.storeonce.get.data
+          description: Discovers power supply modules installed in the hardware chassis.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  var lld = [];
+                  try {
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      comps.forEach(function(c) {
+                          if (c.name === 'powerSupply') {
+                              lld.push({
+                                  '{#PSU.UUID}': c.value.uuid,
+                                  '{#PSU.NAME}': c.value.name,
+                                  '{#PSU.MODEL}': c.value.model || '',
+                                  '{#PSU.SERIAL}': c.value.serialNumber || ''
+                              });
+                          }
+                      });
+                  } catch (e) {}
+                  return JSON.stringify(lld);
+          item_prototypes:
+            - uuid: bf26c2329ccb433db16eb302d6169c96
+              name: 'PSU [{#PSU.NAME}]: Status'
+              type: DEPENDENT
+              key: hpe.storeonce.hw.psu.status[{#PSU.UUID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value);
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      for (var i = 0; i < comps.length; i++) {
+                          if (comps[i].name === 'powerSupply' && comps[i].value.uuid === '{#PSU.UUID}') {
+                              return comps[i].value.status;
+                          }
+                      }
+                      return null;
+              tags:
+                - tag: component
+                  value: power
+                - tag: scope
+                  value: availability
+                - tag: psu
+                  value: '{#PSU.NAME}'
+              trigger_prototypes:
+                - uuid: 4721c6c8f22b4af3b9762d10c97994f0
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.psu.status[{#PSU.UUID}])<>"OK"
+                  name: 'PSU [{#PSU.NAME}]: Status is not OK'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: |-
+                    Power supply {#PSU.NAME} is not in normal OK operating state.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/hardware
+                  tags:
+                    - tag: scope
+                      value: availability
+        - uuid: c9f1d34d302b4f21bed9f10484b20673
+          name: Fans discovery
+          type: DEPENDENT
+          key: hpe.storeonce.hw.fan.discovery
+          master_item:
+            key: hpe.storeonce.get.data
+          description: Discovers chassis cooling fans installed in the server.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  var lld = [];
+                  try {
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      comps.forEach(function(c) {
+                          if (c.name === 'fan') {
+                              lld.push({
+                                  '{#FAN.UUID}': c.value.uuid,
+                                  '{#FAN.NAME}': c.value.name
+                              });
+                          }
+                      });
+                  } catch (e) {}
+                  return JSON.stringify(lld);
+          item_prototypes:
+            - uuid: 3d0f194d311a4d91bfc435dc6631c4b5
+              name: 'Fan [{#FAN.NAME}]: Status'
+              type: DEPENDENT
+              key: hpe.storeonce.hw.fan.status[{#FAN.UUID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value);
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      for (var i = 0; i < comps.length; i++) {
+                          if (comps[i].name === 'fan' && comps[i].value.uuid === '{#FAN.UUID}') {
+                              return comps[i].value.status;
+                          }
+                      }
+                      return null;
+              tags:
+                - tag: component
+                  value: fans
+                - tag: scope
+                  value: availability
+                - tag: fan
+                  value: '{#FAN.NAME}'
+              trigger_prototypes:
+                - uuid: fa3347b083694b6db7deaa1c7767570e
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.fan.status[{#FAN.UUID}])<>"OK"
+                  name: 'Fan [{#FAN.NAME}]: Status is not OK'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: |-
+                    Cooling fan {#FAN.NAME} is not in normal OK operating state.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/hardware
+                  tags:
+                    - tag: scope
+                      value: availability
+        - uuid: 3ec58f8b2ce640c48641252a04f63ebf
+          name: Storage controllers discovery
+          type: DEPENDENT
+          key: hpe.storeonce.hw.ctrl.discovery
+          master_item:
+            key: hpe.storeonce.get.data
+          description: Discovers Smart Array RAID and HBA storage controllers.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  var lld = [];
+                  try {
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      comps.forEach(function(c) {
+                          if (c.name === 'storageController') {
+                              lld.push({
+                                  '{#CTRL.UUID}': c.value.uuid,
+                                  '{#CTRL.NAME}': c.value.name,
+                                  '{#CTRL.MODEL}': c.value.model || '',
+                                  '{#CTRL.SLOT}': c.value.location || ''
+                              });
+                          }
+                      });
+                  } catch (e) {}
+                  return JSON.stringify(lld);
+          item_prototypes:
+            - uuid: e661efb3b62f470c81bc6617fab3c781
+              name: 'Storage Controller [{#CTRL.NAME}]: Status'
+              type: DEPENDENT
+              key: hpe.storeonce.hw.ctrl.status[{#CTRL.UUID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value);
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      for (var i = 0; i < comps.length; i++) {
+                          if (comps[i].name === 'storageController' && comps[i].value.uuid === '{#CTRL.UUID}') {
+                              return comps[i].value.status;
+                          }
+                      }
+                      return null;
+              tags:
+                - tag: component
+                  value: storage
+                - tag: scope
+                  value: availability
+                - tag: controller
+                  value: '{#CTRL.NAME}'
+              trigger_prototypes:
+                - uuid: cfc0de36f55d4671b6d0dc045708b5f3
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.ctrl.status[{#CTRL.UUID}])<>"OK"
+                  name: 'Storage Controller [{#CTRL.NAME}]: Status is not OK'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: |-
+                    Storage controller {#CTRL.NAME} is not in normal OK operating state.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/hardware
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: b78783ddebd74932b65a3c678e04a03b
+              name: 'Storage Controller [{#CTRL.NAME}]: Backup power status'
+              type: DEPENDENT
+              key: hpe.storeonce.hw.ctrl.charge_status[{#CTRL.UUID}]
+              history: 7d
+              value_type: CHAR
+              master_item:
+                key: hpe.storeonce.get.data
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var d = JSON.parse(value);
+                      var comps = d.hwmonitor.server[0].hardwareReportResponse.hardwareReport.component[0].value.component;
+                      for (var i = 0; i < comps.length; i++) {
+                          if (comps[i].name === 'storageController' && comps[i].value.uuid === '{#CTRL.UUID}') {
+                              if (comps[i].value.component) {
+                                  var sub = comps[i].value.component;
+                                  for (var j = 0; j < sub.length; j++) {
+                                      if (sub[j].name === 'superCapacitor' || sub[j].name === 'battery') {
+                                          return sub[j].value.status;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                      return 'NOT_PRESENT';
+              tags:
+                - tag: component
+                  value: power
+                - tag: scope
+                  value: availability
+                - tag: controller
+                  value: '{#CTRL.NAME}'
+              trigger_prototypes:
+                - uuid: 1c3fe49a3dd94ebf8827a83e79c7b42b
+                  expression: last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.ctrl.charge_status[{#CTRL.UUID}])<>"FULLY_CHARGED"
+                    and last(/HPE StoreOnce Gen4 by HTTP/hpe.storeonce.hw.ctrl.charge_status[{#CTRL.UUID}])<>"OK"
+                  name: 'Storage Controller [{#CTRL.NAME}]: Backup power is not fully
+                    charged'
+                  opdata: 'Status: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: |-
+                    SuperCapacitor / Battery for controller {#CTRL.NAME} cache is not fully charged or in degraded state.
+
+                    {HOST.NAME} management console: {$HPE.STOREONCE.API.SCHEME}://{HOST.CONN}:{$HPE.STOREONCE.API.PORT}/#/hardware
+                  tags:
+                    - tag: scope
+                      value: availability
+      dashboards:
+        - uuid: 26a758f634ce49ffa7f63d638122b8a6
+          name: 'HPE StoreOnce: Overview'
+          pages:
+            - name: System & Storage Overview
+              widgets:
+                - type: item
+                  name: Data Services
+                  x: '0'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Data Services
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.dataservices.health
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: Storage Health
+                  x: '12'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Storage Health
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.storage.health
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: Hardware Status
+                  x: '24'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Hardware Status
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.hw.overall_status
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: Licensing Status
+                  x: '36'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Licensing Status
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.licensing.status
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: Remote Support
+                  x: '48'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Remote Support
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.support.status
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: item
+                  name: Server State
+                  x: '60'
+                  y: '0'
+                  width: '12'
+                  height: '2'
+                  hide_header: 'YES'
+                  fields:
+                    - type: STRING
+                      name: description
+                      value: Management Server
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.system.server_status
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: value_size
+                      value: '35'
+                - type: gauge
+                  name: Storage space utilization
+                  x: '0'
+                  y: '2'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '1'
+                    - type: STRING
+                      name: description
+                      value: Space Utilization
+                    - type: INTEGER
+                      name: desc_size
+                      value: '10'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        key: hpe.storeonce.storage.space_utilization
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 0EC9AC
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFD54F
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '85'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '95'
+                    - type: INTEGER
+                      name: th_show_arc
+                      value: '1'
+                    - type: INTEGER
+                      name: th_show_labels
+                      value: '1'
+                    - type: STRING
+                      name: units
+                      value: '%'
+                    - type: INTEGER
+                      name: units_size
+                      value: '15'
+                    - type: INTEGER
+                      name: value_size
+                      value: '25'
+                - type: graph
+                  name: Storage capacity usage
+                  x: '24'
+                  y: '2'
+                  width: '48'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        name: 'HPE StoreOnce: Storage capacity & space usage'
+                    - type: STRING
+                      name: reference
+                      value: STCAP
+                - type: graph
+                  name: Deduplication and savings
+                  x: '0'
+                  y: '7'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        name: 'HPE StoreOnce: Deduplication and savings'
+                    - type: STRING
+                      name: reference
+                      value: DEDUP
+                - type: problems
+                  name: Active Problems
+                  x: '36'
+                  y: '7'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: show
+                      value: '3'
+                    - type: INTEGER
+                      name: show_suppressed
+                      value: '1'
+                    - type: INTEGER
+                      name: show_opdata
+                      value: '2'
+                    - type: INTEGER
+                      name: show_tags
+                      value: '1'
+                    - type: STRING
+                      name: tag_priority
+                      value: scope,component,severity
+                    - type: STRING
+                      name: reference
+                      value: PROBL
+                - type: graph
+                  name: Active alerts count
+                  x: '0'
+                  y: '13'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        name: 'HPE StoreOnce: Active alerts count'
+                    - type: STRING
+                      name: reference
+                      value: ALERT
+            - name: Catalyst & Hardware Subsystems
+              widgets:
+                - type: graphprototype
+                  name: Catalyst Stores Capacity
+                  x: '0'
+                  y: '0'
+                  width: '72'
+                  height: '7'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '2'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: HPE StoreOnce Gen4 by HTTP
+                        name: 'Catalyst store [{#STORE.NAME}]: Space & User Data'
+                    - type: STRING
+                      name: reference
+                      value: CATGP
+      macros:
+        - macro: '{$HPE.STOREONCE.API.SCHEME}'
+          value: https
+          description: API scheme (http or https)
+        - macro: '{$HPE.STOREONCE.API.PORT}'
+          value: '443'
+          description: API port
+        - macro: '{$HPE.STOREONCE.API.HOST}'
+          value: '{HOST.CONN}'
+          description: API hostname or IP
+        - macro: '{$HPE.STOREONCE.USER}'
+          value: SVC_zabbix
+          description: StoreOnce API service user
+        - macro: '{$HPE.STOREONCE.PASSWORD}'
+          type: SECRET_TEXT
+          value: ''
+          description: StoreOnce API service password
+        - macro: '{$HPE.STOREONCE.DATA.TIMEOUT}'
+          value: 20s
+          description: HTTP request timeout for API calls
+        - macro: '{$HPE.STOREONCE.HTTP_PROXY}'
+          value: ''
+          description: HTTP proxy string (optional)
+        - macro: '{$HPE.STOREONCE.CAPACITY.WARN}'
+          value: '85'
+          description: Storage capacity utilization warning threshold in %
+        - macro: '{$HPE.STOREONCE.CAPACITY.CRIT}'
+          value: '95'
+          description: Storage capacity utilization critical threshold in %
+        - macro: '{$HPE.STOREONCE.CATSTORE.LLD.FILTER.MATCHES}'
+          value: .*
+          description: Regex filter to include Catalyst stores
+        - macro: '{$HPE.STOREONCE.CATSTORE.LLD.FILTER.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: Regex filter to exclude Catalyst stores
+        - macro: '{$HPE.STOREONCE.ALERT.LLD.FILTER.MATCHES}'
+          value: .*
+          description: Regex filter to include Active Alerts by name
+        - macro: '{$HPE.STOREONCE.ALERT.LLD.FILTER.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: Regex filter to exclude Active Alerts by name
+  graphs:
+    - uuid: 8ac72692b5464de19eff39aded98c0d2
+      name: 'HPE StoreOnce: Storage capacity & space usage'
+      graph_items:
+        - color: 1976D2
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.configured_bytes
+        - sortorder: '1'
+          color: F63100
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.used_bytes
+        - sortorder: '2'
+          color: 00611C
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.free_bytes
+        - sortorder: '3'
+          color: 9C27B0
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.user_bytes
+    - uuid: 112600caa9ad47539de3ccc4077992fc
+      name: 'HPE StoreOnce: Storage space utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - color: E53935
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.space_utilization
+    - uuid: 1aee3219b96a4590a2c114949b2d1494
+      name: 'HPE StoreOnce: Deduplication and savings'
+      graph_items:
+        - color: 00897B
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.dedupe_ratio
+        - sortorder: '1'
+          color: 1E88E5
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.storage.saved_percent
+    - uuid: 932ed90298494b0e94f5e4ed97ca7801
+      name: 'HPE StoreOnce: Active alerts count'
+      graph_items:
+        - color: D32F2F
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.alerts.active.critical
+        - sortorder: '1'
+          color: FFA000
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.alerts.active.warning
+        - sortorder: '2'
+          color: 1976D2
+          item:
+            host: HPE StoreOnce Gen4 by HTTP
+            key: hpe.storeonce.alerts.active.total
