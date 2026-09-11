@@ -1,6 +1,6 @@
 # HP A5500 HI — Comware 5 — Zabbix 7.0
 
-[English](README.md) | [Vietnamese](readme_vi.md)
+[English](README.md) | [Vietnamese](files/readme_vi.md)
 
 SNMP template for the **HP A5500-48G-4SFP HI Switch with 2 interface Slots**, running
 **Comware 5.20.99, Release 5501P36**. Imported template name: **HP A5500 HI**.
