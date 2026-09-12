@@ -19,7 +19,7 @@ The template uses the vendor's private enterprise MIB (`1.3.6.1.4.1.1229`, SEH C
 
 ## Template Group
 
-`Templates/Network devices`
+`Templates/Network Appliances`
 
 ## Setup
 
@@ -32,30 +32,31 @@ The template uses the vendor's private enterprise MIB (`1.3.6.1.4.1.1229`, SEH C
 
 ## Macros
 
-| Macro | Default | Description                                                |
-|---|---|------------------------------------------------------------|
-| `{$SEH.BOX.TEMP.CRIT}` | `60` | Internal enclosure temperature, critical threshold (°C)    |
-| `{$SEH.BOX.TEMP.WARN}` | `50` | Internal enclosure temperature, warning threshold (°C)     |
-| `{$SEH.CPU.TEMP.CRIT}` | `85` | CPU temperature, critical threshold (°C)                   |
-| `{$SEH.CPU.TEMP.WARN}` | `75` | CPU temperature, warning threshold (°C)                    |
-| `{$SEH.CPU.UTIL.CRIT}` | `90` | CPU utilization, critical threshold (%)                    |
-| `{$SEH.CPU.UTIL.WARN}` | `80` | CPU utilization, warning threshold (%)                     |
-| `{$SEH.ICMP_LOSS_WARN}` | `20` | ICMP packet loss warning threshold (%)                     |
-| `{$SEH.ICMP_RESPONSE_TIME_WARN}` | `0.15` | ICMP response time warning threshold (seconds)             |
-| `{$SEH.IF.ERRORS.WARN}` | `2` | Interface in/out error rate warning threshold (errors/sec) |
-| `{$SEH.IF.UTIL.MAX}` | `90` | Interface bandwidth utilization warning threshold (%)      |
-| `{$SEH.MEMORY.UTIL.CRIT}` | `90` | Memory utilization, critical threshold (%)                 |
-| `{$SEH.MEMORY.UTIL.WARN}` | `80` | Memory utilization, warning threshold (%)                  |
-| `{$SEH.PHY.TEMP.CRIT}` | `85` | Ethernet transceiver temperature, critical threshold (°C)  |
-| `{$SEH.PHY.TEMP.WARN}` | `75` | Ethernet transceiver temperature, warning threshold (°C)*  |
-| `{$SEH.PORT.MATCHES}` | `^.*` | Regex to include USB ports in discovery*                   |
+| Macro | Default         | Description                                                |
+|---|-----------------|------------------------------------------------------------|
+| `{$SEH.BOX.TEMP.CRIT}` | `60`            | Internal enclosure temperature, critical threshold (°C)    |
+| `{$SEH.BOX.TEMP.WARN}` | `50`            | Internal enclosure temperature, warning threshold (°C)     |
+| `{$SEH.CPU.TEMP.CRIT}` | `85`            | CPU temperature, critical threshold (°C)                   |
+| `{$SEH.CPU.TEMP.WARN}` | `75`            | CPU temperature, warning threshold (°C)                    |
+| `{$SEH.CPU.UTIL.CRIT}` | `90`            | CPU utilization, critical threshold (%)                    |
+| `{$SEH.CPU.UTIL.WARN}` | `80`            | CPU utilization, warning threshold (%)                     |
+| `{$SEH.ICMP_LOSS_WARN}` | `20`            | ICMP packet loss warning threshold (%)                     |
+| `{$SEH.ICMP_RESPONSE_TIME_WARN}` | `0.15`          | ICMP response time warning threshold (seconds)             |
+| `{$SEH.IF.ERRORS.WARN}` | `2`             | Interface in/out error rate warning threshold (errors/sec) |
+| `{$SEH.IF.UTIL.MAX}` | `90`            | Interface bandwidth utilization warning threshold (%)      |
+| `{$SEH.MEMORY.UTIL.CRIT}` | `90`            | Memory utilization, critical threshold (%)                 |
+| `{$SEH.MEMORY.UTIL.WARN}` | `80`            | Memory utilization, warning threshold (%)                  |
+| `{$SEH.PHY.TEMP.CRIT}` | `85`            | Ethernet transceiver temperature, critical threshold (°C)  |
+| `{$SEH.PHY.TEMP.WARN}` | `75`            | Ethernet transceiver temperature, warning threshold (°C)*  |
+| `{$SEH.PORT.MATCHES}` | `^.*`           | Regex to include USB ports in discovery*                   |
 | `{$SEH.PORT.NOT_MATCHES}` | `CHANGE_IF_NEEDED` | Regex to exclude USB ports from discovery                  |
-| `{$SEH.SNMP.USER}` | `sehread` | SNMPv3 username                                            |
+| `{$SEH.SNMP.USER}` | `sehread`       | SNMPv3 username                                            |
 | `{$SEH.SNMP.AUTHPRIV_PASSWORD}` | *(secret, unset)* | SNMPv3 auth/priv passphrase                                |
-| `{$SEH.URL}` | *(unset)* | URL used by the "URL Check" web scenario                   |
-| `{$SEH.USB.UTIL.MAX}` | `80` | USB port capacity-usage warning threshold (%)              |
-| `{$SEH.UTN.PORT}` | `9200` | UTN (non-SSL) TCP port checked for availability            |
-| `{$SEH.UTNSSL.PORT}` | `9443` | UTN SSL TCP port checked for availability                  |
+| `{$SEH.URL}` | *(unset)*       | URL used by the "URL Check" web scenario                   |
+| `{$SEH.USB.UTIL.MAX}` | `90`            | USB port capacity-usage warning threshold (%)              |
+| `{$SEH.UTN.PORT}` | `9200`          | UTN (non-SSL) TCP port checked for availability            |
+| `{$SEH.UTNSSL.PORT}` | `9443`          | UTN SSL TCP port checked for availability                  |
+| `{$SEH.UNSUPPORTED.ITEMS.MAX}` | `3`             | Maximum number of unsupported items                  |
 
 \* `{$SEH.PHY.TEMP.WARN}` and `{$SEH.PORT.MATCHES}` have their in-template descriptions swapped (see [Known Limitations](#known-limitations)); the table above shows their correct/intended meaning.
 
@@ -121,9 +122,10 @@ Trigger prototypes: dongle present but not connected to a UTN manager host, dong
 | `All USB Ports Occupied` | High | Manual close, fires when connected count = total usb ports available |
 | `No USB devices connected` | Info | Recovers via explicit recovery expression                                                                          |
 | `USB port utilization is above {$SEH.USB.UTIL.MAX}%` | High | Template-level, connected/total ratio                                                                              |
-| `Interface link down / high error rate / high bandwidth usage` | High / Warning | Per-interface, from discovery                                                                                      |
-| `USB Not Connected to any UTN Manager on Port {#PORT}` | Warning | Per-port, from discovery                                                                                           |
-| `USB Dongle Removed from Port {#PORT}` | Average | Per-port, from discovery                                                                                           |
+| `Interface link down / high error rate / high bandwidth usage` | High / Warning | Per-interface, from discovery            |                                                                          |
+| `USB Not Connected to any UTN Manager on Port {#PORT}` | Warning | Per-port, from discovery                                 |                                                          |
+| `USB Dongle Removed from Port {#PORT}` | Average | Per-port, from discovery                                                  |                                         |
+| `Too many unsupported items on {HOST.NAME}` | Warning	| zabbix[host,,items_unsupported] ≥ {$SEH.UNSUPPORTED.ITEMS.MAX} |
 
 ## Value Maps
 
