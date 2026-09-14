@@ -1,0 +1,205 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 59e8f17d3d6b412999e52e428c0b11df
+      name: Templates/Network
+  templates:
+    - uuid: bb3992b95fae448fac7b63fccbc2e8d7
+      template: 'UniFi Network API v10'
+      name: 'UniFi Network API v10'
+      description: 'Monitoring of UniFi Cloud Key and Access Points via API (v10.4.57). Uses Zabbix JavaScript to auto-discover the Site ID and fetch device data.'
+      groups:
+        - name: Templates/Network
+      macros:
+        - macro: '{$UNIFI.API.KEY}'
+          type: SECRET_TEXT
+          value: 'INSERT_YOUR_API_KEY_HERE'
+        - macro: '{$UNIFI.API.URL}'
+          value: 'https://<CLOUD_KEY_IP>'
+      items:
+        - uuid: e35324578b9b462da2936a282f9ef02b
+          name: 'UniFi: Get Application Info'
+          type: HTTP_AGENT
+          key: unifi.api.info
+          url: '{$UNIFI.API.URL}/proxy/network/integration/v1/info'
+          headers:
+            - name: 'X-API-KEY'
+              value: '{$UNIFI.API.KEY}'
+          value_type: TEXT
+          delay: '5m'
+        - uuid: 98762b3a8d43468087bd210986791b8a
+          name: 'UniFi: Raw Devices Data (Master)'
+          type: SCRIPT
+          key: unifi.api.devices.raw
+          delay: '3m'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            var req = new HttpRequest();
+            req.addHeader('X-API-KEY: ' + params.api_key);
+
+            var urlSites = params.url + '/proxy/network/integration/v1/sites';
+            var resSites = req.get(urlSites);
+            if (req.getStatus() !== 200) {
+                throw 'API Error (Sites): HTTP ' + req.getStatus() + ' - ' + resSites;
+            }
+
+            var sites = JSON.parse(resSites);
+            var sitesArray = sites.data ? sites.data : (Array.isArray(sites) ? sites : []);
+            if (sitesArray.length === 0) {
+                throw 'No site found in the UniFi controller.';
+            }
+
+            var siteId = sitesArray[0].id;
+
+            var urlDev = params.url + '/proxy/network/integration/v1/sites/' + siteId + '/devices';
+            var resDev = req.get(urlDev);
+            if (req.getStatus() !== 200) {
+                throw 'API Error (Devices): HTTP ' + req.getStatus() + ' - ' + resDev;
+            }
+
+            var devObj = JSON.parse(resDev);
+            var devArray = devObj.data ? devObj.data : devObj;
+
+            // Append siteId to each device object so LLD macros can pick it up
+            for(var i=0; i<devArray.length; i++) {
+                devArray[i]._siteId = siteId;
+            }
+
+            return JSON.stringify(devArray);
+          parameters:
+            - name: api_key
+              value: '{$UNIFI.API.KEY}'
+            - name: url
+              value: '{$UNIFI.API.URL}'
+      discovery_rules:
+        - uuid: f19385b54a224a1b9d10e5210c410712
+          name: 'UniFi Devices Discovery'
+          type: DEPENDENT
+          key: unifi.api.discovery
+          master_item:
+            key: unifi.api.devices.raw
+          lld_macro_paths:
+            - lld_macro: '{#DEVICE_ID}'
+              path: '$.id'
+            - lld_macro: '{#DEVICE_NAME}'
+              path: '$.name'
+            - lld_macro: '{#DEVICE_MODEL}'
+              path: '$.model'
+            - lld_macro: '{#SITE_ID}'
+              path: '$._siteId'
+          item_prototypes:
+            # ----------------------------------------------------
+            # Base Device Data (Dependent on Master Item)
+            # ----------------------------------------------------
+            - uuid: c7e2d93e1b7149a4a7541b9e0783abdf
+              name: 'AP {#DEVICE_NAME}: Status'
+              type: DEPENDENT
+              key: 'unifi.ap.status[{#DEVICE_ID}]'
+              value_type: CHAR
+              master_item:
+                key: unifi.api.devices.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id == "{#DEVICE_ID}")].["state","status"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'UNKNOWN'
+              trigger_prototypes:
+                - uuid: 36f335aa2e6749279d140f7a42135849
+                  expression: 'find(/UniFi Network API v10/unifi.ap.status[{#DEVICE_ID}],,"iregexp","(disconnected|offline|unknown)")=1 or nodata(/UniFi Network API v10/unifi.ap.status[{#DEVICE_ID}],10m)=1'
+                  name: 'AP {#DEVICE_NAME} is Offline'
+                  priority: HIGH
+                  description: 'The device is reported as disconnected in the UniFi controller, or Zabbix has not received data for 10 minutes.'
+            - uuid: 5bd8bd1ce8da4261b418fd3b9eeace64
+              name: 'AP {#DEVICE_NAME}: Firmware Version'
+              type: DEPENDENT
+              key: 'unifi.ap.firmware[{#DEVICE_ID}]'
+              value_type: CHAR
+              master_item:
+                key: unifi.api.devices.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id == "{#DEVICE_ID}")].firmwareVersion.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'UNKNOWN'
+            - uuid: 01a0f351fae742c6956cbaa1e089520e
+              name: 'AP {#DEVICE_NAME}: IPv4 Address'
+              type: DEPENDENT
+              key: 'unifi.ap.ipv4[{#DEVICE_ID}]'
+              value_type: CHAR
+              master_item:
+                key: unifi.api.devices.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id == "{#DEVICE_ID}")].ipAddress.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'UNKNOWN'
+            - uuid: 835e0810f94f45129b06ade49358a141
+              name: 'AP {#DEVICE_NAME}: MAC Address'
+              type: DEPENDENT
+              key: 'unifi.ap.mac[{#DEVICE_ID}]'
+              value_type: CHAR
+              master_item:
+                key: unifi.api.devices.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id == "{#DEVICE_ID}")].macAddress.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'UNKNOWN'
+            - uuid: 27480576f02744798faad63de28ce422
+              name: 'AP {#DEVICE_NAME}: Model'
+              type: DEPENDENT
+              key: 'unifi.ap.model[{#DEVICE_ID}]'
+              value_type: CHAR
+              master_item:
+                key: unifi.api.devices.raw
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.id == "{#DEVICE_ID}")].model.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'UNKNOWN'
+
+            # ----------------------------------------------------
+            # Live Statistics (HTTP Agent per device)
+            # ----------------------------------------------------
+            - uuid: d96a99bed053415f91631fb558aaf8d1
+              name: 'AP {#DEVICE_NAME}: Uptime'
+              type: HTTP_AGENT
+              key: 'unifi.ap.uptime[{#DEVICE_ID}]'
+              url: '{$UNIFI.API.URL}/proxy/network/integration/v1/sites/{#SITE_ID}/devices/{#DEVICE_ID}/statistics/latest'
+              headers:
+                - name: 'X-API-KEY'
+                  value: '{$UNIFI.API.KEY}'
+              value_type: FLOAT
+              units: s
+              delay: '3m'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..uptimeSec.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+            - uuid: 1372e4b60ee74a18a23ade40f23579db
+              name: 'AP {#DEVICE_NAME}: CPU Utilization'
+              type: HTTP_AGENT
+              key: 'unifi.ap.cpu[{#DEVICE_ID}]'
+              url: '{$UNIFI.API.URL}/proxy/network/integration/v1/sites/{#SITE_ID}/devices/{#DEVICE_ID}/statistics/latest'
+              headers:
+                - name: 'X-API-KEY'
+                  value: '{$UNIFI.API.KEY}'
+              value_type: FLOAT
+              units: '%'
+              delay: '3m'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..cpuUtilizationPct.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
