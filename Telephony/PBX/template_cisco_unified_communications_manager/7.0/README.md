@@ -1,5 +1,24 @@
 # Cisco Unified Communications Manager 15 by API
 
+## Release 7.0-12 — Cluster operations data
+
+Adds dependent Other Station Devices, Hardware/Video Conference capacity and
+resource-exhaustion counters. Existing MTP, Transcoder and Software Conference
+keys remain. Reused CallsActive, MGCP and media parsers require an exact counter,
+CStatus=1 and a valid non-negative integer. Exhaustion deltas discard resets.
+Node tags identify source ownership. **No new Cisco requests or intervals.**
+
+For the optional cluster operations dashboard, upgrade every core host first,
+then import cluster **7.0-12** on its virtual host. Example core hosts are
+`cucm-pub.example.com` and `cucm-sub.example.com`; on the virtual cluster set
+`{$CUCM.CLUSTER.TRUNK.SOURCE.HOST}=cucm-pub.example.com` to select one existing
+trunk snapshot. See the [cluster setup guide](../../template_cisco_unified_communications_manager_cluster/7.0/README.md).
+
+CallsActive is node activity, not guaranteed unique cluster conversations.
+Other Station Devices is not a SIP/SCCP phone split. Media totals represent
+currently registered capacity, not configured inventory. No phone discovery
+or new generic capacity alarms are introduced.
+
 ## Release 7.0-10 — 2026-09-07
 
 Fixed exact ControlCenter service identity and record boundaries for state, reason and uptime; parse certificate notAfter from ASN.1 Validity; reject non-finite/null CPU samples without reporting collection success.
@@ -13,7 +32,7 @@ Zabbix 7.0.29 import, stored version, semantic re-export and isolated stored-scr
 Monitors Cisco Unified Communications Manager 15 through read-only AXL,
 RISPort70, PerfMon, ControlCenter SOAP, and Cisco VOS Certificate Management
 APIs. The template is exported for Zabbix 7.0 and stores its template release
-as `vendor.name: Zabbix` and `vendor.version: 7.0-10`.
+as `vendor.name: Zabbix` and `vendor.version: 7.0-12`.
 
 Maintainer: DevYves89
 
