@@ -1,0 +1,1447 @@
+-- *********************************************************************
+-- CISCO-FSPF-MIB.my: Fabric Shortest Path First Mib
+--
+-- October 2002, Vinay Gaonkar
+--
+-- Copyright (c) 2002 by cisco Systems, Inc.
+-- All rights reserved.
+-- 
+-- *********************************************************************
+
+CISCO-FSPF-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+        MODULE-IDENTITY, OBJECT-TYPE,
+        NOTIFICATION-TYPE, TimeTicks,
+        Counter32, Integer32, Unsigned32,
+        Gauge32                                FROM SNMPv2-SMI
+        MODULE-COMPLIANCE, OBJECT-GROUP, 
+        NOTIFICATION-GROUP                     FROM SNMPv2-CONF
+        TEXTUAL-CONVENTION, RowStatus,
+        TruthValue                             FROM SNMPv2-TC
+        ifIndex                                FROM IF-MIB
+        ciscoMgmt                              FROM CISCO-SMI
+        TimeIntervalSec, TimeIntervalMin, 
+        CiscoMilliSeconds                      FROM CISCO-TC
+        DomainId, DomainIdOrZero               FROM CISCO-ST-TC
+        vsanIndex, notifyVsanIndex             FROM CISCO-VSAN-MIB;
+
+ciscoFspfMIB MODULE-IDENTITY
+        LAST-UPDATED "200310080000Z"
+        ORGANIZATION "Cisco Systems Inc. "
+        CONTACT-INFO
+                "     Cisco Systems
+                      Customer Service
+                Postal: 170 W Tasman Drive
+                      San Jose, CA  95134
+                      USA
+                Tel: +1 800 553 -NETS
+                E-mail: cs-san@cisco.com"
+        DESCRIPTION
+            "Fabric Shortest Path First (FSPF) MIB."
+        REVISION    "200310080000Z"
+        DESCRIPTION
+            "Added new object fspfLsrExternal to fspfLsrTable.
+            Added a new compliance statement fspfMIBCompliance3."
+        REVISION    "200304130000Z"
+        DESCRIPTION
+            "Added two new objects fspfLinkNumber and fspfLsrNumber.
+            Added new conformance group fspfDatabaseGroupRev1 and 
+            compliance fspfMIBCompliance2.
+            Added a new object fspfTotalCheckSum to fspfTable.
+            Added new conformance group fspfGenericGroupRev1 and 
+            compliance fspfMIBCompliance1."
+        REVISION    "200302210000Z"
+        DESCRIPTION
+            "Import Gauge32 from  SNMPv2-SMI.
+            Use CiscoMilliSeconds instead MilliSeconds from CISCO-TC."
+        REVISION    "200211210000Z"
+        DESCRIPTION
+            "Changed descriptions of fspfSetToDefault and 
+            fspfIfSetToDefault to reflect that the fact that the 
+            adminStatus objects also set to default when the entry is
+            set to default."
+        REVISION    "200211010000Z"
+        DESCRIPTION
+            "Changed SYNTAX for fspfSpfHoldTime, fspfMinLsArrival and 
+            fspfMinLsInterval to CiscoMilliSeconds. 
+            Changed range for fspfIfDeadInterval"
+        REVISION    "200210040000Z"
+        DESCRIPTION
+            "Initial version of this MIB module."
+        ::= { ciscoMgmt 287 }
+
+
+fspfConfiguration      OBJECT IDENTIFIER ::= { ciscoFspfMIB 1 }
+fspfDatabase           OBJECT IDENTIFIER ::= { ciscoFspfMIB 2 }
+fspfNotificationPrefix OBJECT IDENTIFIER ::= { ciscoFspfMIB 3 }
+fspfNotification OBJECT IDENTIFIER       
+                               ::= { fspfNotificationPrefix 0 }
+fspfMIBConformance     OBJECT IDENTIFIER ::= { ciscoFspfMIB 4 }
+
+-- TEXTUAL CONVENTIONS
+
+FspfRegionId ::= TEXTUAL-CONVENTION
+    STATUS    current
+    DESCRIPTION
+           "Region Id of an autonomous region. The backbone region
+           has region id equal to 0."
+    SYNTAX    Integer32 (0..255)
+
+FspfLsrType ::= TEXTUAL-CONVENTION
+    STATUS    current
+    DESCRIPTION
+           "Type of the Link State Record. There could be multiple
+           type of LSRs even though the standard (FC-SW2) defines
+           only two of them - Switch Link Record and AR Summary 
+           Record. The possible values are :
+            01      - Switch Link Record
+            02      - AR Summary Record  
+            240-255 - Vendor Specific
+            others  - Reserved.
+            "
+    SYNTAX    Integer32 (0..255)
+
+FspfLinkType ::= TEXTUAL-CONVENTION
+    STATUS    current
+    DESCRIPTION
+           "Type of an the FSPF Link. 
+           The possible values are :
+            01      - Point-to-Point
+            240-255 - Vendor Specific
+            others  - Reserved.
+            "
+    SYNTAX    Integer32 (0..255)
+                
+FspfInterfaceState ::= TEXTUAL-CONVENTION
+    STATUS    current
+    DESCRIPTION
+           "State of FSPF. 
+           The possible values are :
+            down (1)         - Down 
+            init (2)         - Init
+            dbExchange (3)   - Database Exchange
+            dbAckwait (4)    - Database AckWait
+            dbWait (5)       - Database Wait
+            full (6)         - Full (Conneted)
+            ."
+    REFERENCE 
+           "FC-SW2, Switch Fabric-2, Rev 5.4, June 26, 2001, 
+           section 8.7 ."
+    SYNTAX  INTEGER {
+                   down (1),
+                   init (2),
+                   dbExchange (3),
+                   dbAckwait (4),
+                   dbWait (5),
+                   full (6) 
+            }           
+                   
+LastCreationTime ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION
+           "This TC describes an object that stores the last time its 
+           entry was created.
+
+           This can be used for management applications to determine 
+           that an entry has been deleted and re-created between reads,
+           causing an otherwise undetectable discontinuity in the data.
+             
+           Note that this will have syntax of TimeStamp."
+    SYNTAX TimeTicks                   
+
+--
+-- fspfTable
+--
+
+fspfTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF FspfEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "This table allows the users to configure and monitor the
+           Fabric Shortest Path First (FSPF) parameters on all the VSANs
+           configured on the local switch.
+
+           Entries in this tables are automatically created when VSANs 
+           are either created or activated (if an entry for that VSAN is
+           not already existing). 
+ 
+           An entry is deleted automatically from this table if either:
+           - the corresponding VSAN is deleted.  
+                         or
+           - the corresponding VSAN is suspended and the values of
+             all writable objects in that entry have default values.
+
+           An entry can be created through the use of fspfRowStatus 
+           only as a re-creation of that entry after it was deleted
+           because the corresponding VSAN was suspended, and while
+           the VSAN continues to exist.
+
+           So an entry in this table exists when one or both of these
+           conditions holds:
+           - one or more configuration parameters have non-default
+             values for a VSAN which is suspended, and/or
+           - the VSAN is active.
+
+           This has a number of consequences:
+           - an entry exists for a suspended VSAN whenever that VSAN 
+             has non-default parameters.
+           - an entry cannot be created (via fspfRowStatus) for a
+             VSAN with default parameters; instead, the agent
+             creates/deletes an entry for a VSAN with default
+             parameters according to whether the VSAN is active or
+             suspended.
+           - an entry can not be created via fspfIfRowStatus unless
+             non-default parameter values are (simultaneously) 
+             configured for a VSAN which is suspended;
+           - deleting an entry via RowStatus when either the VSAN is 
+             suspended and configured with non-default values or the 
+             VSAN is active, is equivalent to resetting its parameters 
+             to their default values.
+             If the VSAN is suspended and was configured with default-
+             values, then the entry would be deleted."
+    ::= { fspfConfiguration 1 }
+
+fspfEntry OBJECT-TYPE
+    SYNTAX      FspfEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "This entry contains the FSPF parameters on this VSAN."
+    INDEX       { vsanIndex }
+    ::= { fspfTable 1 }
+
+FspfEntry ::= SEQUENCE  {
+    fspfRegionId                FspfRegionId, 
+    fspfDomainId                DomainId,
+    fspfSpfDelay                TimeIntervalSec,
+    fspfSpfHoldTime             CiscoMilliSeconds,
+    fspfMinLsArrival            CiscoMilliSeconds,
+    fspfMinLsInterval           CiscoMilliSeconds,
+    fspfLsRefreshTime           TimeIntervalMin,
+    fspfMaxAge                  TimeIntervalMin,
+    fspfMaxAgeCount             Counter32,
+    fspfSpfComputations         Counter32,    
+    fspfChecksumErrors          Counter32,    
+    fspfLsuRxPkts               Counter32,
+    fspfLsaRxPkts               Counter32,
+    fspfLsuTxPkts               Counter32,
+    fspfLsaTxPkts               Counter32,
+    fspfHelloTxPkts             Counter32,
+    fspfHelloRxPkts             Counter32,
+    fspfRetransmittedLsuTxPkts  Counter32,
+    fspfErrorRxPkts             Counter32,
+    fspfLsrs                    Gauge32,
+    fspfCreateTime              LastCreationTime,
+    fspfAdminStatus             INTEGER,
+    fspfOperStatus              INTEGER,  
+    fspfSetToDefault            INTEGER,
+    fspfRowStatus               RowStatus,
+    fspfTotalCheckSum           Unsigned32    
+}
+
+fspfRegionId OBJECT-TYPE
+    SYNTAX      FspfRegionId
+    MAX-ACCESS  read-create 
+    STATUS      current
+    DESCRIPTION
+           "The autonomous region of the local switch on this VSAN."
+    DEFVAL     {0}        
+    ::= { fspfEntry 1 }
+
+fspfDomainId OBJECT-TYPE
+    SYNTAX      DomainId
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The Domain Id of the local switch on this VSAN."
+    ::= { fspfEntry 2 }
+
+fspfSpfDelay OBJECT-TYPE
+    SYNTAX      TimeIntervalSec
+    UNITS       "Seconds"
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The time between when FSPF receives topology updates and
+           when it starts the Shortest Path First (SPF) computation
+           on this VSAN. The smaller value means that routing will
+           react to the changes faster but the CPU usage is greater."
+    ::= { fspfEntry 3 }
+
+fspfSpfHoldTime OBJECT-TYPE
+    SYNTAX      CiscoMilliSeconds (0..65535)
+    UNITS       "MilliSeconds"
+    MAX-ACCESS  read-create 
+    STATUS      current
+    DESCRIPTION
+           "The minimum time between two consecutive SPF computations
+           on this VSAN. The smaller value means that routing will 
+           react to the changes faster but the CPU usage is greater."
+    DEFVAL     {0}   
+    ::= { fspfEntry 4 }
+
+fspfMinLsArrival OBJECT-TYPE
+    SYNTAX      CiscoMilliSeconds (0..65535)
+    UNITS       "MilliSeconds"
+    MAX-ACCESS  read-create 
+    STATUS      current
+    DESCRIPTION
+           "The minimum time after accepting a Link State Record
+           (LSR) on this VSAN before accepting another update of
+           the same LSR on the same VSAN.
+        
+           An LSR update that is not accepted because of this time
+           interval is discarded."
+    DEFVAL     {1000}   
+    ::= { fspfEntry 5 }
+
+fspfMinLsInterval OBJECT-TYPE
+    SYNTAX      CiscoMilliSeconds (0..65535)
+    UNITS       "MilliSeconds"
+    MAX-ACCESS  read-create 
+    STATUS      current
+    DESCRIPTION
+           "The minimum time after this switch sends an LSR on this
+           VSAN before it will send another update of the same LSR on
+           the same VSAN."
+    DEFVAL     {5000}   
+    ::= { fspfEntry 6 }
+
+fspfLsRefreshTime OBJECT-TYPE
+    SYNTAX      TimeIntervalMin
+    UNITS       "Minutes"
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The interval between transmission of refresh LSRs on this 
+           VSAN."
+    ::= { fspfEntry 7 }
+
+fspfMaxAge OBJECT-TYPE
+    SYNTAX      TimeIntervalMin
+    UNITS       "Minutes"
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The maximum age an LSR will be retained in the FSPF
+           database on this VSAN. It is removed from the database 
+           after MaxAge is reached."
+    ::= { fspfEntry 8 }
+
+fspfMaxAgeCount OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The number of times any LSR reached fspfMaxAge in this 
+           VSAN since the creation of the entry."
+    ::= { fspfEntry 9 }
+
+fspfSpfComputations OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The number of times the SPF computation has been done on
+           this VSAN since the creation of the entry."
+    ::= { fspfEntry 10 }
+
+fspfChecksumErrors OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The number of FSPF checksum errors occurred on this on 
+           this VSAN since the creation of the entry."
+    ::= { fspfEntry 11 }
+
+fspfLsuRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of Link State Update (LSU) packets received
+           on all the interfaces on this VSAN since the creation of 
+           the entry."                      
+    ::= { fspfEntry 12 }
+
+fspfLsaRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of Link State Acknowledgement (LSA) packets
+           received on all the interfaces on this VSAN since the
+           creation of the entry."
+    ::= { fspfEntry 13 }
+
+fspfLsuTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of Link State Update (LSU) packets 
+           transmitted on all the interfaces on this VSAN since the
+           creation of the entry."
+    ::= { fspfEntry 14 }
+
+fspfLsaTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of Link State Acknowledgement (LSA) packets 
+           transmitted on all the interfaces on this VSAN since the
+           creation of the entry."
+    ::= { fspfEntry 15 }
+
+fspfHelloTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of HELLO packets transmitted on all 
+           interfaces on this VSAN since the creation of the entry."
+    ::= { fspfEntry 16 }
+
+fspfHelloRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of HELLO packets received on all the 
+           interfaces on this VSAN since the creation of the entry."
+    ::= { fspfEntry 17 }
+
+fspfRetransmittedLsuTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Total number of LSU packets retransmitted on all the
+           interfaces on this VSAN since the creation of the entry."
+    ::= { fspfEntry 18 }
+
+fspfErrorRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of invalid FSPF control packets received on all
+           the interface on this VSAN since the creation of the
+           entry."
+    ::= { fspfEntry 19 }
+
+fspfLsrs OBJECT-TYPE
+    SYNTAX      Gauge32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The number of current entries for this VSAN in the 
+           fspfLsrTable."
+    ::= { fspfEntry 20 }
+
+fspfCreateTime OBJECT-TYPE
+    SYNTAX      LastCreationTime
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The value of sysUpTime when this entry was last created."
+    ::= { fspfEntry 21 }
+
+fspfAdminStatus OBJECT-TYPE
+    SYNTAX      INTEGER {
+                    up (1),
+                    down (2)
+                    }
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "The desired state of FSPF on this VSAN. If value of 
+           this object is set to up (1) , then FSPF is enabled on 
+           this VSAN. If set to down (2) , then FSPF is disabled on 
+           this VSAN."
+    DEFVAL {up}
+    ::= { fspfEntry 22 }
+
+fspfOperStatus OBJECT-TYPE
+    SYNTAX      INTEGER {
+                      up(1),
+                      down(2)
+                     }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "State of FSPF on this VSAN. If 'fspfAdminStatus' is 
+            down (2) then the 'fspfOperStatus' should be down (2).
+            If 'fspfAdminStatus' is changed to up (1) then 
+            'fspfOperStatus' should change to up (1) as and when FSPF 
+            is active on this VSAN."
+    ::= { fspfEntry 23 }
+
+fspfSetToDefault OBJECT-TYPE
+    SYNTAX      INTEGER {
+                     default(1),
+                     noOp(2)
+                }
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "Setting this value to 'default' changes the value of each 
+           and every every write-able object in this row to its default
+           value.
+       
+           If all the configuration parameters have their default values
+           and if the VSAN is suspended, then the row is deleted 
+           automatically.
+
+           No action is taken if this object is set to 'noOp'.
+           The value of the object when read is always 'noOp'."
+    ::= { fspfEntry 24 }
+
+fspfRowStatus OBJECT-TYPE
+    SYNTAX      RowStatus
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "The status of conceptual row on this VSAN.
+
+           This object can be used to create an entry only if
+           the corresponding VSAN is suspended. If the VSAN
+           is either not-existent or active, a create will fail."
+           
+    ::= { fspfEntry 25 }
+
+fspfTotalCheckSum OBJECT-TYPE
+    SYNTAX      Unsigned32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The total checksum of all the LSRs on this VSAN."
+    ::= { fspfEntry 26 }
+
+--
+-- fspfIfTable
+--
+
+fspfIfTable OBJECT-TYPE
+    SYNTAX       SEQUENCE OF FspfIfEntry
+    MAX-ACCESS   not-accessible
+    STATUS       current
+    DESCRIPTION
+           "This table allows the users to configure and monitor the
+           Fabric Shortest Path First (FSPF) parameters on all 
+           interfaces on all the VSANs configured on the local switch.
+ 
+           An entry is automatically created in this table if there
+           is an entry in the fspfTable for a VSAN when an E_port 
+           comes up on that VSAN.
+ 
+           An entry is automatically deleted from this table if
+           either :
+            a) the interface transitions to being a down interface which
+               is configured with default values and which is either
+               down or a non-E_port, 
+                                 or
+            b) the fspfTable entry for the corresponding VSAN is
+               deleted.
+
+    	   Entries in this table can be created via fspfIfRowStatus
+	   only as the means to specify non-default parameter values
+	   for an interface at a time when that interface is either down
+	   or is a non-E_port.
+
+           So an entry in this table exists when one or both of these
+           conditions holds:
+           - one or more configuration parameters have non-default
+             values for an interface which is either down or
+             a non-E_port and corresponding VSAN has an entry
+             in the fspfTable, and/or
+           - the interface is an E_port and it is up.
+
+           This has a number of consequences:
+           - an entry exists for a non-E_port or an E_port which is down
+             whenever that interface has non-default parameters and the
+             corresponding VSAN has an entry in the fspfTable;
+           - an entry cannot be created (via fspfIfRowStatus) for an
+             interface with default parameters; instead, the agent
+             creates/deletes an entry for an interface with default
+             parameters according to whether the E_port is up or
+             down.
+           - an entry can not be created via fspfIfRowStatus unless
+             non-default parameter values are (simultaneously) 
+             configured for an interface which is a non-E_port or a 
+             down interface, and the corresponding VSAN has an entry in 
+             the fspfTable.
+           - deleting an entry via RowStatus when either the interface 
+             is down and configured with non-default values or the 
+             interface is up, is equivalent to resetting its parameters
+             to their default values.
+             If the interface is down and was configured with default-
+             values, then the entry would be deleted."          
+    ::= { fspfConfiguration 2 }
+
+fspfIfEntry OBJECT-TYPE
+    SYNTAX      FspfIfEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION           
+           "An entry containing information for an FSPF interface
+           on this VSAN. The entry is created when a FSPF is enabled
+           on this VSAN by creating an entry in the fspfTable on this
+           VSAN. 'vsanIndex' specifies a particular VSAN and 
+           'ifIndex' specifies the particular interface for an 
+           entry."
+    INDEX       { vsanIndex, ifIndex }
+    ::= { fspfIfTable 1 }
+
+FspfIfEntry ::= SEQUENCE {
+    fspfIfCost                      Unsigned32,
+    fspfIfHelloInterval             TimeIntervalSec,
+    fspfIfDeadInterval              TimeIntervalSec,
+    fspfIfRetransmitInterval        TimeIntervalSec,
+    fspfIfLsuRxPkts                 Counter32,
+    fspfIfLsaRxPkts                 Counter32,
+    fspfIfLsuTxPkts                 Counter32,
+    fspfIfLsaTxPkts                 Counter32,
+    fspfIfHelloTxPkts               Counter32,  
+    fspfIfHelloRxPkts               Counter32,
+    fspfIfRetransmittedLsuTxPkts    Counter32,
+    fspfIfErrorRxPkts               Counter32,  
+    fspfIfInactivityExpirations     Counter32,
+    fspfIfNbrState                  FspfInterfaceState,     
+    fspfIfNbrDomainId               DomainIdOrZero,
+    fspfIfNbrPortIndex              Unsigned32,
+    fspfIfAdminStatus               INTEGER,
+    fspfIfCreateTime                LastCreationTime,
+    fspfIfSetToDefault              INTEGER,    
+    fspfIfRowStatus                 RowStatus
+}
+
+fspfIfCost OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..65535)
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "The administrative cost of sending a frame on this
+           interface on this VSAN.  The value 0 means that the cost
+	   has not been configured.  Once the value has been 
+           configured, the value can not again be zero; so, obviously
+	   the value can not be set to 0.
+
+	   If the value of this object is 0 and the corresponding
+	   interface is up, the agent sets this object to a value
+	   calculated using the 'ifSpeed' of the interface. Otherwise,
+	   the value of this object is used as the cost.
+	       
+	   Note that following formula is used to calculate the link 
+	   cost. 
+             Link Cost = { fspfIfCost              if fspfIfCost > 0
+                         {(1.0625e12 / Baud Rate)  if fspfIfCost == 0  
+           where Baud Rate is  the ifSpeed of the interface."
+    REFERENCE 
+           "FC-SW2, Switch Fabric-2, Rev 5.4, June 26, 2001, 
+           section 8.5.5 ."
+    DEFVAL {0}                                          
+    ::= { fspfIfEntry 1 }
+
+fspfIfHelloInterval OBJECT-TYPE
+    SYNTAX      TimeIntervalSec (1..65535)
+    UNITS       "Seconds"
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "Interval between the periodic HELLO messages sent on this
+           interface on this VSAN to verify the link health. Note
+           that this value must be same on both the interfaces on
+           each end of the link on this VSAN."
+    DEFVAL {20}
+    ::= { fspfIfEntry 2 }
+    
+fspfIfDeadInterval OBJECT-TYPE
+    SYNTAX      TimeIntervalSec (2..65535)
+    UNITS       "Seconds"
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "Maximum time for which no HELLO messages can be received
+           on this interface on this VSAN. After this time, the
+           interface is assumed to be broken and removed from the
+           database. Note that this value must be greater than the
+           HELLO interval specified on this interface on this VSAN."
+    DEFVAL {80}
+    ::= { fspfIfEntry 3 }
+    
+fspfIfRetransmitInterval OBJECT-TYPE
+    SYNTAX      TimeIntervalSec (1..65535)
+    UNITS       "Seconds"
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "Time after which an unacknowledged link update is 
+           retransmitted on this interface on this VSAN."  
+    DEFVAL {5}
+    ::= { fspfIfEntry 4 }
+
+fspfIfLsuRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of Link State Update (LSU) packets received on
+           this interface on this VSAN since the creation of the
+           entry."                      
+    ::= { fspfIfEntry 5 }
+
+fspfIfLsaRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of Link State Acknowledgement (LSA) packets
+           received on this interface on this VSAN since the
+           creation of the entry."
+    ::= { fspfIfEntry 6 }
+
+fspfIfLsuTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of Link State Update (LSU) packets transmitted
+           on this interface on this VSAN since the creation of the
+           entry."
+    ::= { fspfIfEntry 7 }
+
+fspfIfLsaTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of Link State Acknowledgement (LSA) packets 
+           transmitted on this interface on this VSAN since the
+           creation of the entry."
+    ::= { fspfIfEntry 8 }
+                                                                    
+fspfIfHelloTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of HELLO packets transmitted on this interface on
+           this VSAN since the creation of the entry."
+    ::= { fspfIfEntry 9 }
+
+fspfIfHelloRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of HELLO packets received on this interface on
+           this VSAN since the creation of the entry."
+    ::= { fspfIfEntry 10 }
+
+fspfIfRetransmittedLsuTxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of LSU packets retransmitted on this interface on
+           this VSAN since the creation of the entry."
+    ::= { fspfIfEntry 11 }
+  
+fspfIfErrorRxPkts OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of invalid FSPF control packets received on this
+           interface on this VSAN since the creation of the entry."
+    ::= { fspfIfEntry 12 }
+
+fspfIfInactivityExpirations OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "Number of times the inactivity timer has expired on this 
+           interface on this VSAN since the creation of the entry."
+    ::= { fspfIfEntry 13 }
+                         
+ fspfIfNbrState OBJECT-TYPE
+    SYNTAX      FspfInterfaceState
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The state of FSPF's 'neighbor state machine', which is 
+           the operational state of the interaction with the 
+           neighbor's interface which is connected to this interface.
+            
+           If the 'fspfIfAdminStatus' is down(2), then this object 
+           should be down (1). If the 'fspfIfAdminStatus' is up (2) 
+           then this object should be take any of the possible values
+           depending on the state of FSPF's 'neighbor state machine' 
+           on this interface on this VSAN."                        
+      REFERENCE
+           "FC-SW-2 Rev 5.3, Section 8.7 Neighbor Finite State 
+           Machine"           
+    ::= { fspfIfEntry 14 }
+
+ fspfIfNbrDomainId OBJECT-TYPE
+    SYNTAX      DomainIdOrZero
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The Domain Id of the neighbor on this VSAN."
+    ::= { fspfIfEntry 15 }
+
+fspfIfNbrPortIndex OBJECT-TYPE
+    SYNTAX      Unsigned32 (1..4294967295)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The index, as known by the neighbor, of the neighbor's
+           interface which is connected to this interface on this
+           VSAN."
+    ::= { fspfIfEntry 16 }
+                        
+fspfIfAdminStatus OBJECT-TYPE
+    SYNTAX      INTEGER {
+                up (1),
+                down (2)
+                }
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "The desired state of FSPF on this interface on this VSAN.
+           If value of this object is set to 'up', then FSPF is 
+           enabled on this interface on this VSAN. If set to 
+           'down', then FSPF is disabled on this interface on this
+           VSAN.
+           This object meaningful only when 'fspfAdminStatus' is 
+           up (1)."
+    DEFVAL  {up}
+    ::= { fspfIfEntry 17 }
+    
+fspfIfCreateTime OBJECT-TYPE
+        SYNTAX      LastCreationTime
+        MAX-ACCESS  read-only
+        STATUS      current
+        DESCRIPTION
+               "The value of sysUpTime when this entry was last 
+               created."
+    ::= { fspfIfEntry 18 }
+
+fspfIfSetToDefault OBJECT-TYPE
+    SYNTAX      INTEGER {
+                     default (1),
+                     noOp (2)
+                }
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "Setting this value to 'default' changes the value of each 
+           and every every write-able object in this row to its default
+           value.
+       
+           If all the configuration parameters have their default values
+           and if the interface is down, then the row is deleted 
+           automatically.
+
+           No action is taken if this object is set to 'noOp'.
+           The value of the object when read is always 'noOp'."
+    ::= { fspfIfEntry 19 }
+
+fspfIfRowStatus OBJECT-TYPE
+    SYNTAX      RowStatus
+    MAX-ACCESS  read-create
+    STATUS      current
+    DESCRIPTION
+           "The status of the conceptual row.
+
+           This object can be used to create an entry only if the 
+           corresponding VSAN is suspended and the interface is 
+           either isolated or is a non-E_port. Otherwise, a create 
+           will fail.
+
+           Setting this object to 'destroy' will always fail."
+    ::= { fspfIfEntry 20 }
+ 
+-- 
+-- fspfLsrTable
+--
+
+fspfLsrTable OBJECT-TYPE
+    SYNTAX       SEQUENCE OF FspfLsrEntry
+    MAX-ACCESS   not-accessible
+    STATUS       current
+    DESCRIPTION
+           "This table is the database of all (the latest incarnation 
+           of) the Link State Records (LSR) which are currently 
+           contained in the topology database.
+           The topology database contains the LSRs which have been 
+           either issued or received by the local switch on any/all 
+           VSANs, and which have not reached fspfMaxAge."
+    ::= { fspfDatabase 1 }
+
+fspfLsrEntry OBJECT-TYPE
+    SYNTAX      FspfLsrEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "This gives information for the most recent update of an
+           LSR. There is one entry for every LSR issued or received
+           by the local on a VSAN."
+    INDEX       { vsanIndex, fspfLsrDomainId, fspfLsrType}
+    ::= { fspfLsrTable 1 }
+
+FspfLsrEntry ::= SEQUENCE {
+    fspfLsrDomainId           DomainId,
+    fspfLsrType               FspfLsrType,
+    fspfLsrAdvDomainId        DomainId,
+    fspfLsrAge                TimeIntervalSec,
+    fspfLsrIncarnationNumber  Unsigned32,
+    fspfLsrCheckSum           Unsigned32,
+    fspfLsrLinks              Unsigned32,
+    fspfLsrExternal           TruthValue
+}
+
+fspfLsrDomainId OBJECT-TYPE
+    SYNTAX      DomainId
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "Domain Id of the LSR owner on this VSAN. It is the Link
+           State Id of this LSR."
+    ::= { fspfLsrEntry 1 }
+    
+fspfLsrType OBJECT-TYPE
+    SYNTAX      FspfLsrType
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "Type of this LSR."
+    ::= { fspfLsrEntry 2 }
+
+fspfLsrAdvDomainId OBJECT-TYPE
+    SYNTAX      DomainId
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "Domain Id of the switch that is advertising the LSR on
+           the behalf of the switch owning it."
+    ::= { fspfLsrEntry 3 }
+
+fspfLsrAge OBJECT-TYPE
+    SYNTAX      TimeIntervalSec (0..65535) 
+    UNITS       "Seconds"
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "Time since this LSR was inserted into the database."
+    ::= { fspfLsrEntry 4 }
+
+fspfLsrIncarnationNumber OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..4294967295)
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The link state incarnation number of this LSR. This is
+           used to identify most recent instance of an LSR while
+           updating the topology database when an LSR is received.
+           The updating of an LSR includes incrementing its
+           incarnation number prior to transmission of the updated
+           LSR. So most recent LSR is the one with larger incarnation
+           number."
+    ::= { fspfLsrEntry 5 }
+
+fspfLsrCheckSum OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..65535)
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "The checksum of the LSR."
+    ::= { fspfLsrEntry 6 }
+
+fspfLsrLinks OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..65355)
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "Number of entries in the fspfLinkTable associated with 
+           this LSR."
+    ::= { fspfLsrEntry 7 }
+
+fspfLsrExternal OBJECT-TYPE
+    SYNTAX      TruthValue
+    MAX-ACCESS  read-only 
+    STATUS      current
+    DESCRIPTION
+           "This objects indicates of this is an external LSR advertized
+            by local switch."
+    ::= { fspfLsrEntry 8 }
+                          
+--
+-- fspfLinkTable
+--
+
+fspfLinkTable OBJECT-TYPE
+    SYNTAX       SEQUENCE OF FspfLinkEntry
+    MAX-ACCESS   not-accessible
+    STATUS       current
+    DESCRIPTION
+           "This table contains the list of Inter-Switch Links and their
+           information which is part of the LSR received or issued." 
+    ::= { fspfDatabase 2 }
+
+fspfLinkEntry OBJECT-TYPE
+    SYNTAX      FspfLinkEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "An entry which contains information about a link 
+           contained in an LSR on this VSAN. An entry is created 
+           whenever a new link appears in an (issued or received) 
+           LSR. Also, an entry is deleted when a link no longer 
+           appears in an (issued or received) LSR."
+    INDEX       { vsanIndex, fspfLsrDomainId, fspfLsrType,
+                  fspfLinkIndex}
+    ::= { fspfLinkTable 1 }
+
+FspfLinkEntry ::= SEQUENCE {
+    fspfLinkIndex             Unsigned32,
+    fspfLinkNbrDomainId       DomainId,
+    fspfLinkPortIndex         Unsigned32,
+    fspfLinkNbrPortIndex      Unsigned32,
+    fspfLinkType              FspfLinkType,
+    fspfLinkCost              Integer32
+}
+
+fspfLinkIndex OBJECT-TYPE
+    SYNTAX      Unsigned32
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+           "An arbitrary index of this link."
+    ::= { fspfLinkEntry 1 }
+
+fspfLinkNbrDomainId OBJECT-TYPE
+    SYNTAX      DomainId
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The Domain Id of the neighbor on the other end of this
+           link on this VSAN."
+    ::= { fspfLinkEntry 2 }
+
+fspfLinkPortIndex OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..16777215)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The source E_port of this link, as indicated by the index
+           value in the LSR received from the switch identified by
+           'fspfLsrDomainId'."
+    ::= { fspfLinkEntry 3 }
+
+fspfLinkNbrPortIndex OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..16777215)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The destination E_port of this link, as indicated by the
+           index value in the LSR received from the switch identified 
+           by 'fspfLinkNbrDomainId'."
+    ::= { fspfLinkEntry 4 }
+             
+fspfLinkType OBJECT-TYPE
+    SYNTAX      FspfLinkType
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The type of this link."
+    ::= { fspfLinkEntry 5 }
+                         
+fspfLinkCost OBJECT-TYPE
+    SYNTAX      Integer32 (0..65535)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+           "The cost of sending a frame on this link on this VSAN.
+           Link cost is calculated using a formula  
+                 link cost = S * (1.0625e12/Baud Rate)
+           where S (value of fspfIfCost object on inteface on the
+           switch corresponding to the domain Id)  is the 
+           administratively set cost factor for this interface."
+    ::= { fspfLinkEntry 6 }
+                                                               
+fspfLsrNumber  OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..2147483647)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "The number of rows in the fspfLsrTable."
+        ::= { fspfDatabase 3 }
+
+fspfLinkNumber  OBJECT-TYPE
+    SYNTAX      Unsigned32 (0..2147483647)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "The number of rows in the fspfLinkTable."
+        ::= { fspfDatabase 4 }
+
+-- Notification control object. 
+--
+
+fspfNbrStateChangeNotifyEnable OBJECT-TYPE
+        SYNTAX     TruthValue
+        MAX-ACCESS read-write
+        STATUS     current
+        DESCRIPTION
+               "Specifies whether or not the local switch should 
+               issue the notification 'fspfNbrStateChangeNotify'
+               when the local switch learns of a change in the
+               Neighbor's state (state in the FSPF Neighbor Finite
+               State Machine) on an interface on a VSAN.
+                
+               If the value of the object is 'true, then the 
+               notification is generated. If the value is 'false',
+               notification is not generated."
+        DEFVAL { false }
+        ::= { fspfConfiguration 3 }
+
+-- fspfIfPrevNbrState
+
+fspfIfPrevNbrState OBJECT-TYPE
+        SYNTAX      FspfInterfaceState
+        MAX-ACCESS  accessible-for-notify
+        STATUS      current
+        DESCRIPTION
+               "The previous state of FSPF's 'neighbor state machine' 
+               on an interface.
+               This object is to be used only as an object in the 
+               notification 'fspfNbrStateChangeNotify'." 
+        ::= { fspfConfiguration 4 }
+
+-- Notifications
+
+
+fspfNbrStateChangeNotify NOTIFICATION-TYPE
+    OBJECTS     { ifIndex,
+                  notifyVsanIndex, 
+                  fspfDomainId, 
+                  fspfIfNbrDomainId,
+                  fspfIfNbrState, 
+                  fspfIfPrevNbrState 
+    }
+    STATUS      current
+    DESCRIPTION                                                     
+           "This notification  signifies that there has been a change
+           in the state of FSPF neighbors. This is generated when 
+           the FSPF state regresses (e.g., goes from Full to init or 
+           Down) or progresses (e.g., from any  state to Full) to a 
+           terminal state. The value of 'fspfIfNbrState' is the state 
+           of the neighbor after the change."
+    ::= { fspfNotification 1 }  
+                               
+-- Conformance
+
+
+fspfMIBCompliances
+        OBJECT IDENTIFIER ::= { fspfMIBConformance 1 }
+
+fspfMIBGroups
+        OBJECT IDENTIFIER ::= { fspfMIBConformance 2 }
+
+fspfMIBCompliance MODULE-COMPLIANCE
+        STATUS deprecated -- superceded by
+                          -- fspfMIBCompliance1
+        DESCRIPTION
+                "The compliance statement for entities which 
+                implement the FSPF."
+        MODULE MANDATORY-GROUPS { fspfGenericGroup, 
+                                  fspfIfGroup,
+                                  fspfDatabaseGroup, 
+                                  fspfNotificationGroup
+        }
+        OBJECT fspfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported."
+
+        OBJECT fspfIfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported.."
+                                           
+        ::= { fspfMIBCompliances 1 }                    
+        
+fspfMIBCompliance1 MODULE-COMPLIANCE
+        STATUS deprecated -- superceded by
+                          -- fspfMIBCompliance2
+        DESCRIPTION
+                "The compliance statement for entities which 
+                implement the FSPF."
+        MODULE MANDATORY-GROUPS { fspfGenericGroupRev1, 
+                                  fspfIfGroup,
+                                  fspfDatabaseGroup, 
+                                  fspfNotificationGroup
+        }
+        OBJECT fspfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported."
+
+        OBJECT fspfIfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported.."
+                                           
+        ::= { fspfMIBCompliances 2 }                    
+
+fspfMIBCompliance2 MODULE-COMPLIANCE
+        STATUS deprecated -- superceded by
+                          -- fspfMIBCompliance3
+        DESCRIPTION
+                "The compliance statement for entities which 
+                implement the FSPF."
+        MODULE MANDATORY-GROUPS { fspfGenericGroupRev1, 
+                                  fspfIfGroup,
+                                  fspfDatabaseGroupRev1, 
+                                  fspfNotificationGroup
+        }
+        OBJECT fspfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported."
+
+        OBJECT fspfIfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported.."
+                                           
+        ::= { fspfMIBCompliances 3 }                    
+
+fspfMIBCompliance3 MODULE-COMPLIANCE
+        STATUS   current
+        DESCRIPTION
+                "The compliance statement for entities which 
+                implement the FSPF."
+        MODULE MANDATORY-GROUPS { fspfGenericGroupRev1, 
+                                  fspfIfGroup,
+                                  fspfDatabaseGroupRev2, 
+                                  fspfNotificationGroup
+        }
+        OBJECT fspfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported."
+
+        OBJECT fspfIfRowStatus             
+        SYNTAX     INTEGER {             
+                     active (1),
+                     createAndGo (4)
+                   }
+        DESCRIPTION 
+                "Only two values 'createAndGo' and 'active' 
+                need to be supported.."
+                                           
+        ::= { fspfMIBCompliances 4 }
+
+-- Units of Conformance
+
+fspfGenericGroup OBJECT-GROUP
+        OBJECTS  { fspfRegionId,
+                   fspfDomainId,
+                   fspfSpfDelay,
+                   fspfSpfHoldTime,
+                   fspfMinLsArrival,
+                   fspfMinLsInterval,
+                   fspfLsRefreshTime,
+                   fspfMaxAge,
+                   fspfMaxAgeCount,
+                   fspfSpfComputations,
+                   fspfChecksumErrors,
+                   fspfLsuRxPkts,
+                   fspfLsaRxPkts,
+                   fspfLsuTxPkts,
+                   fspfLsaTxPkts,
+                   fspfHelloTxPkts,
+                   fspfHelloRxPkts,
+                   fspfRetransmittedLsuTxPkts,
+                   fspfErrorRxPkts,
+                   fspfLsrs,
+                   fspfCreateTime,
+                   fspfAdminStatus,
+                   fspfOperStatus,
+                   fspfSetToDefault,
+                   fspfRowStatus,
+                   fspfNbrStateChangeNotifyEnable
+        }
+        STATUS   deprecated  -- superceded by fspfGenericGroupRev1
+        DESCRIPTION
+                "A collection of objects for displaying and
+                configuring FSPF parameters."
+        ::= { fspfMIBGroups 1 }
+
+fspfIfGroup OBJECT-GROUP
+        OBJECTS  { fspfIfCost,
+                   fspfIfHelloInterval,
+                   fspfIfDeadInterval,
+                   fspfIfRetransmitInterval,
+                   fspfIfLsuRxPkts,
+                   fspfIfLsaRxPkts,
+                   fspfIfLsuTxPkts,
+                   fspfIfLsaTxPkts,
+                   fspfIfHelloTxPkts,  
+                   fspfIfHelloRxPkts,
+                   fspfIfRetransmittedLsuTxPkts,
+                   fspfIfErrorRxPkts,  
+                   fspfIfInactivityExpirations,
+                   fspfIfNbrState,     
+                   fspfIfNbrDomainId,
+                   fspfIfNbrPortIndex,
+                   fspfIfAdminStatus,
+                   fspfIfCreateTime,
+                   fspfIfSetToDefault,    
+                   fspfIfRowStatus,
+                   fspfIfPrevNbrState }
+        STATUS   current
+        DESCRIPTION
+                "A collection of objects for displaying the FSPF
+                interface information."
+        ::= { fspfMIBGroups 3 }
+
+fspfDatabaseGroup OBJECT-GROUP
+        OBJECTS  { fspfLsrAdvDomainId,
+                   fspfLsrAge,
+                   fspfLsrIncarnationNumber,
+                   fspfLsrCheckSum,
+                   fspfLsrLinks,
+                   fspfLinkNbrDomainId,
+                   fspfLinkPortIndex,
+                   fspfLinkNbrPortIndex,
+                   fspfLinkType,
+                   fspfLinkCost
+        }                               
+        STATUS deprecated -- superceded by
+                          -- fspfDatabaseGroupRev1
+        DESCRIPTION
+                "A collection of objects for displaying the FSPF 
+                topology database information."
+        ::= { fspfMIBGroups 4 }
+
+fspfNotificationGroup NOTIFICATION-GROUP
+        NOTIFICATIONS  { fspfNbrStateChangeNotify } 
+        STATUS   current
+        DESCRIPTION
+                "A collection of notifications for FSPF."
+        ::= { fspfMIBGroups 5 }
+
+fspfGenericGroupRev1 OBJECT-GROUP
+        OBJECTS  { fspfRegionId,
+                   fspfDomainId,
+                   fspfSpfDelay,
+                   fspfSpfHoldTime,
+                   fspfMinLsArrival,
+                   fspfMinLsInterval,
+                   fspfLsRefreshTime,
+                   fspfMaxAge,
+                   fspfMaxAgeCount,
+                   fspfSpfComputations,
+                   fspfChecksumErrors,
+                   fspfLsuRxPkts,
+                   fspfLsaRxPkts,
+                   fspfLsuTxPkts,
+                   fspfLsaTxPkts,
+                   fspfHelloTxPkts,
+                   fspfHelloRxPkts,
+                   fspfRetransmittedLsuTxPkts,
+                   fspfErrorRxPkts,
+                   fspfLsrs,
+                   fspfCreateTime,
+                   fspfAdminStatus,
+                   fspfOperStatus,
+                   fspfSetToDefault,
+                   fspfRowStatus,
+                   fspfTotalCheckSum,
+                   fspfNbrStateChangeNotifyEnable
+        }
+        STATUS   current
+        DESCRIPTION
+                "A collection of objects for displaying and
+                configuring FSPF parameters."
+        ::= { fspfMIBGroups 6 }
+
+fspfDatabaseGroupRev1 OBJECT-GROUP
+        OBJECTS  { fspfLsrAdvDomainId,
+                   fspfLsrAge,
+                   fspfLsrIncarnationNumber,
+                   fspfLsrCheckSum,
+                   fspfLsrLinks,
+                   fspfLinkNbrDomainId,
+                   fspfLinkPortIndex,
+                   fspfLinkNbrPortIndex,
+                   fspfLinkType,
+                   fspfLinkCost,
+                   fspfLsrNumber,
+                   fspfLinkNumber
+        }                               
+        STATUS   deprecated -- by fspfDatabaseGroupRev2
+        DESCRIPTION
+                "A collection of objects for displaying the FSPF 
+                topology database information."
+        ::= { fspfMIBGroups 7 }
+
+fspfDatabaseGroupRev2 OBJECT-GROUP
+        OBJECTS  { fspfLsrAdvDomainId,
+                   fspfLsrAge,
+                   fspfLsrIncarnationNumber,
+                   fspfLsrCheckSum,
+                   fspfLsrLinks,
+                   fspfLinkNbrDomainId,
+                   fspfLinkPortIndex,
+                   fspfLinkNbrPortIndex,
+                   fspfLinkType,
+                   fspfLinkCost,
+                   fspfLsrNumber,
+                   fspfLinkNumber,
+                   fspfLsrExternal
+        }                               
+        STATUS   current
+        DESCRIPTION
+                "A collection of objects for displaying the FSPF 
+                topology database information."
+        ::= { fspfMIBGroups 8 }
+END
