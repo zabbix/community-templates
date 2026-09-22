@@ -1,0 +1,968 @@
+zabbix_export:
+  version: "7.0"
+  template_groups:
+    - uuid: "c6af4a0c5b9940639d53db250726419d"
+      name: Templates/Applications
+  templates:
+    - uuid: "75c664976cbb4e07886f10812d1c053b"
+      template: "BunkerWeb by HTTP"
+      name: "BunkerWeb by HTTP"
+      description: |
+        Monitors a BunkerWeb instance through the Prometheus exporter PRO plugin.
+
+        Requirements on the BunkerWeb side:
+          - USE_MONITORING=yes           (the exporter reads metrics the monitoring plugin collects)
+          - USE_PROMETHEUS_EXPORTER=yes
+          - PROMETHEUS_EXPORTER_ALLOW_IP must include the Zabbix server or proxy address
+
+        Requirements on the Zabbix side:
+          - the host needs an interface whose address points at the BunkerWeb instance,
+            because the master item URL uses {HOST.CONN}
+          - one Zabbix host per BunkerWeb instance: the exporter serves per-instance,
+            in-memory counters and does not aggregate across a cluster
+
+        Set {$BUNKERWEB.EXPORTER.PORT} and {$BUNKERWEB.EXPORTER.PATH} to match
+        PROMETHEUS_EXPORTER_PORT and PROMETHEUS_EXPORTER_URL if they were changed.
+
+        https://github.com/bunkerity/bunkerweb-zabbix-template
+      vendor:
+        name: Bunkerity
+        version: "7.0-1"
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: "0d0b00d414c34d9c8e07f7ef1c570ea9"
+          name: "BunkerWeb: Get metrics"
+          type: HTTP_AGENT
+          key: bunkerweb.metrics.raw
+          delay: "{$BUNKERWEB.EXPORTER.INTERVAL}"
+          history: "0"
+          value_type: TEXT
+          description: |
+            Raw Prometheus exposition text scraped from the BunkerWeb exporter.
+            Every other item in this template depends on this one. History is disabled
+            on purpose: the payload is large and is only ever used as a master value.
+
+            503 is accepted alongside 200 deliberately. The exporter answers 503 with a
+            plain-text comment when the monitoring plugin was never initialized; that body
+            has to reach preprocessing for bw.scrape.ok to report 0 and raise the specific
+            problem. Rejecting it would fail the master item instead, and the only symptom
+            would be the misleading "exporter is unreachable" nodata trigger.
+          url: "{$BUNKERWEB.EXPORTER.SCHEME}://{HOST.CONN}:{$BUNKERWEB.EXPORTER.PORT}{$BUNKERWEB.EXPORTER.PATH}"
+          status_codes: 200,503
+          tags:
+            - tag: component
+              value: raw
+
+        - uuid: "7f9c7e26a36a4ad091f4caec16d8be55"
+          name: "BunkerWeb: Exporter availability"
+          type: DEPENDENT
+          key: bw.scrape.ok
+          value_type: UNSIGNED
+          description: |
+            1 when the last scrape carried BunkerWeb build info, 0 when the endpoint
+            answered but returned no metrics (the exporter replies 503 with a comment
+            when the monitoring plugin was never initialized).
+
+            This item exists so nodata() has something cheap to watch: the master item
+            keeps no history, so a nodata() trigger cannot be attached to it.
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - "bw_build_info"
+                - function
+                - count
+              error_handler: CUSTOM_VALUE
+              error_handler_params: "0"
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: health
+
+        - uuid: "be6494c766754233b7a6abc0aad645a4"
+          name: "BunkerWeb: Version"
+          type: DEPENDENT
+          key: bw.build.version
+          value_type: CHAR
+          description: "BunkerWeb version reported by the exporter build info metric."
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - "bw_build_info"
+                - label
+                - version
+              error_handler: CUSTOM_VALUE
+              error_handler_params: unknown
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: inventory
+
+        - uuid: "984413e0350e4afcb45a46fefd9013f7"
+          name: "BunkerWeb: Connections reading"
+          type: DEPENDENT
+          key: "bw.connections[reading]"
+          value_type: UNSIGNED
+          description: "NGINX connections currently reading a request header."
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'bw_http_connections{state="reading"}'
+                - value
+                - ""
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: connections
+
+        - uuid: "956675c0b0504b848f3d6fae13705507"
+          name: "BunkerWeb: Connections writing"
+          type: DEPENDENT
+          key: "bw.connections[writing]"
+          value_type: UNSIGNED
+          description: "NGINX connections currently writing a response."
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'bw_http_connections{state="writing"}'
+                - value
+                - ""
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: connections
+
+        - uuid: "3884a1f6fe474648b662019e3ef0bbde"
+          name: "BunkerWeb: Connections waiting"
+          type: DEPENDENT
+          key: "bw.connections[waiting]"
+          value_type: UNSIGNED
+          description: "Idle keep-alive NGINX connections."
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'bw_http_connections{state="waiting"}'
+                - value
+                - ""
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: connections
+
+        - uuid: "d878d16700384364acf2f9fa2c4cd57a"
+          name: "BunkerWeb: Metric pipeline errors"
+          type: DEPENDENT
+          key: bw.metric_errors
+          value_type: UNSIGNED
+          description: |
+            Cumulative error count from the metric library inside BunkerWeb. A rising
+            value means metric collection itself is degraded - most often a shared
+            dictionary that has run out of memory - so the rest of this template is
+            reporting incomplete data.
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - "bw_metric_errors_total"
+                - value
+                - ""
+              error_handler: CUSTOM_VALUE
+              error_handler_params: "0"
+          master_item:
+            key: bunkerweb.metrics.raw
+          tags:
+            - tag: component
+              value: health
+
+      discovery_rules:
+        - uuid: "f4464fa64a1541b09489f697d2db0d7d"
+          name: "BunkerWeb: Service discovery"
+          type: DEPENDENT
+          key: bw.service.discovery
+          description: |
+            Discovers BunkerWeb services from bw_http_latency_count, whose only label is
+            server_name, so every discovery row is already unique. Discovering from a
+            multi-label counter such as bw_http_downstream_status_total would emit one row
+            per (server_name, status) and collide on duplicate {#SERVER_NAME} values.
+
+            A service that has served no request since the last full restart has no counter
+            line yet and is not discovered until its first request.
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - "bw_http_latency_count"
+          master_item:
+            key: bunkerweb.metrics.raw
+          lld_macro_paths:
+            - lld_macro: "{#SERVER_NAME}"
+              path: "$.labels['server_name']"
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: "{#SERVER_NAME}"
+                value: "{$BUNKERWEB.SERVICE.MATCHES}"
+                formulaid: A
+              - macro: "{#SERVER_NAME}"
+                value: "{$BUNKERWEB.SERVICE.NOT_MATCHES}"
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: "aaf5f5146ace4fc89be9eb7ac003a787"
+              name: "BunkerWeb [{#SERVER_NAME}]: Requests per second"
+              type: DEPENDENT
+              key: "bw.requests.total[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              description: "Total downstream request rate, all status codes."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_downstream_status_total{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: requests
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "ad4d307cb1534cae8c4a35a71c838324"
+              name: "BunkerWeb [{#SERVER_NAME}]: Requests per second (2xx)"
+              type: DEPENDENT
+              key: "bw.requests[{#SERVER_NAME},2xx]"
+              value_type: FLOAT
+              units: "!r/s"
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_downstream_status_total{server_name="{#SERVER_NAME}",status=~"^2"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: requests
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "803ae87d34a84f588c00d8f164371ec5"
+              name: "BunkerWeb [{#SERVER_NAME}]: Requests per second (3xx)"
+              type: DEPENDENT
+              key: "bw.requests[{#SERVER_NAME},3xx]"
+              value_type: FLOAT
+              units: "!r/s"
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_downstream_status_total{server_name="{#SERVER_NAME}",status=~"^3"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: requests
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "3709cbc65d974be2b953b70302c20676"
+              name: "BunkerWeb [{#SERVER_NAME}]: Requests per second (4xx)"
+              type: DEPENDENT
+              key: "bw.requests[{#SERVER_NAME},4xx]"
+              value_type: FLOAT
+              units: "!r/s"
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_downstream_status_total{server_name="{#SERVER_NAME}",status=~"^4"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: requests
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "0166b170d8e24812a56aeef4e2bf969c"
+              name: "BunkerWeb [{#SERVER_NAME}]: Requests per second (5xx)"
+              type: DEPENDENT
+              key: "bw.requests[{#SERVER_NAME},5xx]"
+              value_type: FLOAT
+              units: "!r/s"
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_downstream_status_total{server_name="{#SERVER_NAME}",status=~"^5"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: requests
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "f7cc343458f54e9eacd4e60d65a2c4f2"
+              name: "BunkerWeb [{#SERVER_NAME}]: Attacks blocked per second"
+              type: DEPENDENT
+              key: "bw.attacks[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              description: "Requests blocked by BunkerWeb, all reasons combined."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_attacks_total{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: security
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "00e4e5be99fd4bc39875c9faf8747aa1"
+              name: "BunkerWeb [{#SERVER_NAME}]: Latency, time sum per second"
+              type: DEPENDENT
+              key: "bw.latency.sum[{#SERVER_NAME}]"
+              value_type: FLOAT
+              description: "Numerator of the average latency calculation. Not useful on its own."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_latency_sum{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: latency
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "8941237b41a34163a3fd0d6f8b71d20e"
+              name: "BunkerWeb [{#SERVER_NAME}]: Latency, observation count per second"
+              type: DEPENDENT
+              key: "bw.latency.count[{#SERVER_NAME}]"
+              value_type: FLOAT
+              description: "Denominator of the average latency calculation. Not useful on its own."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_latency_count{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: latency
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "6066fbe59a5b4f8ab3d71b9921c62051"
+              name: "BunkerWeb [{#SERVER_NAME}]: Latency, average"
+              type: CALCULATED
+              key: "bw.latency.avg[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: s
+              params: "last(//bw.latency.sum[{#SERVER_NAME}]) / (last(//bw.latency.count[{#SERVER_NAME}]) + 0.0001)"
+              description: |
+                Mean request duration over the last interval, derived from the histogram
+                sum and count rates. The small constant in the denominator keeps an idle
+                service from producing a division by zero.
+              tags:
+                - tag: component
+                  value: latency
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "319fe6e3179d413c909427200342361b"
+              name: "BunkerWeb [{#SERVER_NAME}]: Bytes sent per second"
+              type: DEPENDENT
+              key: "bw.bytes.sent[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_bytes_sent_sum{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: traffic
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "e414adc3027143c28ac47c7e93f1182b"
+              name: "BunkerWeb [{#SERVER_NAME}]: Bytes received per second"
+              type: DEPENDENT
+              key: "bw.bytes.received[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_bytes_received_sum{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: traffic
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "ceb647ddbb7840dabf0dcb59a0e7cf83"
+              name: "BunkerWeb [{#SERVER_NAME}]: Upstream 5xx per second"
+              type: DEPENDENT
+              key: "bw.upstream.5xx[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              description: "Server errors returned by the backend rather than generated by BunkerWeb."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_upstream_status_total{server_name="{#SERVER_NAME}",status=~"^5"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: upstream
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "a8b87e0eaafc4a7c86131ca255c5d224"
+              name: "BunkerWeb [{#SERVER_NAME}]: Cache hits per second"
+              type: DEPENDENT
+              key: "bw.cache.hit[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_cache_status_total{server_name="{#SERVER_NAME}",status="HIT"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: cache
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "b2670765ca294ec7af8aca7e3351d8ca"
+              name: "BunkerWeb [{#SERVER_NAME}]: Cacheable responses per second"
+              type: DEPENDENT
+              key: "bw.cache.total[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              description: "All cache outcomes combined. Compare against the hit rate to judge cache effectiveness."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_cache_status_total{server_name="{#SERVER_NAME}"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: cache
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "11901efcb061421a8845dedc7d8f3431"
+              name: "BunkerWeb [{#SERVER_NAME}]: Legacy TLS handshakes per second"
+              type: DEPENDENT
+              key: "bw.tls.legacy[{#SERVER_NAME}]"
+              value_type: FLOAT
+              units: "!r/s"
+              description: "Handshakes negotiated over TLSv1.0 or TLSv1.1, both long deprecated."
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_http_ssl_protocol_total{server_name="{#SERVER_NAME}",protocol=~"^TLSv1(.1)?$"}'
+                    - function
+                    - sum
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: "0"
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - "0"
+                    - ""
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: tls
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "ba691ddd1bdd4e1083c3e55ee62dc5ae"
+              name: "BunkerWeb [{#SERVER_NAME}]: Top attacker IPs"
+              type: DEPENDENT
+              key: "bw.top.ip[{#SERVER_NAME}]"
+              value_type: TEXT
+              description: |
+                Top attacking source addresses as JSON, capped at 50 ranks per service by
+                the exporter. Kept as a single text item on purpose: one item per rank
+                would create 50 items per service for data only ever read by a human
+                during an incident.
+              preprocessing:
+                - type: PROMETHEUS_TO_JSON
+                  parameters:
+                    - 'bw_http_attacks_top_ip{server_name="{#SERVER_NAME}"}'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: security
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+            - uuid: "f4bb3091e8674df79cfe7292b1a4e0d8"
+              name: "BunkerWeb [{#SERVER_NAME}]: Top attacked URIs"
+              type: DEPENDENT
+              key: "bw.top.uri[{#SERVER_NAME}]"
+              value_type: TEXT
+              description: "Most frequently attacked URIs as JSON, capped at 50 ranks per service."
+              preprocessing:
+                - type: PROMETHEUS_TO_JSON
+                  parameters:
+                    - 'bw_http_attacks_top_uri{server_name="{#SERVER_NAME}"}'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: security
+                - tag: service
+                  value: "{#SERVER_NAME}"
+
+          trigger_prototypes:
+            - uuid: "9fcb4024cb7140a4839fad3dc8caefea"
+              expression: "min(/BunkerWeb by HTTP/bw.requests[{#SERVER_NAME},5xx],5m) / (min(/BunkerWeb by HTTP/bw.requests.total[{#SERVER_NAME}],5m) + 0.0001) * 100 > {$BUNKERWEB.5XX.WARN}"
+              name: "BunkerWeb [{#SERVER_NAME}]: Server error ratio above {$BUNKERWEB.5XX.WARN}%"
+              priority: WARNING
+              description: |
+                Sustained share of 5xx responses. Evaluated over five minutes so a single
+                scrape blip does not raise a problem.
+              tags:
+                - tag: scope
+                  value: performance
+
+            - uuid: "09912e42897d4487b84cf1ef14f2ee0a"
+              expression: "min(/BunkerWeb by HTTP/bw.attacks[{#SERVER_NAME}],5m) > {$BUNKERWEB.ATTACKS.MAX}"
+              name: "BunkerWeb [{#SERVER_NAME}]: Attack rate above {$BUNKERWEB.ATTACKS.MAX} per second"
+              priority: WARNING
+              description: "BunkerWeb is blocking requests at a sustained elevated rate."
+              tags:
+                - tag: scope
+                  value: security
+
+            - uuid: "1d7cbc2a702f4167854ccbb2bf7a4fc6"
+              expression: "min(/BunkerWeb by HTTP/bw.upstream.5xx[{#SERVER_NAME}],5m) > 0"
+              name: "BunkerWeb [{#SERVER_NAME}]: Backend is returning server errors"
+              priority: WARNING
+              description: "The upstream behind this service is failing; the errors originate behind BunkerWeb, not in it."
+              tags:
+                - tag: scope
+                  value: availability
+
+            - uuid: "cb5ebf33f75941f1b719401d949d305e"
+              expression: "min(/BunkerWeb by HTTP/bw.tls.legacy[{#SERVER_NAME}],30m) > 0"
+              name: "BunkerWeb [{#SERVER_NAME}]: Deprecated TLS version in use"
+              priority: INFO
+              description: "Clients are still negotiating TLSv1.0 or TLSv1.1 against this service."
+              tags:
+                - tag: scope
+                  value: security
+
+        - uuid: "cedea5cbe8614791bde17017b1809e36"
+          name: "BunkerWeb: Shared dictionary discovery"
+          type: DEPENDENT
+          key: bw.dict.discovery
+          description: "Discovers the NGINX shared memory zones BunkerWeb reports capacity for."
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - "bw_shm_capacity_bytes"
+          master_item:
+            key: bunkerweb.metrics.raw
+          lld_macro_paths:
+            - lld_macro: "{#DICT}"
+              path: "$.labels['dict']"
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: "{#DICT}"
+                value: "{$BUNKERWEB.DICT.MATCHES}"
+                formulaid: A
+              - macro: "{#DICT}"
+                value: "{$BUNKERWEB.DICT.NOT_MATCHES}"
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: "a16729aa392946328ce7b9552b8aed32"
+              name: "BunkerWeb [{#DICT}]: Shared dictionary capacity"
+              type: DEPENDENT
+              key: "bw.shm.capacity[{#DICT}]"
+              value_type: UNSIGNED
+              units: B
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_shm_capacity_bytes{dict="{#DICT}"}'
+                    - value
+                    - ""
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: memory
+                - tag: dict
+                  value: "{#DICT}"
+
+            - uuid: "afdccca54dbb49b685f869ab69129f6a"
+              name: "BunkerWeb [{#DICT}]: Shared dictionary free space"
+              type: DEPENDENT
+              key: "bw.shm.free[{#DICT}]"
+              value_type: UNSIGNED
+              units: B
+              description: |
+                Free page space reported by the NGINX shared dictionary.
+
+                This counts whole free pages only: space inside pages that are allocated
+                but partly unused is not included. A healthy dictionary in steady state
+                therefore reports a low, flat figure, which is why this template alerts on
+                the downward trend rather than on an absolute threshold.
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'bw_shm_free_bytes{dict="{#DICT}"}'
+                    - value
+                    - ""
+              master_item:
+                key: bunkerweb.metrics.raw
+              tags:
+                - tag: component
+                  value: memory
+                - tag: dict
+                  value: "{#DICT}"
+
+            - uuid: "6cd72f3e910941f0b7f20b9c0921b308"
+              name: "BunkerWeb [{#DICT}]: Shared dictionary utilization"
+              type: CALCULATED
+              key: "bw.shm.used.pct[{#DICT}]"
+              value_type: FLOAT
+              units: "%"
+              params: "100 * (1 - last(//bw.shm.free[{#DICT}]) / last(//bw.shm.capacity[{#DICT}]))"
+              description: 'Mirrors the "Shared dict utilization" panel of the shipped Grafana dashboard.'
+              tags:
+                - tag: component
+                  value: memory
+                - tag: dict
+                  value: "{#DICT}"
+
+          trigger_prototypes:
+            - uuid: "47142c297d084d998018c622426f5977"
+              expression: "timeleft(/BunkerWeb by HTTP/bw.shm.free[{#DICT}],6h,0) < {$BUNKERWEB.SHM.TIMELEFT}"
+              name: "BunkerWeb [{#DICT}]: Shared dictionary will be exhausted soon"
+              priority: AVERAGE
+              description: |
+                Projects the six-hour trend of free space forward and fires when exhaustion
+                is closer than {$BUNKERWEB.SHM.TIMELEFT}.
+
+                Deliberately a trend rather than a static threshold: free page space sits
+                near zero on a perfectly healthy dictionary, so an absolute threshold would
+                alert constantly. This mirrors the "Shared-dict exhaustion ETA" panel of the
+                shipped Grafana dashboard.
+              tags:
+                - tag: scope
+                  value: capacity
+
+      dashboards:
+        - uuid: "3b79e95f851a4bcc9a06fa408be6d45c"
+          name: "BunkerWeb overview"
+          pages:
+            - name: Overview
+              widgets:
+                - type: item
+                  name: "Exporter availability"
+                  width: "12"
+                  height: "3"
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: "0"
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: bw.scrape.ok
+                - type: item
+                  name: "BunkerWeb version"
+                  x: "12"
+                  width: "12"
+                  height: "3"
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: bw.build.version
+                - type: item
+                  name: "Metric pipeline errors"
+                  'y': "3"
+                  width: "12"
+                  height: "3"
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: "0"
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: bw.metric_errors
+                - type: svggraph
+                  name: "NGINX connections"
+                  x: "12"
+                  'y': "3"
+                  width: "12"
+                  height: "5"
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 2196F3
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: "bw.connections[reading]"
+                    - type: STRING
+                      name: ds.1.color
+                      value: 4CAF50
+                    - type: ITEM
+                      name: ds.1.itemids.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: "bw.connections[writing]"
+                    - type: STRING
+                      name: ds.2.color
+                      value: FF9800
+                    - type: ITEM
+                      name: ds.2.itemids.0
+                      value:
+                        host: "BunkerWeb by HTTP"
+                        key: "bw.connections[waiting]"
+
+      macros:
+        - macro: "{$BUNKERWEB.EXPORTER.SCHEME}"
+          value: http
+          description: "Scheme used to reach the exporter."
+        - macro: "{$BUNKERWEB.EXPORTER.PORT}"
+          value: "9113"
+          description: "Must match PROMETHEUS_EXPORTER_PORT."
+        - macro: "{$BUNKERWEB.EXPORTER.PATH}"
+          value: /metrics
+          description: "Must match PROMETHEUS_EXPORTER_URL."
+        - macro: "{$BUNKERWEB.EXPORTER.INTERVAL}"
+          value: 1m
+          description: "How often the exporter is scraped. Every item in this template derives from that scrape."
+        - macro: "{$BUNKERWEB.SERVICE.MATCHES}"
+          value: ".*"
+          description: "Only discover services whose name matches this expression."
+        - macro: "{$BUNKERWEB.SERVICE.NOT_MATCHES}"
+          value: "^$"
+          description: "Skip services whose name matches this expression."
+        - macro: "{$BUNKERWEB.DICT.MATCHES}"
+          value: ".*"
+          description: "Only discover shared dictionaries whose name matches this expression."
+        - macro: "{$BUNKERWEB.DICT.NOT_MATCHES}"
+          value: "^$"
+          description: "Skip shared dictionaries whose name matches this expression."
+        - macro: "{$BUNKERWEB.5XX.WARN}"
+          value: "5"
+          description: "Percentage of 5xx responses that raises a warning."
+        - macro: "{$BUNKERWEB.ATTACKS.MAX}"
+          value: "10"
+          description: "Blocked requests per second that raises a warning."
+        - macro: "{$BUNKERWEB.SHM.TIMELEFT}"
+          value: 7d
+          description: "Raise a problem when a shared dictionary is projected to be exhausted within this time."
+        - macro: "{$BUNKERWEB.NODATA.TIMEOUT}"
+          value: 5m
+          description: "How long the exporter may be silent before it is considered unreachable."
+
+      tags:
+        - tag: class
+          value: application
+        - tag: target
+          value: bunkerweb
+  triggers:
+    - uuid: "9efc1f8ed8c94f9397bafdaefd40a1ee"
+      expression: "nodata(/BunkerWeb by HTTP/bw.scrape.ok,{$BUNKERWEB.NODATA.TIMEOUT})=1"
+      name: "BunkerWeb: Prometheus exporter is unreachable"
+      priority: AVERAGE
+      description: |
+        No scrape has succeeded within {$BUNKERWEB.NODATA.TIMEOUT}. Check that the
+        instance is up, that USE_PROMETHEUS_EXPORTER is yes, and that this Zabbix
+        server or proxy address is listed in PROMETHEUS_EXPORTER_ALLOW_IP.
+      tags:
+        - tag: scope
+          value: availability
+
+    - uuid: "6af644ca910c4d879719a9d564483939"
+      expression: "last(/BunkerWeb by HTTP/bw.scrape.ok)=0"
+      name: "BunkerWeb: Monitoring plugin is not initialized"
+      priority: AVERAGE
+      description: |
+        The exporter answered but returned no metrics. The Prometheus exporter plugin
+        reads data the monitoring plugin collects and replies 503 when that plugin was
+        never initialized. Set USE_MONITORING=yes.
+      dependencies:
+        - name: "BunkerWeb: Prometheus exporter is unreachable"
+          expression: "nodata(/BunkerWeb by HTTP/bw.scrape.ok,{$BUNKERWEB.NODATA.TIMEOUT})=1"
+      tags:
+        - tag: scope
+          value: availability
+
+    - uuid: "a37791dd476748ed83f95d77a557aa50"
+      expression: "change(/BunkerWeb by HTTP/bw.metric_errors)>0"
+      name: "BunkerWeb: Metric collection is reporting errors"
+      priority: WARNING
+      description: |
+        The metric library inside BunkerWeb recorded new errors, most often a shared
+        dictionary out of memory. While this is firing, every other value in this
+        template should be treated as incomplete.
+      tags:
+        - tag: scope
+          value: health

@@ -1,0 +1,2212 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 02e4df4f20b848e79267641790f241da
+      name: Templates/Virtualization
+  templates:
+    - uuid: 45f49ed2786642c19bf029992da75831
+      template: 'VMware ESXi 8 by SNMP'
+      name: 'VMware ESXi 8 by SNMP'
+      description: |
+        VMware ESXi 8.0 host monitoring over SNMP for Zabbix 7.0.
+        Rewritten from scratch against the MIB modules VMware ships for ESXi 8.0
+        (VMWARE-ESX-AGENTCAP-MIB vmwESX80x lists what the agent implements).
+
+        MIBs: SNMPv2-MIB, HOST-RESOURCES-MIB, IF-MIB, VMWARE-SYSTEM-MIB,
+        VMWARE-RESOURCES-MIB, VMWARE-VMINFO-MIB, VMWARE-ENV-MIB.
+        Monitors availability, uptime, ESXi version/build, CPU and memory
+        utilization, datastores, host bus adapters, disk devices, physical and
+        VMkernel network interfaces, the hostd/vpxa management agents, and the
+        power and guest state of every registered virtual machine.
+
+        Enable the agent on the host first, for example:
+          esxcli system snmp set --communities <community> --enable true
+          esxcli system snmp set --largestorage true
+        --largestorage is needed for datastores larger than 2 TB, otherwise
+        hrStorageSize saturates at INT_MAX. For SNMPv3 configure the user with
+        esxcli system snmp set --authentication/--privacy/--users.
+        SNMP version and credentials belong to the host interface.
+        The SNMP trap items need snmptrapd + Zabbix SNMP trapper and the host
+        configured as a trap target (esxcli system snmp set --targets).
+
+        See README.md for the full list of items, triggers and macros.
+      vendor:
+        name: Community
+        version: 7.0-1
+      groups:
+        - name: Templates/Virtualization
+      items:
+        - uuid: 7ea204be485d41ac827cdcdbbcf93511
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: icmpping
+          description: |
+            The host accessibility by ICMP ping.
+
+            0 - ICMP ping fails;
+            1 - ICMP ping successful.
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 8a9797ab66ca4b2493f52207fae454d9
+              expression: 'max(/VMware ESXi 8 by SNMP/icmpping,#3)=0'
+              name: 'VMware ESXi: Unavailable by ICMP ping'
+              priority: HIGH
+              description: 'Last three attempts returned timeout. Please check host connectivity.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 36d532a6cbfb49e683b470fe572d9409
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: icmppingloss
+          value_type: FLOAT
+          units: '%'
+          description: 'The percentage of lost packets.'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: eb94b0b786934b07a81e7c212b5ed190
+              expression: 'min(/VMware ESXi 8 by SNMP/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/VMware ESXi 8 by SNMP/icmppingloss,5m)<100'
+              name: 'VMware ESXi: High ICMP ping loss'
+              opdata: 'Loss: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'ICMP packets loss detected.'
+              dependencies:
+                - name: 'VMware ESXi: Unavailable by ICMP ping'
+                  expression: 'max(/VMware ESXi 8 by SNMP/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+        - uuid: 14cf74d69d8449439faf97f2cc210c5d
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: icmppingsec
+          value_type: FLOAT
+          units: s
+          description: 'The ICMP ping response time (in seconds).'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: c1384759d300476f9be59b5737aa98c1
+              expression: 'avg(/VMware ESXi 8 by SNMP/icmppingsec,5m)>{$ICMP_RESPONSE_TIME_WARN}'
+              name: 'VMware ESXi: High ICMP ping response time'
+              opdata: 'Value: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Average ICMP response time is too high.'
+              dependencies:
+                - name: 'VMware ESXi: High ICMP ping loss'
+                  expression: 'min(/VMware ESXi 8 by SNMP/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/VMware ESXi 8 by SNMP/icmppingloss,5m)<100'
+                - name: 'VMware ESXi: Unavailable by ICMP ping'
+                  expression: 'max(/VMware ESXi 8 by SNMP/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+        - uuid: 8e7639f2ed1a4b599eb7439de600734a
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          description: |
+            Availability of SNMP checks on the host. The value of this item corresponds to availability icons in the host list.
+            Possible values:
+            0 - not available
+            1 - available
+            2 - unknown
+          valuemap:
+            name: zabbix.host.available
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: c1f9ff9038b447b6a78dbec2103d4baa
+              expression: 'max(/VMware ESXi 8 by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              name: 'VMware ESXi: No SNMP data collection'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |
+                SNMP is not available for polling. Check that the agent is enabled
+                (esxcli system snmp get), that UDP 161 is allowed by the ESXi firewall
+                (esxcli network firewall ruleset list -r snmp) and the credentials match.
+              dependencies:
+                - name: 'VMware ESXi: Unavailable by ICMP ping'
+                  expression: 'max(/VMware ESXi 8 by SNMP/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 50ec50a4b0e545c58bf74e1bcda13609
+          name: 'SNMP traps (fallback)'
+          type: SNMP_TRAP
+          key: snmptrap.fallback
+          value_type: LOG
+          description: 'The item is used to collect all SNMP traps unmatched by other snmptrap items.'
+          logtimefmt: 'hh:mm:sszyyyy/MM/dd'
+          tags:
+            - tag: component
+              value: network
+        - uuid: 617e7db66e8e4ff0a96209b5830916b2
+          name: 'IPMI SEL event raised (trap)'
+          type: SNMP_TRAP
+          key: 'snmptrap["(vmwEnvIpmiSel(Full|MemoryRaised|PowerSupplyRaised|FanRaised|CpuRaised)|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.](390|400|410|420|430))([^0-9A-Za-z]|$)"]'
+          value_type: LOG
+          description: |
+            MIB: VMWARE-ENV-MIB
+            Collects the IPMI System Event Log notifications that report a problem:
+            vmwEnvIpmiSelFull (.390), vmwEnvIpmiSelMemoryRaised (.400),
+            vmwEnvIpmiSelPowerSupplyRaised (.410), vmwEnvIpmiSelFanRaised (.420),
+            vmwEnvIpmiSelCpuRaised (.430), under 1.3.6.1.4.1.6876.4.1.0.
+            Matches the notification by name (MIBs loaded in snmptrapd) or by numeric OID.
+          logtimefmt: 'hh:mm:sszyyyy/MM/dd'
+          tags:
+            - tag: component
+              value: hardware
+          triggers:
+            - uuid: d92eaae4e92d4227b9946cee5d69a425
+              expression: 'nodata(/VMware ESXi 8 by SNMP/snmptrap["(vmwEnvIpmiSel(Full|MemoryRaised|PowerSupplyRaised|FanRaised|CpuRaised)|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.](390|400|410|420|430))([^0-9A-Za-z]|$)"],{$ESXI.TRAP.EVENT.HOLD})=0'
+              name: 'VMware ESXi: IPMI hardware event raised'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |
+                The host sent an IPMI SEL notification for memory, power supply, fan or CPU,
+                or reported that the SEL is full. Check the event with
+                localcli hardware ipmi sel list
+                The problem closes by itself {$ESXI.TRAP.EVENT.HOLD} after the last such trap,
+                or can be closed manually.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 44c7fd4b32c6491c857b9bf51200efbb
+          name: 'IPMI SEL event cleared (trap)'
+          type: SNMP_TRAP
+          key: 'snmptrap["(vmwEnvIpmiSel(MemoryCleared|PowerSupplyCleared|FanCleared|CpuCleared)|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.](401|411|421|431))([^0-9A-Za-z]|$)"]'
+          value_type: LOG
+          description: |
+            MIB: VMWARE-ENV-MIB
+            Collects vmwEnvIpmiSel*Cleared notifications (.401, .411, .421, .431): a previously
+            asserted IPMI sensor has been deasserted. Kept for history; no trigger.
+          logtimefmt: 'hh:mm:sszyyyy/MM/dd'
+          tags:
+            - tag: component
+              value: hardware
+        - uuid: 7a0f1b2df95241c5867873542b78d91d
+          name: 'VM power state change (trap)'
+          type: SNMP_TRAP
+          key: 'snmptrap["(vmwVmPoweredOn|vmwVmPoweredOff|vmwVmSuspended|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.](1|2|5))([^0-9A-Za-z]|$)"]'
+          value_type: LOG
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            vmwVmPoweredOn (.1), vmwVmPoweredOff (.2), vmwVmSuspended (.5). Kept for history;
+            the VM discovery rule raises the alerts from polled state.
+          logtimefmt: 'hh:mm:sszyyyy/MM/dd'
+          tags:
+            - tag: component
+              value: vm
+        - uuid: 2a578440748744ba938046f54a4c304d
+          name: 'VM heartbeat lost (trap)'
+          type: SNMP_TRAP
+          key: 'snmptrap["(vmwVmHBLost|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.]3)([^0-9A-Za-z]|$)"]'
+          value_type: LOG
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            vmwVmHBLost (.3): a virtual machine stopped sending VMware Tools heartbeats.
+          logtimefmt: 'hh:mm:sszyyyy/MM/dd'
+          tags:
+            - tag: component
+              value: vm
+          triggers:
+            - uuid: 83a879d57131481f9b80afdb6816c641
+              expression: 'nodata(/VMware ESXi 8 by SNMP/snmptrap["(vmwVmHBLost|[.]1[.]3[.]6[.]1[.]4[.]1[.]6876[.]4[.]1[.]0[.]3)([^0-9A-Za-z]|$)"],{$ESXI.TRAP.EVENT.HOLD})=0'
+              name: 'VMware ESXi: Virtual machine guest heartbeat lost'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |
+                A VM stopped sending VMware Tools heartbeats - the guest OS may be hung.
+                The trap text carries vmwVmDisplayName. Closes by itself {$ESXI.TRAP.EVENT.HOLD}
+                after the last such trap, or manually.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 8403a08ee22a44bc9a58dbd179c34f2f
+          name: 'System contact details'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.4.0]'
+          key: 'system.contact[sysContact.0]'
+          delay: 15m
+          value_type: CHAR
+          description: |
+            MIB: SNMPv2-MIB
+            Set on ESXi with: esxcli system snmp set --syscontact "<text>"
+          inventory_link: CONTACT
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: system
+        - uuid: ad9477856276438282bb2d3bebfc385c
+          name: 'System description'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.1.0]'
+          key: 'system.descr[sysDescr.0]'
+          delay: 15m
+          value_type: CHAR
+          description: |
+            MIB: SNMPv2-MIB
+            On ESXi: "VMware ESXi <version> build-<build> VMware, Inc. x86_64".
+          inventory_link: OS
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: system
+        - uuid: 107832b90b8941ca937647137f4fc26a
+          name: 'System location'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.6.0]'
+          key: 'system.location[sysLocation.0]'
+          delay: 15m
+          value_type: CHAR
+          description: |
+            MIB: SNMPv2-MIB
+            Set on ESXi with: esxcli system snmp set --syslocation "<text>"
+          inventory_link: LOCATION
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: system
+        - uuid: aaa32df9282e467c85ad159bdf9fdde6
+          name: 'System name'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.5.0]'
+          key: system.name
+          delay: 15m
+          value_type: CHAR
+          description: |
+            MIB: SNMPv2-MIB
+            The host name of the ESXi host.
+          inventory_link: NAME
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 3b8619059d07422e9715d5e49fff8639
+              expression: 'last(/VMware ESXi 8 by SNMP/system.name,#1)<>last(/VMware ESXi 8 by SNMP/system.name,#2) and length(last(/VMware ESXi 8 by SNMP/system.name))>0'
+              name: 'VMware ESXi: System name has changed'
+              event_name: 'VMware ESXi: System name has changed (new name: {ITEM.VALUE})'
+              priority: INFO
+              description: 'The name of the system has changed. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+                - tag: scope
+                  value: security
+        - uuid: 9995a9babdde4b5db550263ef34076d8
+          name: 'System object ID'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.2.0]'
+          key: 'system.objectid[sysObjectID.0]'
+          delay: 15m
+          value_type: CHAR
+          description: |
+            MIB: SNMPv2-MIB
+            ESXi reports vmwESX, 1.3.6.1.4.1.6876.4.1 (VMWARE-PRODUCTS-MIB).
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: system
+        - uuid: 472fbdf11a8849108c7643db6035b64b
+          name: 'Uptime (network)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.3.0]'
+          key: 'system.net.uptime[sysUpTime.0]'
+          delay: 1m
+          trends: '0'
+          units: uptime
+          description: |
+            MIB: SNMPv2-MIB
+            Time since the SNMP agent (snmpd) was last started. Restarting the agent, or
+            changing its configuration with esxcli system snmp set, resets it while the host keeps
+            running - use "Uptime (hardware)" for reboots.
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+        - uuid: 1f22e3653aa849a2a8f2b162c7a05f46
+          name: 'Uptime (hardware)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.25.1.1.0]'
+          key: 'system.hw.uptime[hrSystemUptime.0]'
+          delay: 1m
+          trends: '0'
+          units: uptime
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            The amount of time since the host was last initialized (booted).
+
+            TimeTicks is an unsigned 32-bit count of hundredths of a second, so the value wraps
+            to zero after 497 days with no reboot involved. The restart trigger guards against
+            that with {$UPTIME.WRAP.THRESHOLD}.
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: dbf89bd0197a47bdb98604d7146b8430
+              expression: 'last(/VMware ESXi 8 by SNMP/system.hw.uptime[hrSystemUptime.0])<10m and max(/VMware ESXi 8 by SNMP/system.hw.uptime[hrSystemUptime.0],15m)<{$UPTIME.WRAP.THRESHOLD}'
+              name: 'VMware ESXi: Host has been restarted'
+              event_name: 'VMware ESXi: {HOST.NAME} has been restarted (uptime < 10m)'
+              priority: WARNING
+              description: |
+                Uptime is less than 10 minutes.
+                The max() guard suppresses the false alert produced when the 32-bit TimeTicks
+                counter wraps after 497 days.
+              manual_close: 'YES'
+              dependencies:
+                - name: 'VMware ESXi: No SNMP data collection'
+                  expression: 'max(/VMware ESXi 8 by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: a5b6373d1e694373b1cfbde64a0a96ba
+          name: 'ESXi Shell sessions'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.25.1.5.0]'
+          key: 'system.users.num[hrSystemNumUsers.0]'
+          delay: 5m
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            hrSystemNumUsers. On ESXi it reports the number of active ESXi Shell sessions
+            (VMWARE-ESX-AGENTCAP-MIB).
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 6e01059569254256aeba990575e6ec9f
+              expression: 'last(/VMware ESXi 8 by SNMP/system.users.num[hrSystemNumUsers.0])>{$ESXI.SHELL.SESSIONS.MAX}'
+              name: 'VMware ESXi: Active ESXi Shell sessions'
+              opdata: 'Sessions: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'Someone is logged in to the ESXi Shell. Raise {$ESXI.SHELL.SESSIONS.MAX} if shell access is expected.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 23478112589b4ec5bff4ec5a14b1d5f3
+          name: 'Number of processes'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.25.1.6.0]'
+          key: 'proc.num[hrSystemProcesses.0]'
+          delay: 5m
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            The number of process contexts currently loaded or running on the host.
+          tags:
+            - tag: component
+              value: system
+        - uuid: 0e815e50f99b438587b2c25fd974f072
+          name: 'Product name'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.1.1.0]'
+          key: 'vmware.product.name[vmwProdName.0]'
+          delay: 1h
+          value_type: CHAR
+          description: |
+            MIB: VMWARE-SYSTEM-MIB
+            vmwProdName. VIM property AboutInfo.name.
+          inventory_link: SOFTWARE
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 385ecddf30a544f8aa467ed93c011514
+          name: 'Product version'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.1.2.0]'
+          key: 'vmware.product.version[vmwProdVersion.0]'
+          delay: 1h
+          value_type: CHAR
+          description: |
+            MIB: VMWARE-SYSTEM-MIB
+            vmwProdVersion, format Major.Minor.Update. VIM property AboutInfo.version.
+          inventory_link: OS_SHORT
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 8025cf8f5ff04d1ca6719790022e1dd4
+          name: 'Product build'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.1.4.0]'
+          key: 'vmware.product.build[vmwProdBuild.0]'
+          delay: 1h
+          value_type: CHAR
+          description: |
+            MIB: VMWARE-SYSTEM-MIB
+            vmwProdBuild, the most specific build identifier. VIM property AboutInfo.build.
+          inventory_link: SOFTWARE_APP_A
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 22ebda0b967648f89d97fb195edd34b1
+              expression: 'last(/VMware ESXi 8 by SNMP/vmware.product.build[vmwProdBuild.0],#1)<>last(/VMware ESXi 8 by SNMP/vmware.product.build[vmwProdBuild.0],#2) and length(last(/VMware ESXi 8 by SNMP/vmware.product.build[vmwProdBuild.0]))>0'
+              name: 'VMware ESXi: ESXi build has changed'
+              event_name: 'VMware ESXi: ESXi build has changed (new build: {ITEM.VALUE})'
+              priority: INFO
+              description: 'The host has been patched or upgraded. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: c48429fe52294366b709e88f6801aede
+          name: 'Product update level'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.1.5.0]'
+          key: 'vmware.product.update[vmwProdUpdate.0]'
+          delay: 1h
+          value_type: CHAR
+          description: |
+            MIB: VMWARE-SYSTEM-MIB
+            vmwProdUpdate. Advanced option Misc.HostAgentUpdateLevel.
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: d27bde1edf5e4db4973a5d69014140fa
+          name: 'Product patch level'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.1.6.0]'
+          key: 'vmware.product.patch[vmwProdPatch.0]'
+          delay: 1h
+          value_type: CHAR
+          description: |
+            MIB: VMWARE-SYSTEM-MIB
+            vmwProdPatch. Same as the patch field of: esxcli system version get
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 87dccfe193f848e2b569b5337762d9bc
+          name: 'Number of physical CPUs'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.3.1.1.0]'
+          key: 'vmware.cpu.num[vmwNumCPUs.0]'
+          delay: 1h
+          description: |
+            MIB: VMWARE-RESOURCES-MIB
+            vmwNumCPUs, number of physical CPUs on the system.
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: 78a342ee036b4dcb9afe1cc95d95498f
+          name: 'hrProcessorLoad walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.25.3.3.1.2]'
+          key: 'system.cpu.walk[hrProcessorLoad]'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Master item: walks hrProcessorLoad, one row per logical CPU, and converts it to JSON.
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - load
+                - 1.3.6.1.2.1.25.3.3.1.2
+                - '0'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: ece153a9f0b844fb84dc43ad34bde0fb
+          name: 'CPU utilization'
+          type: DEPENDENT
+          key: system.cpu.util
+          value_type: FLOAT
+          units: '%'
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Average of hrProcessorLoad over all logical CPUs. Each hrProcessorLoad value is the
+            average percentage of time that CPU was not idle over the last minute.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$..load.avg()'
+          master_item:
+            key: 'system.cpu.walk[hrProcessorLoad]'
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: acd23931346c44da82213311a0d3fd4a
+              expression: 'min(/VMware ESXi 8 by SNMP/system.cpu.util,5m)>{$CPU.UTIL.CRIT}'
+              name: 'VMware ESXi: High CPU utilization'
+              event_name: 'VMware ESXi: High CPU utilization (over {$CPU.UTIL.CRIT}% for 5m)'
+              opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The CPU utilization of the host is too high. Virtual machines may see CPU ready time.'
+              dependencies:
+                - name: 'VMware ESXi: No SNMP data collection'
+                  expression: 'max(/VMware ESXi 8 by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: db31448406f24a8b8629b7d62753f30c
+          name: 'Number of logical CPUs'
+          type: DEPENDENT
+          key: system.cpu.num
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Number of rows in hrProcessorTable, one per logical CPU (thread).
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.length()'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: 'system.cpu.walk[hrProcessorLoad]'
+          tags:
+            - tag: component
+              value: cpu
+        - uuid: 9ad926a19fd74b50aa3458cb02c0aabd
+          name: 'Total memory (VMware)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.3.2.1.0]'
+          key: 'vmware.memory.size[vmwMemSize.0]'
+          delay: 1h
+          units: B
+          description: |
+            MIB: VMWARE-RESOURCES-MIB
+            vmwMemSize, physical memory present on the machine as provided by the hypervisor
+            (reported in kilobytes, converted to bytes).
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '1024'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: memory
+        - uuid: c933ed8fade5491da624691fba72c7d9
+          name: 'Memory available for VMs (VMware)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.3.2.3.0]'
+          key: 'vmware.memory.avail[vmwMemAvail.0]'
+          delay: 1h
+          units: B
+          description: |
+            MIB: VMWARE-RESOURCES-MIB
+            vmwMemAvail, memory available to run virtual machines and for hypervisor needs
+            (vmwMemSize - vmwMemCOS). A configuration figure, not free memory - free memory is in
+            the "Memory discovery" rule.
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '1024'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: memory
+        - uuid: 233189342ad64be5ade074b290914c86
+          name: 'Number of host bus adapters'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.3.5.1.0]'
+          key: 'vmware.hba.num[vmwHostBusAdapterNumber.0]'
+          delay: 15m
+          description: |
+            MIB: VMWARE-RESOURCES-MIB
+            vmwHostBusAdapterNumber, number of entries in vmwHostBusAdapterTable.
+          tags:
+            - tag: component
+              value: storage
+          triggers:
+            - uuid: f790936244ca445999f89f2579deedb4
+              expression: 'last(/VMware ESXi 8 by SNMP/vmware.hba.num[vmwHostBusAdapterNumber.0])<last(/VMware ESXi 8 by SNMP/vmware.hba.num[vmwHostBusAdapterNumber.0],#2)'
+              name: 'VMware ESXi: Number of host bus adapters has decreased'
+              opdata: 'Current: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'An HBA disappeared from the inventory - failed card, driver problem or hardware change. Acknowledge to close manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: b6d4f880261e4af583cf65997c090a90
+          name: 'Hardware status source'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.4.20.100.0]'
+          key: 'vmware.env.source[vmwEnvSource.0]'
+          delay: 1h
+          trends: '0'
+          description: |
+            MIB: VMWARE-ENV-MIB
+            vmwEnvSource: which source the agent uses for hardware state. ESXi 8 reports ipmi(4),
+            meaning snmpd reads the IPMI System Event Log directly.
+          valuemap:
+            name: 'VMWARE-ENV-MIB::vmwEnvSource'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: hardware
+        - uuid: 7c9d42216e0b4a9ca2490a0cd6f45e5f
+          name: 'IPMI SEL entries'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.4.20.1.0]'
+          key: 'vmware.env.sel.num[vmwEnvNumber.0]'
+          delay: 15m
+          description: |
+            MIB: VMWARE-ENV-MIB
+            vmwEnvNumber, count of rows in vmwEnvTable (entries of the IPMI System Event Log).
+          tags:
+            - tag: component
+              value: hardware
+          triggers:
+            - uuid: 62fd37c81a144123b98b4c962ce1e558
+              expression: 'last(/VMware ESXi 8 by SNMP/vmware.env.sel.num[vmwEnvNumber.0])>last(/VMware ESXi 8 by SNMP/vmware.env.sel.num[vmwEnvNumber.0],#2)'
+              name: 'VMware ESXi: New IPMI SEL entries'
+              opdata: 'Entries: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: |
+                The BMC wrote new entries in the IPMI System Event Log. Review them with
+                localcli hardware ipmi sel list
+                Works without SNMP traps. Acknowledge to close manually.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 9397ad3a6b844319ac9696c554ab8791
+          name: 'IPMI SEL capacity'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.6876.4.20.30.0]'
+          key: 'vmware.env.sel.capacity[vmwSELCapacity.0]'
+          delay: 15m
+          units: '%'
+          description: |
+            MIB: VMWARE-ENV-MIB
+            vmwSELCapacity (0..100). The MIB is ambiguous: the object is described as "free space
+            left", while the vmwEnvIpmiSelFull notification is sent when it "reaches 100% capacity".
+            Compare the value with "localcli hardware ipmi sel get" on your hardware before
+            enabling the trigger, which assumes percent used.
+          tags:
+            - tag: component
+              value: hardware
+          triggers:
+            - uuid: 70c8673d33b94ad1adb4a91b6e557745
+              expression: 'last(/VMware ESXi 8 by SNMP/vmware.env.sel.capacity[vmwSELCapacity.0])>={$ESXI.SEL.CAPACITY.MAX}'
+              name: 'VMware ESXi: IPMI System Event Log is almost full'
+              opdata: 'Capacity: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              status: DISABLED
+              description: |
+                DISABLED by default - see the item description: the meaning of vmwSELCapacity
+                (used or free) must be checked on your hardware first.
+                When the SEL is full new hardware events are dropped. Clear it with
+                localcli hardware ipmi sel clear
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 0be443f03d494580a35cc352b62e0213
+          name: 'hrSWRunName walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.25.4.2.1.2]'
+          key: 'system.sw.walk[hrSWRunName]'
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Master item: walks the names of the running processes and converts them to JSON.
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - name
+                - 1.3.6.1.2.1.25.4.2.1.2
+                - '0'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 5951e8854cfa492f971a0d0f53bf05b8
+          name: 'Number of hostd processes'
+          type: DEPENDENT
+          key: 'proc.num[hostd]'
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Number of hrSWRunName entries matching {$ESXI.PROC.HOSTD.MATCHES}. hostd is the host
+            management agent: without it vSphere Client, vCenter and the API cannot manage the host.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name =~ "{$ESXI.PROC.HOSTD.MATCHES}")].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'system.sw.walk[hrSWRunName]'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 754c5be851df4e2fa393ad0fe7ca9cc4
+              expression: 'max(/VMware ESXi 8 by SNMP/proc.num[hostd],10m)=0'
+              name: 'VMware ESXi: Management agent hostd is not running'
+              priority: HIGH
+              description: |
+                No process matching {$ESXI.PROC.HOSTD.MATCHES} for 10 minutes. The host cannot be
+                managed. Restart it from the DCUI or ESXi Shell: /etc/init.d/hostd restart
+              dependencies:
+                - name: 'VMware ESXi: No SNMP data collection'
+                  expression: 'max(/VMware ESXi 8 by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: c8200c107956408ca759567340931fa0
+          name: 'Number of vpxa processes'
+          type: DEPENDENT
+          key: 'proc.num[vpxa]'
+          description: |
+            MIB: HOST-RESOURCES-MIB
+            Number of hrSWRunName entries matching {$ESXI.PROC.VPXA.MATCHES}. vpxa is the vCenter
+            agent; it only runs on a host that has been added to vCenter.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name =~ "{$ESXI.PROC.VPXA.MATCHES}")].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'system.sw.walk[hrSWRunName]'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: d3a9b893a20a44779ae3782f5d122d0e
+              expression: '{$ESXI.VPXA.CONTROL}=1 and max(/VMware ESXi 8 by SNMP/proc.num[vpxa],10m)=0'
+              name: 'VMware ESXi: vCenter agent vpxa is not running'
+              priority: AVERAGE
+              description: |
+                No process matching {$ESXI.PROC.VPXA.MATCHES} for 10 minutes: vCenter sees the host
+                as disconnected. Set {$ESXI.VPXA.CONTROL} to 0 on standalone hosts.
+                Restart it with: /etc/init.d/vpxa restart
+              dependencies:
+                - name: 'VMware ESXi: Management agent hostd is not running'
+                  expression: 'max(/VMware ESXi 8 by SNMP/proc.num[hostd],10m)=0'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 0ed368b4e5c142289bb1485d9e86db0a
+          name: 'vmwVmTable walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.6876.2.1.1.2,1.3.6.1.4.1.6876.2.1.1.4,1.3.6.1.4.1.6876.2.1.1.5,1.3.6.1.4.1.6876.2.1.1.6,1.3.6.1.4.1.6876.2.1.1.8,1.3.6.1.4.1.6876.2.1.1.9,1.3.6.1.4.1.6876.2.1.1.10]'
+          key: 'vmware.vm.walk[vmwVmTable]'
+          delay: 3m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            Master item: walks vmwVmTable (name, guest OS, memory, power state, guest state, vCPUs,
+            UUID) and converts it to JSON. The VM discovery rule and its items depend on it.
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - name
+                - 1.3.6.1.4.1.6876.2.1.1.2
+                - '0'
+                - guestos
+                - 1.3.6.1.4.1.6876.2.1.1.4
+                - '0'
+                - memory
+                - 1.3.6.1.4.1.6876.2.1.1.5
+                - '0'
+                - state
+                - 1.3.6.1.4.1.6876.2.1.1.6
+                - '0'
+                - gueststate
+                - 1.3.6.1.4.1.6876.2.1.1.8
+                - '0'
+                - cpus
+                - 1.3.6.1.4.1.6876.2.1.1.9
+                - '0'
+                - uuid
+                - 1.3.6.1.4.1.6876.2.1.1.10
+                - '0'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 00bb752c84614fcb96d4d310a1350aa4
+          name: 'Number of registered VMs'
+          type: DEPENDENT
+          key: vmware.vm.count
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            Number of virtual machines registered on the host (rows in vmwVmTable).
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'vmware.vm.walk[vmwVmTable]'
+          tags:
+            - tag: component
+              value: vm
+        - uuid: ccd6eb04d60e428caf01a82845bda230
+          name: 'Number of powered on VMs'
+          type: DEPENDENT
+          key: 'vmware.vm.count[poweredOn]'
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            Number of VMs whose vmwVmState is powered on.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.state =~ "(?i)^powered ?on$")].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'vmware.vm.walk[vmwVmTable]'
+          tags:
+            - tag: component
+              value: vm
+        - uuid: 7abdeefb857849619723bf8f54365558
+          name: 'Number of powered off VMs'
+          type: DEPENDENT
+          key: 'vmware.vm.count[poweredOff]'
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            Number of VMs whose vmwVmState is powered off.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.state =~ "(?i)^powered ?off$")].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'vmware.vm.walk[vmwVmTable]'
+          tags:
+            - tag: component
+              value: vm
+        - uuid: 29bc1249e0094b5a958e792815b3f81a
+          name: 'Number of suspended VMs'
+          type: DEPENDENT
+          key: 'vmware.vm.count[suspended]'
+          description: |
+            MIB: VMWARE-VMINFO-MIB
+            Number of VMs whose vmwVmState is suspended.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.state =~ "(?i)^suspended$")].length()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: 'vmware.vm.walk[vmwVmTable]'
+          tags:
+            - tag: component
+              value: vm
+      discovery_rules:
+        - uuid: ab21ef397f1f452e982cd97ac71c993e
+          name: 'Memory discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#MEMNAME},1.3.6.1.2.1.25.2.3.1.3,{#MEMTYPE},1.3.6.1.2.1.25.2.3.1.2,{#ALLOC_UNITS},1.3.6.1.2.1.25.2.3.1.4]'
+          key: vm.memory.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#MEMTYPE}'
+                value: '{$MEMORY.TYPE.MATCHES}'
+                formulaid: A
+          description: |
+            MIB: HOST-RESOURCES-MIB, hrStorageTable
+            Discovers the physical memory row (hrStorageType = hrStorageRam, "Real Memory" on ESXi).
+          item_prototypes:
+            - uuid: 0b56c9d2f32b485695eeee7c33d548c8
+              name: '{#MEMNAME}: Total memory'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.2.3.1.5.{#SNMPINDEX}]'
+              key: 'vm.memory.total[hrStorageSize.{#SNMPINDEX}]'
+              delay: 15m
+              units: B
+              description: |
+                MIB: HOST-RESOURCES-MIB
+                hrStorageSize multiplied by hrStorageAllocationUnits.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '{#ALLOC_UNITS}'
+              tags:
+                - tag: component
+                  value: memory
+            - uuid: 0882ea1b2b6840d9b3bec2e7a298a989
+              name: '{#MEMNAME}: Used memory'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.2.3.1.6.{#SNMPINDEX}]'
+              key: 'vm.memory.used[hrStorageUsed.{#SNMPINDEX}]'
+              units: B
+              description: |
+                MIB: HOST-RESOURCES-MIB
+                hrStorageUsed multiplied by hrStorageAllocationUnits. Memory consumed by the
+                VMkernel and virtual machines.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '{#ALLOC_UNITS}'
+              tags:
+                - tag: component
+                  value: memory
+            - uuid: 9d706f0682f74e5ba0ed2506e30a569f
+              name: '{#MEMNAME}: Memory utilization'
+              type: CALCULATED
+              key: 'vm.memory.util[memoryUsedPercentage.{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: 'last(//vm.memory.used[hrStorageUsed.{#SNMPINDEX}])/last(//vm.memory.total[hrStorageSize.{#SNMPINDEX}])*100'
+              description: 'Memory utilization in %.'
+              tags:
+                - tag: component
+                  value: memory
+              trigger_prototypes:
+                - uuid: ebad1b4c1ef343f98c4b81878722b985
+                  expression: 'min(/VMware ESXi 8 by SNMP/vm.memory.util[memoryUsedPercentage.{#SNMPINDEX}],5m)>{$MEMORY.UTIL.MAX}'
+                  name: 'VMware ESXi: High memory utilization'
+                  event_name: 'VMware ESXi: High memory utilization (>{$MEMORY.UTIL.MAX}% for 5m)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'The host is running out of free memory. Expect ballooning, compression and swapping on VMs.'
+                  tags:
+                    - tag: scope
+                      value: capacity
+                    - tag: scope
+                      value: performance
+          graph_prototypes:
+            - uuid: 44c1facfd1714e64a55bda48c58e85f3
+              name: 'VMware ESXi: {#MEMNAME}: Memory usage'
+              ymin_type_1: FIXED
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'vm.memory.total[hrStorageSize.{#SNMPINDEX}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'vm.memory.used[hrStorageUsed.{#SNMPINDEX}]'
+        - uuid: e5ca7cabcc8f4f2d97bf6ba848ae8ece
+          name: 'Datastore discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#FSNAME},1.3.6.1.2.1.25.2.3.1.3,{#FSTYPE},1.3.6.1.2.1.25.2.3.1.2,{#ALLOC_UNITS},1.3.6.1.2.1.25.2.3.1.4]'
+          key: vfs.fs.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#FSTYPE}'
+                value: '{$VFS.FS.FSTYPE.MATCHES}'
+                formulaid: A
+              - macro: '{#FSNAME}'
+                value: '{$VFS.FS.FSNAME.MATCHES}'
+                formulaid: B
+              - macro: '{#FSNAME}'
+                value: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: C
+              - macro: '{#FSUUID}'
+                value: '{$VFS.FS.FSUUID.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: D
+          description: |
+            MIB: HOST-RESOURCES-MIB, hrStorageTable
+            Discovers datastores (hrStorageType = hrStorageFixedDisk). ESXi does not report
+            visorfs ramdisks here.
+
+            Intended for host-local storage only. A SAN datastore is mounted by every host of the
+            cluster and reported by each of them with the same UUID, so it would be polled N times
+            and raise N identical problems. Shared datastores are monitored by a separate template:
+            exclude them here with {$VFS.FS.FSUUID.NOT_MATCHES}, set on the cluster host group.
+            SNMP cannot detect them automatically: hrPartitionFSIndex returns a per-device counter
+            instead of the hrFSTable index, so a datastore cannot be linked to its LUN.
+
+            ESXi SNMP has no friendly datastore name: hrStorageDescr and hrFSMountPoint both
+            return /vmfs/volumes/<uuid>, and hrFSRemoteMountPoint is empty for VMFS.
+            A JavaScript step strips the prefix into {#FSUUID}, which is used in names, tags and
+            macro contexts. Map UUIDs to datastore names with: esxcli storage filesystem list
+
+            hrStorageSize is an Integer32: without "esxcli system snmp set --largestorage true"
+            a datastore larger than 2 TB is reported as INT_MAX allocation units and the
+            percentages below are wrong.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var rows = Array.isArray(data) ? data : data.data;
+                  if (!Array.isArray(rows)) {
+                      throw 'Expected an SNMP discovery array';
+                  }
+                  for (var i = 0; i < rows.length; i++) {
+                      var name = String(rows[i]['{#FSNAME}'] || '');
+                      rows[i]['{#FSUUID}'] = name.replace(/^\/vmfs\/volumes\//, '') || ('index ' + rows[i]['{#SNMPINDEX}']);
+                  }
+                  return JSON.stringify(rows);
+          item_prototypes:
+            - uuid: d4a1054820294135be50a7f02740188c
+              name: 'Datastore [{#FSUUID}]: Space utilization'
+              type: CALCULATED
+              key: 'vfs.fs.pused[storageUsedPercentage.{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: 'last(//vfs.fs.used[hrStorageUsed.{#SNMPINDEX}])/last(//vfs.fs.total[hrStorageSize.{#SNMPINDEX}])*100'
+              description: 'Space utilization in % for datastore {#FSUUID} ({#FSNAME}).'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: datastore
+                  value: '{#FSUUID}'
+              trigger_prototypes:
+                - uuid: c0b62dcada9a4e9cb3f9b9d32cb48e11
+                  expression: 'last(/VMware ESXi 8 by SNMP/vfs.fs.pused[storageUsedPercentage.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.CRIT:"{#FSUUID}"}'
+                  name: 'VMware ESXi: Datastore [{#FSUUID}]: Space is critically low'
+                  event_name: 'VMware ESXi: Datastore [{#FSUUID}]: Space is critically low (used > {$VFS.FS.PUSED.MAX.CRIT:"{#FSUUID}"}%)'
+                  opdata: 'Space used: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: |
+                    Thin-provisioned disks and snapshots keep growing; a full VMFS datastore
+                    suspends the VMs that need to write to it.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: datastore
+                      value: '{#FSUUID}'
+                    - tag: scope
+                      value: capacity
+                - uuid: 4f25adfd65804754a2d094392d4010ce
+                  expression: 'last(/VMware ESXi 8 by SNMP/vfs.fs.pused[storageUsedPercentage.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.WARN:"{#FSUUID}"}'
+                  name: 'VMware ESXi: Datastore [{#FSUUID}]: Space is low'
+                  event_name: 'VMware ESXi: Datastore [{#FSUUID}]: Space is low (used > {$VFS.FS.PUSED.MAX.WARN:"{#FSUUID}"}%)'
+                  opdata: 'Space used: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Datastore usage is above the warning threshold.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'VMware ESXi: Datastore [{#FSUUID}]: Space is critically low'
+                      expression: 'last(/VMware ESXi 8 by SNMP/vfs.fs.pused[storageUsedPercentage.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.CRIT:"{#FSUUID}"}'
+                  tags:
+                    - tag: datastore
+                      value: '{#FSUUID}'
+                    - tag: scope
+                      value: capacity
+            - uuid: 99950803f8f04ce0bc0c7ee2a2e9025c
+              name: 'Datastore [{#FSUUID}]: Total space'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.2.3.1.5.{#SNMPINDEX}]'
+              key: 'vfs.fs.total[hrStorageSize.{#SNMPINDEX}]'
+              delay: 15m
+              units: B
+              description: |
+                MIB: HOST-RESOURCES-MIB
+                hrStorageSize multiplied by hrStorageAllocationUnits.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '{#ALLOC_UNITS}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: datastore
+                  value: '{#FSUUID}'
+            - uuid: c8a12777ee8245f9a756de844f96edb3
+              name: 'Datastore [{#FSUUID}]: Used space'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.2.3.1.6.{#SNMPINDEX}]'
+              key: 'vfs.fs.used[hrStorageUsed.{#SNMPINDEX}]'
+              delay: 5m
+              units: B
+              description: |
+                MIB: HOST-RESOURCES-MIB
+                hrStorageUsed multiplied by hrStorageAllocationUnits.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '{#ALLOC_UNITS}'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: datastore
+                  value: '{#FSUUID}'
+          graph_prototypes:
+            - uuid: 06acae54372a4ec7974657e830dc04d2
+              name: 'VMware ESXi: Datastore [{#FSUUID}]: Space usage'
+              ymin_type_1: FIXED
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'vfs.fs.total[hrStorageSize.{#SNMPINDEX}]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'vfs.fs.used[hrStorageUsed.{#SNMPINDEX}]'
+        - uuid: f2ff3d18bbe247adae447188b04ef72e
+          name: 'Host bus adapter discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#HBA.NAME},1.3.6.1.4.1.6876.3.5.2.1.2,{#HBA.MODEL},1.3.6.1.4.1.6876.3.5.2.1.5,{#HBA.DRIVER},1.3.6.1.4.1.6876.3.5.2.1.6]'
+          key: vmware.hba.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#HBA.NAME}'
+                value: '{$ESXI.HBA.NAME.MATCHES}'
+                formulaid: A
+              - macro: '{#HBA.NAME}'
+                value: '{$ESXI.HBA.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: |
+            MIB: VMWARE-RESOURCES-MIB, vmwHostBusAdapterTable (1.3.6.1.4.1.6876.3.5.2.1)
+            Discovers the storage adapters (vmhbaN) - the same list as esxcfg-scsidevs -a.
+          item_prototypes:
+            - uuid: 814e0f8b033b4f5490e0c801c66badf7
+              name: 'HBA {#HBA.NAME}: Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.6876.3.5.2.1.4.{#SNMPINDEX}]'
+              key: 'vmware.hba.status[vmwHbaStatus.{#SNMPINDEX}]'
+              delay: 3m
+              trends: '0'
+              description: |
+                MIB: VMWARE-RESOURCES-MIB
+                vmwHbaStatus, operational status of {#HBA.MODEL} (driver {#HBA.DRIVER}):
+                unknown(1), normal(2), marginal(3), critical(4), failed(5).
+                Software adapters (iSCSI, NVMe over TCP...) often report unknown(1).
+              valuemap:
+                name: 'VMWARE-TC-MIB::VmwSubsystemStatus'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: hba
+                  value: '{#HBA.NAME}'
+              trigger_prototypes:
+                - uuid: ecf0c94e61104fde99c5945958d8370d
+                  expression: 'last(/VMware ESXi 8 by SNMP/vmware.hba.status[vmwHbaStatus.{#SNMPINDEX}])>={$ESXI.SUBSYSTEM.CRIT.STATUS}'
+                  name: 'VMware ESXi: HBA {#HBA.NAME}: Adapter is in critical state'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: 'Storage adapter {#HBA.NAME} ({#HBA.MODEL}) reports critical(4) or failed(5). Paths through it are probably down.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 80db0b110bce49f29e9cbfc46f818d8c
+                  expression: 'last(/VMware ESXi 8 by SNMP/vmware.hba.status[vmwHbaStatus.{#SNMPINDEX}])={$ESXI.SUBSYSTEM.WARN.STATUS}'
+                  name: 'VMware ESXi: HBA {#HBA.NAME}: Adapter is in warning state'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Storage adapter {#HBA.NAME} ({#HBA.MODEL}) reports marginal(3).'
+                  dependencies:
+                    - name: 'VMware ESXi: HBA {#HBA.NAME}: Adapter is in critical state'
+                      expression: 'last(/VMware ESXi 8 by SNMP/vmware.hba.status[vmwHbaStatus.{#SNMPINDEX}])>={$ESXI.SUBSYSTEM.CRIT.STATUS}'
+                  tags:
+                    - tag: scope
+                      value: availability
+        - uuid: ff4b0d349a574b3683d5046d50fe6f76
+          name: 'Disk device discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#DEV.DESCR},1.3.6.1.2.1.25.3.2.1.3,{#DEV.TYPE},1.3.6.1.2.1.25.3.2.1.2]'
+          key: system.hw.device.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#DEV.TYPE}'
+                value: '{$ESXI.HRDEVICE.TYPE.MATCHES}'
+                formulaid: A
+              - macro: '{#DEV.DESCR}'
+                value: '{$ESXI.HRDEVICE.DESCR.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: |
+            MIB: HOST-RESOURCES-MIB, hrDeviceTable
+            Discovers the devices whose hrDeviceType matches {$ESXI.HRDEVICE.TYPE.MATCHES}, by default
+            disk storage (hrDeviceDiskStorage). ESXi reports running/warning/down/unknown for
+            disks; CPUs always report unknown, so they are not discovered by default.
+          item_prototypes:
+            - uuid: 64b3bacaf33242e3b006c7317741c320
+              name: 'Device [{#DEV.DESCR}]: Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.3.2.1.5.{#SNMPINDEX}]'
+              key: 'system.hw.device.status[hrDeviceStatus.{#SNMPINDEX}]'
+              delay: 3m
+              trends: '0'
+              description: |
+                MIB: HOST-RESOURCES-MIB
+                hrDeviceStatus: unknown(1), running(2), warning(3), testing(4), down(5).
+              valuemap:
+                name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: device
+                  value: '{#DEV.DESCR}'
+              trigger_prototypes:
+                - uuid: 1edfd14d8fd440b696144addbbc0ecf9
+                  expression: 'last(/VMware ESXi 8 by SNMP/system.hw.device.status[hrDeviceStatus.{#SNMPINDEX}])={$ESXI.HRDEVICE.CRIT.STATUS}'
+                  name: 'VMware ESXi: Device [{#DEV.DESCR}]: Device is down'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: 'The device reports down(5). Check the device and its paths: esxcli storage core device list'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: eaa739a6ae2a4d4a82ececeffba365e7
+                  expression: 'last(/VMware ESXi 8 by SNMP/system.hw.device.status[hrDeviceStatus.{#SNMPINDEX}])={$ESXI.HRDEVICE.WARN.STATUS}'
+                  name: 'VMware ESXi: Device [{#DEV.DESCR}]: Device is in warning state'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The device reports warning(3), for example a degraded path or a disk reporting errors.'
+                  dependencies:
+                    - name: 'VMware ESXi: Device [{#DEV.DESCR}]: Device is down'
+                      expression: 'last(/VMware ESXi 8 by SNMP/system.hw.device.status[hrDeviceStatus.{#SNMPINDEX}])={$ESXI.HRDEVICE.CRIT.STATUS}'
+                  tags:
+                    - tag: scope
+                      value: availability
+        - uuid: a75d070e2e1f44f383bde9b20a45c34f
+          name: 'Virtual machine discovery'
+          type: DEPENDENT
+          key: vmware.vm.discovery
+          delay: '0'
+          lifetime: 7d
+          enabled_lifetime_type: DISABLE_NEVER
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#VM.UUID}'
+                value: '^.+$'
+                formulaid: A
+              - macro: '{#VM.NAME}'
+                value: '{$ESXI.VM.NAME.MATCHES}'
+                formulaid: B
+              - macro: '{#VM.NAME}'
+                value: '{$ESXI.VM.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: C
+          description: |
+            MIB: VMWARE-VMINFO-MIB, vmwVmTable (1.3.6.1.4.1.6876.2.1.1)
+            Discovers the virtual machines registered on the host.
+
+            vmwVmIdx may change when the host reboots, so the items are not keyed by SNMP index:
+            each one is a dependent item of "vmwVmTable walk" that picks its row by vmwVmUUID.
+            A VM that is unregistered or migrated away stops matching; its items become
+            unsupported and are deleted after 7 days.
+          item_prototypes:
+            - uuid: 889f616c88aa47f7b61eaf85e831714c
+              name: 'VM {#VM.NAME}: Power state'
+              type: DEPENDENT
+              key: 'vmware.vm.power.state["{#VM.UUID}"]'
+              delay: '0'
+              trends: '0'
+              description: |
+                MIB: VMWARE-VMINFO-MIB
+                vmwVmState converted to a number: 0 powered off, 1 powered on, 2 suspended, 3 unknown.
+              valuemap:
+                name: 'VMware VM power state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.uuid == "{#VM.UUID}")].state.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var s = String(value).toLowerCase().replace(/[^a-z]/g, '');
+                      if (s === 'poweredon') return 1;
+                      if (s === 'poweredoff') return 0;
+                      if (s === 'suspended') return 2;
+                      return 3;
+              master_item:
+                key: 'vmware.vm.walk[vmwVmTable]'
+              tags:
+                - tag: component
+                  value: vm
+                - tag: vm
+                  value: '{#VM.NAME}'
+              trigger_prototypes:
+                - uuid: 39d99f544e314815b95a5e30b10d60c2
+                  expression: '{$ESXI.VM.POWER.CONTROL:"{#VM.NAME}"}=1 and last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])<>1 and last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"],#2)=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])=1 or {$ESXI.VM.POWER.CONTROL:"{#VM.NAME}"}=0'
+                  name: 'VMware ESXi: VM {#VM.NAME}: Virtual machine is not powered on'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: |
+                    The VM left the powered on state (powered off or suspended).
+                    Fires on the change only, so VMs that are kept off on purpose never alert. The
+                    problem stays open until the VM is powered on again or closed manually.
+                    Silence one VM with {$ESXI.VM.POWER.CONTROL:"<vm name>"}=0.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 009203bd27fe4736b77a5135bcd720c7
+              name: 'VM {#VM.NAME}: Guest state'
+              type: DEPENDENT
+              key: 'vmware.vm.guest.state["{#VM.UUID}"]'
+              delay: '0'
+              trends: '0'
+              description: |
+                MIB: VMWARE-VMINFO-MIB
+                vmwVmGuestState converted to a number: 0 notrunning, 1 running, 2 shuttingdown,
+                3 resetting, 4 standby, 5 unknown. Needs VMware Tools in the guest.
+              valuemap:
+                name: 'VMware VM guest state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.uuid == "{#VM.UUID}")].gueststate.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var s = String(value).toLowerCase().replace(/[^a-z]/g, '');
+                      var map = {notrunning: 0, running: 1, shuttingdown: 2, resetting: 3, standby: 4};
+                      return map.hasOwnProperty(s) ? map[s] : 5;
+              master_item:
+                key: 'vmware.vm.walk[vmwVmTable]'
+              tags:
+                - tag: component
+                  value: vm
+                - tag: vm
+                  value: '{#VM.NAME}'
+            - uuid: f3abc80729c64de598be292c7a19b22c
+              name: 'VM {#VM.NAME}: Guest OS'
+              type: DEPENDENT
+              key: 'vmware.vm.guest.os["{#VM.UUID}"]'
+              delay: '0'
+              value_type: CHAR
+              description: |
+                MIB: VMWARE-VMINFO-MIB
+                vmwVmGuestOS. Values starting with "E:" mean VMware Tools is not running.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.uuid == "{#VM.UUID}")].guestos.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'vmware.vm.walk[vmwVmTable]'
+              tags:
+                - tag: component
+                  value: vm
+                - tag: vm
+                  value: '{#VM.NAME}'
+            - uuid: 014dc92c489b49d9846ede4d5765b510
+              name: 'VM {#VM.NAME}: Number of vCPUs'
+              type: DEPENDENT
+              key: 'vmware.vm.cpu.num["{#VM.UUID}"]'
+              delay: '0'
+              description: |
+                MIB: VMWARE-VMINFO-MIB
+                vmwVmCpus, virtual CPUs assigned to the VM.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.uuid == "{#VM.UUID}")].cpus.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'vmware.vm.walk[vmwVmTable]'
+              tags:
+                - tag: component
+                  value: vm
+                - tag: vm
+                  value: '{#VM.NAME}'
+            - uuid: 0b4da9a3ff134a7e8c6e1a174736a0e0
+              name: 'VM {#VM.NAME}: Configured memory'
+              type: DEPENDENT
+              key: 'vmware.vm.memory.size["{#VM.UUID}"]'
+              delay: '0'
+              units: B
+              description: |
+                MIB: VMWARE-VMINFO-MIB
+                vmwVmMemSize, memory configured for the VM (megabytes, converted to bytes).
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.uuid == "{#VM.UUID}")].memory.first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '1048576'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'vmware.vm.walk[vmwVmTable]'
+              tags:
+                - tag: component
+                  value: vm
+                - tag: vm
+                  value: '{#VM.NAME}'
+          trigger_prototypes:
+            - uuid: 02cdff089417458e8de3c25f4362329e
+              expression: '{$ESXI.VM.GUEST.CONTROL:"{#VM.NAME}"}=1 and last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])=1 and last(/VMware ESXi 8 by SNMP/vmware.vm.guest.state["{#VM.UUID}"])<>1 and last(/VMware ESXi 8 by SNMP/vmware.vm.guest.state["{#VM.UUID}"],#2)=1'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/VMware ESXi 8 by SNMP/vmware.vm.guest.state["{#VM.UUID}"])=1 or last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])<>1 or {$ESXI.VM.GUEST.CONTROL:"{#VM.NAME}"}=0'
+              name: 'VMware ESXi: VM {#VM.NAME}: Guest OS is not running'
+              opdata: 'Guest state: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: |
+                The VM is powered on but the guest state left running - the guest OS is shutting
+                down, rebooting, hung, or VMware Tools stopped. Fires on the change only, so VMs
+                without VMware Tools never alert. Silence one VM with
+                {$ESXI.VM.GUEST.CONTROL:"<vm name>"}=0.
+              manual_close: 'YES'
+              dependencies:
+                - name: 'VMware ESXi: VM {#VM.NAME}: Virtual machine is not powered on'
+                  expression: '{$ESXI.VM.POWER.CONTROL:"{#VM.NAME}"}=1 and last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])<>1 and last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"],#2)=1'
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/vmware.vm.power.state["{#VM.UUID}"])=1 or {$ESXI.VM.POWER.CONTROL:"{#VM.NAME}"}=0'
+              tags:
+                - tag: scope
+                  value: availability
+          master_item:
+            key: 'vmware.vm.walk[vmwVmTable]'
+          lld_macro_paths:
+            - lld_macro: '{#VM.NAME}'
+              path: $.name
+            - lld_macro: '{#VM.UUID}'
+              path: $.uuid
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  if (!Array.isArray(rows)) {
+                      throw 'Expected a JSON array from SNMP_WALK_TO_JSON';
+                  }
+                  var out = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      out.push({name: String(rows[i].name || ''), uuid: String(rows[i].uuid || '')});
+                  }
+                  out.sort(function (a, b) { return a.uuid < b.uuid ? -1 : (a.uuid > b.uuid ? 1 : 0); });
+                  return JSON.stringify(out);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+        - uuid: 24bc03ab560f44caa828c00ff081cd6f
+          name: 'Network interfaces discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFOPERSTATUS},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: net.if.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFADMINSTATUS}'
+                value: '{$NET.IF.IFADMINSTATUS.MATCHES}'
+                formulaid: A
+              - macro: '{#IFADMINSTATUS}'
+                value: '{$NET.IF.IFADMINSTATUS.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#IFALIAS}'
+                value: '{$NET.IF.IFALIAS.MATCHES}'
+                formulaid: C
+              - macro: '{#IFALIAS}'
+                value: '{$NET.IF.IFALIAS.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: D
+              - macro: '{#IFDESCR}'
+                value: '{$NET.IF.IFDESCR.MATCHES}'
+                formulaid: E
+              - macro: '{#IFDESCR}'
+                value: '{$NET.IF.IFDESCR.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: F
+              - macro: '{#IFNAME}'
+                value: '{$NET.IF.IFNAME.MATCHES}'
+                formulaid: G
+              - macro: '{#IFNAME}'
+                value: '{$NET.IF.IFNAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: H
+              - macro: '{#IFOPERSTATUS}'
+                value: '{$NET.IF.IFOPERSTATUS.MATCHES}'
+                formulaid: I
+              - macro: '{#IFOPERSTATUS}'
+                value: '{$NET.IF.IFOPERSTATUS.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: J
+              - macro: '{#IFTYPE}'
+                value: '{$NET.IF.IFTYPE.MATCHES}'
+                formulaid: K
+              - macro: '{#IFTYPE}'
+                value: '{$NET.IF.IFTYPE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: L
+          description: |
+            MIB: IF-MIB
+            Discovers the physical NICs (vmnicN, ifType ethernetCsmacd(6)) and the VMkernel
+            interfaces (vmkN). ifAdminStatus is read-only on ESXi. ifName falls back to ifDescr,
+            then to the SNMP index.
+          item_prototypes:
+            - uuid: a3187a0ce163467e801b6544acc3251f
+              name: 'Interface {#IFNAME}({#IFALIAS}): Inbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}]'
+              key: 'net.if.in.discards[ifInDiscards.{#SNMPINDEX}]'
+              delay: 3m
+              description: |
+                MIB: IF-MIB
+                The number of inbound packets which were chosen to be discarded even though no errors had been detected.
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 846a2239b40842f6ac98919d6f41c31e
+              name: 'Interface {#IFNAME}({#IFALIAS}): Inbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}]'
+              key: 'net.if.in.errors[ifInErrors.{#SNMPINDEX}]'
+              delay: 3m
+              description: |
+                MIB: IF-MIB
+                The number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol.
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 0c487666a6034ceab96369855ca85291
+              name: 'Interface {#IFNAME}({#IFALIAS}): Bits received'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.31.1.1.1.6.{#SNMPINDEX}]'
+              key: 'net.if.in[ifHCInOctets.{#SNMPINDEX}]'
+              delay: 3m
+              units: bps
+              description: |
+                MIB: IF-MIB
+                ifHCInOctets, 64-bit count of octets received (needs SNMPv2c or SNMPv3).
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 45d665dbd75e4a939f1422820c2419b9
+              name: 'Interface {#IFNAME}({#IFALIAS}): Outbound packets discarded'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}]'
+              key: 'net.if.out.discards[ifOutDiscards.{#SNMPINDEX}]'
+              delay: 3m
+              description: |
+                MIB: IF-MIB
+                The number of outbound packets which were chosen to be discarded even though no errors had been detected.
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: d8a061a6e5854248907a03b0c4047fa8
+              name: 'Interface {#IFNAME}({#IFALIAS}): Outbound packets with errors'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}]'
+              key: 'net.if.out.errors[ifOutErrors.{#SNMPINDEX}]'
+              delay: 3m
+              description: |
+                MIB: IF-MIB
+                The number of outbound packets that could not be transmitted because of errors.
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 70a6febf1b4d431799993fa4f770eae1
+              name: 'Interface {#IFNAME}({#IFALIAS}): Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.31.1.1.1.10.{#SNMPINDEX}]'
+              key: 'net.if.out[ifHCOutOctets.{#SNMPINDEX}]'
+              delay: 3m
+              units: bps
+              description: |
+                MIB: IF-MIB
+                ifHCOutOctets, 64-bit count of octets transmitted (needs SNMPv2c or SNMPv3).
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 77df489c595a4fcdad0996836d8c30bd
+              name: 'Interface {#IFNAME}({#IFALIAS}): Speed'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}]'
+              key: 'net.if.speed[ifHighSpeed.{#SNMPINDEX}]'
+              delay: 5m
+              trends: '0'
+              units: bps
+              description: |
+                MIB: IF-MIB
+                ifHighSpeed, current bandwidth in Mbit/s, converted to bits per second.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1000000'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 1e1df18aa8124ceeb7c8c5e44d3ed995
+              name: 'Interface {#IFNAME}({#IFALIAS}): Operational status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}]'
+              key: 'net.if.status[ifOperStatus.{#SNMPINDEX}]'
+              trends: '0'
+              description: |
+                MIB: IF-MIB
+                ifOperStatus: up(1), down(2), testing(3), unknown(4), dormant(5), notPresent(6), lowerLayerDown(7).
+              valuemap:
+                name: 'IF-MIB::ifOperStatus'
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 3f34d3f0fae44af095bfb29c7a1638fb
+                  expression: '{$IFCONTROL:"{#IFNAME}"}=1 and last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2 or {$IFCONTROL:"{#IFNAME}"}=0'
+                  name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Link down'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+                  description: |
+                    The interface went down. Fires on the change to down(2) only, so unused NICs
+                    that were never up raise nothing. An uplink going down removes redundancy from
+                    its vSwitch or leaves port groups without network.
+                    Silence one interface with {$IFCONTROL:"<ifName>"}=0.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 13715667c8584d919755cb59e470e2f5
+              name: 'Interface {#IFNAME}({#IFALIAS}): Interface type'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.2.2.1.3.{#SNMPINDEX}]'
+              key: 'net.if.type[ifType.{#SNMPINDEX}]'
+              delay: 1h
+              trends: '0'
+              description: |
+                MIB: IF-MIB
+                ifType. Physical NICs report ethernetCsmacd(6).
+              valuemap:
+                name: 'IF-MIB::ifType'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#IFALIAS}'
+                - tag: interface
+                  value: '{#IFNAME}'
+          trigger_prototypes:
+            - uuid: bfe6959a7c534a479257b89e5d13f9e1
+              expression: |
+                (avg(/VMware ESXi 8 by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) or
+                avg(/VMware ESXi 8 by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])) and
+                last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                avg(/VMware ESXi 8 by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) and
+                avg(/VMware ESXi 8 by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)<(({$IF.UTIL.MAX:"{#IFNAME}"}-3)/100)*last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])
+              name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): High bandwidth usage'
+              event_name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): High bandwidth usage (>{$IF.UTIL.MAX:"{#IFNAME}"}%)'
+              opdata: 'In: {ITEM.LASTVALUE1}, out: {ITEM.LASTVALUE3}, speed: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'The network interface utilization is close to its estimated maximum bandwidth.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Link down'
+                  expression: '{$IFCONTROL:"{#IFNAME}"}=1 and last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))'
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2 or {$IFCONTROL:"{#IFNAME}"}=0'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 149d8c55f3b440379c24d8b8cc11eb4c
+              expression: |
+                min(/VMware ESXi 8 by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"} or
+                min(/VMware ESXi 8 by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"}
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                max(/VMware ESXi 8 by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)<{$IF.ERRORS.WARN:"{#IFNAME}"}*0.8 and
+                max(/VMware ESXi 8 by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)<{$IF.ERRORS.WARN:"{#IFNAME}"}*0.8
+              name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): High error rate'
+              event_name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): High error rate (>{$IF.ERRORS.WARN:"{#IFNAME}"} for 5m)'
+              opdata: 'errors in: {ITEM.LASTVALUE1}, errors out: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Errors on the interface are above {$IF.ERRORS.WARN:"{#IFNAME}"} per second. Check cable, SFP and switch port.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Link down'
+                  expression: '{$IFCONTROL:"{#IFNAME}"}=1 and last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))'
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2 or {$IFCONTROL:"{#IFNAME}"}=0'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+            - uuid: 6e89a7c2067940b983440e7abf4f04a0
+              expression: |
+                change(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])<0 and
+                last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0 and
+                last(/VMware ESXi 8 by SNMP/net.if.type[ifType.{#SNMPINDEX}])=6 and
+                last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                (change(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0 and last(/VMware ESXi 8 by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}],#2)>0) or
+                last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2
+              name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Ethernet has changed to lower speed than it was before'
+              opdata: 'Current reported speed: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'The physical NIC negotiated a lower speed than before - check autonegotiation, cable and switch port.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Link down'
+                  expression: '{$IFCONTROL:"{#IFNAME}"}=1 and last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))'
+                  recovery_expression: 'last(/VMware ESXi 8 by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2 or {$IFCONTROL:"{#IFNAME}"}=0'
+              tags:
+                - tag: scope
+                  value: performance
+          graph_prototypes:
+            - uuid: a295354bf318481db1237180b19bf22d
+              name: 'VMware ESXi: Interface {#IFNAME}({#IFALIAS}): Network traffic'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'net.if.in[ifHCInOctets.{#SNMPINDEX}]'
+                - sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: 2774A4
+                  item:
+                    host: 'VMware ESXi 8 by SNMP'
+                    key: 'net.if.out[ifHCOutOctets.{#SNMPINDEX}]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var rows = Array.isArray(data) ? data : data.data;
+                  if (!Array.isArray(rows)) {
+                      throw 'Expected an SNMP discovery array';
+                  }
+                  for (var i = 0; i < rows.length; i++) {
+                      var row = rows[i];
+                      row['{#IFALIAS}'] = row['{#IFALIAS}'] || '';
+                      row['{#IFDESCR}'] = row['{#IFDESCR}'] || '';
+                      row['{#IFNAME}'] = row['{#IFNAME}'] || row['{#IFDESCR}'] || ('ifIndex ' + row['{#SNMPINDEX}']);
+                  }
+                  return JSON.stringify(rows);
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: esxi
+        - tag: target
+          value: vmware
+      macros:
+        - macro: '{$CPU.UTIL.CRIT}'
+          value: '90'
+          description: 'CPU utilization threshold (%), 5-minute minimum.'
+        - macro: '{$ESXI.HBA.NAME.MATCHES}'
+          value: '.*'
+          description: 'HBA discovery: include adapters whose name matches.'
+        - macro: '{$ESXI.HBA.NAME.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'HBA discovery: exclude adapters whose name matches.'
+        - macro: '{$ESXI.HRDEVICE.CRIT.STATUS}'
+          value: '5'
+          description: 'hrDeviceStatus down(5).'
+        - macro: '{$ESXI.HRDEVICE.DESCR.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Disk device discovery: exclude devices whose description matches.'
+        - macro: '{$ESXI.HRDEVICE.TYPE.MATCHES}'
+          value: '.*(\.6|hrDeviceDiskStorage)$'
+          description: 'Disk device discovery: hrDeviceType to include (disk storage by default).'
+        - macro: '{$ESXI.HRDEVICE.WARN.STATUS}'
+          value: '3'
+          description: 'hrDeviceStatus warning(3).'
+        - macro: '{$ESXI.PROC.HOSTD.MATCHES}'
+          value: '^hostd'
+          description: 'Regex on hrSWRunName that identifies the hostd process.'
+        - macro: '{$ESXI.PROC.VPXA.MATCHES}'
+          value: '^vpxa'
+          description: 'Regex on hrSWRunName that identifies the vpxa process.'
+        - macro: '{$ESXI.SEL.CAPACITY.MAX}'
+          value: '90'
+          description: 'IPMI SEL capacity threshold (%), for the disabled SEL trigger.'
+        - macro: '{$ESXI.SHELL.SESSIONS.MAX}'
+          value: '0'
+          description: 'Number of ESXi Shell sessions allowed before alerting.'
+        - macro: '{$ESXI.SUBSYSTEM.CRIT.STATUS}'
+          value: '4'
+          description: 'VmwSubsystemStatus from which a HBA is critical: critical(4) and failed(5).'
+        - macro: '{$ESXI.SUBSYSTEM.WARN.STATUS}'
+          value: '3'
+          description: 'VmwSubsystemStatus marginal(3).'
+        - macro: '{$ESXI.TRAP.EVENT.HOLD}'
+          value: 1h
+          description: 'How long a trap-based problem stays open after the last matching trap.'
+        - macro: '{$ESXI.VM.GUEST.CONTROL}'
+          value: '1'
+          description: 'Set {$ESXI.VM.GUEST.CONTROL:"<vm name>"}=0 to disable the guest state trigger of a VM.'
+        - macro: '{$ESXI.VM.NAME.MATCHES}'
+          value: '.*'
+          description: 'VM discovery: include VMs whose name matches.'
+        - macro: '{$ESXI.VM.NAME.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'VM discovery: exclude VMs whose name matches, e.g. ^vCLS'
+        - macro: '{$ESXI.VM.POWER.CONTROL}'
+          value: '1'
+          description: 'Set {$ESXI.VM.POWER.CONTROL:"<vm name>"}=0 to disable the power state trigger of a VM.'
+        - macro: '{$ESXI.VPXA.CONTROL}'
+          value: '1'
+          description: 'Set to 0 on standalone hosts not managed by vCenter.'
+        - macro: '{$ICMP_LOSS_WARN}'
+          value: '20'
+          description: 'ICMP packet loss threshold (%).'
+        - macro: '{$ICMP_RESPONSE_TIME_WARN}'
+          value: '0.15'
+          description: 'ICMP response time threshold (seconds).'
+        - macro: '{$IF.ERRORS.WARN}'
+          value: '2'
+          description: 'Interface error threshold (packets/second).'
+        - macro: '{$IF.UTIL.MAX}'
+          value: '90'
+          description: 'Interface bandwidth threshold (%).'
+        - macro: '{$IFCONTROL}'
+          value: '1'
+          description: 'Set {$IFCONTROL:"<ifName>"}=0 to disable the Link down trigger of an interface.'
+        - macro: '{$MEMORY.TYPE.MATCHES}'
+          value: '.*(\.2|hrStorageRam)$'
+          description: 'hrStorageType of the physical memory row.'
+        - macro: '{$MEMORY.UTIL.MAX}'
+          value: '90'
+          description: 'Memory utilization threshold (%), 5-minute minimum.'
+        - macro: '{$NET.IF.IFADMINSTATUS.MATCHES}'
+          value: '^.*'
+        - macro: '{$NET.IF.IFADMINSTATUS.NOT_MATCHES}'
+          value: '^2$'
+          description: 'Skip interfaces with ifAdminStatus down(2).'
+        - macro: '{$NET.IF.IFALIAS.MATCHES}'
+          value: '.*'
+        - macro: '{$NET.IF.IFALIAS.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+        - macro: '{$NET.IF.IFDESCR.MATCHES}'
+          value: '.*'
+        - macro: '{$NET.IF.IFDESCR.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+        - macro: '{$NET.IF.IFNAME.MATCHES}'
+          value: '^.*$'
+        - macro: '{$NET.IF.IFNAME.NOT_MATCHES}'
+          value: '(^Software Loopback Interface|^NULL[0-9.]*$|^[Ll]o[0-9.]*$|^[Ss]ystem$|^Nu[0-9.]*$)'
+          description: 'Filter out loopbacks.'
+        - macro: '{$NET.IF.IFOPERSTATUS.MATCHES}'
+          value: '^.*$'
+        - macro: '{$NET.IF.IFOPERSTATUS.NOT_MATCHES}'
+          value: '^6$'
+          description: 'Skip interfaces in notPresent(6).'
+        - macro: '{$NET.IF.IFTYPE.MATCHES}'
+          value: '.*'
+        - macro: '{$NET.IF.IFTYPE.NOT_MATCHES}'
+          value: '^24$'
+          description: 'Skip softwareLoopback(24).'
+        - macro: '{$SNMP.TIMEOUT}'
+          value: 5m
+          description: 'Time window of the SNMP availability trigger.'
+        - macro: '{$UPTIME.WRAP.THRESHOLD}'
+          value: 496d
+          description: 'Uptime above which a drop to zero is read as the TimeTicks counter wrapping, not as a reboot.'
+        - macro: '{$VFS.FS.FSNAME.MATCHES}'
+          value: '.+'
+          description: 'Datastore discovery: include mount paths that match.'
+        - macro: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Datastore discovery: exclude mount paths that match.'
+        - macro: '{$VFS.FS.FSTYPE.MATCHES}'
+          value: '.*(\.4|hrStorageFixedDisk)$'
+          description: 'hrStorageType of datastores.'
+        - macro: '{$VFS.FS.FSUUID.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Datastore discovery: exclude datastores by UUID. List the shared (SAN) datastores here, on the cluster host group, e.g. ^(uuid1|uuid2)$ - they are monitored by a separate template.'
+        - macro: '{$VFS.FS.PUSED.MAX.CRIT}'
+          value: '90'
+          description: 'Datastore critical threshold (%). Accepts the mount path as context.'
+        - macro: '{$VFS.FS.PUSED.MAX.WARN}'
+          value: '80'
+          description: 'Datastore warning threshold (%). Accepts the mount path as context.'
+      valuemaps:
+        - uuid: a215166e112e4f02abeff5695bb5cd1f
+          name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+          mappings:
+            - value: '1'
+              newvalue: Unknown
+            - value: '2'
+              newvalue: Running
+            - value: '3'
+              newvalue: Warning
+            - value: '4'
+              newvalue: Testing
+            - value: '5'
+              newvalue: Down
+        - uuid: 65c92f89e11f4753b20c7e880088fe7a
+          name: 'IF-MIB::ifOperStatus'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
+        - uuid: 95f91eeae4754415a377f80a9eb911c9
+          name: 'IF-MIB::ifType'
+          mappings:
+            - value: '1'
+              newvalue: other
+            - value: '6'
+              newvalue: ethernetCsmacd
+            - value: '24'
+              newvalue: softwareLoopback
+            - value: '53'
+              newvalue: propVirtual
+            - value: '131'
+              newvalue: tunnel
+            - value: '135'
+              newvalue: l2vlan
+            - value: '161'
+              newvalue: ieee8023adLag
+            - value: '209'
+              newvalue: bridge
+            - value: '258'
+              newvalue: vmwareVirtualNic
+            - value: '272'
+              newvalue: vmwareNicTeam
+        - uuid: 3f67dbc9c55148239a78c011844110c8
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 831fd7a08cfe4c09aba3755416d82714
+          name: 'VMWARE-ENV-MIB::vmwEnvSource'
+          mappings:
+            - value: '1'
+              newvalue: unknown
+            - value: '2'
+              newvalue: sensors
+            - value: '3'
+              newvalue: indications
+            - value: '4'
+              newvalue: ipmi
+        - uuid: 20e597138dd74545a1e679d644765149
+          name: 'VMWARE-TC-MIB::VmwSubsystemStatus'
+          mappings:
+            - value: '1'
+              newvalue: Unknown
+            - value: '2'
+              newvalue: Normal
+            - value: '3'
+              newvalue: Marginal
+            - value: '4'
+              newvalue: Critical
+            - value: '5'
+              newvalue: Failed
+        - uuid: 108fc6fd19ae4acd84029af75167b534
+          name: 'VMware VM guest state'
+          mappings:
+            - value: '0'
+              newvalue: 'Not running'
+            - value: '1'
+              newvalue: Running
+            - value: '2'
+              newvalue: 'Shutting down'
+            - value: '3'
+              newvalue: Resetting
+            - value: '4'
+              newvalue: Standby
+            - value: '5'
+              newvalue: Unknown
+        - uuid: 00d3ad90f4f84c2c927059f71854c8ca
+          name: 'VMware VM power state'
+          mappings:
+            - value: '0'
+              newvalue: 'Powered off'
+            - value: '1'
+              newvalue: 'Powered on'
+            - value: '2'
+              newvalue: Suspended
+            - value: '3'
+              newvalue: Unknown
+        - uuid: 3499c7a011814329aab5a9db9586af0c
+          name: zabbix.host.available
+          mappings:
+            - value: '0'
+              newvalue: 'Not available'
+            - value: '1'
+              newvalue: Available
+            - value: '2'
+              newvalue: Unknown
+  graphs:
+    - uuid: 04d6731d8bf3443093d54e34756f0222
+      name: 'VMware ESXi: CPU utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: 199C0D
+          item:
+            host: 'VMware ESXi 8 by SNMP'
+            key: system.cpu.util
+    - uuid: d50000c41ffa41e194fb7c72e155581f
+      name: 'VMware ESXi: Virtual machines'
+      ymin_type_1: FIXED
+      graph_items:
+        - drawtype: BOLD_LINE
+          color: 1A7C11
+          item:
+            host: 'VMware ESXi 8 by SNMP'
+            key: vmware.vm.count
+        - sortorder: '1'
+          color: 2774A4
+          item:
+            host: 'VMware ESXi 8 by SNMP'
+            key: 'vmware.vm.count[poweredOn]'
+        - sortorder: '2'
+          color: F63100
+          item:
+            host: 'VMware ESXi 8 by SNMP'
+            key: 'vmware.vm.count[poweredOff]'
+        - sortorder: '3'
+          color: FFBF00
+          item:
+            host: 'VMware ESXi 8 by SNMP'
+            key: 'vmware.vm.count[suspended]'
