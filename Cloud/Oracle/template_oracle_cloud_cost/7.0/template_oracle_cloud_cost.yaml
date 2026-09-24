@@ -1,0 +1,1162 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: c2c162144c2d4c5491c8801193af4945
+      name: Templates/Cloud
+  templates:
+    - uuid: 3067bb9881244da1b0bd567de06f346b
+      template: 'Oracle Cloud Cost by HTTP'
+      name: 'Oracle Cloud Cost by HTTP'
+      description: |
+        Template para monitoramento dos custos da Oracle Cloud Infrastructure (OCI) por meio da API de Usage, compatível com Zabbix 7.0 LTS.
+        
+        Permite acompanhar o custo acumulado do mês, o custo do dia atual, do dia anterior e de dois dias antes, com os valores retornados em BRL. Inclui triggers configuráveis para alertar quando o custo diário atingir ou ultrapassar o limite definido na macro {$OCI.COST.DAILY.LIMIT}.
+        
+        A comunicação entre o Zabbix e a API da OCI é realizada por HTTPS, utilizando TLS, garantindo a proteção dos dados durante o transporte. Além da criptografia fornecida pelo HTTPS, as requisições à API de Usage são assinadas digitalmente com RSA-SHA256, utilizando a chave privada da API Key configurada no usuário da OCI. A assinatura permite à OCI validar a autenticidade e a integridade da requisição. A chave privada é armazenada no Zabbix por meio da macro do tipo Secret text e não é enviada diretamente como parte da requisição HTTP.
+        
+        Cada item do tipo Script executa sua própria consulta à API da OCI no horário configurado. As requisições são autenticadas individualmente utilizando a API Key, o OCID da tenancy, o OCID do usuário e o fingerprint da chave.
+        
+        O template também possui suporte a proxy HTTP, configurado pela macro {$OCI.API.HTTP.PROXY}. Por padrão, essa macro pode permanecer vazia, fazendo com que o Zabbix estabeleça a conexão diretamente com a API da OCI. Em ambientes onde o servidor Zabbix não possui acesso direto à Internet, pode ser informado um proxy, por exemplo:
+        
+        http://proxy.exemplo.local:8080
+        
+        Nesse cenário, o fluxo da comunicação será Zabbix → Proxy HTTP → HTTPS/TLS → API de Usage da OCI. O proxy atua como intermediário para a conexão, enquanto a comunicação com o endpoint da OCI continua sendo realizada por HTTPS. Caso o ambiente utilize autenticação ou uma configuração específica de proxy, ela deve ser previamente permitida/configurada no proxy utilizado.
+        
+        Quando os dados referentes ao dia atual ainda não estiverem disponíveis na OCI, o item correspondente retorna 0 BRL, evitando que o valor de um dia anterior seja interpretado incorretamente como o custo do dia atual.
+        
+        O template utiliza as APIs oficiais da Oracle Cloud Infrastructure e requer um usuário da OCI com as permissões necessárias para consultar os dados de Usage.
+      vendor:
+        name: luizcarmo1
+        version: 1.0.0
+      groups:
+        - name: Templates/Cloud
+      items:
+        - uuid: 30d4c2af3c444f5db271bb1799e2ade4
+          name: 'OCI Cost: 2 Days Ago'
+          type: SCRIPT
+          key: oci.cost.2days_ago
+          delay: 1h;h0m30
+          value_type: FLOAT
+          trends: '0'
+          units: BRL
+          params: |
+            function validateZabbixParams(requiredParams, allParams) {
+            	requiredParams.forEach(function (field) {
+            		if (typeof allParams !== 'object' || typeof allParams[field] === 'undefined' || allParams[field] === '') {
+            			throw 'Required param is not set: ' + field + '.';
+            		}
+            	});
+            }
+            
+            
+            function OCI(service, action, params) {
+            	this.zabbixLogPrefix = '[ OCI ] [ ' + service + ' ] [ ' + action + ' ]';
+            	this.request = new HttpRequest();
+            
+            	this.hash = function (string) {
+            		return sha256(string);
+            	};
+            
+            	this.sign = function (string) {
+            		return sign('sha256', params['private_key'], string);
+            	};
+            
+            	this.encode = function (hash) {
+            		const hexArr = hash.match(/.{1,2}/g);
+            		var uInt8Array = new Uint8Array(hexArr.length);
+            
+            		hexArr.forEach(function (hex, idx) {
+            			uInt8Array[idx] = parseInt(hex, 16);
+            		});
+            
+            		return btoa(uInt8Array);
+            	};
+            
+            	this.getDate = function () {
+            		const weekdayShortList = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            		const monthShortList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            
+            		const today = new Date();
+            
+            		return weekdayShortList[today.getUTCDay()] + ', ' +
+            			today.getUTCDate() + ' ' +
+            			monthShortList[today.getUTCMonth()] + ' ' +
+            			today.getUTCFullYear() + ' ' +
+            			today.getUTCHours() + ':' +
+            			today.getUTCMinutes() + ':' +
+            			today.getUTCSeconds() + ' GMT';
+            	};
+            
+            	this.executeRequest = function (body) {
+            
+            		const httpMethod = 'post';
+            		const apiPath = '/20200107/usage';
+            
+            		const contentTypeHeader = 'content-type: application/json';
+            		const dateHeader = 'date: ' + this.getDate();
+            		const hostHeader = 'host: ' + params['api_host'];
+            
+            		const requestTarget = '(request-target): ' +
+            			httpMethod + ' ' + apiPath;
+            
+            		var signingString =
+            			requestTarget + '\n' +
+            			dateHeader + '\n' +
+            			hostHeader;
+            
+            		var headers =
+            			'(request-target) date host x-content-sha256 content-type content-length';
+            
+            		const bodyHeader =
+            			'x-content-sha256: ' +
+            			this.encode(this.hash(body));
+            
+            		const bodyLengthHeader =
+            			'content-length: ' + body.length;
+            
+            		signingString =
+            			signingString + '\n' +
+            			bodyHeader + '\n' +
+            			contentTypeHeader + '\n' +
+            			bodyLengthHeader;
+            
+            		const signature =
+            			this.encode(this.sign(signingString));
+            
+            		this.request.addHeader(contentTypeHeader);
+            		this.request.addHeader(dateHeader);
+            		this.request.addHeader(bodyHeader);
+            		this.request.addHeader(bodyLengthHeader);
+            
+            		this.request.addHeader(
+            			'Authorization: Signature version="1",' +
+            			'keyId="' +
+            			params['tenancy_ocid'] + '/' +
+            			params['user_ocid'] + '/' +
+            			params['fingerprint'] +
+            			'",algorithm="rsa-sha256",' +
+            			'headers="' + headers + '",' +
+            			'signature="' + signature + '"'
+            		);
+            
+            		if (params['http_proxy']) {
+            			this.request.setProxy(params['http_proxy']);
+            		}
+            
+            		const response = this.request.post(
+            			'https://' +
+            			params['api_host'] +
+            			apiPath,
+            			body
+            		);
+            
+            		const status = this.request.getStatus();
+            
+            		this.request.clearHeader();
+            
+            		if (status === parseInt(params['http_status_code'])) {
+            			return response;
+            		}
+            
+            		throw 'Unexpected HTTP response code: ' + status;
+            	};
+            }
+            
+            
+            const params = JSON.parse(value);
+            
+            validateZabbixParams(
+            	[
+            		'tenancy_ocid',
+            		'user_ocid',
+            		'private_key',
+            		'fingerprint',
+            		'api_host',
+            		'http_status_code'
+            	],
+            	params
+            );
+            
+            
+            var oci = new OCI(
+            	'Usage',
+            	'Get 2 days ago cost',
+            	params
+            );
+            
+            
+            var now = new Date();
+            
+            var year = now.getUTCFullYear();
+            var month = now.getUTCMonth();
+            var day = now.getUTCDate();
+            
+            var start = new Date(Date.UTC(year, month, day - 2));
+            var end = new Date(Date.UTC(year, month, day - 1));
+            
+            
+            function isoDate(date) {
+            	return date.toISOString().replace('.000Z', 'Z');
+            }
+            
+            
+            var body = JSON.stringify({
+            	tenantId: params['tenancy_ocid'],
+            	timeUsageStarted: isoDate(start),
+            	timeUsageEnded: isoDate(end),
+            	granularity: 'DAILY',
+            	queryType: 'COST',
+            	groupBy: ['currency'],
+            });
+            
+            
+            var response = oci.executeRequest(body);
+            
+            
+            try {
+            	response = JSON.parse(response);
+            }
+            catch (error) {
+            	throw 'Could not parse OCI Usage API response.';
+            }
+            
+            
+            var requestedDate =
+            	year.toString() + '-' +
+            	('0' + (month + 1)).slice(-2) + '-' +
+            	('0' + (day - 2)).slice(-2);
+            
+            
+            var total = 0;
+            
+            if (response.items) {
+            
+            	for (var i = 0; i < response.items.length; i++) {
+            
+            		var item = response.items[i];
+            
+            		if (item.currency !== 'BRL') {
+            			continue;
+            		}
+            
+            		if (!item.timeUsageStarted) {
+            			continue;
+            		}
+            
+            		var itemDate = item.timeUsageStarted.substring(0, 10);
+            
+            		if (itemDate === requestedDate) {
+            			total += parseFloat(item.computedAmount || 0);
+            		}
+            	}
+            }
+            
+            
+            return total;
+          description: 'Consulta o custo da tenancy referente a dois dias antes por meio da API de Usage da Oracle Cloud Infrastructure. O valor retornado é validado pela data informada pela API antes de ser armazenado.'
+          timeout: 60s
+          parameters:
+            - name: api_host
+              value: '{$OCI.API.USAGE.HOST}'
+            - name: fingerprint
+              value: '{$OCI.API.FINGERPRINT}'
+            - name: http_proxy
+              value: '{$OCI.API.HTTP.PROXY}'
+            - name: http_status_code
+              value: '{$OCI.HTTP.RESPONSE.CODE.OK}'
+            - name: private_key
+              value: '{$OCI.API.PRIVATE.KEY}'
+            - name: tenancy_ocid
+              value: '{$OCI.API.TENANCY}'
+            - name: user_ocid
+              value: '{$OCI.API.USER}'
+        - uuid: 43fa639c4ad4475caeaa83c31bf46d35
+          name: 'OCI Cost: Current Month'
+          type: SCRIPT
+          key: oci.cost.current_month
+          delay: 1h;h0m0
+          value_type: FLOAT
+          trends: '0'
+          units: BRL
+          params: |
+            function validateZabbixParams(requiredParams, allParams) {
+            	requiredParams.forEach(function (field) {
+            		if (typeof allParams !== 'object' || typeof allParams[field] === 'undefined' || allParams[field] === '') {
+            			throw 'Required param is not set: ' + field + '.';
+            		}
+            	});
+            }
+            
+            
+            function OCI(service, action, params) {
+            	this.zabbixLogPrefix = '[ OCI ] [ ' + service + ' ] [ ' + action + ' ]';
+            	this.request = new HttpRequest();
+            
+            	this.hash = function (string) {
+            		return sha256(string);
+            	};
+            
+            	this.sign = function (string) {
+            		return sign('sha256', params['private_key'], string);
+            	};
+            
+            	this.encode = function (hash) {
+            		const hexArr = hash.match(/.{1,2}/g);
+            		var uInt8Array = new Uint8Array(hexArr.length);
+            
+            		hexArr.forEach(function (hex, idx) {
+            			uInt8Array[idx] = parseInt(hex, 16);
+            		});
+            
+            		return btoa(uInt8Array);
+            	};
+            
+            	this.getDate = function () {
+            		const weekdayShortList = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            		const monthShortList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            
+            		const today = new Date();
+            
+            		return weekdayShortList[today.getUTCDay()] + ', ' +
+            			today.getUTCDate() + ' ' +
+            			monthShortList[today.getUTCMonth()] + ' ' +
+            			today.getUTCFullYear() + ' ' +
+            			today.getUTCHours() + ':' +
+            			today.getUTCMinutes() + ':' +
+            			today.getUTCSeconds() + ' GMT';
+            	};
+            
+            
+            	this.executeRequest = function (body) {
+            
+            		const httpMethod = 'post';
+            		const apiPath = '/20200107/usage';
+            
+            		const contentTypeHeader = 'content-type: application/json';
+            		const dateHeader = 'date: ' + this.getDate();
+            		const hostHeader = 'host: ' + params['api_host'];
+            
+            		const requestTarget = '(request-target): ' +
+            			httpMethod + ' ' + apiPath;
+            
+            		var signingString =
+            			requestTarget + '\n' +
+            			dateHeader + '\n' +
+            			hostHeader;
+            
+            		var headers =
+            			'(request-target) date host x-content-sha256 content-type content-length';
+            
+            		const bodyHeader =
+            			'x-content-sha256: ' +
+            			this.encode(this.hash(body));
+            
+            		const bodyLengthHeader =
+            			'content-length: ' + body.length;
+            
+            		signingString =
+            			signingString + '\n' +
+            			bodyHeader + '\n' +
+            			contentTypeHeader + '\n' +
+            			bodyLengthHeader;
+            
+            		const signature =
+            			this.encode(this.sign(signingString));
+            
+            		this.request.addHeader(contentTypeHeader);
+            		this.request.addHeader(dateHeader);
+            		this.request.addHeader(bodyHeader);
+            		this.request.addHeader(bodyLengthHeader);
+            
+            		this.request.addHeader(
+            			'Authorization: Signature version="1",' +
+            			'keyId="' +
+            			params['tenancy_ocid'] + '/' +
+            			params['user_ocid'] + '/' +
+            			params['fingerprint'] +
+            			'",algorithm="rsa-sha256",' +
+            			'headers="' + headers + '",' +
+            			'signature="' + signature + '"'
+            		);
+            
+            		if (params['http_proxy']) {
+            			this.request.setProxy(params['http_proxy']);
+            
+            			Zabbix.log(
+            				4,
+            				this.zabbixLogPrefix +
+            				' Using http proxy: ' +
+            				params['http_proxy']
+            			);
+            		}
+            
+            		const response = this.request.post(
+            			'https://' +
+            			params['api_host'] +
+            			apiPath,
+            			body
+            		);
+            
+            		const status = this.request.getStatus();
+            
+            		this.request.clearHeader();
+            
+            		if (status === parseInt(params['http_status_code'])) {
+            			return response;
+            		}
+            
+            		Zabbix.log(
+            			3,
+            			this.zabbixLogPrefix +
+            			' Unexpected HTTP response code: ' +
+            			status +
+            			' Response: ' +
+            			response
+            		);
+            
+            		throw 'Unexpected HTTP response code: ' + status;
+            	};
+            }
+            
+            
+            const params = JSON.parse(value);
+            
+            validateZabbixParams(
+            	[
+            		'tenancy_ocid',
+            		'user_ocid',
+            		'private_key',
+            		'fingerprint',
+            		'api_host',
+            		'http_status_code'
+            	],
+            	params
+            );
+            
+            
+            var oci = new OCI(
+            	'Usage',
+            	'Get current month cost',
+            	params
+            );
+            
+            
+            var now = new Date();
+            
+            var year = now.getUTCFullYear();
+            var month = now.getUTCMonth();
+            
+            var start = new Date(Date.UTC(year, month, 1));
+            var end = new Date(Date.UTC(year, month + 1, 1));
+            
+            
+            function isoDate(date) {
+            	return date.toISOString().replace('.000Z', 'Z');
+            }
+            
+            
+            var body = JSON.stringify({
+            	tenantId: params['tenancy_ocid'],
+            	timeUsageStarted: isoDate(start),
+            	timeUsageEnded: isoDate(end),
+            	granularity: 'MONTHLY',
+            	queryType: 'COST',
+            	groupBy: ['currency'],
+            });
+            
+            
+            var response = oci.executeRequest(body);
+            
+            
+            try {
+            	response = JSON.parse(response);
+            }
+            catch (error) {
+            	throw 'Could not parse OCI Usage API response.';
+            }
+            
+            
+            var total = 0;
+            
+            if (response.items) {
+            	for (var i = 0; i < response.items.length; i++) {
+            		if (response.items[i].currency === 'BRL') {
+            			total += parseFloat(response.items[i].computedAmount || 0);
+            		}
+            	}
+            }
+            
+            return total;
+          description: 'Consulta o custo acumulado da tenancy no mês atual por meio da API de Usage da Oracle Cloud Infrastructure. O valor é retornado em BRL.'
+          timeout: 60s
+          parameters:
+            - name: api_host
+              value: '{$OCI.API.USAGE.HOST}'
+            - name: fingerprint
+              value: '{$OCI.API.FINGERPRINT}'
+            - name: http_proxy
+              value: '{$OCI.API.HTTP.PROXY}'
+            - name: http_status_code
+              value: '{$OCI.HTTP.RESPONSE.CODE.OK}'
+            - name: private_key
+              value: '{$OCI.API.PRIVATE.KEY}'
+            - name: tenancy_ocid
+              value: '{$OCI.API.TENANCY}'
+            - name: user_ocid
+              value: '{$OCI.API.USER}'
+        - uuid: 34b1057fd95b47a7a59f588f93363797
+          name: 'OCI Cost: Today'
+          type: SCRIPT
+          key: oci.cost.today
+          delay: 1h;h0m10
+          value_type: FLOAT
+          trends: '0'
+          units: BRL
+          params: |
+            function validateZabbixParams(requiredParams, allParams) {
+            	requiredParams.forEach(function (field) {
+            		if (typeof allParams !== 'object' || typeof allParams[field] === 'undefined' || allParams[field] === '') {
+            			throw 'Required param is not set: ' + field + '.';
+            		}
+            	});
+            }
+            
+            
+            function OCI(service, action, params) {
+            	this.zabbixLogPrefix = '[ OCI ] [ ' + service + ' ] [ ' + action + ' ]';
+            	this.request = new HttpRequest();
+            
+            	this.hash = function (string) {
+            		return sha256(string);
+            	};
+            
+            	this.sign = function (string) {
+            		return sign('sha256', params['private_key'], string);
+            	};
+            
+            	this.encode = function (hash) {
+            		const hexArr = hash.match(/.{1,2}/g);
+            		var uInt8Array = new Uint8Array(hexArr.length);
+            
+            		hexArr.forEach(function (hex, idx) {
+            			uInt8Array[idx] = parseInt(hex, 16);
+            		});
+            
+            		return btoa(uInt8Array);
+            	};
+            
+            	this.getDate = function () {
+            		const weekdayShortList = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            		const monthShortList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            
+            		const today = new Date();
+            
+            		return weekdayShortList[today.getUTCDay()] + ', ' +
+            			today.getUTCDate() + ' ' +
+            			monthShortList[today.getUTCMonth()] + ' ' +
+            			today.getUTCFullYear() + ' ' +
+            			today.getUTCHours() + ':' +
+            			today.getUTCMinutes() + ':' +
+            			today.getUTCSeconds() + ' GMT';
+            	};
+            
+            	this.executeRequest = function (body) {
+            
+            		const httpMethod = 'post';
+            		const apiPath = '/20200107/usage';
+            
+            		const contentTypeHeader = 'content-type: application/json';
+            		const dateHeader = 'date: ' + this.getDate();
+            		const hostHeader = 'host: ' + params['api_host'];
+            
+            		const requestTarget = '(request-target): ' +
+            			httpMethod + ' ' + apiPath;
+            
+            		var signingString =
+            			requestTarget + '\n' +
+            			dateHeader + '\n' +
+            			hostHeader;
+            
+            		var headers =
+            			'(request-target) date host x-content-sha256 content-type content-length';
+            
+            		const bodyHeader =
+            			'x-content-sha256: ' +
+            			this.encode(this.hash(body));
+            
+            		const bodyLengthHeader =
+            			'content-length: ' + body.length;
+            
+            		signingString =
+            			signingString + '\n' +
+            			bodyHeader + '\n' +
+            			contentTypeHeader + '\n' +
+            			bodyLengthHeader;
+            
+            		const signature =
+            			this.encode(this.sign(signingString));
+            
+            		this.request.addHeader(contentTypeHeader);
+            		this.request.addHeader(dateHeader);
+            		this.request.addHeader(bodyHeader);
+            		this.request.addHeader(bodyLengthHeader);
+            
+            		this.request.addHeader(
+            			'Authorization: Signature version="1",' +
+            			'keyId="' +
+            			params['tenancy_ocid'] + '/' +
+            			params['user_ocid'] + '/' +
+            			params['fingerprint'] +
+            			'",algorithm="rsa-sha256",' +
+            			'headers="' + headers + '",' +
+            			'signature="' + signature + '"'
+            		);
+            
+            		if (params['http_proxy']) {
+            			this.request.setProxy(params['http_proxy']);
+            		}
+            
+            		const response = this.request.post(
+            			'https://' +
+            			params['api_host'] +
+            			apiPath,
+            			body
+            		);
+            
+            		const status = this.request.getStatus();
+            
+            		this.request.clearHeader();
+            
+            		if (status === parseInt(params['http_status_code'])) {
+            			return response;
+            		}
+            
+            		Zabbix.log(
+            			3,
+            			this.zabbixLogPrefix +
+            			' Unexpected HTTP response code: ' +
+            			status +
+            			' Response: ' +
+            			response
+            		);
+            
+            		throw 'Unexpected HTTP response code: ' + status + ' Response: ' + response;
+            	};
+            }
+            
+            
+            const params = JSON.parse(value);
+            
+            validateZabbixParams(
+            	[
+            		'tenancy_ocid',
+            		'user_ocid',
+            		'private_key',
+            		'fingerprint',
+            		'api_host',
+            		'http_status_code'
+            	],
+            	params
+            );
+            
+            
+            var oci = new OCI(
+            	'Usage',
+            	'Get today cost',
+            	params
+            );
+            
+            
+            var now = new Date();
+            
+            var year = now.getUTCFullYear();
+            var month = now.getUTCMonth();
+            var day = now.getUTCDate();
+            
+            var start = new Date(Date.UTC(year, month, day));
+            var end = new Date(Date.UTC(year, month, day + 1));
+            
+            
+            function isoDate(date) {
+            	return date.toISOString().replace('.000Z', 'Z');
+            }
+            
+            
+            var body = JSON.stringify({
+            	tenantId: params['tenancy_ocid'],
+            	timeUsageStarted: isoDate(start),
+            	timeUsageEnded: isoDate(end),
+            	granularity: 'DAILY',
+            	queryType: 'COST',
+            	groupBy: ['currency'],
+            });
+            
+            
+            var response = oci.executeRequest(body);
+            
+            
+            try {
+            	response = JSON.parse(response);
+            }
+            catch (error) {
+            	throw 'Could not parse OCI Usage API response.';
+            }
+            
+            
+            var requestedDate =
+            	year.toString() + '-' +
+            	('0' + (month + 1)).slice(-2) + '-' +
+            	('0' + day).slice(-2);
+            
+            
+            var total = 0;
+            
+            if (response.items) {
+            
+            	for (var i = 0; i < response.items.length; i++) {
+            
+            		var item = response.items[i];
+            
+            		if (item.currency !== 'BRL') {
+            			continue;
+            		}
+            
+            		if (!item.timeUsageStarted) {
+            			continue;
+            		}
+            
+            		var itemDate = item.timeUsageStarted.substring(0, 10);
+            
+            		if (itemDate === requestedDate) {
+            			total += parseFloat(item.computedAmount || 0);
+            		}
+            	}
+            }
+            
+            
+            return total;
+          description: 'Consulta o custo da tenancy referente ao dia atual por meio da API de Usage da Oracle Cloud Infrastructure. Caso os dados do dia atual ainda não estejam disponíveis na OCI, o item retorna 0 BRL'
+          timeout: 60s
+          parameters:
+            - name: api_host
+              value: '{$OCI.API.USAGE.HOST}'
+            - name: fingerprint
+              value: '{$OCI.API.FINGERPRINT}'
+            - name: http_proxy
+              value: '{$OCI.API.HTTP.PROXY}'
+            - name: http_status_code
+              value: '{$OCI.HTTP.RESPONSE.CODE.OK}'
+            - name: private_key
+              value: '{$OCI.API.PRIVATE.KEY}'
+            - name: tenancy_ocid
+              value: '{$OCI.API.TENANCY}'
+            - name: user_ocid
+              value: '{$OCI.API.USER}'
+          triggers:
+            - uuid: db9cce08b3ca425d8d0944d73e56e545
+              expression: 'last(/Oracle Cloud Cost by HTTP/oci.cost.today)>={$OCI.COST.DAILY.LIMIT}'
+              name: 'OCI Custo: Custo de hoje atingiu o limite diário de {$OCI.COST.DAILY.LIMIT} BRL'
+              opdata: 'Último valor: {ITEM.LASTVALUE}'
+              priority: WARNING
+              description: 'Indica que o custo registrado para o dia atual atingiu ou ultrapassou o limite diário configurado na macro {$OCI.COST.DAILY.LIMIT}.'
+        - uuid: 32e5064a668a4014b6bae1846013f723
+          name: 'OCI Cost: Yesterday'
+          type: SCRIPT
+          key: oci.cost.yesterday
+          delay: 1h;h0m20
+          value_type: FLOAT
+          trends: '0'
+          units: BRL
+          params: |
+            function validateZabbixParams(requiredParams, allParams) {
+            	requiredParams.forEach(function (field) {
+            		if (typeof allParams !== 'object' || typeof allParams[field] === 'undefined' || allParams[field] === '') {
+            			throw 'Required param is not set: ' + field + '.';
+            		}
+            	});
+            }
+            
+            
+            function OCI(service, action, params) {
+            	this.zabbixLogPrefix = '[ OCI ] [ ' + service + ' ] [ ' + action + ' ]';
+            	this.request = new HttpRequest();
+            
+            	this.hash = function (string) {
+            		return sha256(string);
+            	};
+            
+            	this.sign = function (string) {
+            		return sign('sha256', params['private_key'], string);
+            	};
+            
+            	this.encode = function (hash) {
+            		const hexArr = hash.match(/.{1,2}/g);
+            		var uInt8Array = new Uint8Array(hexArr.length);
+            
+            		hexArr.forEach(function (hex, idx) {
+            			uInt8Array[idx] = parseInt(hex, 16);
+            		});
+            
+            		return btoa(uInt8Array);
+            	};
+            
+            	this.getDate = function () {
+            		const weekdayShortList = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            		const monthShortList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            
+            		const today = new Date();
+            
+            		return weekdayShortList[today.getUTCDay()] + ', ' +
+            			today.getUTCDate() + ' ' +
+            			monthShortList[today.getUTCMonth()] + ' ' +
+            			today.getUTCFullYear() + ' ' +
+            			today.getUTCHours() + ':' +
+            			today.getUTCMinutes() + ':' +
+            			today.getUTCSeconds() + ' GMT';
+            	};
+            
+            	this.executeRequest = function (body) {
+            
+            		const httpMethod = 'post';
+            		const apiPath = '/20200107/usage';
+            
+            		const contentTypeHeader = 'content-type: application/json';
+            		const dateHeader = 'date: ' + this.getDate();
+            		const hostHeader = 'host: ' + params['api_host'];
+            
+            		const requestTarget = '(request-target): ' +
+            			httpMethod + ' ' + apiPath;
+            
+            		var signingString =
+            			requestTarget + '\n' +
+            			dateHeader + '\n' +
+            			hostHeader;
+            
+            		var headers =
+            			'(request-target) date host x-content-sha256 content-type content-length';
+            
+            		const bodyHeader =
+            			'x-content-sha256: ' +
+            			this.encode(this.hash(body));
+            
+            		const bodyLengthHeader =
+            			'content-length: ' + body.length;
+            
+            		signingString =
+            			signingString + '\n' +
+            			bodyHeader + '\n' +
+            			contentTypeHeader + '\n' +
+            			bodyLengthHeader;
+            
+            		const signature =
+            			this.encode(this.sign(signingString));
+            
+            		this.request.addHeader(contentTypeHeader);
+            		this.request.addHeader(dateHeader);
+            		this.request.addHeader(bodyHeader);
+            		this.request.addHeader(bodyLengthHeader);
+            
+            		this.request.addHeader(
+            			'Authorization: Signature version="1",' +
+            			'keyId="' +
+            			params['tenancy_ocid'] + '/' +
+            			params['user_ocid'] + '/' +
+            			params['fingerprint'] +
+            			'",algorithm="rsa-sha256",' +
+            			'headers="' + headers + '",' +
+            			'signature="' + signature + '"'
+            		);
+            
+            		if (params['http_proxy']) {
+            			this.request.setProxy(params['http_proxy']);
+            		}
+            
+            		const response = this.request.post(
+            			'https://' +
+            			params['api_host'] +
+            			apiPath,
+            			body
+            		);
+            
+            		const status = this.request.getStatus();
+            
+            		this.request.clearHeader();
+            
+            		if (status === parseInt(params['http_status_code'])) {
+            			return response;
+            		}
+            
+            		throw 'Unexpected HTTP response code: ' + status;
+            	};
+            }
+            
+            
+            const params = JSON.parse(value);
+            
+            validateZabbixParams(
+            	[
+            		'tenancy_ocid',
+            		'user_ocid',
+            		'private_key',
+            		'fingerprint',
+            		'api_host',
+            		'http_status_code'
+            	],
+            	params
+            );
+            
+            
+            var oci = new OCI(
+            	'Usage',
+            	'Get yesterday cost',
+            	params
+            );
+            
+            
+            var now = new Date();
+            
+            var year = now.getUTCFullYear();
+            var month = now.getUTCMonth();
+            var day = now.getUTCDate();
+            
+            var start = new Date(Date.UTC(year, month, day - 1));
+            var end = new Date(Date.UTC(year, month, day));
+            
+            
+            function isoDate(date) {
+            	return date.toISOString().replace('.000Z', 'Z');
+            }
+            
+            
+            var body = JSON.stringify({
+            	tenantId: params['tenancy_ocid'],
+            	timeUsageStarted: isoDate(start),
+            	timeUsageEnded: isoDate(end),
+            	granularity: 'DAILY',
+            	queryType: 'COST',
+            	groupBy: ['currency'],
+            });
+            
+            
+            var response = oci.executeRequest(body);
+            
+            
+            try {
+            	response = JSON.parse(response);
+            }
+            catch (error) {
+            	throw 'Could not parse OCI Usage API response.';
+            }
+            
+            
+            var requestedDate =
+            	year.toString() + '-' +
+            	('0' + (month + 1)).slice(-2) + '-' +
+            	('0' + (day - 1)).slice(-2);
+            
+            
+            var total = 0;
+            
+            if (response.items) {
+            
+            	for (var i = 0; i < response.items.length; i++) {
+            
+            		var item = response.items[i];
+            
+            		if (item.currency !== 'BRL') {
+            			continue;
+            		}
+            
+            		if (!item.timeUsageStarted) {
+            			continue;
+            		}
+            
+            		var itemDate = item.timeUsageStarted.substring(0, 10);
+            
+            		if (itemDate === requestedDate) {
+            			total += parseFloat(item.computedAmount || 0);
+            		}
+            	}
+            }
+            
+            
+            return total;
+          description: 'Consulta o custo da tenancy referente ao dia anterior por meio da API de Usage da Oracle Cloud Infrastructure. O valor retornado é validado pela data informada pela API antes de ser armazenado.'
+          timeout: 60s
+          parameters:
+            - name: api_host
+              value: '{$OCI.API.USAGE.HOST}'
+            - name: fingerprint
+              value: '{$OCI.API.FINGERPRINT}'
+            - name: http_proxy
+              value: '{$OCI.API.HTTP.PROXY}'
+            - name: http_status_code
+              value: '{$OCI.HTTP.RESPONSE.CODE.OK}'
+            - name: private_key
+              value: '{$OCI.API.PRIVATE.KEY}'
+            - name: tenancy_ocid
+              value: '{$OCI.API.TENANCY}'
+            - name: user_ocid
+              value: '{$OCI.API.USER}'
+          triggers:
+            - uuid: 11d067cfe0ff4ed98a24b9bafebe0c23
+              expression: 'last(/Oracle Cloud Cost by HTTP/oci.cost.yesterday)>={$OCI.COST.DAILY.LIMIT}'
+              name: 'OCI Custo: Custo de ontem atingiu o limite diário de {$OCI.COST.DAILY.LIMIT} BRL'
+              opdata: 'Último valor: {ITEM.LASTVALUE}'
+              priority: WARNING
+              description: 'Indica que o custo registrado para o dia anterior atingiu ou ultrapassou o limite diário configurado na macro {$OCI.COST.DAILY.LIMIT}.'
+      macros:
+        - macro: '{$OCI.API.FINGERPRINT}'
+          type: SECRET_TEXT
+          description: 'Fingerprint da chave pública associada ao usuário da OCI utilizado na autenticação por API Key.'
+        - macro: '{$OCI.API.HTTP.PROXY}'
+          description: 'Endereço do proxy HTTP utilizado para acessar a API de Usage da Oracle Cloud Infrastructure. Deixe vazio caso o acesso seja direto, sem proxy.'
+        - macro: '{$OCI.API.PRIVATE.KEY}'
+          type: SECRET_TEXT
+          description: 'Chave privada RSA utilizada para assinar as requisições à API de Usage da OCI. Conteúdo da chave privada do usuário, desde -----BEGIN PRIVATE KEY----- até -----END PRIVATE KEY-----.'
+        - macro: '{$OCI.API.TENANCY}'
+          description: 'OCID da tenancy da Oracle Cloud Infrastructure utilizada para consultar os dados de custo.'
+        - macro: '{$OCI.API.USAGE.HOST}'
+          value: usageapi.sa-saopaulo-1.oci.oraclecloud.com
+          description: 'Endpoint da API de Usage da OCI utilizado para consultar os dados de custo.'
+        - macro: '{$OCI.API.USER}'
+          description: 'OCID do usuário da OCI utilizado para autenticar as requisições à API de Usage.'
+        - macro: '{$OCI.COST.DAILY.LIMIT}'
+          value: '1'
+          description: 'Limite diário de custo em BRL utilizado pelas triggers de custo da OCI.'
+        - macro: '{$OCI.HTTP.RESPONSE.CODE.OK}'
+          value: '200'
+          description: 'Código de resposta HTTP esperado para uma requisição bem-sucedida à API de Usage da OCI. O valor padrão é 200.'
+      dashboards:
+        - uuid: 43fdaa63a5294e55ae3c95be43eb1cd0
+          name: 'Oracle Cloud Cost Overview'
+          auto_start: 'NO'
+          pages:
+            - name: Overview
+              widgets:
+                - type: item
+                  name: 'Current Month'
+                  width: '26'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: 6C00D9
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Oracle Cloud Cost by HTTP'
+                        key: oci.cost.current_month
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '4'
+                - type: item
+                  name: Yesterday
+                  'y': '5'
+                  width: '26'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: 00D936
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Oracle Cloud Cost by HTTP'
+                        key: oci.cost.yesterday
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '4'
+                - type: item
+                  name: Today
+                  'y': '10'
+                  width: '26'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: 2196F3
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Oracle Cloud Cost by HTTP'
+                        key: oci.cost.today
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: show.2
+                      value: '4'
+                - type: graph
+                  name: 'OCI Cost: Daily Cost'
+                  x: '26'
+                  width: '46'
+                  height: '8'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Oracle Cloud Cost by HTTP'
+                        name: 'OCI Cost: Daily Cost'
+                    - type: STRING
+                      name: reference
+                      value: VJXKA
+                - type: graph
+                  name: 'OCI Cost: Monthly Accumulated'
+                  x: '26'
+                  'y': '8'
+                  width: '46'
+                  height: '7'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Oracle Cloud Cost by HTTP'
+                        name: 'OCI Cost: Monthly Accumulated'
+                    - type: STRING
+                      name: reference
+                      value: YHLKN
+  graphs:
+    - uuid: 401f3be4a43a4386ad6d4c0c8997aeb5
+      name: 'OCI Cost: Daily Cost'
+      graph_items:
+        - color: 199C0D
+          calc_fnc: ALL
+          item:
+            host: 'Oracle Cloud Cost by HTTP'
+            key: oci.cost.2days_ago
+        - sortorder: '1'
+          color: F63100
+          calc_fnc: ALL
+          item:
+            host: 'Oracle Cloud Cost by HTTP'
+            key: oci.cost.today
+        - sortorder: '2'
+          color: 2774A4
+          calc_fnc: ALL
+          item:
+            host: 'Oracle Cloud Cost by HTTP'
+            key: oci.cost.yesterday
+    - uuid: 6263a30c2cf543c2b1bdf2757c24b5f8
+      name: 'OCI Cost: Monthly Accumulated'
+      graph_items:
+        - color: 199C0D
+          calc_fnc: ALL
+          item:
+            host: 'Oracle Cloud Cost by HTTP'
+            key: oci.cost.current_month
