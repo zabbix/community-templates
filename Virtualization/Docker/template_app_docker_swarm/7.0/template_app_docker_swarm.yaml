@@ -19,7 +19,7 @@ zabbix_export:
         https://github.com/noakky/zabbix-template-docker-swarm
       vendor:
         name: noakky
-        version: 7.0-2
+        version: 7.0-3
       templates:
         - name: 'Docker by Zabbix agent 2'
       groups:
@@ -135,9 +135,13 @@ zabbix_export:
                           s.cpu_util = Math.max(s.cpu_util, usage / limit);
                           s.cpu_kernel += Math.max(num(cu.usage_in_kernelmode) - num(pu.usage_in_kernelmode), 0) / wall;
                           s.cpu_user += Math.max(num(cu.usage_in_usermode) - num(pu.usage_in_usermode), 0) / wall;
-                          var th = cpu.throttling_data || {}, pth = pre.throttling_data || {};
+                      }
+                      // Share of CFS periods in which the task hit its CPU limit.
+                      var th = cpu.throttling_data || {}, pth = pre.throttling_data || {};
+                      var periods = num(th.periods) - num(pth.periods);
+                      if (periods > 0) {
                           s.cpu_throttled = Math.max(s.cpu_throttled,
-                              Math.max(num(th.throttled_time) - num(pth.throttled_time), 0) / wall * 100);
+                              Math.max(num(th.throttled_periods) - num(pth.throttled_periods), 0) / periods * 100);
                       }
                       s.online_cpus = Math.max(s.online_cpus, ncpu);
 
@@ -849,7 +853,7 @@ zabbix_export:
               delay: '0'
               value_type: FLOAT
               units: '%'
-              description: 'Max share of time a service task was throttled by its CPU limit.'
+              description: 'Max share of CPU scheduler periods in which a service task was throttled by its CPU limit.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -1020,7 +1024,6 @@ zabbix_export:
                   expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.memory.pct[{#SERVICE}],{$SWARM.SERVICE.MEM.UTIL.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.MEM.UTIL.MAX:"{#SERVICE}"}'
                   name: 'Swarm: Service {#SERVICE}: High memory utilization'
                   opdata: 'Memory: {ITEM.LASTVALUE1}'
-                  status: DISABLED
                   priority: WARNING
                   description: 'Memory utilization of a service task is over {$SWARM.SERVICE.MEM.UTIL.MAX} for {$SWARM.SERVICE.MEM.UTIL.TIME}.'
                   tags:
@@ -1504,8 +1507,8 @@ zabbix_export:
           value: '15m'
           description: 'Period of the high CPU utilization trigger.'
         - macro: '{$SWARM.SERVICE.MEM.UTIL.MAX}'
-          value: '90'
-          description: 'Threshold of the service task memory utilization, %. The trigger is disabled by default. Supports context.'
+          value: '100'
+          description: 'Threshold of the service task memory utilization, %. The default 100 never fires; set it per service to enable the trigger: {$SWARM.SERVICE.MEM.UTIL.MAX:"stack_service"}=90.'
         - macro: '{$SWARM.SERVICE.MEM.UTIL.TIME}'
           value: '15m'
           description: 'Period of the high memory utilization trigger.'
