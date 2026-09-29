@@ -1,0 +1,1406 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: d80053dc250f4b13a31328875e844f98
+      template: 'Docker Swarm by Zabbix agent 2'
+      name: 'Docker Swarm by Zabbix agent 2'
+      description: |
+        The template to monitor Docker Swarm services by Zabbix agent 2.
+        Items are keyed by service name, so redeploys and updates do not create new items.
+        Links Docker by Zabbix agent 2 for the Docker engine metrics and excludes swarm task containers from its container discovery.
+        Swarm-wide metrics (replicas, update state, failed tasks) are collected on manager nodes only.
+
+        Requires files/swarm.sh and files/swarm.conf on every swarm node, see README.md.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-docker-swarm
+      vendor:
+        name: noakky
+        version: 7.0-1
+      templates:
+        - name: 'Docker by Zabbix agent 2'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: db0ba900a3144eb9a79afff82d2eb4dd
+          name: 'Get swarm snapshot'
+          key: swarm.services.get
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          timeout: 20s
+          description: 'Output of swarm.sh: task containers of this node with their stats, services, update states and failed tasks.'
+          tags:
+            - tag: app
+              value: swarm
+            - tag: component
+              value: raw
+        - uuid: 03fe9d971dd6440b94b2daf77556afac
+          name: 'Swarm services data'
+          type: DEPENDENT
+          key: swarm.services.aggr
+          delay: '0'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Snapshot aggregated per service.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  if (!d.containers) {
+                      throw 'Unexpected output of swarm.sh: ' + value.substring(0, 200);
+                  }
+
+                  function num(v) {
+                      v = parseFloat(v);
+                      return isNaN(v) ? 0 : v;
+                  }
+                  function unixtime(ts) {
+                      var t = Date.parse(String(ts).substring(0, 19) + 'Z');
+                      return isNaN(t) || t <= 0 ? 0 : Math.floor(t / 1000);
+                  }
+                  function round(v) {
+                      return Math.round(v * 10000) / 10000;
+                  }
+
+                  var services = {};
+                  function get(name) {
+                      if (!services[name]) {
+                          services[name] = {
+                              stack: '', mode: '', image: '', update_state: 'none',
+                              replicas_running: 0, replicas_desired: 0,
+                              tasks_running: 0, tasks_unhealthy: 0, tasks_oom: 0, health_failing: 0,
+                              started: 0, finished: 0, last_exit_code: 0, last_error: '',
+                              task_failed_time: 0, task_failed_error: '',
+                              cpu: 0, cpu_kernel: 0, cpu_user: 0, cpu_throttled: 0, online_cpus: 0,
+                              mem: 0, mem_total: 0, mem_inactive: 0, mem_limit: 0, mem_pct: 0, pids: 0,
+                              net_rx: 0, net_tx: 0, net_rx_packets: 0, net_tx_packets: 0,
+                              net_rx_errors: 0, net_tx_errors: 0, net_rx_dropped: 0, net_tx_dropped: 0,
+                              blk_read: 0, blk_write: 0
+                          };
+                      }
+                      return services[name];
+                  }
+
+                  // Task containers on this node.
+                  var byId = {};
+                  d.containers.forEach(function (c) {
+                      var s = get(c.service), st = c.state || {}, health = st.Health || {};
+                      s.stack = s.stack || c.stack || '';
+                      if (st.OOMKilled) {
+                          s.tasks_oom++;
+                      }
+                      if (st.Status === 'running') {
+                          byId[c.id] = s;
+                          s.tasks_running++;
+                          s.image = s.image || String(c.image).split('@')[0];
+                          if (health.Status === 'unhealthy') {
+                              s.tasks_unhealthy++;
+                          }
+                          s.health_failing = Math.max(s.health_failing, num(health.FailingStreak));
+                          s.started = Math.max(s.started, unixtime(st.StartedAt));
+                      }
+                      else {
+                          var finished = unixtime(st.FinishedAt);
+                          if (finished >= s.finished) {
+                              s.finished = finished;
+                              s.last_exit_code = num(st.ExitCode);
+                              s.last_error = st.Error || '';
+                          }
+                      }
+                  });
+
+                  // Resource usage of running tasks.
+                  (d.stats || []).forEach(function (x) {
+                      var s = byId[x.id];
+                      if (!s) {
+                          return;
+                      }
+                      var cpu = x.cpu_stats || {}, pre = x.precpu_stats || {};
+                      var cu = cpu.cpu_usage || {}, pu = pre.cpu_usage || {};
+                      var ncpu = num(cpu.online_cpus) || 1;
+                      var wall = (num(cpu.system_cpu_usage) - num(pre.system_cpu_usage)) / ncpu;
+                      if (wall > 0) {
+                          s.cpu += Math.max(num(cu.total_usage) - num(pu.total_usage), 0) / wall * 100;
+                          s.cpu_kernel += Math.max(num(cu.usage_in_kernelmode) - num(pu.usage_in_kernelmode), 0) / wall;
+                          s.cpu_user += Math.max(num(cu.usage_in_usermode) - num(pu.usage_in_usermode), 0) / wall;
+                          var th = cpu.throttling_data || {}, pth = pre.throttling_data || {};
+                          s.cpu_throttled = Math.max(s.cpu_throttled,
+                              Math.max(num(th.throttled_time) - num(pth.throttled_time), 0) / wall * 100);
+                      }
+                      s.online_cpus = Math.max(s.online_cpus, ncpu);
+
+                      var mem = x.memory_stats || {}, ms = mem.stats || {};
+                      var usage = num(mem.usage), limit = num(mem.limit);
+                      var inactive = num(ms.inactive_file !== undefined ? ms.inactive_file : ms.total_inactive_file);
+                      s.mem_total += usage;
+                      s.mem_inactive += inactive;
+                      s.mem += Math.max(usage - inactive, 0);
+                      s.mem_limit += limit;
+                      if (limit > 0) {
+                          s.mem_pct = Math.max(s.mem_pct, (usage - inactive) / limit * 100);
+                      }
+                      s.pids += num((x.pids_stats || {}).current);
+
+                      var nets = x.networks || {};
+                      Object.keys(nets).forEach(function (k) {
+                          var n = nets[k];
+                          s.net_rx += num(n.rx_bytes);
+                          s.net_tx += num(n.tx_bytes);
+                          s.net_rx_packets += num(n.rx_packets);
+                          s.net_tx_packets += num(n.tx_packets);
+                          s.net_rx_errors += num(n.rx_errors);
+                          s.net_tx_errors += num(n.tx_errors);
+                          s.net_rx_dropped += num(n.rx_dropped);
+                          s.net_tx_dropped += num(n.tx_dropped);
+                      });
+                      ((x.blkio_stats || {}).io_service_bytes_recursive || []).forEach(function (io) {
+                          var op = String(io.op).toLowerCase();
+                          if (op === 'read') {
+                              s.blk_read += num(io.value);
+                          }
+                          else if (op === 'write') {
+                              s.blk_write += num(io.value);
+                          }
+                      });
+                  });
+
+                  // Swarm-wide state (managers only).
+                  (d.services || []).forEach(function (x) {
+                      var s = get(x.name), r = String(x.replicas).split('/');
+                      s.mode = x.mode;
+                      s.image = String(x.image).split('@')[0];
+                      s.replicas_running = num(r[0]);
+                      s.replicas_desired = num(r[1]);
+                  });
+
+                  var names = {};
+                  (d.updates || []).forEach(function (x) {
+                      var s = get(x.name);
+                      names[x.id] = x.name;
+                      s.stack = s.stack || x.stack || '';
+                      s.update_state = x.state || 'none';
+                  });
+
+                  (d.tasks || []).forEach(function (t) {
+                      var name = names[t.service];
+                      if (!name || (t.state !== 'failed' && t.state !== 'rejected') || /^No such container/.test(t.err)) {
+                          return;
+                      }
+                      var s = services[name];
+                      if (t.ts > s.task_failed_time) {
+                          s.task_failed_time = t.ts;
+                          s.task_failed_error = t.err;
+                      }
+                  });
+
+                  Object.keys(services).forEach(function (name) {
+                      var s = services[name];
+                      s.cpu = round(s.cpu);
+                      s.cpu_kernel = round(s.cpu_kernel);
+                      s.cpu_user = round(s.cpu_user);
+                      s.cpu_throttled = round(s.cpu_throttled);
+                      s.mem_pct = round(s.mem_pct);
+                  });
+
+                  return JSON.stringify({
+                      manager: d.manager === true,
+                      count: Object.keys(services).length,
+                      services: services
+                  });
+          master_item:
+            key: swarm.services.get
+          tags:
+            - tag: app
+              value: swarm
+            - tag: component
+              value: raw
+        - uuid: c162093e6b0e4405b42e6ef2914483bb
+          name: 'Swarm services count'
+          type: DEPENDENT
+          key: swarm.services.count
+          delay: '0'
+          description: 'Number of swarm services seen by this node.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.count'
+          master_item:
+            key: swarm.services.aggr
+          tags:
+            - tag: app
+              value: swarm
+            - tag: component
+              value: swarm
+          triggers:
+            - uuid: a2b92afb6817409ba428a10903c3e0d8
+              expression: 'nodata(/Docker Swarm by Zabbix agent 2/swarm.services.count,{$SWARM.NODATA.TIMEOUT})=1'
+              name: 'Swarm: Failed to fetch swarm data'
+              priority: WARNING
+              description: 'Zabbix has not received data for items for the last {$SWARM.NODATA.TIMEOUT}.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+      discovery_rules:
+        - uuid: 265bf5ba15c349b490b1c9ab1b6a582e
+          name: 'Swarm services discovery'
+          type: DEPENDENT
+          key: swarm.services.discovery
+          delay: '0'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SERVICE}'
+                value: '{$SWARM.LLD.FILTER.SERVICE.MATCHES}'
+                formulaid: A
+              - macro: '{#SERVICE}'
+                value: '{$SWARM.LLD.FILTER.SERVICE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1h
+          description: 'Discovery of swarm services.'
+          item_prototypes:
+            - uuid: e72e8f7550844e60b071221606552f80
+              name: 'Service {#SERVICE}: Tasks running'
+              type: DEPENDENT
+              key: 'swarm.service.tasks.running[{#SERVICE}]'
+              delay: '0'
+              description: 'Running tasks of the service on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].tasks_running'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 721829970b914502b29918a17047dd7d
+              name: 'Service {#SERVICE}: Tasks unhealthy'
+              type: DEPENDENT
+              key: 'swarm.service.tasks.unhealthy[{#SERVICE}]'
+              delay: '0'
+              description: 'Running tasks of the service on this node with a failing healthcheck.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].tasks_unhealthy'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: health
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 783f38e2416f4f209e330ae4dea89e5e
+                  expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.tasks.unhealthy[{#SERVICE}],{$SWARM.SERVICE.UNHEALTHY.TIMEOUT:"{#SERVICE}"})>0'
+                  name: 'Swarm: Service {#SERVICE}: Unhealthy tasks'
+                  opdata: 'Unhealthy: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Service tasks have had a failing healthcheck for {$SWARM.SERVICE.UNHEALTHY.TIMEOUT}.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: bb518c32837346daa7a0c4761552a1fb
+              name: 'Service {#SERVICE}: Health failing streak'
+              type: DEPENDENT
+              key: 'swarm.service.health.failing[{#SERVICE}]'
+              delay: '0'
+              description: 'Max number of consecutive failed healthchecks among running tasks.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].health_failing'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: health
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 22a8fa39a3a24a17b95108a912dcc834
+              name: 'Service {#SERVICE}: OOM killed tasks'
+              type: DEPENDENT
+              key: 'swarm.service.tasks.oom[{#SERVICE}]'
+              delay: '0'
+              description: 'Task containers on this node killed by the OOM killer.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].tasks_oom'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: a65ae6e44f5b4a7880d6265d5e42cac3
+                  expression: 'last(/Docker Swarm by Zabbix agent 2/swarm.service.tasks.oom[{#SERVICE}])>last(/Docker Swarm by Zabbix agent 2/swarm.service.tasks.oom[{#SERVICE}],#2)'
+                  name: 'Swarm: Service {#SERVICE}: Task was OOM killed'
+                  priority: AVERAGE
+                  description: 'A task of the service was killed by the OOM killer.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: 3f1f82aeaa274dbb96fb1ab378018d02
+              name: 'Service {#SERVICE}: Task started at'
+              type: DEPENDENT
+              key: 'swarm.service.task.started[{#SERVICE}]'
+              delay: '0'
+              units: 'unixtime'
+              description: 'Start time of the newest running task on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].started'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: c63bc9eee0ff46ce8574970004df2727
+              name: 'Service {#SERVICE}: Last task finished at'
+              type: DEPENDENT
+              key: 'swarm.service.task.finished[{#SERVICE}]'
+              delay: '0'
+              units: 'unixtime'
+              description: 'Finish time of the last stopped task on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].finished'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 62111d89ffa94634a1cf3cbb077bb6b0
+              name: 'Service {#SERVICE}: Last task exit code'
+              type: DEPENDENT
+              key: 'swarm.service.task.exitcode[{#SERVICE}]'
+              delay: '0'
+              description: 'Exit code of the last stopped task on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].last_exit_code'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 370ddb1b60814d069f51ceca015bd153
+              name: 'Service {#SERVICE}: Last task error'
+              type: DEPENDENT
+              key: 'swarm.service.task.error[{#SERVICE}]'
+              delay: '0'
+              history: 30d
+              value_type: TEXT
+              trends: '0'
+              description: 'Docker error of the last stopped task on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].last_error'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: e1d3d133e43a4efb97435cbe947e69b2
+              name: 'Service {#SERVICE}: Replicas running'
+              type: DEPENDENT
+              key: 'swarm.service.replicas.running[{#SERVICE}]'
+              delay: '0'
+              description: 'Running replicas across the swarm. Managers only.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].replicas_running'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: replicas
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 692c53691f4c4d6d98fa9ca40496b2ba
+              name: 'Service {#SERVICE}: Replicas desired'
+              type: DEPENDENT
+              key: 'swarm.service.replicas.desired[{#SERVICE}]'
+              delay: '0'
+              description: 'Desired replicas across the swarm; for global services - number of eligible nodes. Managers only.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].replicas_desired'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: replicas
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 2889265e313140f09d0b07122d42ef2e
+              name: 'Service {#SERVICE}: Update state'
+              type: DEPENDENT
+              key: 'swarm.service.update.state[{#SERVICE}]'
+              delay: '0'
+              history: 30d
+              value_type: CHAR
+              trends: '0'
+              description: 'State of the last service update: none, updating, completed, paused, rollback_started, rollback_paused, rollback_completed. Managers only.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].update_state'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: deploy
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 41aecbc7ed99439fae8c15177fea3b71
+                  expression: 'find(/Docker Swarm by Zabbix agent 2/swarm.service.update.state[{#SERVICE}],,"regexp","^(paused|rollback_started|rollback_paused|rollback_completed)$")=1'
+                  name: 'Swarm: Service {#SERVICE}: Update failed ({ITEM.LASTVALUE1})'
+                  priority: AVERAGE
+                  description: 'The last service update was paused or rolled back. Resolves with the next successful update.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 155c5be155aa40e39f5ea4ba2974954b
+              name: 'Service {#SERVICE}: Image'
+              type: DEPENDENT
+              key: 'swarm.service.image[{#SERVICE}]'
+              delay: '0'
+              history: 90d
+              value_type: CHAR
+              trends: '0'
+              description: 'Image of the service.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].image'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: deploy
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 4b79fc065a724267901fc723e6011e59
+              name: 'Service {#SERVICE}: Last failed task time'
+              type: DEPENDENT
+              key: 'swarm.service.task.failed.time[{#SERVICE}]'
+              delay: '0'
+              units: 'unixtime'
+              description: 'Time of the last failed or rejected task of the service (crash, failed healthcheck, image pull error). Managers only.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].task_failed_time'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: f2dc98090d644879a776195f6ef24ab5
+              name: 'Service {#SERVICE}: Last failed task error'
+              type: DEPENDENT
+              key: 'swarm.service.task.failed.error[{#SERVICE}]'
+              delay: '0'
+              history: 30d
+              value_type: TEXT
+              trends: '0'
+              description: 'Swarm error of the last failed or rejected task of the service. Managers only.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].task_failed_error'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: tasks
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: b4f13d0bbe8546f7a5c946c0d6e804a2
+              name: 'Service {#SERVICE}: CPU usage'
+              type: DEPENDENT
+              key: 'swarm.service.cpu[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              description: 'CPU usage of all service tasks on this node, % of one core.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].cpu'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: cpu
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 207ae81adf94457a80e58a704da067a3
+                  expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.cpu[{#SERVICE}],{$SWARM.SERVICE.CPU.UTIL.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.CPU.UTIL.MAX:"{#SERVICE}"}'
+                  name: 'Swarm: Service {#SERVICE}: High CPU usage'
+                  opdata: 'CPU: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'CPU usage of the service is over {$SWARM.SERVICE.CPU.UTIL.MAX} for {$SWARM.SERVICE.CPU.UTIL.TIME}.'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: cc09d545d40848f59348cd04895835d0
+              name: 'Service {#SERVICE}: CPU kernelmode usage'
+              type: DEPENDENT
+              key: 'swarm.service.cpu.kernel[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'CPU time in kernel mode per second of all service tasks on this node, in cores.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].cpu_kernel'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: cpu
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: ed1b5b866ad149f79b6e5ca468518bf7
+              name: 'Service {#SERVICE}: CPU usermode usage'
+              type: DEPENDENT
+              key: 'swarm.service.cpu.user[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'CPU time in user mode per second of all service tasks on this node, in cores.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].cpu_user'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: cpu
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 4a38b238acc647dcb1b733980c3a2395
+              name: 'Service {#SERVICE}: CPU throttled'
+              type: DEPENDENT
+              key: 'swarm.service.cpu.throttled[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              description: 'Max share of time a service task was throttled by its CPU limit.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].cpu_throttled'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: cpu
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 8075400c54954e38a026c8a532b727a1
+              name: 'Service {#SERVICE}: Online CPUs'
+              type: DEPENDENT
+              key: 'swarm.service.cpu.online[{#SERVICE}]'
+              delay: '0'
+              description: 'CPUs available to the service tasks.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].online_cpus'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: cpu
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: a272828e205c4af289c918afc4e8e9d3
+              name: 'Service {#SERVICE}: Memory used'
+              type: DEPENDENT
+              key: 'swarm.service.memory[{#SERVICE}]'
+              delay: '0'
+              units: 'B'
+              description: 'Memory usage without inactive file cache of all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].mem'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: dd629a4ddb6b40faaa44afae6deca6ca
+              name: 'Service {#SERVICE}: Memory usage total'
+              type: DEPENDENT
+              key: 'swarm.service.memory.total[{#SERVICE}]'
+              delay: '0'
+              units: 'B'
+              description: 'Memory usage including file cache of all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].mem_total'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 07969cd9318d4e81a4ba5a335f2b4376
+              name: 'Service {#SERVICE}: Memory usage inactive'
+              type: DEPENDENT
+              key: 'swarm.service.memory.inactive[{#SERVICE}]'
+              delay: '0'
+              units: 'B'
+              description: 'Inactive file cache of all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].mem_inactive'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 29ffe045fb6f451aa25101063b049f41
+              name: 'Service {#SERVICE}: Memory limit'
+              type: DEPENDENT
+              key: 'swarm.service.memory.limit[{#SERVICE}]'
+              delay: '0'
+              units: 'B'
+              description: 'Memory limits of all service tasks on this node; host memory for tasks without a limit.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].mem_limit'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 6b36289aba2e4d529ea9e8bb34862497
+              name: 'Service {#SERVICE}: Memory utilization'
+              type: DEPENDENT
+              key: 'swarm.service.memory.pct[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              description: 'Max memory utilization among service tasks on this node, relative to the task memory limit.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].mem_pct'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: memory
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 33532d471e25408cbadc482fa27f281e
+                  expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.memory.pct[{#SERVICE}],{$SWARM.SERVICE.MEM.UTIL.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.MEM.UTIL.MAX:"{#SERVICE}"}'
+                  name: 'Swarm: Service {#SERVICE}: High memory utilization'
+                  opdata: 'Memory: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Memory utilization of a service task is over {$SWARM.SERVICE.MEM.UTIL.MAX} for {$SWARM.SERVICE.MEM.UTIL.TIME}.'
+                  tags:
+                    - tag: scope
+                      value: capacity
+            - uuid: 9b7edc9e7d3f45ffa7433e3ced80b5d7
+              name: 'Service {#SERVICE}: Processes'
+              type: DEPENDENT
+              key: 'swarm.service.pids[{#SERVICE}]'
+              delay: '0'
+              description: 'Processes of all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].pids'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: system
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 4a1616afda0c43e1822cb9bc979bdb9c
+              name: 'Service {#SERVICE}: Network bytes received per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.rx[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_rx'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 2a96cc991c0841989f5f4aadd8788929
+              name: 'Service {#SERVICE}: Network bytes sent per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.tx[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_tx'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: d695490376d14841959d3a793a58acff
+              name: 'Service {#SERVICE}: Network packets received per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.rx.packets[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_rx_packets'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 134c7c23bb4f4c95b45f94cedf37fa15
+              name: 'Service {#SERVICE}: Network packets sent per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.tx.packets[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_tx_packets'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 626d2b5424fb434a8aee92fba036c8dc
+              name: 'Service {#SERVICE}: Network errors received per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.rx.errors[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_rx_errors'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 489fff5c69f9416eb3b5aaa6fc1f870f
+              name: 'Service {#SERVICE}: Network errors sent per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.tx.errors[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_tx_errors'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 4df5e1d849ef402d9d51a80970d817ec
+              name: 'Service {#SERVICE}: Network incoming packets dropped per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.rx.dropped[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_rx_dropped'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 6c7f892923164f969af0b16afd108ca1
+              name: 'Service {#SERVICE}: Network outgoing packets dropped per second'
+              type: DEPENDENT
+              key: 'swarm.service.net.tx.dropped[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].net_tx_dropped'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: network
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 2e260d4a745b4eda9e8f62c7f538e22b
+              name: 'Service {#SERVICE}: Disk read per second'
+              type: DEPENDENT
+              key: 'swarm.service.blk.read[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].blk_read'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: storage
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: cba28b0fc0a741e9a05a868f78810705
+              name: 'Service {#SERVICE}: Disk write per second'
+              type: DEPENDENT
+              key: 'swarm.service.blk.write[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Sum over all service tasks on this node.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].blk_write'
+                  error_handler: DISCARD_VALUE
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: storage
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+          trigger_prototypes:
+            - uuid: 5df266c545284032a74b3b575c29ab3f
+              expression: 'last(/Docker Swarm by Zabbix agent 2/swarm.service.task.failed.time[{#SERVICE}])>now()-{$SWARM.SERVICE.TASK.FAILED.PERIOD:"{#SERVICE}"} and length(last(/Docker Swarm by Zabbix agent 2/swarm.service.task.failed.error[{#SERVICE}]))>=0'
+              name: 'Swarm: Service {#SERVICE}: Task failed'
+              opdata: '{ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'A task of the service crashed, was killed as unhealthy or could not start. Resolves after {$SWARM.SERVICE.TASK.FAILED.PERIOD}.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: e722558726f140ef91b8e5c7eccb67b2
+              expression: 'max(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.running[{#SERVICE}],{$SWARM.SERVICE.REPLICAS.TIMEOUT:"{#SERVICE}"})=0 and last(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.desired[{#SERVICE}])>0'
+              name: 'Swarm: Service {#SERVICE}: No running replicas'
+              opdata: 'Running: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: HIGH
+              description: 'The service has had no running replicas for {$SWARM.SERVICE.REPLICAS.TIMEOUT}. A redeploy that completes within this period does not fire the trigger.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 5d31aa62cf5642a7b47ac3f8e679f376
+              expression: 'max(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.running[{#SERVICE}],{$SWARM.SERVICE.REPLICAS.TIMEOUT:"{#SERVICE}"})<last(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.desired[{#SERVICE}])'
+              name: 'Swarm: Service {#SERVICE}: Replicas below desired'
+              opdata: 'Running: {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+              priority: AVERAGE
+              description: 'The service has had fewer running replicas than desired for {$SWARM.SERVICE.REPLICAS.TIMEOUT}.'
+              dependencies:
+                - name: 'Swarm: Service {#SERVICE}: No running replicas'
+                  expression: 'max(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.running[{#SERVICE}],{$SWARM.SERVICE.REPLICAS.TIMEOUT:"{#SERVICE}"})=0 and last(/Docker Swarm by Zabbix agent 2/swarm.service.replicas.desired[{#SERVICE}])>0'
+              tags:
+                - tag: scope
+                  value: availability
+          graph_prototypes:
+            - uuid: de8e96e9909c46a49f8e43f0aeb4e818
+              name: 'Service {#SERVICE}: CPU usage'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 199C0D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.cpu[{#SERVICE}]'
+            - uuid: cf18c7e3279446aca495f62452b6fe5a
+              name: 'Service {#SERVICE}: CPU kernel/user'
+              graph_items:
+                - color: F63100
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.cpu.kernel[{#SERVICE}]'
+                - sortorder: '1'
+                  color: 199C0D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.cpu.user[{#SERVICE}]'
+            - uuid: 3740927c7e4f4ec4ba75889f01f709b6
+              name: 'Service {#SERVICE}: Memory'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.memory[{#SERVICE}]'
+                - sortorder: '1'
+                  color: F7941D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.memory.total[{#SERVICE}]'
+                - sortorder: '2'
+                  color: FC6EA3
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.memory.limit[{#SERVICE}]'
+            - uuid: ce4644c311214c71902315718c7b8583
+              name: 'Service {#SERVICE}: Network'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.net.rx[{#SERVICE}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.net.tx[{#SERVICE}]'
+            - uuid: 16660c758a1d48eca5ac64d0637a1f2d
+              name: 'Service {#SERVICE}: Network packets'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.net.rx.packets[{#SERVICE}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.net.tx.packets[{#SERVICE}]'
+            - uuid: f43b13e788e64a12a95dc48ddce2d46a
+              name: 'Service {#SERVICE}: Disk I/O'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.blk.read[{#SERVICE}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Docker Swarm by Zabbix agent 2'
+                    key: 'swarm.service.blk.write[{#SERVICE}]'
+          master_item:
+            key: swarm.services.aggr
+          lld_macro_paths:
+            - lld_macro: '{#MANAGER}'
+              path: $.manager
+            - lld_macro: '{#MODE}'
+              path: $.mode
+            - lld_macro: '{#SERVICE}'
+              path: $.service
+            - lld_macro: '{#STACK}'
+              path: $.stack
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  return JSON.stringify(Object.keys(d.services).map(function (name) {
+                      var s = d.services[name];
+                      return {service: name, stack: s.stack, mode: s.mode, manager: d.manager ? 1 : 0};
+                  }));
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 15m
+          overrides:
+            - name: 'Worker node: no swarm-wide metrics'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#MANAGER}'
+                    value: ^0$
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: 'Replicas|Update state|Last failed task'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: '(?i)replicas|update failed|task failed'
+                  discover: NO_DISCOVER
+            - name: 'Job services: no replica triggers'
+              step: '2'
+              filter:
+                conditions:
+                  - macro: '{#MODE}'
+                    value: job
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: '(?i)replicas'
+                  discover: NO_DISCOVER
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: docker-swarm
+      macros:
+        - macro: '{$SWARM.LLD.FILTER.SERVICE.MATCHES}'
+          value: '.*'
+          description: 'Filter of discoverable swarm services.'
+        - macro: '{$SWARM.LLD.FILTER.SERVICE.NOT_MATCHES}'
+          value: 'CHANGE_IF_NEEDED'
+          description: 'Filter to exclude discovered swarm services.'
+        - macro: '{$SWARM.NODATA.TIMEOUT}'
+          value: '10m'
+          description: 'Period without data after which the "Failed to fetch swarm data" trigger fires.'
+        - macro: '{$SWARM.SERVICE.CPU.UTIL.MAX}'
+          value: '90'
+          description: 'Threshold of the service CPU usage, % of one core. Supports context: {$SWARM.SERVICE.CPU.UTIL.MAX:"stack_service"}.'
+        - macro: '{$SWARM.SERVICE.CPU.UTIL.TIME}'
+          value: '15m'
+          description: 'Period of the high CPU usage trigger.'
+        - macro: '{$SWARM.SERVICE.MEM.UTIL.MAX}'
+          value: '90'
+          description: 'Threshold of the service task memory utilization, %. Supports context.'
+        - macro: '{$SWARM.SERVICE.MEM.UTIL.TIME}'
+          value: '15m'
+          description: 'Period of the high memory utilization trigger.'
+        - macro: '{$SWARM.SERVICE.REPLICAS.TIMEOUT}'
+          value: '5m'
+          description: 'How long a service may run below desired replicas before the triggers fire. Supports context.'
+        - macro: '{$SWARM.SERVICE.UNHEALTHY.TIMEOUT}'
+          value: '5m'
+          description: 'How long service tasks may be unhealthy before the trigger fires. Supports context.'
+        - macro: '{$SWARM.SERVICE.TASK.FAILED.PERIOD}'
+          value: '15m'
+          description: 'How long the task failure problem stays open. Supports context.'
+        - macro: '{$DOCKER.LLD.FILTER.CONTAINER.NOT_MATCHES}'
+          value: '\.([0-9]+|[a-z0-9]{25})\.[a-z0-9]{25}$'
+          description: 'Overrides the macro of Docker by Zabbix agent 2: excludes swarm task containers from its container discovery, they are monitored per service.'
