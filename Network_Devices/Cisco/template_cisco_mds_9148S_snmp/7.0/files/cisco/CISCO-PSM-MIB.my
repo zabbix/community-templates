@@ -1,0 +1,3560 @@
+-- *********************************************************************
+-- CISCO-PSM-MIB.my: Port Security Manager MIB
+--
+-- August 2003, H K Vivek
+--
+-- Copyright (c) 2003 by cisco Systems, Inc.
+-- All rights reserved.
+-- 
+-- *********************************************************************
+
+CISCO-PSM-MIB  DEFINITIONS ::= BEGIN
+IMPORTS
+        MODULE-IDENTITY, OBJECT-TYPE,
+        NOTIFICATION-TYPE,
+        Counter32, Unsigned32             FROM    SNMPv2-SMI
+        MODULE-COMPLIANCE, OBJECT-GROUP,
+        NOTIFICATION-GROUP                FROM    SNMPv2-CONF
+        TEXTUAL-CONVENTION, RowStatus,
+        TruthValue, TimeStamp             FROM    SNMPv2-TC
+        ciscoMgmt                         FROM    CISCO-SMI
+        FcNameId, FcNameIdOrZero,         
+        DomainId, PortMemberList,
+        DomainIdOrZero                    FROM    CISCO-ST-TC
+        InterfaceIndexOrZero,             
+        InterfaceIndex                    FROM    IF-MIB
+        vsanIndex                         FROM    CISCO-VSAN-MIB;
+
+
+ciscoPsmMIB  MODULE-IDENTITY
+        LAST-UPDATED  "200410150000Z"
+        ORGANIZATION  "Cisco Systems Inc."
+        CONTACT-INFO
+                "     Cisco Systems
+                      Customer Service
+                Postal: 170 W Tasman Drive
+                      San Jose, CA  95134
+                      USA
+                Tel: +1 800 553-NETS
+                E-mail: cs-san@cisco.com"
+        DESCRIPTION
+                "The MIB module for the management of the
+                 Port Security Manager (PSM). The PSM
+                 consists of 2 aspects: Port binding and
+                 Fabric binding. Port binding is concerned
+                 with the security of switch ports and Fabric
+                 binding with the security of the SAN fabric
+                 as a whole."
+        REVISION  "200410150000Z"
+        DESCRIPTION
+                "Added cpsmPortBindNextFreeTable and 
+                 cpsmFabricBindNextFreeTable.
+                 Added new enumeration to the TC
+                 CpsmPortBindSwPortType."
+        REVISION  "200403160000Z"
+        DESCRIPTION
+                "Added a new enumeration to the TC
+                 CpsmViolationReasonCode."
+        REVISION  "200311270000Z"
+        DESCRIPTION
+                "Added cpsmFabricBindDenialReasonCode to
+                 cpsmFabricBindViolationNewTable and the
+                 notification ciscoPsmFabricBindDenyNotifyNew."
+        REVISION  "200311100000Z"
+        DESCRIPTION
+                "Added cpsmFabricBindDenialDomId object to
+                 cpsmFabricBindViolationNewTable."
+        REVISION  "200310170000Z"
+        DESCRIPTION
+                "Made cpsmFabricBindDomId mandatory during
+                 creation of fabric-binding entry.
+                 Deprecated cpsmFabricBindAutoLearnTable."
+        REVISION  "200310060000Z"
+        DESCRIPTION
+                "Deprecated object
+                 cpsmFabricBindClearAutoLearnIntf.
+                 Updated description of 
+                 cpsmFabricBindClearAutoLearnDb object to
+                 reflect the fact that fabric-binding entries
+                 cannot be cleared on an interface basis.
+                 Deprecated cpsmFabricBindViolationTable and
+                 defined new table 
+                 cpsmFabricBindViolationNewTable.
+                 Deprecated ciscoPsmFabricBindDenyNotify and
+                 defined a new notification 
+                 ciscoPsmFabricBindDenyNotifyNew.
+                 Added cpsmEfmdConfigTable and cpsmEfmdStatsTable."
+        REVISION  "200308070000Z"
+        DESCRIPTION
+                "Initial version of this MIB."
+        ::= { ciscoMgmt 364 }
+
+
+ciscoPsmMIBNotifs  OBJECT IDENTIFIER ::= { ciscoPsmMIB 0 }
+ciscoPsmMIBObjects OBJECT IDENTIFIER ::= { ciscoPsmMIB 1 }
+ciscoPsmMIBConform OBJECT IDENTIFIER ::= { ciscoPsmMIB 2 }
+cpsmConfiguration  OBJECT IDENTIFIER
+                        ::= { ciscoPsmMIBObjects 1 }
+cpsmStats          OBJECT IDENTIFIER
+                        ::= { ciscoPsmMIBObjects 2 }
+
+-- Textual Conventions
+
+CpsmVirtNwType ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "The type of virtual network.
+                 vsan  
+                    the virtual network is VSAN.
+                 vlan  
+                    the virtual network is VLAN."
+        SYNTAX   INTEGER {
+                    vsan(1),
+                    vlan(2)
+                 }
+
+CpsmPortBindDevType ::= TEXTUAL-CONVENTION
+        STATUS  current
+        DESCRIPTION
+                "The mechanism used to identify the address
+                 of a device.
+                 mac  
+                    the type of device address is MAC.
+                 nWwn
+                    the type of device address is Node WWN.
+                 pWwn 
+                    the type of device address is Port WWN.
+                 sWwn 
+                    the type of device address is Switch WWN.
+                 wildCard 
+                    wild card entry (any device)."
+        SYNTAX   INTEGER {
+                    mac(1),
+                    nWwn(2),
+                    pWwn(3),
+                    sWwn(4),
+                    wildCard(5)
+                 }
+
+CpsmPortBindSwPortType ::= TEXTUAL-CONVENTION
+        STATUS  current
+        DESCRIPTION
+                "The mechanism to identify a switch port.
+                 fwwn 
+                    the local switch port is identified 
+                    by Fabric WWN(fWWN).
+                 intfIndex 
+                    the local switch port is identified by 
+                    ifIndex. The applicable ifType is 
+                    'fibreChannel(56)'.
+                 wildCard 
+                    wild card (any switch port on local device).
+                 swwn
+                    any switch port on the switch represented
+                    by swwn."
+        SYNTAX   INTEGER {
+                     fwwn(1),
+                     intfIndex(2),
+                     wildCard(3),
+                     swwn(4)
+                 }
+
+CpsmDbActivate ::= TEXTUAL-CONVENTION
+        STATUS  current
+        DESCRIPTION
+                "Mechanism to activate/deactivate database.
+                 activate
+                     activate the database.
+                 activateWithAutoLearnOff 
+                     activate the database and turn auto-learn
+                     off after activation.
+                 forceActivate 
+                     activate the database and disregard 
+                     errors during activation, if any.
+                 forceActivateWithAutoLearnOff
+                     activate the database and disregard
+                     errors during activation and turn auto-learn 
+                     off after the activation.
+                 deactivate 
+                     deactivate the database.
+                 noop 
+                     no operation."
+        SYNTAX   INTEGER {
+                     activate(1),
+                     activateWithAutoLearnOff(2),
+                     forceActivate(3),
+                     forceActivateWithAutoLearnOff(4),
+                     deactivate(5),
+                     noop(6)
+                 }
+
+CpsmActivateResult ::= TEXTUAL-CONVENTION
+        STATUS  current
+        DESCRIPTION
+                "The result of activation/deactivation of
+                 configuration database.
+                 success 
+                     the outcome of activation/deactivation 
+                     was successful.
+                 actFailNullDb 
+                     the activation failed because an empty 
+                     configuration database was being activated.
+                 actFailConflictDb 
+                     the activation failed because there were
+                     conflicts seen between the configuration 
+                     database and the active database.
+                 actFailSystemErr 
+                     the activation failed because of a system error.
+                 actFailAutoLearnOn 
+                     the activation failed because auto learn was on.
+                 deactFailNoActive 
+                     the outcome of deactivation was a failure 
+                     because there was no database which was 
+                     active."
+        SYNTAX   INTEGER {
+                     success(1),
+                     actFailNullDb(2),
+                     actFailConflictDb(3),
+                     actFailSystemErr(4),
+                     actFailAutoLearnOn(5),
+                     deactFailNoActive(6)
+                 }
+
+CpsmAutoLearnEnable ::= TEXTUAL-CONVENTION
+        STATUS  current
+        DESCRIPTION
+                "Specifies whether to enable/disable auto learn.
+                 on  
+                   enable auto-learn.
+                 off 
+                   disable auto-learn."
+        SYNTAX   INTEGER {
+                     on(1),
+                     off(2)
+                 }
+
+CpsmClearStats ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Specifies whether to clear the statistic
+                 counters.
+                 clear
+                    clear the counters.
+                 noop 
+                    no operation."
+        SYNTAX   INTEGER {
+                     clear(1),
+                     noop(2)
+                 }
+
+CpsmClearAutoLearnDb ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Specifies how to clear auto-learn database.
+                 clearOnVsan 
+                      clear auto-learn entries on the whole 
+                      VSAN/VLAN.
+                 clearOnIntf 
+                      clear auto-learn entries on a specified 
+                      interface on a VSAN/VLAN.
+                 noop 
+                      no operation."
+        SYNTAX   INTEGER {
+                     clearOnVsan(1),
+                     clearOnIntf(2),
+                     noop(3)
+                 }
+
+CpsmDiffDb ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Specifes the database for difference
+                 operation.
+                 configDb
+                     configuration database to be compared with 
+                     active database, with active database as 
+                     the reference database.
+                 activeDb
+                     active database to be compared with 
+                     configuration database, with 
+                     configuration database as the reference 
+                     database.
+                 noop 
+                     no operation."
+        SYNTAX   INTEGER {
+                     configDb(1),
+                     activeDb(2),
+                     noop(3)
+                 }
+
+CpsmDiffReason ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Specifies the reason for the difference.
+                 extra 
+                     entry is present only in
+                     reference database.
+                 missing
+                     entry is not present in reference 
+                     database.
+                 conflict 
+                     entry is having a conflict between the 
+                     reference database and the other
+                     database."
+        SYNTAX   INTEGER {
+                     extra(1),
+                     missing(2),
+                     conflict(3)
+                 }
+
+CpsmStatsCounter ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Specifies a counter value which can be 
+                 reset."
+        SYNTAX   Unsigned32 (0..4294967295)
+
+CpsmViolationReasonCode ::= TEXTUAL-CONVENTION
+        STATUS   current
+        DESCRIPTION
+                "Indicates the reason for which a switch was
+                 denied entry in to the fabric due to enforced
+                 fabric bindings.
+
+                 unknown(1)   - Unknown reason.
+                 noSwwn(2) - The WWN of the switch that has
+                             been denied entry was not present
+                             in the list of enforced fabric
+                             bindings on the local device.
+                 domIdMismatch(3) - The WWN of the switch that has
+                                    been denied entry was present
+                                    in the list of enforced fabric
+                                    bindings on the local device,
+                                    but the domain id of the device
+                                    did not match the domain id
+                                    that was present in the enforced
+                                    fabric binding list.
+                 efmdDbMismatch(4) - The EFMD protocol encountered
+                                     a database mismatch with the
+                                     switch and hence it was denied
+                                     entry.
+                 noRespFromRemote(5) - There was no response from the
+                                       remote device."
+        SYNTAX   INTEGER {
+                     unknown(1),
+                     noSwwn(2),
+                     domIdMismatch(3),
+                     efmdDbMismatch(4),
+                     noRespFromRemote(5)
+                 }
+
+-- Port Binding configuration database
+
+cpsmPortBindTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmPortBindEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains the set of all valid port
+                 bindings configured on the local device. A
+                 valid port binding consists of a pWWN/nWWN 
+                 bound to a port on the local device. If a 
+                 device Px is bound with an interface Fx on the 
+                 local device, then Px can only FLOGI thru' 
+                 Fx on the local device and not thru' any other 
+                 interface and Fx will permit FLOGI only from 
+                 Px. Wild-cards can be specified for either
+                 Px or Fx but not for both. 
+
+                 The set of valid port bindings configured in this
+                 table should be activated by means of the
+                 cpsmPortBindActivateTable. When the activation
+                 takes place, the valid port binding entries are
+                 enforced and FLOGI from external devices to 
+                 the local device will be subject to the 
+                 enforced port bindings."
+        ::= { cpsmConfiguration 1 }
+
+cpsmPortBindEntry OBJECT-TYPE
+        SYNTAX        CpsmPortBindEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindNwType,
+                cpsmPortBindNwIndex,
+                cpsmPortBindIndex }
+        ::= { cpsmPortBindTable 1 }
+
+CpsmPortBindEntry ::= SEQUENCE {
+        cpsmPortBindNwType                CpsmVirtNwType,
+        cpsmPortBindNwIndex               Unsigned32,
+        cpsmPortBindIndex                 Unsigned32,
+        cpsmPortBindLoginDevType          CpsmPortBindDevType,
+        cpsmPortBindLoginDev              OCTET STRING,
+        cpsmPortBindLoginPointType        CpsmPortBindSwPortType,
+        cpsmPortBindLoginPoint            OCTET STRING,
+        cpsmPortBindRowStatus             RowStatus
+}
+
+cpsmPortBindNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmPortBindEntry 1 }
+
+cpsmPortBindNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmPortBindNwType."
+        ::= { cpsmPortBindEntry 2 }
+
+cpsmPortBindIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4096)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "Uniquely identifies a valid port binding on a 
+                 VSAN/VLAN."
+        ::= { cpsmPortBindEntry 3 }
+
+cpsmPortBindLoginDevType OBJECT-TYPE
+        SYNTAX        CpsmPortBindDevType
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "Specifies the format of the corresponding
+                 instance of cpsmPortBindLoginDev."
+        DEFVAL { pWwn }
+        ::= { cpsmPortBindEntry 4 }
+
+cpsmPortBindLoginDev OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE(0 | 6 | 8))
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "This object represents the logging-in
+                 device address. The interpretation of
+                 this object depends on the 
+                 cpsmPortBindLoginDevType object.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginDevType object is 'mac(1)',
+                 then this object contains a MAC address.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginDevType object is 'nWwn(2)',
+                 then this object contains a Node WWN.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginDevType object is 'pWwn(3)',
+                 then this object contains a Port WWN.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginDevType object is 'sWwn(4)',
+                 then this object contains a Switch WWN.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginDevType object is 
+                 'wildCard(5)', then it represents a wild-card
+                 entry and this object's value will be ignored.
+                 The wild-card represents any device.
+
+                 This object MUST be set to a valid value
+                 before or concurrently with setting the
+                 corresponding instance of cpsmPortBindRowStatus
+                 object to 'active'."
+        ::= { cpsmPortBindEntry 5 }
+
+cpsmPortBindLoginPointType OBJECT-TYPE
+        SYNTAX        CpsmPortBindSwPortType
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "Specifies the format of the corresponding
+                 instance of cpsmPortBindLoginPoint."
+        DEFVAL { fwwn }
+        ::= { cpsmPortBindEntry 6 }
+
+cpsmPortBindLoginPoint OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE(0 | 4 | 8))
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "This object represents the address of the
+                 port on the local device thru' which the
+                 device specified by the corresponding
+                 instance of cpsmPortBindLoginDev can FLOGI.
+                 The interpretation of this object depends
+                 on the value of the corresponding instance
+                 of cpsmPortBindLoginPointType.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginPointType is 'fwwn(1)',
+                 then this object contains the fabric WWN
+                 of a port on the local device.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginPointType is 
+                 'intfIndex(2)', then a port on the local
+                 device is being represented by it's
+                 interface index (ifIndex) and this object
+                 contains the ifIndex.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginPointType is
+                 'wildCard(3)', then it represents a wild-card
+                 entry and the value of this object is
+                 ignored. The wild-card represents any port
+                 on the local device.
+
+                 If the value of the corresponding instance
+                 of cpsmPortBindLoginPointType is 'swwn(4)',
+                 then this object contains the WWN of a switch
+                 in the fabric. This represents any port on
+                 that switch.
+
+                 This object MUST be set to a valid value
+                 before or concurrently with setting the
+                 corresponding instance of cpsmPortBindRowStatus
+                 object to 'active'."
+        ::= { cpsmPortBindEntry 7 }
+
+cpsmPortBindRowStatus OBJECT-TYPE
+        SYNTAX        RowStatus
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "The status of this conceptual row."
+        ::= { cpsmPortBindEntry 8 }
+
+cpsmPortBindActivateTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmPortBindActivateEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains atmost one entry per VSAN/VLAN 
+                 that is configured. These entries reflect the state 
+                 of activation/deactivation of the valid port bindings
+                 on the corresponding VSAN/VLAN."
+        ::= { cpsmConfiguration 2 }
+
+cpsmPortBindActivateEntry OBJECT-TYPE
+        SYNTAX        CpsmPortBindActivateEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table.
+                 The recommended mechanism for activation is
+                 as follows:
+
+                 - turn off auto-learn on the required VSAN/VLAN
+                   by means of cpsmPortBindAutoLearnEnable object
+                   in the cpsmPortBindAutoLearnTable.
+
+                 - copy the enforced port bindings to the 
+                   configuration port binding (cpsmPortBindTable) 
+                   by means of the cpsmPortBindCopyTable from the
+                   cpsmPortBindEnfTable.
+
+                 - activate the configuration port binding using 
+                   this table."
+        INDEX { cpsmPortBindNwType,
+                cpsmPortBindNwIndex }
+        ::= { cpsmPortBindActivateTable 1 }
+        
+CpsmPortBindActivateEntry ::= SEQUENCE {
+        cpsmPortBindActivate              CpsmDbActivate,
+        cpsmPortBindResult                CpsmActivateResult,
+        cpsmPortBindLastActTime           TimeStamp,
+        cpsmPortBindActState              TruthValue
+}
+
+cpsmPortBindActivate OBJECT-TYPE
+        SYNTAX        CpsmDbActivate
+        MAX-ACCESS    read-write
+        STATUS        current
+        DESCRIPTION
+                "Setting this object to 'activate(1)', will
+                 result in the valid port bindings on this
+                 VSAN/VLAN being activated and the set of
+                 port bindings that have been activated will
+                 be copied to the cpsmPortBindEnfTable.
+
+                 Setting this object to 
+                 'activateWithAutoLearnOff(2)', will result in
+                 the valid port bindings on this VSAN/VLAN being
+                 activated and copied to the cpsmPortBindEnfTable 
+                 and will also result in auto learn being turned 
+                 off on this VSAN/VLAN, once the activation is 
+                 complete.
+
+                 By default, auto learn will be turned 'on' 
+                 on a VSAN/VLAN after activation.
+                 Before activation is attempted, auto-learn 
+                 should be off.
+
+                 Setting this object to 'forceActivate(3)', will
+                 result in forced activation, even if there are
+                 errors during activation and the activated
+                 port bindings will be copied to the 
+                 cpsmPortBindEnfTable.
+
+                 Setting this object to 
+                 'forceActivateWithAutoLearnOff(4)', will result
+                 in forced activation along with turning 
+                 auto learn off after activation and the activated
+                 port bindings will be copied to the
+                 cpsmPortBindEnfTable.
+
+                 Setting this object to 'deactivate(5)', will
+                 result in deactivation of currently activated
+                 valid port bindings (if any), on this VSAN/VLAN.
+                 Currently active entries (if any), which
+                 would have been present in the 
+                 cpsmPortBindEnfTable, will be removed.
+
+                 Setting this object to 'noop(6)', results in 
+                 no action.
+
+                 The value of this object when read is always
+                 'noop(6)'.
+
+                 Activation will not be allowed on a VSAN/VLAN
+                 if auto-learn is enabled on that VSAN/VLAN."
+        ::= { cpsmPortBindActivateEntry 1 }
+
+cpsmPortBindResult OBJECT-TYPE
+        SYNTAX        CpsmActivateResult
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object indicates the outcome of the most
+                 recent activation/deactivation."
+        ::= { cpsmPortBindActivateEntry 2 }
+
+cpsmPortBindLastActTime OBJECT-TYPE
+        SYNTAX        TimeStamp
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The sysUpTime at which the valid port bindings
+                 on this VLAN/VSAN were last activated. If
+                 the last activation took place prior to
+                 the last re-initialization of the agent, then 
+                 this object will contain a zero value."
+        ::= { cpsmPortBindActivateEntry 3 }
+
+cpsmPortBindActState OBJECT-TYPE
+        SYNTAX        TruthValue
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The state of activation on this VSAN/VLAN.
+
+                 If the value of this object is 'true', then
+                 an activation has been attempted as the most
+                 recent operation on this VSAN/VLAN.
+
+                 If the value of this object is 'false', then
+                 an activation has not been attempted as the
+                 most recent operation on this VSAN/VLAN."
+        ::= { cpsmPortBindActivateEntry 4 }
+
+-- Fabric Binding configuration database
+
+cpsmFabricBindTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmFabricBindEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains the set of all valid 
+                 fabric bindings configured on the local device.
+                 A Fabric binding is specified as a switch WWN 
+                 along with an insistent domain id. This 
+                 set of switch WWNs represent the set of all 
+                 switches that can be part of the fabric. Switches 
+                 not part of this set will not be allowed to be
+                 part of the fabric.
+
+                 The set of valid fabric bindings configured in 
+                 this table should be activated by means of the
+                 cpsmFabricBindActivateTable."
+        ::= { cpsmConfiguration 3 }
+
+cpsmFabricBindEntry OBJECT-TYPE
+        SYNTAX        CpsmFabricBindEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindNwType,
+                cpsmFabricBindNwIndex,
+                cpsmFabricBindIndex }
+        ::= { cpsmFabricBindTable 1 }
+
+CpsmFabricBindEntry ::= SEQUENCE {
+        cpsmFabricBindNwType                CpsmVirtNwType,
+        cpsmFabricBindNwIndex               Unsigned32,
+        cpsmFabricBindIndex                 Unsigned32,
+        cpsmFabricBindSwitchWwn             OCTET STRING,
+        cpsmFabricBindDomId                 DomainId,
+        cpsmFabricBindRowStatus             RowStatus
+}
+
+cpsmFabricBindNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmFabricBindEntry 1 }
+
+cpsmFabricBindNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmFabricBindNwType."
+        ::= { cpsmFabricBindEntry 2 }
+
+cpsmFabricBindIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4096)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "Uniquely identifies a valid fabric binding on a
+                 VSAN/VLAN."
+        ::= { cpsmFabricBindEntry 3 }
+
+cpsmFabricBindSwitchWwn OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE(8))
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "This object specifies the switch WWN of
+                 a switch that can be part of the fabric.
+
+                 This object MUST be set to a valid value
+                 before or concurrently with setting the
+                 corresponding instance of 
+                 cpsmFabricBindRowStatus object to 'active'.
+
+                 This object cannot be modified while the
+                 corresponding value of cpsmFabricBindRowStatus
+                 object is 'active'."
+        ::= { cpsmFabricBindEntry 4 }
+
+cpsmFabricBindDomId OBJECT-TYPE
+        SYNTAX        DomainId
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "Specifies an insistent domain id.
+
+                 This object MUST be set to a valid value
+                 before or concurrently with setting the
+                 corresponding instance of 
+                 cpsmFabricBindRowStatus object to 'active'.
+
+                 This object cannot be modified while the
+                 corresponding value of cpsmFabricBindRowStatus
+                 object is 'active'.
+
+                 The switch specified in the corresponding 
+                 instance of cpsmFabricBindSwitchWwn will be 
+                 allowed to be part of the fabric, only if it 
+                 has a domain id equal to the value of this 
+                 object.
+
+                 Attempting to pair a domain id with more than
+                 one switch or a single switch with more than 
+                 one domain id, results in error."
+        ::= { cpsmFabricBindEntry 5 }
+
+cpsmFabricBindRowStatus OBJECT-TYPE
+        SYNTAX        RowStatus
+        MAX-ACCESS    read-create
+        STATUS        current
+        DESCRIPTION
+                "The status of this conceptual row."
+        ::= { cpsmFabricBindEntry 6 }
+
+cpsmFabricBindActivateTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmFabricBindActivateEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains atmost one entry per VSAN/VLAN 
+                 that is configured. These entries reflect the state 
+                 of activation/deactivation of the valid fabric 
+                 bindings on the corresponding VSAN/VLAN.
+                 Entries can get into this table or be deleted from 
+                 this table only by means of explicit 
+                 activation/deactivation."
+        ::= { cpsmConfiguration 4 }
+
+cpsmFabricBindActivateEntry OBJECT-TYPE
+        SYNTAX        CpsmFabricBindActivateEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table.
+                 The recommended mechanism for activation is
+                 as follows:
+
+                 - copy the enforced fabric bindings to the 
+                   configuration fabric binding (cpsmFabricBindTable) 
+                   by means of the cpsmFabricBindCopyTable.
+
+                 - activate the configuration fabric binding using 
+                   this table."
+        INDEX { cpsmFabricBindNwType,
+                cpsmFabricBindNwIndex }
+        ::= { cpsmFabricBindActivateTable 1 }
+        
+CpsmFabricBindActivateEntry ::= SEQUENCE {
+        cpsmFabricBindActivate              CpsmDbActivate,
+        cpsmFabricBindResult                CpsmActivateResult,
+        cpsmFabricBindLastActTime           TimeStamp,
+        cpsmFabricBindActState              TruthValue
+}
+
+cpsmFabricBindActivate OBJECT-TYPE
+        SYNTAX        CpsmDbActivate
+        MAX-ACCESS    read-write
+        STATUS        current
+        DESCRIPTION
+                "Setting this object to 'activate(1)', will
+                 result in the valid fabric bindings on this
+                 VSAN/VLAN being activated and the set of
+                 fabric bindings that have been activated will
+                 be copied to the cpsmFabricBindEnfTable.
+
+                 Setting this object to 
+                 'activateWithAutoLearnOff(2)', will result in
+                 the valid fabric bindings on this VSAN/VLAN being
+                 activated and copied to the cpsmFabricBindEnfTable
+                 and will also result in auto learn being turned off 
+                 on this VSAN/VLAN, once the activation is complete.
+
+                 By default, auto learn will be turned 'on' 
+                 on a VSAN/VLAN after activation.
+                 Before activation is attempted, auto-learn 
+                 should be off.
+
+                 Setting this object to 'forceActivate(3)', will
+                 result in forced activation, even if there are
+                 errors during activation and the activated fabric
+                 bindings will be copied to the 
+                 cpsmFabricBindEnfTable.
+
+                 Setting this object to 
+                 'forceActivateWithAutoLearnOff(4)', will result
+                 in forced activation along with turning 
+                 auto learn off after activation and the activated
+                 fabric bindings will be copied to the
+                 cpsmFabricBindEnfTable.
+
+                 Setting this object to 'deactivate(5)', will
+                 result in deactivation of currently activated
+                 fabric bindings (if any), on this VSAN/VLAN.
+                 Currently active entries (if any), which
+                 would have been present in the 
+                 cpsmFabricBindEnfTable, will be removed.
+
+                 Setting this object to 'noop(6), results in 
+                 no action.
+
+                 The value of this object when read is always
+                 'noop(6)'."
+        ::= { cpsmFabricBindActivateEntry 1 }
+
+cpsmFabricBindResult OBJECT-TYPE
+        SYNTAX        CpsmActivateResult
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object indicates the outcome of the most
+                 recent activation/deactivation."
+        ::= { cpsmFabricBindActivateEntry 2 }
+
+cpsmFabricBindLastActTime OBJECT-TYPE
+        SYNTAX        TimeStamp
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The sysUpTime at which the valid fabric bindings
+                 on this VLAN/VSAN were last activated. If
+                 the last activation took place prior to
+                 the last re-initialization of the agent, then 
+                 this object will contain a zero value."
+        ::= { cpsmFabricBindActivateEntry 3 }
+
+cpsmFabricBindActState OBJECT-TYPE
+        SYNTAX        TruthValue
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The state of activation on this VSAN/VLAN.
+
+                 If the value of this object is 'true', then
+                 an activation has been attempted as the most
+                 recent operation on this VSAN/VLAN.
+
+                 If the value of this object is 'false', then
+                 an activation has not been attempted as the
+                 most recent operation on this VSAN/VLAN."
+        ::= { cpsmFabricBindActivateEntry 4 }
+
+cpsmPortBindCopyTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmPortBindCopyEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in copying the enforced (active) port
+                 binding database (cpsmPortBindEnfTable) to 
+                 the configuration port binding database 
+                 (cpsmPortBindTable) on a VSAN/VLAN. This
+                 copy operation overwrites the existing
+                 configuration port binding database."
+        ::= { cpsmConfiguration 5 }
+
+cpsmPortBindCopyEntry OBJECT-TYPE
+        SYNTAX        CpsmPortBindCopyEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindNwType,
+                cpsmPortBindNwIndex }
+        ::= { cpsmPortBindCopyTable 1 }
+
+CpsmPortBindCopyEntry ::= SEQUENCE {
+        cpsmPortBindCopyActToConfig   INTEGER,
+        cpsmPortBindLastChangeTime    TimeStamp
+}
+
+cpsmPortBindCopyActToConfig OBJECT-TYPE
+        SYNTAX        INTEGER {
+                         copy(1),
+                         noop(2)
+                      }
+        MAX-ACCESS    read-write
+        STATUS        current
+        DESCRIPTION
+                "This object when set to 'copy(1)', results
+                 in the active (enforced) port binding database 
+                 to be copied on to the configuration port 
+                 binding database on this VSAN/VLAN. Note that 
+                 the learned entries are also copied.
+
+                 No action is taken if this object is set to
+                 'noop(2)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmPortBindCopyEntry 1 }
+
+cpsmPortBindLastChangeTime OBJECT-TYPE
+        SYNTAX        TimeStamp
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The value of sysUpTime when the last change
+                 was made to the configuration port binding 
+                 database on this VSAN/VLAN. If it has not been 
+                 modified since the last re-initialization
+                 of the agent, then this object will contain a 
+                 zero value."
+        ::= { cpsmPortBindCopyEntry 2 }
+
+
+cpsmFabricBindCopyTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmFabricBindCopyEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in copying the enforced (active) fabric
+                 binding database (cpsmFabricBindEnfTable) to 
+                 the configuration fabric binding database 
+                 (cpsmFabricBindTable) on a VSAN/VLAN. This
+                 copy operation overwrites the existing
+                 configuration fabric binding database."
+        ::= { cpsmConfiguration 6 }
+
+cpsmFabricBindCopyEntry OBJECT-TYPE
+        SYNTAX        CpsmFabricBindCopyEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindNwType,
+                cpsmFabricBindNwIndex }
+        ::= { cpsmFabricBindCopyTable 1 }
+
+CpsmFabricBindCopyEntry ::= SEQUENCE {
+        cpsmFabricBindCopyActToConfig   INTEGER,
+        cpsmFabricBindLastChangeTime    TimeStamp
+}
+
+cpsmFabricBindCopyActToConfig OBJECT-TYPE
+        SYNTAX        INTEGER {
+                         copy(1),
+                         noop(2)
+                      }
+        MAX-ACCESS    read-write
+        STATUS        current
+        DESCRIPTION
+                "This object when set to 'copy(1)', results
+                 in the enforced  fabric binding database to be
+                 copied on to the configuration fabric binding 
+                 database on this VSAN/VLAN. Note that the learned 
+                 entries are also copied.
+
+                 No action is taken if this object is set to
+                 'noop(2)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmFabricBindCopyEntry 1 }
+
+cpsmFabricBindLastChangeTime OBJECT-TYPE
+        SYNTAX        TimeStamp
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "The value of sysUpTime when the last change
+                 was made to the configuration fabric binding 
+                 database on this VSAN/VLAN. If it has not been 
+                 modified since the last re-initialization
+                 of the agent, then this object will contain a 
+                 zero value."
+        ::= { cpsmFabricBindCopyEntry 2 }
+
+
+-- Enforced Port binding Table
+
+cpsmPortBindEnfTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmPortBindEnfEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains information on all
+                 currently enforced port bindings on all
+                 VSANs/VLANs on the local device. The
+                 enforced set of port bindings is the
+                 set of valid port bindings copied from the 
+                 configuration port binding database 
+                 (cpsmPortBindTable) at the time they were 
+                 activated. These entries cannot be modified. 
+                 The learnt entries are also a part of this 
+                 table. Entries can get into this table or be 
+                 deleted from this table only by means of 
+                 explicit activation/deactivation.
+
+                 Note that this table will be empty when no
+                 valid port bindings have been activated."
+        ::= { cpsmConfiguration 7 }
+
+cpsmPortBindEnfEntry OBJECT-TYPE
+        SYNTAX        CpsmPortBindEnfEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindEnfNwType,
+                cpsmPortBindEnfNwIndex,
+                cpsmPortBindEnfIndex }
+        ::= { cpsmPortBindEnfTable 1 }
+
+CpsmPortBindEnfEntry ::= SEQUENCE {
+        cpsmPortBindEnfNwType           CpsmVirtNwType,
+        cpsmPortBindEnfNwIndex          Unsigned32,
+        cpsmPortBindEnfIndex            Unsigned32,
+        cpsmPortBindEnfLoginDevType     CpsmPortBindDevType,
+        cpsmPortBindEnfLoginDev         OCTET STRING,
+        cpsmPortBindEnfLoginPointType   CpsmPortBindSwPortType,
+        cpsmPortBindEnfLoginPoint       OCTET STRING,
+        cpsmPortBindEnfIsLearnt         TruthValue
+}
+
+cpsmPortBindEnfNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmPortBindEnfEntry 1 }
+
+cpsmPortBindEnfNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmPortBindEnfNwType."
+        ::= { cpsmPortBindEnfEntry 2 }
+
+cpsmPortBindEnfIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4096)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "Uniquely identifies a valid port binding on a 
+                 VSAN/VLAN."
+        ::= { cpsmPortBindEnfEntry 3 }
+
+cpsmPortBindEnfLoginDevType OBJECT-TYPE
+        SYNTAX        CpsmPortBindDevType
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object identifies the format of the
+                 corresponding instance of 
+                 cpsmPortBindEnfLoginDev object."
+        ::= { cpsmPortBindEnfEntry 4 }
+
+cpsmPortBindEnfLoginDev OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE(0 | 6 | 8))
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object represents the logging in
+                 device address. This object was copied
+                 from the cpsmPortBindLoginDev object in the
+                 cpsmPortBindTable at the time when the
+                 currently active port bindings were activated."
+        ::= { cpsmPortBindEnfEntry 5 }
+
+cpsmPortBindEnfLoginPointType OBJECT-TYPE
+        SYNTAX        CpsmPortBindSwPortType
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "Specifies the format of the corresponding
+                 instance of cpsmPortBindEnfLoginPoint."
+        ::= { cpsmPortBindEnfEntry 6 }
+
+cpsmPortBindEnfLoginPoint OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE(0 | 4 | 8))
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object represents the address of a 
+                 port on the local device. This object was 
+                 copied from the cpsmPortBindLoginPoint object 
+                 in the cpsmPortBindTable at the time when the
+                 currently active port bindings were activated."
+        ::= { cpsmPortBindEnfEntry 7 }
+
+cpsmPortBindEnfIsLearnt OBJECT-TYPE
+        SYNTAX        TruthValue
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object indicates if this entry is a
+                 learnt entry or not.
+
+                 If the value of this object is 'true', then
+                 this is a learnt entry.
+
+                 If the value of this object is 'false', then
+                 it is not a learnt entry."
+        ::= { cpsmPortBindEnfEntry 8 }
+
+-- Enforced Fabric bind Table
+
+cpsmFabricBindEnfTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmFabricBindEnfEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains information on all
+                 currently enforced fabric bindings on all
+                 VSANs/VLANs on the local device. The
+                 enforced set of fabric bindings is the
+                 set of fabric bindings copied from the full
+                 fabric binding database (cpsmFabricBindTable)
+                 at the time they were activated. These 
+                 entries cannot be modified. The learnt
+                 entries are also part of this table.
+                 Entries can get into this table or be deleted 
+                 from this table only by means of explicit 
+                 activation/deactivation.              
+                 Note that this table will be empty when no
+                 valid fabric bindings have been activated."
+        ::= { cpsmConfiguration 8 }
+
+cpsmFabricBindEnfEntry OBJECT-TYPE
+        SYNTAX        CpsmFabricBindEnfEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindEnfNwType,
+                cpsmFabricBindEnfNwIndex,
+                cpsmFabricBindEnfIndex }
+        ::= { cpsmFabricBindEnfTable 1 }
+
+CpsmFabricBindEnfEntry ::= SEQUENCE {
+        cpsmFabricBindEnfNwType           CpsmVirtNwType,
+        cpsmFabricBindEnfNwIndex          Unsigned32,
+        cpsmFabricBindEnfIndex            Unsigned32,
+        cpsmFabricBindEnfSwitchWwn        OCTET STRING,
+        cpsmFabricBindEnfDomId            DomainId,
+        cpsmFabricBindEnfIsLearnt         TruthValue
+}
+
+cpsmFabricBindEnfNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmFabricBindEnfEntry 1 }
+
+cpsmFabricBindEnfNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmFabricBindEnfNwType."
+        ::= { cpsmFabricBindEnfEntry 2 }
+
+cpsmFabricBindEnfIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4096)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "Uniquely identifies a valid fabric binding on a
+                 VSAN/VLAN."
+        ::= { cpsmFabricBindEnfEntry 3 }
+
+cpsmFabricBindEnfSwitchWwn OBJECT-TYPE
+        SYNTAX        OCTET STRING (SIZE (8))
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object specifies the switch WWN of
+                 a switch that can be part of the fabric.
+                 This object was copied from the 
+                 cpsmFabricBindSwitchWwn object in the
+                 cpsmFabricBindTable at the time when the
+                 currently active fabric bindings were activated."
+        ::= { cpsmFabricBindEnfEntry 4 }
+
+cpsmFabricBindEnfDomId OBJECT-TYPE
+        SYNTAX        DomainId
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object specifies the insistent domain id
+                 of the switch represented by the corresponding
+                 instance of cpsmFabricBindEnfSwitchWwn.
+                 This object was copied from the 
+                 cpsmFabricBindDomId object in the
+                 cpsmFabricBindTable at the time when the
+                 currently active fabric bindings were activated."
+        ::= { cpsmFabricBindEnfEntry 5 }
+
+cpsmFabricBindEnfIsLearnt OBJECT-TYPE
+        SYNTAX        TruthValue
+        MAX-ACCESS    read-only
+        STATUS        current
+        DESCRIPTION
+                "This object indicates if this entry is a
+                 learnt entry or not.
+
+                 If the value of this object is 'true', then
+                 this is a learnt entry.
+
+                 If the value of this object is 'false', then
+                 it is not a learnt entry."
+        ::= { cpsmFabricBindEnfEntry 6 }
+
+cpsmPortBindAutoLearnTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmPortBindAutoLearnEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This table contains information on the auto
+                 learn policy for valid port bindings on all 
+                 VSANs/VLANs on the local device."
+        ::= { cpsmConfiguration 9 }
+
+cpsmPortBindAutoLearnEntry OBJECT-TYPE
+        SYNTAX        CpsmPortBindAutoLearnEntry
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindAutoLearnIndexType,
+                cpsmPortBindAutoLearnIndex }
+        ::= { cpsmPortBindAutoLearnTable 1 }
+
+CpsmPortBindAutoLearnEntry ::= SEQUENCE {
+        cpsmPortBindAutoLearnIndexType    CpsmVirtNwType,
+        cpsmPortBindAutoLearnIndex        Unsigned32,
+        cpsmPortBindAutoLearnEnable       CpsmAutoLearnEnable
+
+}
+
+cpsmPortBindAutoLearnIndexType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "This object indicates the type of virtual
+                 interface."
+        ::= { cpsmPortBindAutoLearnEntry 1 }
+
+cpsmPortBindAutoLearnIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN for which auto 
+                 learning is being enabled."
+        ::= { cpsmPortBindAutoLearnEntry 2 }
+
+cpsmPortBindAutoLearnEnable OBJECT-TYPE
+        SYNTAX        CpsmAutoLearnEnable
+        MAX-ACCESS    read-write
+        STATUS        current
+        DESCRIPTION
+                "This object helps to 'learn' the valid port 
+                 binding configuration of devices/ports logged
+                 into the local device on all its ports and
+                 populate the above enforced port binding 
+                 table (cpsmPortBindEnfTable) with the 
+                 same. 
+
+                 This mechanism of 'learning' the configuration of
+                 devices/ports logged into the local device over
+                 a period of time and populating the configuration 
+                 is a convenience mechanism for users. 
+
+                 If this object is set to 'on(1)' on a particular
+                 VSAN/VLAN, all subsequent logins (FLOGIs) on
+                 that VSAN/VLAN will be populated in the
+                 enforced port binding database, provided it is not
+                 in conflict with existing enforced port bindings
+                 on that VSAN/VLAN. 
+
+                 When this object is set to 'off(2)', the 
+                 mechanism of learning is stopped. The learned 
+                 entries will however be in the enforced port
+                 binding database."
+        DEFVAL { off }
+        ::= { cpsmPortBindAutoLearnEntry 3 }        
+
+
+cpsmFabricBindAutoLearnTable OBJECT-TYPE
+        SYNTAX        SEQUENCE OF CpsmFabricBindAutoLearnEntry
+        MAX-ACCESS    not-accessible
+        STATUS        deprecated
+        DESCRIPTION
+                "This table contains information on the auto
+                 learn policy for valid fabric bindings on all 
+                 VSANs/VLANs on the local device."
+        ::= { cpsmConfiguration 10 }
+
+cpsmFabricBindAutoLearnEntry OBJECT-TYPE
+        SYNTAX        CpsmFabricBindAutoLearnEntry
+        MAX-ACCESS    not-accessible
+        STATUS        deprecated
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindAutoLearnIndexType,
+                cpsmFabricBindAutoLearnIndex }
+        ::= { cpsmFabricBindAutoLearnTable 1 }
+
+CpsmFabricBindAutoLearnEntry ::= SEQUENCE {
+        cpsmFabricBindAutoLearnIndexType    CpsmVirtNwType,
+        cpsmFabricBindAutoLearnIndex        Unsigned32,
+        cpsmFabricBindAutoLearnEnable       CpsmAutoLearnEnable
+
+}
+
+cpsmFabricBindAutoLearnIndexType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        deprecated
+        DESCRIPTION
+                "This object indicates the type of virtual
+                 interface."
+        ::= { cpsmFabricBindAutoLearnEntry 1 }
+
+cpsmFabricBindAutoLearnIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        deprecated
+        DESCRIPTION
+                "The id of the VSAN/VLAN for which auto 
+                 learning is being enabled."
+        ::= { cpsmFabricBindAutoLearnEntry 2 }
+
+cpsmFabricBindAutoLearnEnable OBJECT-TYPE
+        SYNTAX        CpsmAutoLearnEnable
+        MAX-ACCESS    read-write
+        STATUS        deprecated
+        DESCRIPTION
+                "This object helps to 'learn' the valid fabric 
+                 binding configuration of devices logged
+                 into the fabric thru' the ports on the local
+                 device and populate the above enforced fabric 
+                 binding table (cpsmFabricBindEnfTable) with the 
+                 same. 
+
+                 This mechanism of 'learning' the configuration of
+                 devices logged into the fabric over
+                 a period of time and populating the enforced fabric
+                 binding table is a convenience mechanism for users. 
+
+                 If this object is set to 'on(1)' on a particular
+                 VSAN/VLAN, all subsequent attempts to join the
+                 fabric on some port on the local device on
+                 that VSAN/VLAN will be populated in the
+                 enforced fabric binding database, provided it is not
+                 in conflict with existing enforced fabric bindings
+                 on that VSAN/VLAN. 
+
+                 When this object is set to 'off(2)', the mechanism
+                 of learning is stopped. The learned entries 
+                 however will be in the enforced fabric binding
+                 database."
+        DEFVAL { off }
+        ::= { cpsmFabricBindAutoLearnEntry 3 }        
+
+
+cpsmPortBindClearTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindClearEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in clearing port bind statistics 
+                 and/or the port bind auto-learnt entries on 
+                 a VSAN/VLAN which are in cpsmPortBindStatsTable
+                 and cpsmPortBindEnfTable respectively."
+        ::= { cpsmConfiguration 11 }
+
+cpsmPortBindClearEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindClearEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindClearNwType,
+                cpsmPortBindClearNwIndex }
+        ::= { cpsmPortBindClearTable 1 }
+
+CpsmPortBindClearEntry ::= SEQUENCE {
+        cpsmPortBindClearNwType         CpsmVirtNwType,
+        cpsmPortBindClearNwIndex        Unsigned32,
+        cpsmPortBindClearStats          CpsmClearStats,
+        cpsmPortBindClearAutoLearnDb    CpsmClearAutoLearnDb,
+        cpsmPortBindClearAutoLearnIntf  PortMemberList
+}
+
+cpsmPortBindClearNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmPortBindClearNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmPortBindClearEntry 1 }
+
+cpsmPortBindClearNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmPortBindClearEntry 2 }
+
+cpsmPortBindClearStats OBJECT-TYPE
+        SYNTAX         CpsmClearStats
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object when set to 'clear(1)', results
+                 in port bind statistic counters being cleared 
+                 on this VSAN/VLAN.
+
+                 No action is taken if this object is set to
+                 'noop(2)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmPortBindClearEntry 3 }
+
+cpsmPortBindClearAutoLearnDb OBJECT-TYPE
+        SYNTAX         CpsmClearAutoLearnDb
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object when set to 'clearOnVsan(1)', 
+                 results in port bind auto-learnt entries 
+                 being cleared on this VSAN/VLAN.
+
+                 This object when set to 'clearOnIntf(2)',
+                 results in port bind auto-learnt entries 
+                 being cleared on the interface specified by 
+                 the  corresponding instance of 
+                 cpsmPortBindClearAutoLearnIntf on this VSAN/VLAN.
+
+                 No action is taken if this object is set to
+                 'noop'.
+
+                 The value of this object when read is always
+                 'noop'."
+        ::= { cpsmPortBindClearEntry 4 }
+
+cpsmPortBindClearAutoLearnIntf OBJECT-TYPE
+        SYNTAX         PortMemberList
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object specifies the interface(s) on
+                 which the port bind auto-learnt entries need 
+                 to be cleared.
+                 The value of this object when read is always
+                 the zero-length string."
+        DEFVAL { ''H }
+        ::= { cpsmPortBindClearEntry 5 }
+
+cpsmFabricBindClearTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindClearEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in clearing fabric bind statistics and/or 
+                 the fabric bind auto-learnt entries on a 
+                 VSAN/VLAN which are in cpsmFabricBindStatsTable
+                 and cpsmFabricBindEnfTable respectively."
+        ::= { cpsmConfiguration 12 }
+
+cpsmFabricBindClearEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindClearEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindClearNwType,
+                cpsmFabricBindClearNwIndex }
+        ::= { cpsmFabricBindClearTable 1 }
+
+CpsmFabricBindClearEntry ::= SEQUENCE {
+        cpsmFabricBindClearNwType             CpsmVirtNwType,
+        cpsmFabricBindClearNwIndex            Unsigned32,
+        cpsmFabricBindClearStats              CpsmClearStats,
+        cpsmFabricBindClearAutoLearnDb        CpsmClearAutoLearnDb,
+        cpsmFabricBindClearAutoLearnIntf      InterfaceIndexOrZero
+}
+
+cpsmFabricBindClearNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the 
+                 corresponding instance of 
+                 cpsmFabricBindClearNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmFabricBindClearEntry 1 }
+
+cpsmFabricBindClearNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmFabricBindClearEntry 2 }
+
+cpsmFabricBindClearStats OBJECT-TYPE
+        SYNTAX         CpsmClearStats
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object when set to 'clear(1)', results
+                 in fabric bind statistic counters being cleared 
+                 on this VSAN/VLAN.
+
+                 No action is taken if this object is set to
+                 'noop(2)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmFabricBindClearEntry 3 }
+
+cpsmFabricBindClearAutoLearnDb OBJECT-TYPE
+        SYNTAX         CpsmClearAutoLearnDb
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object when set to 'clearOnVsan(1)', 
+                 results in fabric bind auto-learnt entries 
+                 being cleared on this VSAN/VLAN.
+
+                 No action is taken if this object is set to
+                 'clearOnIntf(2)' or 'noop'.
+
+                 The value of this object when read is always
+                 'noop'."
+        ::= { cpsmFabricBindClearEntry 4 }
+
+cpsmFabricBindClearAutoLearnIntf OBJECT-TYPE
+        SYNTAX         InterfaceIndexOrZero
+        MAX-ACCESS     read-write
+        STATUS         deprecated
+        DESCRIPTION
+                "This object specifies the interface on 
+                 which the fabric bind auto learnt entries need
+                 to be cleared."
+        DEFVAL { 0 }
+        ::= { cpsmFabricBindClearEntry 5 }
+
+cpsmPortBindDiffConfigTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindDiffConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in comparing the port bind 
+                 active/configuration database with 
+                 configuration/active database on a
+                 VSAN/VLAN."
+        ::= { cpsmConfiguration 13 }
+
+cpsmPortBindDiffConfigEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindDiffConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table.
+                 The user needs to configure the required
+                 type of difference on the appropriate 
+                 VSAN/VLAN.
+                 The results of the difference operation will
+                 be present in the cpsmPortBindDiffTable."
+        INDEX { cpsmPortBindDiffConfigNwType,
+                cpsmPortBindDiffConfigNwIndex }
+        ::= { cpsmPortBindDiffConfigTable 1 }
+
+CpsmPortBindDiffConfigEntry ::= SEQUENCE {
+        cpsmPortBindDiffConfigNwType      CpsmVirtNwType,
+        cpsmPortBindDiffConfigNwIndex     Unsigned32,
+        cpsmPortBindDiffConfigDb          CpsmDiffDb
+}
+
+cpsmPortBindDiffConfigNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmPortBindDiffConfigNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmPortBindDiffConfigEntry 1 }
+
+cpsmPortBindDiffConfigNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmPortBindDiffConfigEntry 2 }
+
+cpsmPortBindDiffConfigDb OBJECT-TYPE
+        SYNTAX         CpsmDiffDb
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object specifies the database for the 
+                 comparison.
+
+                 This object when set to 'configDb(1)'
+                 compares the configuration database with 
+                 respect to active database on this VSAN/VLAN. 
+                 So, the active database will be the reference
+                 database and the results of the difference
+                 operation will be with respect to the
+                 active database.
+
+                 This object when set to 'activeDb(2)'
+                 compares the active database with respect 
+                 to configuration database on this VSAN/VLAN. 
+                 So, the configuration database will be the 
+                 reference database and the results of the 
+                 difference operation will be with respect to the
+                 configuration database. 
+
+                 No action is taken when this object is set
+                 to 'noop(3)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmPortBindDiffConfigEntry 3 }
+
+cpsmPortBindDiffTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindDiffEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains the results of the
+                 difference operation configured by means of
+                 the cpsmPortBindDiffConfigTable. This table
+                 will contain the results of the latest
+                 difference operation that has been configured.
+                 If no difference operation has been configured
+                 or if there are no differences between the
+                 databases being compared, this table will
+                 be empty."
+        ::= { cpsmConfiguration 14 }
+
+cpsmPortBindDiffEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindDiffEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this
+                 table."
+        INDEX { cpsmPortBindDiffNwType,
+                cpsmPortBindDiffNwIndex,
+                cpsmPortBindDiffIndex } 
+        ::= { cpsmPortBindDiffTable 1 }
+
+CpsmPortBindDiffEntry ::= SEQUENCE {
+        cpsmPortBindDiffNwType          CpsmVirtNwType,
+        cpsmPortBindDiffNwIndex         Unsigned32,
+        cpsmPortBindDiffIndex           Unsigned32,
+        cpsmPortBindDiffReason          CpsmDiffReason,
+        cpsmPortBindDiffLoginDevType    CpsmPortBindDevType,
+        cpsmPortBindDiffLoginDev        OCTET STRING,
+        cpsmPortBindDiffLoginPointType  CpsmPortBindSwPortType,
+        cpsmPortBindDiffLoginPoint      OCTET STRING
+}
+
+cpsmPortBindDiffNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmPortBindDiffNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmPortBindDiffEntry 1 }
+
+cpsmPortBindDiffNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmPortBindDiffEntry 2 }
+
+cpsmPortBindDiffIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4096)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The index of this entry. This represents
+                 the index of a port binding on a VSAN/VLAN."
+        ::= { cpsmPortBindDiffEntry 3 }
+
+cpsmPortBindDiffReason OBJECT-TYPE
+        SYNTAX         CpsmDiffReason
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object indicates the reason for the
+                 difference between the databases being
+                 compared, for this entry."
+        ::= { cpsmPortBindDiffEntry 4 }
+
+cpsmPortBindDiffLoginDevType OBJECT-TYPE
+        SYNTAX         CpsmPortBindDevType
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object identifies the format of the
+                 corresponding instance of 
+                 cpsmPortBindDiffLoginDev object."
+        ::= { cpsmPortBindDiffEntry 5 }
+
+cpsmPortBindDiffLoginDev OBJECT-TYPE
+        SYNTAX         OCTET STRING (SIZE(0 | 6 | 8))
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object represents the logging in
+                 device address. This object was copied
+                 either from the cpsmPortBindLoginDev object 
+                 in the cpsmPortBindTable or from the
+                 cpsmPortBindEnfLoginIdev object in the
+                 cpsmPortBindEnfTable at the time when the
+                 difference operation was done."
+        ::= { cpsmPortBindDiffEntry 6 }
+
+cpsmPortBindDiffLoginPointType OBJECT-TYPE
+        SYNTAX         CpsmPortBindSwPortType
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "Specifies the format of the corresponding
+                 instance of cpsmPortBindDiffLoginPoint."
+        ::= { cpsmPortBindDiffEntry 7 }
+
+cpsmPortBindDiffLoginPoint OBJECT-TYPE
+        SYNTAX         OCTET STRING (SIZE(0 | 4 | 8))
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object represents the address of a 
+                 port on the local device. This object was 
+                 copied either from the cpsmPortBindLoginPoint 
+                 object in the cpsmPortBindTable or from the
+                 cpsmPortBindEnfLoginPoint object in the
+                 cpsmPortBindEnfTable at the time when the
+                 difference operation was done."
+        ::= { cpsmPortBindDiffEntry 8 }
+
+
+cpsmFabricBindDiffConfigTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindDiffConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains atmost one entry per
+                 VSAN/VLAN that is configured. These entries
+                 help in comparing the fabric bind 
+                 active/configuration database with 
+                 configuration/active database on a
+                 VSAN/VLAN."
+        ::= { cpsmConfiguration 15 }
+
+cpsmFabricBindDiffConfigEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindDiffConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table.
+                 The user needs to configure the required
+                 type of difference on the appropriate VSAN/VLAN.
+                 The results of the difference operation will
+                 be present in the cpsmFabricBindDiffTable."
+        INDEX { cpsmFabricBindDiffConfigNwType,
+                cpsmFabricBindDiffConfigNwIndex }
+        ::= { cpsmFabricBindDiffConfigTable 1 }
+
+CpsmFabricBindDiffConfigEntry ::= SEQUENCE {
+        cpsmFabricBindDiffConfigNwType      CpsmVirtNwType,
+        cpsmFabricBindDiffConfigNwIndex     Unsigned32,
+        cpsmFabricBindDiffConfigDb          CpsmDiffDb
+}
+
+cpsmFabricBindDiffConfigNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmFabricBindDiffConfigNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmFabricBindDiffConfigEntry 1 }
+
+cpsmFabricBindDiffConfigNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmFabricBindDiffConfigEntry 2 }
+
+cpsmFabricBindDiffConfigDb OBJECT-TYPE
+        SYNTAX         CpsmDiffDb
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object specifies the database for the 
+                 comparison.
+
+                 This object when set to 'configDb(1)'
+                 compares the fabric bind configuration 
+                 database with respect to active database on 
+                 this VSAN/VLAN. So, the active database will be 
+                 the reference database and the results of 
+                 the difference operation will be with respect to 
+                 the active database.
+
+                 This object when set to 'activeDb(2)'
+                 compares the fabric bind active database with 
+                 respect to configuration database on this 
+                 VSAN/VLAN. So, the configuration database will be 
+                 the reference database and the results of the 
+                 difference operation will be with respect to the
+                 configuration database. 
+
+                 No action is taken when this object is set
+                 to 'noop(3)'.
+
+                 The value of this object when read is
+                 always 'noop'."
+        ::= { cpsmFabricBindDiffConfigEntry 3 }
+
+cpsmFabricBindDiffTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindDiffEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains the results of the
+                 difference operation configured by means of
+                 the cpsmFabricBindDiffConfigTable. This table
+                 will contain the results of the latest
+                 difference operation that has been configured.
+                 If no difference operation has been configured
+                 or if there are no differences between the
+                 databases being compared, this table will
+                 be empty."
+        ::= { cpsmConfiguration 16 }
+
+cpsmFabricBindDiffEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindDiffEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this
+                 table."
+        INDEX { cpsmFabricBindDiffNwType,
+                cpsmFabricBindDiffNwIndex,
+                cpsmFabricBindDiffIndex } 
+        ::= { cpsmFabricBindDiffTable 1 }
+
+CpsmFabricBindDiffEntry ::= SEQUENCE {
+        cpsmFabricBindDiffNwType          CpsmVirtNwType,
+        cpsmFabricBindDiffNwIndex         Unsigned32,
+        cpsmFabricBindDiffIndex           Unsigned32,
+        cpsmFabricBindDiffReason          CpsmDiffReason,
+        cpsmFabricBindDiffSwitchWwn       OCTET STRING,
+        cpsmFabricBindDiffDomId           DomainId
+}
+
+cpsmFabricBindDiffNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmFabricBindDiffNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmFabricBindDiffEntry 1 }
+
+cpsmFabricBindDiffNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmFabricBindDiffEntry 2 }
+
+cpsmFabricBindDiffIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4096)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The index of this entry. This represents the
+                 index of a fabric binding on a VSAN/VLAN."
+        ::= { cpsmFabricBindDiffEntry 3 }
+
+cpsmFabricBindDiffReason OBJECT-TYPE
+        SYNTAX         CpsmDiffReason
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object indicates the reason for the
+                 difference between the databases being
+                 compared, for this entry."
+        ::= { cpsmFabricBindDiffEntry 4 }
+
+cpsmFabricBindDiffSwitchWwn OBJECT-TYPE
+        SYNTAX         OCTET STRING (SIZE(8))
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object specifies the WWN of a switch
+                 that can be part of the fabric.
+                 This object was copied either from the
+                 cpsmFabricBindSwitchWwn object in the
+                 cpsmFabricBindTable or from the
+                 cpsmFabricBindEnfSwitchWwn object in the
+                 cpsmFabricBindEnfTable at the time when
+                 the difference operation was done."
+        ::= { cpsmFabricBindDiffEntry 5 }
+
+cpsmFabricBindDiffDomId OBJECT-TYPE
+        SYNTAX         DomainId
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "This object specifies the insistent domain id
+                 of the switch represented by the corresponding
+                 instance of cpsmFabricBindDiffSwitchWwn.
+                 This object was copied either from the
+                 cpsmFabricBindDomId object in the
+                 cpsmFabricBindTable or from the
+                 cpsmFabricBindEnfDomId object in the
+                 cpsmFabricBindEnfTable when the difference
+                 operation was done."
+        ::= { cpsmFabricBindDiffEntry 6 }
+
+
+-- Statistics
+
+cpsmPortBindStatsTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains statistic counters maintained
+                 on a per VSAN/VLAN basis on the local device for
+                 enforced port bindings."
+        ::= { cpsmStats 1 }
+
+cpsmPortBindStatsEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindVsanVlanType,
+                cpsmPortBindVsanVlanIndex }
+        ::= { cpsmPortBindStatsTable 1 }
+
+CpsmPortBindStatsEntry ::= SEQUENCE {
+        cpsmPortBindVsanVlanType         CpsmVirtNwType,
+        cpsmPortBindVsanVlanIndex        Unsigned32,
+        cpsmPortBindAllowedLogins        CpsmStatsCounter,
+        cpsmPortBindDeniedLogins         CpsmStatsCounter
+
+}
+
+cpsmPortBindVsanVlanType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmPortBindVsanVlanIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmPortBindStatsEntry 1 }
+
+cpsmPortBindVsanVlanIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmPortBindStatsEntry 2 }
+
+cpsmPortBindAllowedLogins OBJECT-TYPE
+        SYNTAX         CpsmStatsCounter
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of FLOGI requests that have been 
+                 allowed on this VSAN/VLAN."
+        ::= { cpsmPortBindStatsEntry 3 }
+
+cpsmPortBindDeniedLogins OBJECT-TYPE
+        SYNTAX         CpsmStatsCounter
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of FLOGI requests that have been 
+                 denied on this VSAN/VLAN."
+        ::= { cpsmPortBindStatsEntry 4 }
+
+
+cpsmFabricBindStatsTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains statistic counters maintained
+                 on a per VSAN/VLAN basis on the local device for
+                 enforced fabric bindings."
+        ::= { cpsmStats 2 }
+
+cpsmFabricBindStatsEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindVsanVlanType,
+                cpsmFabricBindVsanVlanIndex }
+        ::= { cpsmFabricBindStatsTable 1 }
+
+CpsmFabricBindStatsEntry ::= SEQUENCE {
+        cpsmFabricBindVsanVlanType         CpsmVirtNwType,
+        cpsmFabricBindVsanVlanIndex        Unsigned32,
+        cpsmFabricBindAllowedReqs          CpsmStatsCounter,
+        cpsmFabricBindDeniedReqs           CpsmStatsCounter
+
+}
+
+cpsmFabricBindVsanVlanType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmFabricBindVsanVlanIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmFabricBindStatsEntry 1 }
+
+cpsmFabricBindVsanVlanIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmFabricBindStatsEntry 2 }
+
+cpsmFabricBindAllowedReqs OBJECT-TYPE
+        SYNTAX         CpsmStatsCounter
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of requests from switches to
+                 become part of the fabric that have been 
+                 allowed on this VSAN/VLAN."
+        ::= { cpsmFabricBindStatsEntry 3 }
+
+cpsmFabricBindDeniedReqs OBJECT-TYPE
+        SYNTAX         CpsmStatsCounter
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of requests from switches to
+                 become part of the fabric that have been 
+                 denied on this VSAN/VLAN."
+        ::= { cpsmFabricBindStatsEntry 4 }
+
+cpsmPortBindViolationTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindViolationEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains information on atmost the 
+                 last 100 login violations that have been
+                 detected on the local device for enforced port
+                 bindings.
+
+                 When the number of such entries exceeds 100, then
+                 there is a wrap-around that takes place and the
+                 entries get over-written starting from the first
+                 entry."
+        ::= { cpsmStats 3 }
+
+cpsmPortBindViolationEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindViolationEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmPortBindViolationNwType,
+                cpsmPortBindViolationNwIndex,
+                cpsmPortBindViolationIndex }
+        ::= { cpsmPortBindViolationTable 1 }
+
+CpsmPortBindViolationEntry ::= SEQUENCE {
+        cpsmPortBindViolationNwType       CpsmVirtNwType,
+        cpsmPortBindViolationNwIndex      Unsigned32,
+        cpsmPortBindViolationIndex        Unsigned32,
+        cpsmPortBindLoginPwwn             FcNameIdOrZero,
+        cpsmPortBindLoginNwwn             FcNameIdOrZero,
+        cpsmPortBindLoginSwwn             FcNameIdOrZero,
+        cpsmPortBindLoginPort             FcNameId,
+        cpsmPortBindLoginTime             TimeStamp,
+        cpsmPortBindLoginCount            Counter32,
+        cpsmPortBindLoginIntf             InterfaceIndex
+}
+
+cpsmPortBindViolationNwType OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmPortBindViolationNwIndex object
+                 contains a VSAN id or VLAN id."
+        ::= { cpsmPortBindViolationEntry 1 }
+
+cpsmPortBindViolationNwIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmPortBindViolationEntry 2 }
+
+cpsmPortBindViolationIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..100)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The index of this entry."
+        ::= { cpsmPortBindViolationEntry 3 }
+
+cpsmPortBindLoginPwwn OBJECT-TYPE
+        SYNTAX         FcNameIdOrZero
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The pWWN of the device that was denied FLOGI on
+                 one of the local device's ports."
+        ::= { cpsmPortBindViolationEntry 4 }
+
+cpsmPortBindLoginNwwn OBJECT-TYPE
+        SYNTAX         FcNameIdOrZero
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The nWWN of the device that was denied FLOGI on
+                 one of the local device's ports."
+        ::= { cpsmPortBindViolationEntry 5 }
+
+cpsmPortBindLoginSwwn OBJECT-TYPE
+        SYNTAX         FcNameIdOrZero
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The sWWN of the device (if the device happens
+                 to be a switch), that was denied entry on
+                 one of the local device's ports. If the device
+                 is a switch, then the corresponding instances
+                 of cpsmPortBindLoginNwwn and 
+                 cpsmPortBindLoginPwwn will contain zero-length
+                 strings."
+        ::= { cpsmPortBindViolationEntry 6 }
+
+cpsmPortBindLoginPort OBJECT-TYPE
+        SYNTAX         FcNameId
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The fWWN of the port on the local device where
+                 the login was denied."
+        ::= { cpsmPortBindViolationEntry 7 }
+
+cpsmPortBindLoginTime OBJECT-TYPE
+        SYNTAX         TimeStamp
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The sysUpTime at which the login denial took 
+                 place."
+        ::= { cpsmPortBindViolationEntry 8 }
+
+cpsmPortBindLoginCount OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of times this particular pWWN/nWWN or
+                 sWWN has been denied login on this particular
+                 local interface."
+        ::= { cpsmPortBindViolationEntry 9 }
+
+cpsmPortBindLoginIntf OBJECT-TYPE
+        SYNTAX         InterfaceIndex
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The ifIndex of the port on the local device
+                 where the login was denied."
+        ::= { cpsmPortBindViolationEntry 10 }
+
+cpsmFabricBindViolationTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindViolationEntry
+        MAX-ACCESS     not-accessible
+        STATUS         deprecated
+        DESCRIPTION
+                "This table contains information on atmost the 
+                 last 100 violations that have been detected on 
+                 the local device for enforced fabric bindings.
+
+                 When the number of such entries exceeds 100, then
+                 there is a wrap-around that takes place and the
+                 entries get over-written starting from the first
+                 entry."
+        ::= { cpsmStats 4 }
+
+cpsmFabricBindViolationEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindViolationEntry
+        MAX-ACCESS     not-accessible
+        STATUS         deprecated
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindViolationIndex }
+        ::= { cpsmFabricBindViolationTable 1 }
+
+CpsmFabricBindViolationEntry ::= SEQUENCE {
+        cpsmFabricBindViolationIndex        Unsigned32,
+        cpsmFabricBindSwwn                  FcNameId,
+        cpsmFabricBindLocalPort             FcNameId,
+        cpsmFabricBindDenialTime            TimeStamp,
+        cpsmFabricBindLocalIntf             InterfaceIndex
+}
+
+cpsmFabricBindViolationIndex OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..100)
+        MAX-ACCESS     not-accessible
+        STATUS         deprecated
+        DESCRIPTION
+                "The index of this entry."
+        ::= { cpsmFabricBindViolationEntry 1 }
+
+cpsmFabricBindSwwn OBJECT-TYPE
+        SYNTAX         FcNameId
+        MAX-ACCESS     read-only
+        STATUS         deprecated
+        DESCRIPTION
+                "The sWWN (switch WWN) of the device that was 
+                 denied entry into the fabric on one of the local 
+                 device's ports."
+        ::= { cpsmFabricBindViolationEntry 2 }
+
+cpsmFabricBindLocalPort OBJECT-TYPE
+        SYNTAX         FcNameId
+        MAX-ACCESS     read-only
+        STATUS         deprecated
+        DESCRIPTION
+                "The fWWN of the port on the local device where
+                 the denial took place."
+        ::= { cpsmFabricBindViolationEntry 3 }
+
+cpsmFabricBindDenialTime OBJECT-TYPE
+        SYNTAX         TimeStamp
+        MAX-ACCESS     read-only
+        STATUS         deprecated
+        DESCRIPTION
+                "The sysUpTime at which the denial took place."
+        ::= { cpsmFabricBindViolationEntry 4 }
+
+cpsmFabricBindLocalIntf OBJECT-TYPE
+        SYNTAX         InterfaceIndex
+        MAX-ACCESS     read-only
+        STATUS         deprecated
+        DESCRIPTION
+                "The ifIndex of the port on the local device where
+                 the denial took place."
+        ::= { cpsmFabricBindViolationEntry 5 }
+
+cpsmFabricBindViolationNewTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindViolationNewEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains information on atmost the 
+                 last 100 violations that have been detected on 
+                 the local device for enforced fabric bindings.
+
+                 When the number of such entries exceeds 100, then
+                 there is a wrap-around that takes place and the
+                 entries get over-written starting from the first
+                 entry."
+        ::= { cpsmStats 5 }
+
+cpsmFabricBindViolationNewEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindViolationNewEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindViolationNwTypeR1,
+                cpsmFabricBindViolationNwIndexR1,
+                cpsmFabricBindViolationIndexR1 }
+        ::= { cpsmFabricBindViolationNewTable 1 }
+
+CpsmFabricBindViolationNewEntry ::= SEQUENCE {
+        cpsmFabricBindViolationNwTypeR1       CpsmVirtNwType,
+        cpsmFabricBindViolationNwIndexR1      Unsigned32,
+        cpsmFabricBindViolationIndexR1        Unsigned32,
+        cpsmFabricBindSwwnR1                  FcNameId,
+        cpsmFabricBindDenialTimeR1            TimeStamp,
+        cpsmFabricBindDenialCountR1           Counter32,
+        cpsmFabricBindDenialDomId             DomainIdOrZero,
+        cpsmFabricBindDenialReasonCode        CpsmViolationReasonCode
+}
+
+cpsmFabricBindViolationNwTypeR1 OBJECT-TYPE
+        SYNTAX         CpsmVirtNwType
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This object indicates whether the corresponding
+                 instance of cpsmFabricBindViolationNwIndexR1 
+                 object contains a VSAN id or VLAN id."
+        ::= { cpsmFabricBindViolationNewEntry 1 }
+
+cpsmFabricBindViolationNwIndexR1 OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..4093)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The VSAN/VLAN id for this entry."
+        ::= { cpsmFabricBindViolationNewEntry 2 }
+
+cpsmFabricBindViolationIndexR1 OBJECT-TYPE
+        SYNTAX         Unsigned32 (1..100)
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "The index of this entry."
+        ::= { cpsmFabricBindViolationNewEntry 3 }
+
+cpsmFabricBindSwwnR1 OBJECT-TYPE
+        SYNTAX         FcNameId
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The sWWN (switch WWN) of the device that was 
+                 denied entry into the fabric on one of the local 
+                 device's ports."
+        ::= { cpsmFabricBindViolationNewEntry 4 }
+
+cpsmFabricBindDenialTimeR1 OBJECT-TYPE
+        SYNTAX         TimeStamp
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The sysUpTime at which the denial took place."
+        ::= { cpsmFabricBindViolationNewEntry 5 }
+
+cpsmFabricBindDenialCountR1 OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of times this switch has been denied
+                 entry into the fabric on one of the local
+                 device's ports."
+        ::= { cpsmFabricBindViolationNewEntry 6 }
+
+cpsmFabricBindDenialDomId OBJECT-TYPE
+        SYNTAX         DomainIdOrZero
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The domain id of the device that was denied 
+                 entry into the fabric on one of the local 
+                 device's ports. A value of zero indicates
+                 that the switch WWN of the device was not
+                 present in the enforced fabric bindings."
+        ::= { cpsmFabricBindViolationNewEntry 7 }
+
+cpsmFabricBindDenialReasonCode OBJECT-TYPE
+        SYNTAX         CpsmViolationReasonCode
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The reason for which the device was denied
+                 entry into the fabric on one of the local
+                 device's ports."
+        ::= { cpsmFabricBindViolationNewEntry 8 }
+
+cpsmEfmdStatsTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmEfmdStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains the EFMD protocol
+                 statistics on a per VSAN basis."
+        ::= { cpsmStats 6 }
+
+cpsmEfmdStatsEntry OBJECT-TYPE
+        SYNTAX         CpsmEfmdStatsEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { vsanIndex }
+        ::= { cpsmEfmdStatsTable 1 }
+
+CpsmEfmdStatsEntry ::= SEQUENCE {
+        cpsmEfmdTxMergeReqs      Counter32,
+        cpsmEfmdRxMergeReqs      Counter32,
+        cpsmEfmdTxMergeAccs      Counter32,
+        cpsmEfmdRxMergeAccs      Counter32,
+        cpsmEfmdTxMergeRejs      Counter32,
+        cpsmEfmdRxMergeRejs      Counter32,
+        cpsmEfmdTxMergeBusys     Counter32,
+        cpsmEfmdRxMergeBusys     Counter32,
+        cpsmEfmdTxMergeErrs      Counter32,
+        cpsmEfmdRxMergeErrs      Counter32
+}
+
+cpsmEfmdTxMergeReqs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Requests 
+                 transmitted on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 1 }
+
+cpsmEfmdRxMergeReqs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Requests 
+                 received on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 2 }
+
+cpsmEfmdTxMergeAccs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Accepts 
+                 transmitted on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 3 }
+
+cpsmEfmdRxMergeAccs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Accepts 
+                 received on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 4 }
+
+cpsmEfmdTxMergeRejs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Rejects 
+                 transmitted on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 5 }
+
+cpsmEfmdRxMergeRejs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Rejects 
+                 received on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 6 }
+
+cpsmEfmdTxMergeBusys OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Busys 
+                 transmitted on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 7 }
+
+cpsmEfmdRxMergeBusys OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Busys 
+                 received on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 8 }
+
+cpsmEfmdTxMergeErrs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Errors 
+                 transmitted on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 9 }
+
+cpsmEfmdRxMergeErrs OBJECT-TYPE
+        SYNTAX         Counter32
+        MAX-ACCESS     read-only
+        STATUS         current
+        DESCRIPTION
+                "The number of EFMD Merge Errors 
+                 received on this VSAN by the local
+                 device."
+        ::= { cpsmEfmdStatsEntry 10 }
+
+-- Notification control object
+
+cpsmNotifyEnable OBJECT-TYPE
+        SYNTAX         TruthValue
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION   
+                "This object specifies if the Security Policy
+                 Manager notifications should be generated or 
+                 not.
+
+                 If this object is set to 'true', then the
+                 notifications are generated.
+
+                 If this object is set to 'false', then the
+                 notifications are not generated."
+        DEFVAL { false }
+        ::= { cpsmConfiguration 17 }
+
+-- EFMD Configuration table
+
+-- Exchange Fabric Membership Data (EFMD) is a protocol which
+-- is used to control the formation of a SAN fabric. This is
+-- done by exchanging information pertaining to various kinds
+-- of devices which can be part of a SAN. Part of the 
+-- information that is exchanged is the Authorization Data or
+-- Fabric Binding data. This has been defined in this MIB above.
+
+cpsmEfmdConfigTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmEfmdConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table allows configuring EFMD on the
+                 local device. The configuration is on a 
+                 per VSAN basis."
+        REFERENCE "Fabric Binding and Security Membership
+                   Data Distribution T11/02-187v2, 
+                   December 3, 2002."
+        ::= { cpsmConfiguration 18 }
+
+cpsmEfmdConfigEntry OBJECT-TYPE
+        SYNTAX         CpsmEfmdConfigEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { vsanIndex }
+        ::= { cpsmEfmdConfigTable 1 }
+
+CpsmEfmdConfigEntry ::= SEQUENCE {
+        cpsmEfmdConfigEnforce    TruthValue
+}
+
+cpsmEfmdConfigEnforce OBJECT-TYPE
+        SYNTAX         TruthValue
+        MAX-ACCESS     read-write
+        STATUS         current
+        DESCRIPTION
+                "This object specifies whether the EFMD
+                 enforcement policy is strict or loose
+                 on this VSAN.
+
+                 If this object is set to 'true', then
+                 the enforcement policy is strict. As a 
+                 result, if a device that tries to join 
+                 the fabric thru' an E port on the local
+                 device does not pass the authorization 
+                 check, it is not allowed access and the 
+                 E port is isolated.
+
+                 If this object is set to 'false', then
+                 the enforcement policy is loose. As a 
+                 result, if a device that tries to join
+                 the fabric thru' an E port on the local
+                 device does not pass the authorization
+                 check, it can still be allowed access."
+        DEFVAL { true }
+        ::= { cpsmEfmdConfigEntry 1 }
+
+cpsmPortBindNextFreeTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmPortBindNextFreeEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains the next free index value
+                 that can be used for creation of an entry in
+                 the cpsmPortBindTable. These values are
+                 maintained on a per VSAN/VLAN basis."
+        ::= { cpsmConfiguration 19 }
+
+cpsmPortBindNextFreeEntry OBJECT-TYPE
+        SYNTAX         CpsmPortBindNextFreeEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (concpetual row) in this table."
+        INDEX { cpsmPortBindNextFreeNwType,
+                cpsmPortBindNextFreeNwIndex }
+        ::= { cpsmPortBindNextFreeTable 1 }
+
+CpsmPortBindNextFreeEntry ::= SEQUENCE {
+        cpsmPortBindNextFreeNwType  CpsmVirtNwType,
+        cpsmPortBindNextFreeNwIndex Unsigned32,
+        cpsmPortBindNextFreeIndex   Unsigned32
+}
+
+cpsmPortBindNextFreeNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmPortBindNextFreeEntry 1 }
+
+cpsmPortBindNextFreeNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmPortBindNextFreeNwType."
+        ::= { cpsmPortBindNextFreeEntry 2 }
+
+cpsmPortBindNextFreeIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (0..4095)
+        MAX-ACCESS    read-only 
+        STATUS        current
+        DESCRIPTION
+                "Represents the next free index value for a 
+                 port binding entry.
+
+                 If the value of this object is non-zero, then
+                 it represents the next free index value.
+
+                 If the value of this object is zero, then there
+                 are no more free indices available on this
+                 VSAN/VLAN."
+        ::= { cpsmPortBindNextFreeEntry 3 }
+
+cpsmFabricBindNextFreeTable OBJECT-TYPE
+        SYNTAX         SEQUENCE OF CpsmFabricBindNextFreeEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "This table contains the next free index value
+                 that can be used for creation of an entry in
+                 the cpsmFabricBindTable. These values are
+                 maintained on a per VSAN/VLAN basis."
+        ::= { cpsmConfiguration 20 }
+
+cpsmFabricBindNextFreeEntry OBJECT-TYPE
+        SYNTAX         CpsmFabricBindNextFreeEntry
+        MAX-ACCESS     not-accessible
+        STATUS         current
+        DESCRIPTION
+                "An entry (conceptual row) in this table."
+        INDEX { cpsmFabricBindNextFreeNwType,
+                cpsmFabricBindNextFreeNwIndex }
+        ::= { cpsmFabricBindNextFreeTable 1 }
+
+CpsmFabricBindNextFreeEntry ::= SEQUENCE {
+        cpsmFabricBindNextFreeNwType  CpsmVirtNwType,
+        cpsmFabricBindNextFreeNwIndex Unsigned32,
+        cpsmFabricBindNextFreeIndex   Unsigned32
+}
+
+cpsmFabricBindNextFreeNwType OBJECT-TYPE
+        SYNTAX        CpsmVirtNwType
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The type of virtual interface."
+        ::= { cpsmFabricBindNextFreeEntry 1 }
+
+cpsmFabricBindNextFreeNwIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (1..4093)
+        MAX-ACCESS    not-accessible
+        STATUS        current
+        DESCRIPTION
+                "The id of the VSAN/VLAN according to the
+                 type specified in the corresponding instance
+                 of cpsmFabricBindNextFreeNwType."
+        ::= { cpsmFabricBindNextFreeEntry 2 }
+
+cpsmFabricBindNextFreeIndex OBJECT-TYPE
+        SYNTAX        Unsigned32 (0..4095)
+        MAX-ACCESS    read-only 
+        STATUS        current
+        DESCRIPTION
+                "Represents the next free index value for a 
+                 fabric binding entry.
+
+                 If the value of this object is non-zero, then
+                 it represents the next free index value.
+
+                 If the value of this object is zero, then there
+                 are no more free indices available on this
+                 VSAN/VLAN."
+        ::= { cpsmFabricBindNextFreeEntry 3 }
+
+-- Notification
+
+ciscoPsmPortBindFPortDenyNotify NOTIFICATION-TYPE
+        OBJECTS  { cpsmPortBindLoginPwwn, cpsmPortBindLoginPort,
+                   cpsmPortBindLoginTime }
+        STATUS   current
+        DESCRIPTION
+                "This notification is generated whenever a FLOGI
+                 is denied due to enforced port bindings on the
+                 local device on a F/FL port."
+        ::= { ciscoPsmMIBNotifs 1 }
+
+ciscoPsmPortBindEPortDenyNotify NOTIFICATION-TYPE
+        OBJECTS  { cpsmPortBindLoginSwwn, cpsmPortBindLoginPort,
+                   cpsmPortBindLoginTime }
+        STATUS   current
+        DESCRIPTION
+                "This notification is generated whenever a switch
+                 is denied due to enforced port bindings on the
+                 local device on a E port."
+        ::= { ciscoPsmMIBNotifs 2 }
+
+ciscoPsmFabricBindDenyNotify NOTIFICATION-TYPE
+        OBJECTS  { cpsmFabricBindSwwn, cpsmFabricBindLocalPort,
+                   cpsmFabricBindDenialTime }
+        STATUS   deprecated
+        DESCRIPTION
+                "This notification is generated whenever a device
+                 is not allowed to join the fabric due to 
+                 enforced fabric bindings on the local device."
+        ::= { ciscoPsmMIBNotifs 3 }
+
+ciscoPsmFabricBindDenyNotifyNew NOTIFICATION-TYPE
+        OBJECTS  { cpsmFabricBindSwwnR1,
+                   cpsmFabricBindDenialTimeR1,
+                   cpsmFabricBindDenialReasonCode }
+        STATUS   current
+        DESCRIPTION
+                "This notification is generated whenever a device
+                 is not allowed to join the fabric due to
+                 enforced fabric bindings on the local device."
+        ::= { ciscoPsmMIBNotifs 4 }
+
+
+-- Conformance
+
+ciscoPsmMIBCompliances OBJECT IDENTIFIER
+                       ::= { ciscoPsmMIBConform 1 }
+
+ciscoPsmMIBGroups      OBJECT IDENTIFIER
+                       ::= { ciscoPsmMIBConform 2 }
+
+
+ciscoPsmMIBCompliance MODULE-COMPLIANCE
+        STATUS  deprecated
+        -- superceded by ciscoPsmMIBComplianceRev1
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup,
+                     ciscoPsmFabricBindConfigGroup,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroup,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        GROUP       ciscoPsmFabricBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Fabric Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported." 
+
+        ::= { ciscoPsmMIBCompliances 1 }
+
+ciscoPsmMIBComplianceRev1 MODULE-COMPLIANCE
+        STATUS  deprecated
+        -- superceded by ciscoPsmMIBComplianceRev2 
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup,
+                     ciscoPsmFabricBindConfigGroup1,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup1,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroupR1,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        GROUP       ciscoPsmFabricBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Fabric Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+ 
+        GROUP       ciscoPsmEfmdConfigGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        GROUP       ciscoPsmEfmdStatsGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+        ::= { ciscoPsmMIBCompliances 2 }
+
+ciscoPsmMIBComplianceRev2 MODULE-COMPLIANCE
+        STATUS  deprecated
+            -- superceded by ciscoPsmMIBComplianceRev3 
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup,
+                     ciscoPsmFabricBindConfigGroup1,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup1,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroupR1,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+ 
+        GROUP       ciscoPsmEfmdConfigGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        GROUP       ciscoPsmEfmdStatsGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+        ::= { ciscoPsmMIBCompliances 3 }
+
+ciscoPsmMIBComplianceRev3 MODULE-COMPLIANCE
+        STATUS  deprecated
+            -- superceded by ciscoPsmMIBComplianceRev4
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup,
+                     ciscoPsmFabricBindConfigGroup1,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup2,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroupR1,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+ 
+        GROUP       ciscoPsmEfmdConfigGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        GROUP       ciscoPsmEfmdStatsGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+        ::= { ciscoPsmMIBCompliances 4 }
+
+ciscoPsmMIBComplianceRev4 MODULE-COMPLIANCE
+        STATUS  deprecated
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup,
+                     ciscoPsmFabricBindConfigGroup1,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup3,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroupR1,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+ 
+        GROUP       ciscoPsmEfmdConfigGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        GROUP       ciscoPsmEfmdStatsGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+        ::= { ciscoPsmMIBCompliances 5 }
+
+ciscoPsmMIBComplianceRev5 MODULE-COMPLIANCE
+        STATUS  current
+        DESCRIPTION
+                "The compliance statement for entities which
+                 implement the Port Security Manager."
+        MODULE  MANDATORY-GROUPS {
+                     ciscoPsmPortBindConfigGroup1,
+                     ciscoPsmFabricBindConfigGroup2,
+                     ciscoPsmPortBindEnforcedGroup,
+                     ciscoPsmFabricBindEnforcedGroup,
+                     ciscoPsmPortBindStatsGroup,
+                     ciscoPsmFabricBindStatsGroup3,
+                     ciscoPsmPortBindNotifyGroup,
+                     ciscoPsmFabricBindNotifyGroupR1,
+                     ciscoPsmNotifyEnableGroup
+                }
+
+        GROUP       ciscoPsmPortBindAutoLearnGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Auto Learning of Port Bindings."
+
+        OBJECT      cpsmPortBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+
+        OBJECT      cpsmFabricBindRowStatus
+        SYNTAX      INTEGER {             
+                       active(1),
+                       createAndGo(4),
+                       destroy(6)}
+        MIN-ACCESS read-create
+        DESCRIPTION 
+                "Only three values 'createAndGo', 'destroy' and 
+                'active' out of the six enumerated values need to be
+                supported."
+ 
+        GROUP       ciscoPsmEfmdConfigGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        GROUP       ciscoPsmEfmdStatsGroup
+        DESCRIPTION
+                "This group is mandatory only for implementations
+                 that support Exchange Fabric Membership Data (EFMD)
+                 protocol."
+
+        ::= { ciscoPsmMIBCompliances 6 }
+
+-- Units of Conformance
+
+ciscoPsmPortBindConfigGroup OBJECT-GROUP
+        OBJECTS  {
+             cpsmPortBindLoginDevType,
+             cpsmPortBindLoginDev,
+             cpsmPortBindLoginPointType,
+             cpsmPortBindLoginPoint,
+             cpsmPortBindRowStatus,
+             cpsmPortBindActivate,
+             cpsmPortBindResult,
+             cpsmPortBindLastActTime,
+             cpsmPortBindActState,
+             cpsmPortBindCopyActToConfig,
+             cpsmPortBindLastChangeTime,
+             cpsmPortBindClearStats,
+             cpsmPortBindClearAutoLearnDb,
+             cpsmPortBindClearAutoLearnIntf,
+             cpsmPortBindDiffConfigDb,
+             cpsmPortBindDiffReason,
+             cpsmPortBindDiffLoginDevType,
+             cpsmPortBindDiffLoginDev,
+             cpsmPortBindDiffLoginPointType,
+             cpsmPortBindDiffLoginPoint
+        }
+        STATUS  deprecated 
+        DESCRIPTION
+                "A collection of objects for displaying and
+                 configuring port bindings and activating 
+                 them."
+         ::= { ciscoPsmMIBGroups 1 }
+
+ciscoPsmFabricBindConfigGroup OBJECT-GROUP
+        OBJECTS  {
+             cpsmFabricBindSwitchWwn,
+             cpsmFabricBindDomId,
+             cpsmFabricBindRowStatus,
+             cpsmFabricBindActivate,
+             cpsmFabricBindResult,
+             cpsmFabricBindLastActTime,
+             cpsmFabricBindActState,
+             cpsmFabricBindCopyActToConfig,
+             cpsmFabricBindLastChangeTime,
+             cpsmFabricBindClearStats,
+             cpsmFabricBindClearAutoLearnDb,
+             cpsmFabricBindClearAutoLearnIntf,
+             cpsmFabricBindDiffConfigDb,
+             cpsmFabricBindDiffReason,
+             cpsmFabricBindDiffSwitchWwn,
+             cpsmFabricBindDiffDomId
+        }
+        STATUS   deprecated
+        DESCRIPTION
+                "A collection of objects for displaying and
+                 configuring fabric bindings and activating 
+                 them."
+        ::= { ciscoPsmMIBGroups 2 }
+         
+ciscoPsmPortBindEnforcedGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmPortBindEnfLoginDevType,
+              cpsmPortBindEnfLoginDev,
+              cpsmPortBindEnfLoginPointType,
+              cpsmPortBindEnfLoginPoint,
+              cpsmPortBindEnfIsLearnt
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for displaying
+                  enforced port bindings."
+         ::= { ciscoPsmMIBGroups 3 }
+
+ciscoPsmFabricBindEnforcedGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindEnfSwitchWwn,
+              cpsmFabricBindEnfDomId,
+              cpsmFabricBindEnfIsLearnt
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for displaying
+                  enforced fabric bindings."
+         ::= { ciscoPsmMIBGroups 4 }
+                   
+ciscoPsmPortBindStatsGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmPortBindAllowedLogins,
+              cpsmPortBindDeniedLogins,
+              cpsmPortBindLoginPwwn,
+              cpsmPortBindLoginNwwn,
+              cpsmPortBindLoginSwwn,
+              cpsmPortBindLoginPort,
+              cpsmPortBindLoginTime,
+              cpsmPortBindLoginCount,
+              cpsmPortBindLoginIntf
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for displaying Port
+                  binding statistics and violation information."
+         ::= { ciscoPsmMIBGroups 5 }
+
+ciscoPsmFabricBindStatsGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindAllowedReqs,
+              cpsmFabricBindDeniedReqs,
+              cpsmFabricBindSwwn,
+              cpsmFabricBindLocalPort,
+              cpsmFabricBindDenialTime,
+              cpsmFabricBindLocalIntf
+         }
+         STATUS   deprecated
+         DESCRIPTION
+                 "A collection of objects for displaying Fabric
+                  binding statistics and violation information."
+         ::= { ciscoPsmMIBGroups 6 }
+
+ciscoPsmPortBindNotifyGroup  NOTIFICATION-GROUP
+         NOTIFICATIONS {
+              ciscoPsmPortBindFPortDenyNotify,
+              ciscoPsmPortBindEPortDenyNotify
+         }
+         STATUS  current
+         DESCRIPTION
+                 "A collection of notification(s) for monitoring
+                  denial of FLOGI due to port bindings being 
+                  enforced."
+         ::= { ciscoPsmMIBGroups 7 }
+
+ciscoPsmFabricBindNotifyGroup  NOTIFICATION-GROUP
+         NOTIFICATIONS {
+              ciscoPsmFabricBindDenyNotify
+         }
+         STATUS  deprecated
+         DESCRIPTION
+                 "A collection of notification(s) for monitoring
+                  denial of request to join the fabric due to 
+                  fabric bindings being enforced."
+         ::= { ciscoPsmMIBGroups 8 }
+
+ciscoPsmPortBindAutoLearnGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmPortBindAutoLearnEnable
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of object(s) for enabling/disabling
+                  auto learn of port bindings."
+         ::= { ciscoPsmMIBGroups 9 }
+
+ciscoPsmFabricBindAutoLearnGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindAutoLearnEnable
+         }
+         STATUS   deprecated
+         DESCRIPTION
+                 "A collection of object(s) for enabling/disabling
+                  auto learn of fabric bindings."
+         ::= { ciscoPsmMIBGroups 10 }
+
+ciscoPsmNotifyEnableGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmNotifyEnable
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of object(s) for enabling/disabling
+                  port binding/fabric binding notifications."
+         ::= { ciscoPsmMIBGroups 11 }
+
+ciscoPsmFabricBindConfigGroup1 OBJECT-GROUP
+        OBJECTS  {
+             cpsmFabricBindSwitchWwn,
+             cpsmFabricBindDomId,
+             cpsmFabricBindRowStatus,
+             cpsmFabricBindActivate,
+             cpsmFabricBindResult,
+             cpsmFabricBindLastActTime,
+             cpsmFabricBindActState,
+             cpsmFabricBindCopyActToConfig,
+             cpsmFabricBindLastChangeTime,
+             cpsmFabricBindClearStats,
+             cpsmFabricBindClearAutoLearnDb,
+             cpsmFabricBindDiffConfigDb,
+             cpsmFabricBindDiffReason,
+             cpsmFabricBindDiffSwitchWwn,
+             cpsmFabricBindDiffDomId
+        }
+        STATUS  deprecated 
+        DESCRIPTION
+                "A collection of objects for displaying and
+                 configuring fabric bindings and activating 
+                 them."
+        ::= { ciscoPsmMIBGroups 12 }
+
+ciscoPsmFabricBindStatsGroup1 OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindAllowedReqs,
+              cpsmFabricBindDeniedReqs,
+              cpsmFabricBindSwwnR1,
+              cpsmFabricBindDenialTimeR1,
+              cpsmFabricBindDenialCountR1
+         }
+         STATUS   deprecated
+         DESCRIPTION
+                 "A collection of objects for displaying Fabric
+                  binding statistics and violation information."
+         ::= { ciscoPsmMIBGroups 13 }
+
+ciscoPsmFabricBindNotifyGroupR1  NOTIFICATION-GROUP
+         NOTIFICATIONS {
+              ciscoPsmFabricBindDenyNotifyNew
+         }
+         STATUS  current
+         DESCRIPTION
+                 "A collection of notification(s) for monitoring
+                  denial of request to join the fabric due to 
+                  fabric bindings being enforced."
+         ::= { ciscoPsmMIBGroups 14 }
+
+ciscoPsmEfmdConfigGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmEfmdConfigEnforce
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for configuring and
+                  displaying EFMD information."
+         ::= { ciscoPsmMIBGroups 15 }
+
+ciscoPsmEfmdStatsGroup OBJECT-GROUP
+         OBJECTS  {
+              cpsmEfmdTxMergeReqs,
+              cpsmEfmdRxMergeReqs,
+              cpsmEfmdTxMergeAccs,
+              cpsmEfmdRxMergeAccs,
+              cpsmEfmdTxMergeRejs,
+              cpsmEfmdRxMergeRejs,
+              cpsmEfmdTxMergeBusys,
+              cpsmEfmdRxMergeBusys,
+              cpsmEfmdTxMergeErrs,
+              cpsmEfmdRxMergeErrs
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for displaying EFMD
+                  statistics information."
+         ::= { ciscoPsmMIBGroups 16 }
+
+ciscoPsmFabricBindStatsGroup2 OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindAllowedReqs,
+              cpsmFabricBindDeniedReqs,
+              cpsmFabricBindSwwnR1,
+              cpsmFabricBindDenialTimeR1,
+              cpsmFabricBindDenialCountR1,
+              cpsmFabricBindDenialDomId
+         }
+         STATUS   deprecated
+         DESCRIPTION
+                 "A collection of objects for displaying Fabric
+                  binding statistics and violation information."
+         ::= { ciscoPsmMIBGroups 17 }
+
+ciscoPsmFabricBindStatsGroup3 OBJECT-GROUP
+         OBJECTS  {
+              cpsmFabricBindAllowedReqs,
+              cpsmFabricBindDeniedReqs,
+              cpsmFabricBindSwwnR1,
+              cpsmFabricBindDenialTimeR1,
+              cpsmFabricBindDenialCountR1,
+              cpsmFabricBindDenialDomId,
+              cpsmFabricBindDenialReasonCode
+         }
+         STATUS   current
+         DESCRIPTION
+                 "A collection of objects for displaying Fabric
+                  binding statistics and violation information."
+         ::= { ciscoPsmMIBGroups 18 }
+
+ciscoPsmPortBindConfigGroup1 OBJECT-GROUP
+        OBJECTS  {
+             cpsmPortBindLoginDevType,
+             cpsmPortBindLoginDev,
+             cpsmPortBindLoginPointType,
+             cpsmPortBindLoginPoint,
+             cpsmPortBindRowStatus,
+             cpsmPortBindActivate,
+             cpsmPortBindResult,
+             cpsmPortBindLastActTime,
+             cpsmPortBindActState,
+             cpsmPortBindCopyActToConfig,
+             cpsmPortBindLastChangeTime,
+             cpsmPortBindClearStats,
+             cpsmPortBindClearAutoLearnDb,
+             cpsmPortBindClearAutoLearnIntf,
+             cpsmPortBindDiffConfigDb,
+             cpsmPortBindDiffReason,
+             cpsmPortBindDiffLoginDevType,
+             cpsmPortBindDiffLoginDev,
+             cpsmPortBindDiffLoginPointType,
+             cpsmPortBindDiffLoginPoint,
+             cpsmPortBindNextFreeIndex
+        }
+        STATUS   current
+        DESCRIPTION
+                "A collection of objects for displaying and
+                 configuring port bindings and activating
+                 them."
+         ::= { ciscoPsmMIBGroups 19 }
+
+ciscoPsmFabricBindConfigGroup2 OBJECT-GROUP
+        OBJECTS  {
+             cpsmFabricBindSwitchWwn,
+             cpsmFabricBindDomId,
+             cpsmFabricBindRowStatus,
+             cpsmFabricBindActivate,
+             cpsmFabricBindResult,
+             cpsmFabricBindLastActTime,
+             cpsmFabricBindActState,
+             cpsmFabricBindCopyActToConfig,
+             cpsmFabricBindLastChangeTime,
+             cpsmFabricBindClearStats,
+             cpsmFabricBindClearAutoLearnDb,
+             cpsmFabricBindDiffConfigDb,
+             cpsmFabricBindDiffReason,
+             cpsmFabricBindDiffSwitchWwn,
+             cpsmFabricBindDiffDomId,
+             cpsmFabricBindNextFreeIndex
+        }
+        STATUS   current
+        DESCRIPTION
+                "A collection of objects for displaying and
+                 configuring fabric bindings and activating
+                 them."
+        ::= { ciscoPsmMIBGroups 20 }
+
+END
