@@ -1,0 +1,381 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 4d0dd0dcd1ad45b4a197264bd7ca8e77
+      name: Templates/Power
+  templates:
+    - uuid: d80eb65a83fa4d75a7ebd188473ba940
+      template: 'XPS Retificador SRX by SNMP'
+      name: 'XPS Retificador SRX by SNMP'
+      description: |
+        Health/monitoring template for XPS Eletronica rectifier systems, USCC 2.0 (Ultimate),
+        model SRX60A / SR60A-48V/3240W (up to 2 Rectifier Units).
+
+        Monitors system output voltage (VCC), battery voltage, load current, battery charge/discharge
+        current, battery and ambient temperature, fuse status, multi-UR failure and the front-panel
+        alarm LEDs (Urgent / Non-urgent / Warning - labeled Urgente / Nao Urgente / Advertencia on the
+        device panel).
+
+        OIDs were extracted from the vendor MIB (xps-mib4.4.mib, branch xpsEletronicaUsccUltimate,
+        enterprise 34252.5) and confirmed against a live device via snmpwalk. Battery discharge current
+        and battery temperature are prioritized per field requirement (early detection of AC mains loss /
+        battery discharge start).
+
+        Two OID groups found on the live device are not documented in MIB rev 4.4 and were intentionally
+        left out of this template pending vendor confirmation: enterprises.34252.5.1.16.* and
+        enterprises.34252.5.1.17.* (non-boolean values that do not match any documented register), and
+        enterprises.34252.5.1.2.* (AC input voltage table - present on the device but shaped differently
+        than the scalar registers described in the MIB text).
+
+        The device does not implement the standard SNMPv2-MIB system group (no sysDescr/sysUpTime), so no
+        uptime item is provided.
+
+        Author: luiz-camillo
+      groups:
+        - name: Templates/Power
+      items:
+        - uuid: 01d804cff38540669240e2685eb395cb
+          name: 'System output voltage (VCC)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.5.0]'
+          key: xps.vcc
+          value_type: FLOAT
+          units: V
+          description: 'usccUltimateVcc - VCC register (1031), in Volts. Raw value in tenths of a volt.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: power
+          triggers:
+            - uuid: 274fcf8c11cc4964aa2ddc2bea39634c
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.vcc,5m)>{$XPS.VCC.HIGH}'
+              name: 'XPS: High output voltage (VCC)'
+              event_name: 'XPS: High output voltage (VCC) (above {$XPS.VCC.HIGH} V for 5m)'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: cf9edcb9c7b243b9ba12d087dfa659a9
+          name: 'Battery voltage (VBate)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.6.0]'
+          key: xps.vbate
+          value_type: FLOAT
+          units: V
+          description: 'usccUltimateVBate - VBATE register (1032), in Volts. Raw value in tenths of a volt.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: battery
+          triggers:
+            - uuid: 87d9913c1b29464c9c2859a252958699
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.vbate,5m)<{$XPS.VBATE.DISCHARGE}'
+              name: 'XPS: Battery in discharge (low voltage)'
+              event_name: 'XPS: Battery in discharge (VBate below {$XPS.VBATE.DISCHARGE} V for 5m)'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 604fe5328b1049dfb399a2fe1368d02b
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.vbate,5m)<{$XPS.VBATE.DISCONNECT}'
+              name: 'XPS: Critical undervoltage - battery disconnection imminent'
+              event_name: 'XPS: Critical undervoltage (VBate below {$XPS.VBATE.DISCONNECT} V for 5m) - USCC may disconnect the battery'
+              priority: DISASTER
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: ee670f836d0f4bb3aa3ea6f1f063317a
+          name: 'Consumer load current (ICons)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.7.0]'
+          key: xps.icons
+          value_type: FLOAT
+          units: A
+          description: 'usccUltimateICons - ICONS register (1034), in Amperes. Raw value in tenths of an ampere.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: power
+        - uuid: 980ca00b8d8043ccb36a11bd8e7d88b7
+          name: 'Battery charge current (IBatC)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.8.0]'
+          key: xps.ibatc
+          value_type: FLOAT
+          units: A
+          description: 'usccUltimateIBatC - Charge current. Raw value in tenths of an ampere.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: battery
+        - uuid: 9ca62bb6fe044c36b13a3e8903c11d10
+          name: 'Battery discharge current (IBatD)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.9.0]'
+          key: xps.ibatd
+          value_type: FLOAT
+          units: A
+          description: |
+            usccUltimateIBatD - Discharge current. Raw value in tenths of an ampere.
+            Priority metric: rises when the battery starts supplying the load (typically AC mains loss).
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: battery
+          triggers:
+            - uuid: b6ba7b69e6ef4d3392e51251dacc6048
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.ibatd,5m)>{$XPS.IBATD.MIN}'
+              name: 'XPS: Battery discharge current above normal'
+              event_name: 'XPS: Battery supplying current to the load (IBatD above {$XPS.IBATD.MIN} A for 5m) - possible AC mains loss'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: aae8ad32c2ac4804b8dfbc94e9a7a4d7
+          name: 'Battery temperature (TBat)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.10.0]'
+          key: xps.tbat
+          value_type: FLOAT
+          units: °C
+          description: |
+            usccUltimateTBat - TempBat register, in degrees Celsius. Raw value in tenths of a degree.
+            Priority metric per field requirement.
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: temperature
+          triggers:
+            - uuid: 8105af14924f452487a76a7a249fc6ab
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.tbat,5m)>{$XPS.TBAT.HIGH}'
+              name: 'XPS: High battery temperature'
+              event_name: 'XPS: High battery temperature (above {$XPS.TBAT.HIGH}°C for 5m)'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 1e880a41f07f43e8b4249f307995f962
+              expression: 'min(/XPS Retificador SRX by SNMP/xps.tbat,5m)>{$XPS.TBAT.CRIT}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'min(/XPS Retificador SRX by SNMP/xps.tbat,5m)<{$XPS.TBAT.CRIT.RESET}'
+              name: 'XPS: Critical battery temperature'
+              event_name: 'XPS: Critical battery temperature (above {$XPS.TBAT.CRIT}°C, recovers below {$XPS.TBAT.CRIT.RESET}°C)'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 646419bb715c4dcba698125e23f96818
+          name: 'Ambient temperature 1 (TempAmb1)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.15.6.0]'
+          key: xps.tempamb1
+          value_type: FLOAT
+          units: °C
+          description: 'usccUltimateInfraIn.6 - TempAmb1 register, in degrees Celsius. Raw value in tenths of a degree. 0 if no sensor is connected.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: temperature
+        - uuid: 1298b6c0f99241b5b06d52d2516bb675
+          name: 'Ambient temperature 2 (TempAmb2)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.15.7.0]'
+          key: xps.tempamb2
+          value_type: FLOAT
+          units: °C
+          description: 'usccUltimateInfraIn.7 - TempAmb2 register, in degrees Celsius. Raw value in tenths of a degree. 0 if no sensor is connected.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: temperature
+        - uuid: 8d8f00b1d42b4f8d8f3970535145d63a
+          name: 'Rectifier Unit 1 current'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.1.1.1.0]'
+          key: 'xps.ur.current[1]'
+          value_type: FLOAT
+          units: A
+          description: 'usccUltimateUnidadesRetificadoras, UR index 1. Raw value in tenths of an ampere. This product supports up to 2 URs.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: power
+        - uuid: dbbe945f91fa438481ce87358dac031f
+          name: 'Rectifier Unit 2 current'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.1.1.2.0]'
+          key: 'xps.ur.current[2]'
+          value_type: FLOAT
+          units: A
+          description: 'usccUltimateUnidadesRetificadoras, UR index 2. Raw value in tenths of an ampere. This product supports up to 2 URs.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: component
+              value: power
+        - uuid: 33567d85798b4f009616d2772e01fbf4
+          name: 'Consumer fuse status (FusCons)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.12.0]'
+          key: xps.fuscons
+          description: 'usccUltimateFusCons. 0 = normal, 1 = open (fuse open).'
+          tags:
+            - tag: component
+              value: power
+          triggers:
+            - uuid: 8564b329cbb74db487015ac0e11f2dcd
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.fuscons)=1'
+              name: 'XPS: Consumer fuse open'
+              event_name: 'XPS: Consumer fuse open'
+              priority: DISASTER
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 458c02ab677846838d681c32e4ca693e
+          name: 'Battery fuse status (FusBat)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.13.0]'
+          key: xps.fusbat
+          description: 'usccUltimateFusBat. 0 = normal, 1 = open (fuse open).'
+          tags:
+            - tag: component
+              value: battery
+          triggers:
+            - uuid: fb04dea229754e03a3cd9d0a684afcc2
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.fusbat)=1'
+              name: 'XPS: Battery fuse open'
+              event_name: 'XPS: Battery fuse open'
+              priority: DISASTER
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 0e16a5d88577466fb01572ea5b87a3d7
+          name: 'Multiple UR failure (FlhUr)'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.11.0]'
+          key: xps.flhur
+          description: 'usccUltimateFlhUr - Multiple UR failure register. 0 = no failure.'
+          tags:
+            - tag: component
+              value: power
+          triggers:
+            - uuid: 36046558a8f340128928b5551524d733
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.flhur)>0'
+              name: 'XPS: Failure on one or more Rectifier Units'
+              event_name: 'XPS: Failure on one or more Rectifier Units'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: ac0bc7e312884fc5b0039700abae1d97
+          name: 'Front panel alarm LED - Urgent'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.14.1.0]'
+          key: xps.led.urgente
+          description: 'usccUltimateLedAlarmeUrg (labeled "Urgente" on the device panel). 0 = off, 1 = on.'
+          tags:
+            - tag: component
+              value: alarm
+          triggers:
+            - uuid: d2edff80606c453c9f111bf9b9c24c9c
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.led.urgente)=1'
+              name: 'XPS: Urgent alarm active on front panel'
+              event_name: 'XPS: Urgent alarm active on the USCC front panel'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e424b8a2953e4f429c0bdb1b943b4670
+          name: 'Front panel alarm LED - Non-urgent'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.14.2.0]'
+          key: xps.led.naourgente
+          description: 'usccUltimateLedAlarmeNaoUrg (labeled "Nao Urgente" on the device panel). 0 = off, 1 = on.'
+          tags:
+            - tag: component
+              value: alarm
+          triggers:
+            - uuid: c32d59b25b1b470d9631097d38910fd9
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.led.naourgente)=1'
+              name: 'XPS: Non-urgent alarm active on front panel'
+              event_name: 'XPS: Non-urgent alarm active on the USCC front panel'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 9760c930200741359efd6d44f33798eb
+          name: 'Front panel alarm LED - Warning'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.34252.5.1.14.3.0]'
+          key: xps.led.advertencia
+          description: 'usccUltimateLedAdvertencia (labeled "Advertencia" on the device panel). 0 = off, 1 = on.'
+          tags:
+            - tag: component
+              value: alarm
+          triggers:
+            - uuid: fa6bd2c5bd534b5dbe3d78ed62ab93f7
+              expression: 'last(/XPS Retificador SRX by SNMP/xps.led.advertencia)=1'
+              name: 'XPS: Warning alarm active on front panel'
+              event_name: 'XPS: Warning alarm active on the USCC front panel'
+              priority: AVERAGE
+              tags:
+                - tag: scope
+                  value: availability
+      tags:
+        - tag: class
+          value: power
+        - tag: target
+          value: xps-retificador-srx
+      macros:
+        - macro: '{$XPS.IBATD.MIN}'
+          value: '1'
+          description: 'Discharge current (A) above which a warning is raised. Suggested value - tune per site (not a factory parameter).'
+        - macro: '{$XPS.TBAT.CRIT}'
+          value: '45'
+          description: 'Critical battery temperature in °C. Suggested value - not a factory parameter of the equipment.'
+        - macro: '{$XPS.TBAT.CRIT.RESET}'
+          value: '43'
+          description: 'Battery temperature in °C for critical alarm recovery (hysteresis). Suggested value.'
+        - macro: '{$XPS.TBAT.HIGH}'
+          value: '35'
+          description: 'Battery warning temperature in °C. Suggested value - not a factory parameter of the equipment.'
+        - macro: '{$XPS.VBATE.DISCHARGE}'
+          value: '49.2'
+          description: 'Battery voltage (V) below which the USCC considers the battery to be discharging. Factory default of the equipment (manual MT00353, section 8.3).'
+        - macro: '{$XPS.VBATE.DISCONNECT}'
+          value: '42.0'
+          description: 'Battery voltage (V) for undervoltage disconnection. Factory default of the equipment (manual MT00353, section 8.3).'
+        - macro: '{$XPS.VCC.HIGH}'
+          value: '60'
+          description: 'Output DC voltage (V) considered high for the load. Factory default of the equipment (manual MT00353, section 8.3).'
