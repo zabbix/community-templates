@@ -21,10 +21,11 @@ zabbix_export:
         v9.0.0a. The 6505 template it derives from was tested against a Brocade 6505
         running Fabric OS 8.0.2c, with Zabbix server 7.0.29.
 
-        MIBs: SW-MIB, FCMGMT-MIB (FA-MIB), IF-MIB, SNMPv2-MIB and HOST-RESOURCES-MIB.
+        MIBs: SW-MIB, FCMGMT-MIB (FA-MIB), FIBRE-CHANNEL-FE-MIB, IF-MIB, SNMPv2-MIB and
+        HOST-RESOURCES-MIB.
         Monitors system health, CPU, memory, uptime, firmware, serial number,
-        fans, power supplies, temperatures, Fibre Channel ports and the
-        management Ethernet interface.
+        fans, power supplies, temperatures, Fibre Channel ports - state, errors,
+        bandwidth and buffer credit - and the management Ethernet interface.
         Fibre Channel traffic, errors and port state come from SW-MIB
         (swFCPortTable), because Fabric OS does not answer the 64-bit IF-MIB
         counters ifHCInOctets/ifHCOutOctets for FC ports on every release.
@@ -45,7 +46,7 @@ zabbix_export:
         which sensor slots are populated, differ between releases and models.
       vendor:
         name: Community
-        version: 7.0-1
+        version: 7.0-2
       groups:
         - name: 'Templates/Network devices'
       items:
@@ -1144,6 +1145,12 @@ zabbix_export:
             configured name/description, it is appended to {#FCPORTLABEL} and therefore appears in
             item, graph and problem names. Empty port names leave the existing number-only label intact.
             Use {$FC.TRAFFIC.PORT.NOT_MATCHES} to drop further ports by number.
+
+            The rule also reads the zero transmit credit counter (connUnitPortStatCountBBCreditZero),
+            link resets, and swConnUnitC3DiscardDueToTXTimeout from SW-MIB
+            swConnUnitPortStatExtentionTable, which augments connUnitPortStatTable and has the same
+            index. The allocated and available receive buffer credits come from
+            FIBRE-CHANNEL-FE-MIB, indexed by {#FXPORTINDEX}.
           preprocessing:
             - type: JAVASCRIPT
               parameters:
@@ -1162,6 +1169,7 @@ zabbix_export:
                           throw 'Unexpected connUnitPortStat index: ' + row['{#SNMPINDEX}'];
                       }
                       row['{#FCPORTNUM}'] = String(port);
+                      row['{#FXPORTINDEX}'] = '1.' + String(port + 1);
                       row['{#FCPORTNAME}'] = String(row['{#FCPORTNAME}'] || '').replace(/^\s+|\s+$/g, '');
                       row['{#FCPORTLABEL}'] = row['{#FCPORTNUM}'];
                       if (row['{#FCPORTNAME}'] !== '' && row['{#FCPORTNAME}'] !== row['{#FCPORTNUM}']) {
@@ -1250,6 +1258,27 @@ zabbix_export:
                   value: 'port{#FCPORTLABEL}'
                 - tag: port
                   value: '{#FCPORTNUM}'
+            - uuid: 6e223c222b07458cbf39da6eacfd61e3
+              name: 'FC port {#FCPORTLABEL}: Bits received and sent'
+              type: CALCULATED
+              key: 'fcstat.total[{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              units: bps
+              params: 'last(//fcstat.in[connUnitPortStatCountRxElements.{#FCPORTNUM}])+last(//fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}])'
+              description: |
+                Sum of "Bits received" and "Bits sent": the traffic through the port in both
+                directions. A Fibre Channel link is full duplex, so this sum can reach twice the
+                usable rate and is not compared against the speed; the bandwidth trigger still checks
+                each direction on its own. The trigger reads this item first so that {ITEM.VALUE},
+                {ITEM.LASTVALUE} and {ITEM.KEY} in an action message show both directions.
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
             - uuid: 7dd801c90214479ea538134042075e11
               name: 'FC port {#FCPORTLABEL}: Speed'
               type: SNMP_AGENT
@@ -1292,9 +1321,222 @@ zabbix_export:
                   value: 'port{#FCPORTLABEL}'
                 - tag: port
                   value: '{#FCPORTNUM}'
+            - uuid: 5d228f0633474587bae7a4b3d9c599b4
+              name: 'FC port {#FCPORTLABEL}: Time at zero transmit BB credit'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.3.94.4.5.1.8.{#SNMPINDEX}]'
+              key: 'fcstat.bbcredit.zero[connUnitPortStatCountBBCreditZero.{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              units: '%'
+              description: |
+                MIB: FCMGMT-MIB, connUnitPortStatCountBBCreditZero
+                Percentage of time the port had a frame to send but no buffer-to-buffer credit left, so it
+                had to wait for the attached device or the neighbour switch to return an R_RDY.
+
+                Fabric OS maps this object to tim_txcrd_z of portstatsshow (Brocade Fabric OS MIB Reference,
+                portStatsShow table). The counter goes up by one for every 2.5 microseconds spent with zero
+                transmit credit while a frame is queued, so the per-second rate times 2.5 us gives the fraction
+                of time: the multiplier 0.00025 turns it into %. 100% is 400,000 increments per second.
+
+                A few percent is normal on a busy F_Port or ISL. A port that stays high is waiting on a slow
+                drain device (host HBA or array port not returning credits fast enough) or on a congested ISL,
+                and every flow sharing the path is slowed down with it.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var hex = value.replace(/[^0-9A-Fa-f]/g, '');
+                      if (hex.length === 0 || hex.length % 2 !== 0) {
+                          throw 'Unexpected octet string: ' + value;
+                      }
+                      if (parseInt(hex.substr(0, 2), 16) >= 128) {
+                          throw 'Counter not supported by this switch (high-order bit set): ' + value;
+                      }
+                      var n = 0;
+                      for (var i = 0; i < hex.length; i += 2) {
+                          n = n * 256 + parseInt(hex.substr(i, 2), 16);
+                      }
+                      return n;
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.00025'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
+            - uuid: 8d53a8bd29b24243a5f2a27a6ebfd57b
+              name: 'FC port {#FCPORTLABEL}: Class 3 frames discarded on transmit timeout'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.1588.2.1.1.1.27.1.27.{#SNMPINDEX}]'
+              key: 'fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              description: |
+                MIB: SW-MIB, swConnUnitC3DiscardDueToTXTimeout (swConnUnitPortStatExtentionTable,
+                which AUGMENTS connUnitPortStatEntry and therefore shares this rule's index)
+                Class 3 frames per second that waited for transmission on this port longer than the hold
+                time and were dropped - er_tx_c3_timeout of portstatsshow. The port had no transmit credit
+                for that long, which is the signature of a slow drain device or credit loss on this link.
+                Unlike "Class 3 frames discarded" of the SW-MIB rule, it does not count frames dropped on the
+                receive side or for an unreachable destination.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var hex = value.replace(/[^0-9A-Fa-f]/g, '');
+                      if (hex.length === 0 || hex.length % 2 !== 0) {
+                          throw 'Unexpected octet string: ' + value;
+                      }
+                      if (parseInt(hex.substr(0, 2), 16) >= 128) {
+                          throw 'Counter not supported by this switch (high-order bit set): ' + value;
+                      }
+                      var n = 0;
+                      for (var i = 0; i < hex.length; i += 2) {
+                          n = n * 256 + parseInt(hex.substr(i, 2), 16);
+                      }
+                      return n;
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
+            - uuid: 306670700dff49c79a7ab3f43f6035ff
+              name: 'FC port {#FCPORTLABEL}: Link resets received'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.3.94.4.5.1.33.{#SNMPINDEX}]'
+              key: 'fcstat.linkresets.in[connUnitPortStatCountRxLinkResets.{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              description: |
+                MIB: FCMGMT-MIB, connUnitPortStatCountRxLinkResets
+                Link Reset primitives received per second. A link reset clears the buffer credit state of
+                the link: it is part of link initialization, and the attached port sends one when it detects
+                lost credits. Repeated resets while the link stays up point at credit loss.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var hex = value.replace(/[^0-9A-Fa-f]/g, '');
+                      if (hex.length === 0 || hex.length % 2 !== 0) {
+                          throw 'Unexpected octet string: ' + value;
+                      }
+                      if (parseInt(hex.substr(0, 2), 16) >= 128) {
+                          throw 'Counter not supported by this switch (high-order bit set): ' + value;
+                      }
+                      var n = 0;
+                      for (var i = 0; i < hex.length; i += 2) {
+                          n = n * 256 + parseInt(hex.substr(i, 2), 16);
+                      }
+                      return n;
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
+            - uuid: d80be3bb76364d21bbb88c626fa00aaf
+              name: 'FC port {#FCPORTLABEL}: Link resets sent'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.3.94.4.5.1.34.{#SNMPINDEX}]'
+              key: 'fcstat.linkresets.out[connUnitPortStatCountTxLinkResets.{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              description: |
+                MIB: FCMGMT-MIB, connUnitPortStatCountTxLinkResets
+                Link Reset primitives sent per second. Fabric OS sends one to recover when the transmit side
+                has been stuck at zero credit for too long, so resets sent together with a high "Time at zero
+                transmit BB credit" confirm a credit problem on this link.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var hex = value.replace(/[^0-9A-Fa-f]/g, '');
+                      if (hex.length === 0 || hex.length % 2 !== 0) {
+                          throw 'Unexpected octet string: ' + value;
+                      }
+                      if (parseInt(hex.substr(0, 2), 16) >= 128) {
+                          throw 'Counter not supported by this switch (high-order bit set): ' + value;
+                      }
+                      var n = 0;
+                      for (var i = 0; i < hex.length; i += 2) {
+                          n = n * 256 + parseInt(hex.substr(i, 2), 16);
+                      }
+                      return n;
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
+            - uuid: 61db634d4c2544bdb790570f83b2db76
+              name: 'FC port {#FCPORTLABEL}: BB credit, receive buffers allocated'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.75.1.1.5.1.5.{#FXPORTINDEX}]'
+              key: 'fcstat.bbcredit.rx[fcFxPortBbCredit.{#FCPORTNUM}]'
+              delay: 1h
+              description: |
+                MIB: FIBRE-CHANNEL-FE-MIB, fcFxPortBbCredit
+                The number of receive buffers - buffer-to-buffer credits - the switch grants the
+                device attached to this port. The attached device can send that many frames before it
+                has to wait for an R_RDY. The Fabric OS default for an F_Port is 8; portcfgfportbuffers,
+                portcfgeportcredits and portcfglongdistance change the allocation.
+
+                The FE-MIB index is fcFeModuleIndex.fcFxPortIndex. The discovery rule builds it as
+                1.<swFCPortIndex> in {#FXPORTINDEX}, which assumes a single fabric element module - true on
+                fixed-port switches such as the 6505 and G620. If the switch answers noSuchInstance, check
+                that FE-MIB is enabled with snmpconfig --show mibCapability.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
+            - uuid: 532a137a9ba44f7581614a562e119225
+              name: 'FC port {#FCPORTLABEL}: BB credit, receive buffers available'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.75.1.2.1.1.2.{#FXPORTINDEX}]'
+              key: 'fcstat.bbcredit.rx.available[fcFxPortBbCreditAvailable.{#FCPORTNUM}]'
+              delay: 1m
+              description: |
+                MIB: FIBRE-CHANNEL-FE-MIB, fcFxPortBbCreditAvailable
+                The number of receive buffers free at the moment of the poll, at most the allocated
+                value. It is a snapshot of a state that changes every few microseconds: a value that
+                stays at 0 poll after poll means the switch cannot drain what this port receives, so it
+                holds back credits and slows the attached device down. Fabric OS does not support it on
+                SIM ports, long-distance ports and ports with portcfgfportbuffers.
+
+                The FE-MIB index is fcFeModuleIndex.fcFxPortIndex. The discovery rule builds it as
+                1.<swFCPortIndex> in {#FXPORTINDEX}, which assumes a single fabric element module - true on
+                fixed-port switches such as the 6505 and G620. If the switch answers noSuchInstance, check
+                that FE-MIB is enabled with snmpconfig --show mibCapability.
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
           trigger_prototypes:
             - uuid: 5ca3ce0fa2b14e818682a5fd34eb69e0
               expression: |
+                last(/Brocade G620 by SNMPv3/fcstat.total[{#FCPORTNUM}])>=0 and
                 (avg(/Brocade G620 by SNMPv3/fcstat.in[connUnitPortStatCountRxElements.{#FCPORTNUM}],15m)>({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}]) or
                 avg(/Brocade G620 by SNMPv3/fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}],15m)>({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])) and
                 last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])>0
@@ -1304,7 +1546,7 @@ zabbix_export:
                 avg(/Brocade G620 by SNMPv3/fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}],15m)<(({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}-3)/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])
               name: 'Brocade G620: FC port {#FCPORTLABEL}: High bandwidth usage'
               event_name: 'Brocade G620: FC port {#FCPORTLABEL}: High bandwidth usage (>{$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}%)'
-              opdata: 'In: {ITEM.LASTVALUE1}, out: {ITEM.LASTVALUE3}, speed: {ITEM.LASTVALUE2}'
+              opdata: 'In: {ITEM.LASTVALUE2}, out: {ITEM.LASTVALUE4}, speed: {ITEM.LASTVALUE3}'
               priority: WARNING
               description: |
                 The port is close to the amount of frame data its link can carry.
@@ -1322,7 +1564,57 @@ zabbix_export:
 
                 No dependency on the port state trigger is possible here, because that trigger belongs
                 to the other discovery rule and Zabbix only allows dependencies within the same rule.
+
+                The expression starts with last(Bits received and sent)>=0, which is always true once
+                that item has data. It only makes the sum the first item of the trigger: Zabbix resolves
+                {ITEM.VALUE}, {ITEM.LASTVALUE} and {ITEM.KEY} without an index to the first item, so an
+                action message now shows the traffic of both directions instead of the received traffic
+                alone. The operational data still lists each direction.
               manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: f6ceb62150384c89ab113354f87a687f
+              expression: 'min(/Brocade G620 by SNMPv3/fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}],5m)>{$FC.C3TXTO.WARN:"{#FCPORTNUM}"}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Brocade G620 by SNMPv3/fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}],5m)<={$FC.C3TXTO.WARN:"{#FCPORTNUM}"}'
+              name: 'Brocade G620: FC port {#FCPORTLABEL}: Frames dropped on transmit timeout'
+              event_name: 'Brocade G620: FC port {#FCPORTLABEL}: Frames dropped on transmit timeout (>{$FC.C3TXTO.WARN:"{#FCPORTNUM}"}/s for 5m)'
+              opdata: 'Discards: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: |
+                Frames for this port timed out waiting for transmit credit in every poll of the last
+                5 minutes. The attached device is not returning buffer-to-buffer credits - a slow drain
+                host or array port, or credit loss on the link - and its I/O is failing with timeouts.
+                Check "Time at zero transmit BB credit" and the link reset counters of the same port,
+                then the HBA or array port behind it. It recovers once a 5-minute window stays at or
+                below the threshold.
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+            - uuid: ba269ef76f674ebcb177665012e1fe91
+              expression: 'min(/Brocade G620 by SNMPv3/fcstat.bbcredit.zero[connUnitPortStatCountBBCreditZero.{#FCPORTNUM}],5m)>{$FC.BBCREDIT.ZERO.WARN:"{#FCPORTNUM}"}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Brocade G620 by SNMPv3/fcstat.bbcredit.zero[connUnitPortStatCountBBCreditZero.{#FCPORTNUM}],5m)<{$FC.BBCREDIT.ZERO.WARN:"{#FCPORTNUM}"}*0.8'
+              name: 'Brocade G620: FC port {#FCPORTLABEL}: High time at zero transmit BB credit'
+              event_name: 'Brocade G620: FC port {#FCPORTLABEL}: High time at zero transmit BB credit (>{$FC.BBCREDIT.ZERO.WARN:"{#FCPORTNUM}"}% for 5m)'
+              opdata: 'Zero credit: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: |
+                The port spent more than {$FC.BBCREDIT.ZERO.WARN:"{#FCPORTNUM}"}% of the time with frames
+                queued and no transmit credit, in every poll of the last 5 minutes. The device or ISL
+                behind it is not taking frames as fast as the fabric delivers them, which adds latency
+                to every flow through this port. It recovers when the value stays below 80% of the
+                threshold for 5 minutes. Raise the threshold per port with the port number as context
+                for links where some credit starvation is expected.
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Brocade G620: FC port {#FCPORTLABEL}: Frames dropped on transmit timeout'
+                  expression: 'min(/Brocade G620 by SNMPv3/fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}],5m)>{$FC.C3TXTO.WARN:"{#FCPORTNUM}"}'
+                  recovery_expression: 'max(/Brocade G620 by SNMPv3/fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}],5m)<={$FC.C3TXTO.WARN:"{#FCPORTNUM}"}'
               tags:
                 - tag: scope
                   value: performance
@@ -1341,6 +1633,32 @@ zabbix_export:
                   item:
                     host: 'Brocade G620 by SNMPv3'
                     key: 'fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}]'
+            - uuid: 0a2a0937c330441b8b65c4c27af57516
+              name: 'FC port {#FCPORTLABEL}: Buffer credit'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Brocade G620 by SNMPv3'
+                    key: 'fcstat.bbcredit.zero[connUnitPortStatCountBBCreditZero.{#FCPORTNUM}]'
+                - sortorder: '1'
+                  color: FC6EA3
+                  yaxisside: RIGHT
+                  item:
+                    host: 'Brocade G620 by SNMPv3'
+                    key: 'fcstat.discards.c3.txto[swConnUnitC3DiscardDueToTXTimeout.{#FCPORTNUM}]'
+                - sortorder: '2'
+                  color: 6C59DC
+                  yaxisside: RIGHT
+                  item:
+                    host: 'Brocade G620 by SNMPv3'
+                    key: 'fcstat.linkresets.in[connUnitPortStatCountRxLinkResets.{#FCPORTNUM}]'
+                - sortorder: '3'
+                  color: F7941D
+                  yaxisside: RIGHT
+                  item:
+                    host: 'Brocade G620 by SNMPv3'
+                    key: 'fcstat.linkresets.out[connUnitPortStatCountTxLinkResets.{#FCPORTNUM}]'
         - uuid: 679ba6d5a8a14f6e9022efea2d34ae4a
           name: 'Network interfaces discovery'
           type: SNMP_AGENT
@@ -1958,9 +2276,15 @@ zabbix_export:
           value: '2'
         - macro: '{$FAN_OK_STATUS}'
           value: '4'
+        - macro: '{$FC.BBCREDIT.ZERO.WARN}'
+          value: '10'
+          description: 'Warning threshold for "Time at zero transmit BB credit" on an FC port, in % of time, sustained for 5 minutes. Can be used with the port number as context.'
         - macro: '{$FC.C3DISCARD.WARN}'
           value: '1'
           description: 'Warning threshold for the Class 3 discard rate on an FC port, in frames per second. Can be used with the port label as context.'
+        - macro: '{$FC.C3TXTO.WARN}'
+          value: '0'
+          description: 'Threshold for Class 3 frames discarded on transmit timeout, in frames per second. The trigger fires when every poll of the last 5 minutes is above it, so the default 0 means continuous drops. Can be used with the port number as context.'
         - macro: '{$FC.IF.ERRORS.WARN}'
           value: '2'
           description: 'Warning threshold for the CRC and encoding error rate on an FC port. Can be used with the port label as context.'
@@ -2560,6 +2884,47 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: YTASK
+                    - type: INTEGER
+                      name: rows
+                      value: '6'
+            - name: 'FC ports'
+              widgets:
+                - type: graphprototype
+                  name: 'FC port bandwidth'
+                  width: '36'
+                  height: '30'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Brocade G620 by SNMPv3'
+                        name: 'FC port {#FCPORTLABEL}: Bandwidth'
+                    - type: STRING
+                      name: reference
+                      value: FCBWD
+                    - type: INTEGER
+                      name: rows
+                      value: '6'
+                - type: graphprototype
+                  name: 'FC port buffer credit'
+                  x: '36'
+                  width: '36'
+                  height: '30'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Brocade G620 by SNMPv3'
+                        name: 'FC port {#FCPORTLABEL}: Buffer credit'
+                    - type: STRING
+                      name: reference
+                      value: FCBBC
                     - type: INTEGER
                       name: rows
                       value: '6'
