@@ -1258,6 +1258,27 @@ zabbix_export:
                   value: 'port{#FCPORTLABEL}'
                 - tag: port
                   value: '{#FCPORTNUM}'
+            - uuid: 6e223c222b07458cbf39da6eacfd61e3
+              name: 'FC port {#FCPORTLABEL}: Bits received and sent'
+              type: CALCULATED
+              key: 'fcstat.total[{#FCPORTNUM}]'
+              delay: 1m
+              value_type: FLOAT
+              units: bps
+              params: 'last(//fcstat.in[connUnitPortStatCountRxElements.{#FCPORTNUM}])+last(//fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}])'
+              description: |
+                Sum of "Bits received" and "Bits sent": the traffic through the port in both
+                directions. A Fibre Channel link is full duplex, so this sum can reach twice the
+                usable rate and is not compared against the speed; the bandwidth trigger still checks
+                each direction on its own. The trigger reads this item first so that {ITEM.VALUE},
+                {ITEM.LASTVALUE} and {ITEM.KEY} in an action message show both directions.
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: 'port{#FCPORTLABEL}'
+                - tag: port
+                  value: '{#FCPORTNUM}'
             - uuid: 7dd801c90214479ea538134042075e11
               name: 'FC port {#FCPORTLABEL}: Speed'
               type: SNMP_AGENT
@@ -1515,6 +1536,7 @@ zabbix_export:
           trigger_prototypes:
             - uuid: 5ca3ce0fa2b14e818682a5fd34eb69e0
               expression: |
+                last(/Brocade G620 by SNMPv3/fcstat.total[{#FCPORTNUM}])>=0 and
                 (avg(/Brocade G620 by SNMPv3/fcstat.in[connUnitPortStatCountRxElements.{#FCPORTNUM}],15m)>({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}]) or
                 avg(/Brocade G620 by SNMPv3/fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}],15m)>({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])) and
                 last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])>0
@@ -1524,7 +1546,7 @@ zabbix_export:
                 avg(/Brocade G620 by SNMPv3/fcstat.out[connUnitPortStatCountTxElements.{#FCPORTNUM}],15m)<(({$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}-3)/100)*{$FC.SPEED.PAYLOAD.RATIO:"{#FCPORTNUM}"}*last(/Brocade G620 by SNMPv3/fcstat.speed[connUnitPortSpeed.{#FCPORTNUM}])
               name: 'Brocade G620: FC port {#FCPORTLABEL}: High bandwidth usage'
               event_name: 'Brocade G620: FC port {#FCPORTLABEL}: High bandwidth usage (>{$FC.IF.UTIL.MAX:"{#FCPORTNUM}"}%)'
-              opdata: 'In: {ITEM.LASTVALUE1}, out: {ITEM.LASTVALUE3}, speed: {ITEM.LASTVALUE2}'
+              opdata: 'In: {ITEM.LASTVALUE2}, out: {ITEM.LASTVALUE4}, speed: {ITEM.LASTVALUE3}'
               priority: WARNING
               description: |
                 The port is close to the amount of frame data its link can carry.
@@ -1542,6 +1564,12 @@ zabbix_export:
 
                 No dependency on the port state trigger is possible here, because that trigger belongs
                 to the other discovery rule and Zabbix only allows dependencies within the same rule.
+
+                The expression starts with last(Bits received and sent)>=0, which is always true once
+                that item has data. It only makes the sum the first item of the trigger: Zabbix resolves
+                {ITEM.VALUE}, {ITEM.LASTVALUE} and {ITEM.KEY} without an index to the first item, so an
+                action message now shows the traffic of both directions instead of the received traffic
+                alone. The operational data still lists each direction.
               manual_close: 'YES'
               tags:
                 - tag: scope

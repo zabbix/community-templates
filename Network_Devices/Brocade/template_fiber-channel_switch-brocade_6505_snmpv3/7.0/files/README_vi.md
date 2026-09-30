@@ -76,6 +76,7 @@ Nguồn: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) và `connUnit
 | --- | --- | --- | --- |
 | Bits received | `1.3.6.1.3.94.4.5.1.7` `connUnitPortStatCountRxElements` | bps | 1m |
 | Bits sent | `1.3.6.1.3.94.4.5.1.6` `connUnitPortStatCountTxElements` | bps | 1m |
+| Bits received and sent | calculated: Bits received + Bits sent | bps | 1m |
 | Speed | `1.3.6.1.3.94.1.10.1.15` `connUnitPortSpeed` | bps | 5m |
 | Time at zero transmit BB credit | `1.3.6.1.3.94.4.5.1.8` `connUnitPortStatCountBBCreditZero` | % | 1m |
 | Class 3 frames discarded on transmit timeout | `1.3.6.1.4.1.1588.2.1.1.1.27.1.27` `swConnUnitC3DiscardDueToTXTimeout` | /s | 1m |
@@ -187,6 +188,8 @@ Cổng FC **không** đi qua rule này. `ifHCInOctets` kiểu `Counter64` — SN
 **Port is not online** bắn theo **thay đổi trạng thái**: chỉ kích hoạt khi cổng rời khỏi `online(1)` sau khi đã từng online, nên cổng chưa bao giờ dùng không sinh cảnh báo. Tắt riêng từng cổng bằng `{$FC.PORTCONTROL:"<nhãn cổng>"}=0`.
 
 **High bandwidth usage** của rule traffic so sánh với `Speed × {$FC.SPEED.PAYLOAD.RATIO}`, không so với Speed. Hai item lưu lượng đếm octet của khung còn `connUnitPortSpeed` báo tín hiệu thô trên dây; nhân `0.8` cho ra throughput chuẩn FC công bố (16GFC = 1600 MB/s = 12,8 Gbps). Trigger này không có dependency vào trạng thái cổng vì trigger đó thuộc rule khác, mà Zabbix chỉ cho phép dependency trong cùng một rule.
+
+Biểu thức trigger mở đầu bằng `last(Bits received and sent)>=0`, điều kiện luôn đúng khi item này đã có dữ liệu. Nó chỉ để item tổng thành item đầu tiên của trigger. Khi không có chỉ số, Zabbix lấy `{ITEM.VALUE}`, `{ITEM.LASTVALUE}` và `{ITEM.KEY}` theo item đầu tiên của biểu thức, nên nội dung action giờ hiển thị tổng lưu lượng hai chiều thay vì chỉ lưu lượng nhận. Trigger vẫn bắn khi riêng một chiều vượt ngưỡng, và operational data vẫn liệt kê từng chiều.
 
 **Frames dropped on transmit timeout** bắn khi mọi lần poll trong 5 phút gần nhất đều có khung Class 3 bị hủy do transmit timeout vượt `{$FC.C3TXTO.WARN}` — mặc định `0`, tức hủy khung liên tục — và phục hồi khi một cửa sổ 5 phút không vượt ngưỡng. **High time at zero transmit BB credit** bắn khi cổng ở trên `{$FC.BBCREDIT.ZERO.WARN}` % (mặc định `10`) suốt 5 phút và phục hồi khi xuống dưới 80% ngưỡng. Trigger này phụ thuộc trigger hủy khung, nên cổng đã mất khung chỉ sinh một problem chứ không phải hai. Cả hai dùng số cổng làm context, ví dụ `{$FC.BBCREDIT.ZERO.WARN:"12"}=30` cho ISL mà việc thiếu credit là bình thường ở mức đó.
 

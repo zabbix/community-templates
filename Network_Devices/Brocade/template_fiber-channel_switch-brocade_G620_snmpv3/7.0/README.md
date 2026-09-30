@@ -78,6 +78,7 @@ Source: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) and `connUnitP
 | --- | --- | --- | --- |
 | Bits received | `1.3.6.1.3.94.4.5.1.7` `connUnitPortStatCountRxElements` | bps | 1m |
 | Bits sent | `1.3.6.1.3.94.4.5.1.6` `connUnitPortStatCountTxElements` | bps | 1m |
+| Bits received and sent | calculated: Bits received + Bits sent | bps | 1m |
 | Speed | `1.3.6.1.3.94.1.10.1.15` `connUnitPortSpeed` | bps | 5m |
 | Time at zero transmit BB credit | `1.3.6.1.3.94.4.5.1.8` `connUnitPortStatCountBBCreditZero` | % | 1m |
 | Class 3 frames discarded on transmit timeout | `1.3.6.1.4.1.1588.2.1.1.1.27.1.27` `swConnUnitC3DiscardDueToTXTimeout` | /s | 1m |
@@ -205,6 +206,8 @@ FC ports do **not** go through this rule. `ifHCInOctets` is a `Counter64`, a dat
 **Port is not online** fires on a **state change**: only when the port leaves `online(1)` after having been online, so a port that was never in use raises nothing. Silence individual ports with `{$FC.PORTCONTROL:"<port label>"}=0`.
 
 **High bandwidth usage** in the traffic rule compares against `Speed × {$FC.SPEED.PAYLOAD.RATIO}`, not against Speed itself. The two traffic items count frame octets while `connUnitPortSpeed` reports the raw signalling on the wire; multiplying by `0.8` gives the throughput figure the Fibre Channel standard publishes (16GFC = 1600 MB/s = 12.8 Gbps, 32GFC = 3200 MB/s = 25.6 Gbps). This trigger has no dependency on the port state trigger, because that one belongs to the other discovery rule and Zabbix only allows dependencies within the same rule.
+
+The trigger expression starts with `last(Bits received and sent)>=0`, which is always true once that item has data. It only makes the sum the first item of the trigger. Zabbix resolves `{ITEM.VALUE}`, `{ITEM.LASTVALUE}` and `{ITEM.KEY}` without an index to the first item of the expression, so an action message now shows the traffic of both directions instead of the received traffic alone. The trigger still fires when either direction alone crosses the threshold, and its operational data still lists each direction.
 
 **Frames dropped on transmit timeout** fires when every poll of the last 5 minutes shows Class 3 frames dropped on transmit timeout above `{$FC.C3TXTO.WARN}` — `0` by default, so continuous drops — and recovers once a 5-minute window stays at or below it. **High time at zero transmit BB credit** fires when the port stays above `{$FC.BBCREDIT.ZERO.WARN}` % (default `10`) for 5 minutes and recovers below 80% of it. It depends on the drop trigger, so a port that is already losing frames raises one problem, not two. Both take the port number as context, for example `{$FC.BBCREDIT.ZERO.WARN:"12"}=30` for an ISL where some credit starvation is expected.
 
