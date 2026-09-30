@@ -6,11 +6,15 @@ Template giám sát switch Fibre Channel Brocade G620 (Gen 6, 32GFC) qua SNMP. �
 
 > **Ghi chú — Dell Connectrix DS-6620B:** Dòng Brocade G620 được OEM cho Dell với tên **Dell Connectrix DS-6620B**. Đây là cùng một thiết bị chạy Fabric OS, nên template này cũng có thể sử dụng để monitor Dell Connectrix DS-6620B.
 
-MIB sử dụng: **SW-MIB**, **FCMGMT-MIB (FA-MIB)**, **IF-MIB**, **SNMPv2-MIB**, **HOST-RESOURCES-MIB**.
+MIB sử dụng: **SW-MIB**, **FCMGMT-MIB (FA-MIB)**, **FIBRE-CHANNEL-FE-MIB**, **IF-MIB**, **SNMPv2-MIB**, **HOST-RESOURCES-MIB**.
+
+Các file MIB của Brocade và Fibre Channel — SW-MIB, FCMGMT-MIB, FIBRE-CHANNEL-FE-MIB cùng hai module Brocade-REG-MIB / Brocade-TC mà chúng import — nằm trong [brocade/](brocade/); các MIB chuẩn có sẵn trong Net-SNMP.
 
 Phiên bản SNMP và thông tin xác thực đặt trên **interface của host**, không nằm trong template. Item SNMP trap cần cấu hình bộ nhận trap riêng trên server/proxy.
 
 **Đã xác nhận OID bằng `snmpwalk` trên Dell Connectrix DS-6620B (Brocade G620, `switchType 183`, `sysObjectID` `1.3.6.1.4.1.1588.2.1.1.1.183`) chạy Fabric OS v9.0.0a.** Xây dựng từ template Brocade 6505, vốn đã kiểm thử trên thiết bị Brocade 6505 chạy Fabric OS 8.0.2c, với Zabbix server 7.0.29.
+
+Các item buffer credit thêm ở phiên bản template `7.0-2` được lấy từ Brocade Fabric OS MIB Reference và **chưa được đọc thử trên thiết bị thật** — xem mục 1.3.
 
 *Bản tiếng Anh: [../README.md](../README.md)*
 
@@ -66,15 +70,20 @@ Fabric OS 8.x **đã bỏ** các cột `11`, `12` và `35` khỏi `swFCPortTable
 
 **Frames received/sent là tốc độ khung, không phải bit rate** — một khung FC mang 0–2112 byte payload nên không quy đổi được sang bps. Băng thông thật nằm ở rule tiếp theo.
 
-## 1.3 `FC port traffic discovery` — băng thông cổng FC
+## 1.3 `FC port traffic discovery` — băng thông và buffer credit cổng FC
 
-Nguồn: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) và `connUnitPortTable`. Chu kỳ discovery `1h`.
+Nguồn: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) và `connUnitPortTable`, SW-MIB `swConnUnitPortStatExtentionTable` (`1.3.6.1.4.1.1588.2.1.1.1.27.1`) và FIBRE-CHANNEL-FE-MIB (`1.3.6.1.2.1.75`). Chu kỳ discovery `1h`.
 
 | Item | OID | Đơn vị | Chu kỳ |
 | --- | --- | --- | --- |
 | Bits received | `1.3.6.1.3.94.4.5.1.7` `connUnitPortStatCountRxElements` | bps | 1m |
 | Bits sent | `1.3.6.1.3.94.4.5.1.6` `connUnitPortStatCountTxElements` | bps | 1m |
 | Speed | `1.3.6.1.3.94.1.10.1.15` `connUnitPortSpeed` | bps | 5m |
+| Time at zero transmit BB credit | `1.3.6.1.3.94.4.5.1.8` `connUnitPortStatCountBBCreditZero` | % | 1m |
+| Class 3 frames discarded on transmit timeout | `1.3.6.1.4.1.1588.2.1.1.1.27.1.27` `swConnUnitC3DiscardDueToTXTimeout` | /s | 1m |
+| Link resets received / sent | `1.3.6.1.3.94.4.5.1.33` / `.34` `connUnitPortStatCountRxLinkResets` / `TxLinkResets` | /s | 1m |
+| BB credit, receive buffers allocated | `1.3.6.1.2.1.75.1.1.5.1.5` `fcFxPortBbCredit` | | 1h |
+| BB credit, receive buffers available | `1.3.6.1.2.1.75.1.2.1.1.2` `fcFxPortBbCreditAvailable` | | 1m |
 
 Bộ đếm là **octet 64-bit** trả về dạng OCTET STRING 8 byte (`00 04 34 14 10 A2 BF E0`), đọc được cả trên SNMPv1 — khác `Counter64` của IF-MIB. Item có bước JavaScript đổi hex sang số, rồi `Change per second`, rồi `×8`.
 
@@ -99,6 +108,33 @@ Vì vậy cả hai rule FC discovery các cổng **đang online tại thời đi
 ### Cổng bị down sau khi đã discovery
 
 Cổng đã được discovery mà mất link sẽ không còn trong kết quả discovery lần sau. Để vẫn theo dõi được, cả hai rule FC đặt **Disable lost resources = Never** và **Delete lost resources = sau 30d**: item của cổng vẫn tiếp tục được poll, problem *Port is not online* giữ nguyên tới khi cổng online lại, và chỉ cổng vắng mặt quá 30 ngày mới bị xóa. Có thể đổi trên rule tại **Data collection → Templates → Discovery rules → \<rule\>** nếu muốn cách khác — đặt **Never** cho cả hai thì giữ mọi cổng từng online.
+
+### Buffer credit
+
+Fibre Channel chỉ gửi một khung khi còn buffer-to-buffer (BB) credit: bên nhận cấp một số buffer lúc login và trả lại một `R_RDY` cho mỗi khung đã xử lý xong. Thiết bị trả credit quá chậm — **slow drain device** — buộc switch phải giữ khung của nó, và độ trễ lan sang mọi luồng dùng chung đường đi.
+
+- **Time at zero transmit BB credit** là chỉ số chính. Fabric OS ánh xạ `connUnitPortStatCountBBCreditZero` với `tim_txcrd_z` của `portstatsshow`: tăng một đơn vị cho mỗi **2,5 µs** cổng có khung đang chờ mà hết transmit credit. Item lấy tốc độ tăng mỗi giây nhân `0.00025` (2,5 µs × 100) để ra **phần trăm thời gian** cổng bị nghẽn: 100% ứng với 400 000 lần tăng mỗi giây. Vài phần trăm trên cổng tải cao là bình thường; cổng luôn ở mức cao là có thiết bị chậm hoặc ISL bị nghẽn phía sau.
+- **Class 3 frames discarded on transmit timeout** đếm khung chờ credit trên cổng này quá hold time và bị hủy (`er_tx_c3_timeout`). Đây là mất khung thật: I/O tương ứng lỗi timeout trên host. Khác với *Class 3 frames discarded* của rule SW-MIB, nó không tính khung bị hủy ở chiều nhận hoặc do không tới được đích.
+- **Link resets received / sent**: link reset khôi phục trạng thái credit của link. Reset cũng xảy ra khi link vừa lên, nhưng reset lặp lại trên link vẫn đang up là dấu hiệu mất credit.
+- **BB credit, receive buffers allocated / available** lấy từ FIBRE-CHANNEL-FE-MIB: số credit switch cấp cho thiết bị gắn vào cổng (mặc định 8 trên F_Port) và số buffer còn trống tại thời điểm poll. *Available* là ảnh chụp của một trạng thái thay đổi mỗi vài micro giây, nên chỉ khi giá trị đứng ở 0 qua nhiều lần poll mới có ý nghĩa: switch không xả kịp những gì cổng nhận vào.
+
+Item *Transmit credit shortage* của rule SW-MIB (`swFCPortNoTxCredits`) giữ nguyên.
+
+`swConnUnitPortStatExtentionTable` là bảng AUGMENTS của `connUnitPortStatTable` nên dùng chung index. FIBRE-CHANNEL-FE-MIB thì đánh index `fcFeModuleIndex.fcFxPortIndex`: rule tạo `{#FXPORTINDEX}` = `1.<số cổng + 1>`, tức giả định switch chỉ có một module như mọi switch cổng cố định. Nếu hai item FE-MIB báo unsupported, chạy `snmpconfig --show mibCapability` trên switch và bật FE-MIB.
+
+Với thống kê không hỗ trợ trong `connUnitPortStatTable`, Fabric OS trả về giá trị chỉ bật bit cao nhất (`80 00 00 00 00 00 00 00`). Các item bộ đếm mới chuyển trường hợp đó thành *not supported* thay vì ghi một giá trị sai.
+
+> **Chưa xác nhận trên thiết bị thật.** Lần `snmpwalk` DS-6620B dùng để xây dựng template không bao gồm các object này. Chúng được xây dựng từ *Brocade Fabric OS MIB Reference Manual, 9.0.x* và chưa được đọc thử trên G620. Trước khi dựa vào các item này, hãy kiểm tra switch có trả lời các OID dưới đây, và so sánh *Time at zero transmit BB credit* với `tim_txcrd_z` của `portstatsshow <cổng>` trong cùng một phút:
+>
+> ```
+> snmpwalk <tùy chọn SNMPv3> <switch> 1.3.6.1.3.94.4.5.1.8
+> snmpwalk <tùy chọn SNMPv3> <switch> 1.3.6.1.4.1.1588.2.1.1.1.27.1.27
+> snmpwalk <tùy chọn SNMPv3> <switch> 1.3.6.1.2.1.75.1.1.5.1.5
+> ```
+
+### Graph và dashboard
+
+Mỗi cổng có thêm graph **Buffer credit** (thời gian hết transmit credit ở trục trái; khung bị hủy do transmit timeout và link reset ở trục phải). Dashboard của template có thêm trang **FC ports** chứa graph băng thông và buffer credit của mọi cổng được discovery.
 
 ## 1.4 `FAN Discovery` / `PSU Discovery` / `Temperature Discovery`
 
@@ -163,10 +199,14 @@ Cổng FC **không** đi qua rule này. `ifHCInOctets` kiểu `Counter64` — SN
 | Class 3 frames are being discarded | WARNING | ✓ | Port is not online | FC port discovery |
 | ~~High bandwidth usage~~ (SW-MIB) | WARNING | ✓ | Port is not online | **Disabled** |
 | High bandwidth usage | WARNING | ✓ | | FC port traffic discovery |
+| Frames dropped on transmit timeout | AVERAGE | ✓ | | FC port traffic discovery |
+| High time at zero transmit BB credit | WARNING | ✓ | Frames dropped on transmit timeout | FC port traffic discovery |
 
 **Port is not online** bắn theo **thay đổi trạng thái**: chỉ kích hoạt khi cổng rời khỏi `online(1)` sau khi đã từng online, nên cổng chưa bao giờ dùng không sinh cảnh báo. Tắt riêng từng cổng bằng `{$FC.PORTCONTROL:"<nhãn cổng>"}=0`.
 
 **High bandwidth usage** của rule traffic so sánh với `Speed × {$FC.SPEED.PAYLOAD.RATIO}`, không so với Speed. Hai item lưu lượng đếm octet của khung còn `connUnitPortSpeed` báo tín hiệu thô trên dây; nhân `0.8` cho ra throughput chuẩn FC công bố (16GFC = 1600 MB/s = 12,8 Gbps, 32GFC = 3200 MB/s = 25,6 Gbps). Trigger này không có dependency vào trạng thái cổng vì trigger đó thuộc rule khác, mà Zabbix chỉ cho phép dependency trong cùng một rule.
+
+**Frames dropped on transmit timeout** bắn khi mọi lần poll trong 5 phút gần nhất đều có khung Class 3 bị hủy do transmit timeout vượt `{$FC.C3TXTO.WARN}` — mặc định `0`, tức hủy khung liên tục — và phục hồi khi một cửa sổ 5 phút không vượt ngưỡng. **High time at zero transmit BB credit** bắn khi cổng ở trên `{$FC.BBCREDIT.ZERO.WARN}` % (mặc định `10`) suốt 5 phút và phục hồi khi xuống dưới 80% ngưỡng. Trigger này phụ thuộc trigger hủy khung, nên cổng đã mất khung chỉ sinh một problem chứ không phải hai. Cả hai dùng số cổng làm context, ví dụ `{$FC.BBCREDIT.ZERO.WARN:"12"}=30` cho ISL mà việc thiếu credit là bình thường ở mức đó.
 
 ## 2.3 Quạt, nguồn, nhiệt độ
 
@@ -258,6 +298,8 @@ Nếu một cảm biến chuyển sang `absent(6)`, lần discovery kế tiếp 
 | `{$FC.SPEED.PAYLOAD.RATIO}` | `0.8` | Tỉ lệ tín hiệu mang dữ liệu khung, dùng làm mốc 100% của trigger băng thông. `0.8` đến từ mã hóa 8b/10b, chính xác với 1/2/4/8GFC; từ 16GFC dùng 64b/66b nên trần thật cao hơn vài phần trăm và cổng bão hòa có thể vượt 100% |
 | `{$FC.IF.ERRORS.WARN}` | `2` | Ngưỡng lỗi CRC/encoding (lỗi/giây) |
 | `{$FC.C3DISCARD.WARN}` | `1` | Ngưỡng Class 3 discard (khung/giây) |
+| `{$FC.BBCREDIT.ZERO.WARN}` | `10` | Ngưỡng *Time at zero transmit BB credit*, tính theo % thời gian, duy trì trong 5 phút |
+| `{$FC.C3TXTO.WARN}` | `0` | Ngưỡng khung Class 3 bị hủy do transmit timeout (khung/giây); trigger cần mọi lần poll trong 5 phút đều vượt ngưỡng |
 
 Tất cả macro cổng FC dùng được context: theo **nhãn cổng** với rule SW-MIB (`{$FC.IF.ERRORS.WARN:"0 port0"}`), theo **số cổng** với rule FA-MIB (`{$FC.SPEED.PAYLOAD.RATIO:"2"}`).
 

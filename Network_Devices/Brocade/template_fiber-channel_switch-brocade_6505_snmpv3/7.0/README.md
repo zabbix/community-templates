@@ -4,11 +4,15 @@ Import file: `template_fiber-channel_switch-brocade_6505_snmpv3.yaml`
 
 Monitors a Brocade 6505 Fibre Channel switch over SNMP. Adapted from the Zabbix Brocade FC template, with its own name and UUIDs so it can live alongside the original — but **do not link both to the same host**, the item keys collide.
 
-MIBs used: **SW-MIB**, **FCMGMT-MIB (FA-MIB)**, **IF-MIB**, **SNMPv2-MIB**, **HOST-RESOURCES-MIB**.
+MIBs used: **SW-MIB**, **FCMGMT-MIB (FA-MIB)**, **FIBRE-CHANNEL-FE-MIB**, **IF-MIB**, **SNMPv2-MIB**, **HOST-RESOURCES-MIB**.
+
+The Brocade and Fibre Channel MIB files — SW-MIB, FCMGMT-MIB, FIBRE-CHANNEL-FE-MIB and the Brocade-REG-MIB / Brocade-TC modules they import — are in [files/brocade/](files/brocade/); the standard MIBs ship with Net-SNMP.
 
 The SNMP version and credentials belong to the **host interface**, not to the template. The SNMP trap item needs a trap receiver configured separately on the server or proxy.
 
 **Tested against a Brocade 6505 running Fabric OS 8.0.2c, with Zabbix server 7.0.29.**
+
+The buffer credit items added in template version `7.0-2` come from the Brocade Fabric OS MIB Reference and **have not been read from a live switch yet** — see section 1.3.
 
 *Vietnamese version: [files/README_vi.md](files/README_vi.md)*
 
@@ -64,15 +68,20 @@ Fabric OS 8.x **removed** columns `11`, `12` and `35` from `swFCPortTable`. Enab
 
 **Frames received/sent is a frame rate, not a bit rate** — an FC frame carries between 0 and 2112 bytes of payload, so it cannot be converted to bps. Real throughput comes from the next rule.
 
-## 1.3 `FC port traffic discovery` — Fibre Channel bandwidth
+## 1.3 `FC port traffic discovery` — Fibre Channel bandwidth and buffer credit
 
-Source: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) and `connUnitPortTable`. Discovery interval `1h`.
+Source: FCMGMT-MIB `connUnitPortStatTable` (`1.3.6.1.3.94.4.5.1`) and `connUnitPortTable`, SW-MIB `swConnUnitPortStatExtentionTable` (`1.3.6.1.4.1.1588.2.1.1.1.27.1`) and FIBRE-CHANNEL-FE-MIB (`1.3.6.1.2.1.75`). Discovery interval `1h`.
 
 | Item | OID | Units | Interval |
 | --- | --- | --- | --- |
 | Bits received | `1.3.6.1.3.94.4.5.1.7` `connUnitPortStatCountRxElements` | bps | 1m |
 | Bits sent | `1.3.6.1.3.94.4.5.1.6` `connUnitPortStatCountTxElements` | bps | 1m |
 | Speed | `1.3.6.1.3.94.1.10.1.15` `connUnitPortSpeed` | bps | 5m |
+| Time at zero transmit BB credit | `1.3.6.1.3.94.4.5.1.8` `connUnitPortStatCountBBCreditZero` | % | 1m |
+| Class 3 frames discarded on transmit timeout | `1.3.6.1.4.1.1588.2.1.1.1.27.1.27` `swConnUnitC3DiscardDueToTXTimeout` | /s | 1m |
+| Link resets received / sent | `1.3.6.1.3.94.4.5.1.33` / `.34` `connUnitPortStatCountRxLinkResets` / `TxLinkResets` | /s | 1m |
+| BB credit, receive buffers allocated | `1.3.6.1.2.1.75.1.1.5.1.5` `fcFxPortBbCredit` | | 1h |
+| BB credit, receive buffers available | `1.3.6.1.2.1.75.1.2.1.1.2` `fcFxPortBbCreditAvailable` | | 1m |
 
 The counters are **64-bit octet counters** returned as an 8-byte OCTET STRING (`00 04 34 14 10 A2 BF E0`), which makes them readable over SNMPv1 as well — unlike the `Counter64` objects of IF-MIB. Each item converts the hex dump to a number in JavaScript, then applies `Change per second`, then `×8`.
 
@@ -83,6 +92,33 @@ The rule also reads `connUnitPortName` (`1.3.6.1.3.94.1.10.1.17`). If a port has
 `connUnitPortSpeed` reports kilobytes per second; the item multiplies by `8000` to give the signalling rate the way Fibre Channel names it: `2000000` → **16 Gbps**, matching the speed column of `switchshow`.
 
 `connUnitPortStatTable` **has no administrative status column**, so every port of the switch is discovered, including unused ones. Filter with `{$FC.TRAFFIC.PORT.NOT_MATCHES}`.
+
+### Buffer credit
+
+Fibre Channel sends a frame only against a buffer-to-buffer (BB) credit: the receiver grants a number of buffers at login and returns one `R_RDY` for every frame it has drained. A device that returns credits too slowly — a **slow drain device** — makes the switch hold its frames, and the latency spreads to every flow that shares the path.
+
+- **Time at zero transmit BB credit** is the main indicator. Fabric OS maps `connUnitPortStatCountBBCreditZero` to `tim_txcrd_z` of `portstatsshow`, which goes up by one for every **2.5 µs** the port has a frame queued and no transmit credit. The item takes the per-second rate and multiplies it by `0.00025` (2.5 µs × 100) to give the **percentage of time** the port was stalled: 100% is 400 000 increments per second. A few percent on a busy port is normal; a port that stays high has a slow device or a congested ISL behind it.
+- **Class 3 frames discarded on transmit timeout** counts frames that waited for credit on this port longer than the hold time and were dropped (`er_tx_c3_timeout`). That is real frame loss: the I/O behind it fails with a timeout on the host. Unlike *Class 3 frames discarded* of the SW-MIB rule, it leaves out frames dropped on the receive side or for an unreachable destination.
+- **Link resets received / sent**: a link reset restores the credit state of a link. Resets also happen when the link comes up, but repeated resets on a link that stays up point at lost credits.
+- **BB credit, receive buffers allocated / available** come from FIBRE-CHANNEL-FE-MIB: how many credits the switch grants the attached device (8 by default on an F_Port) and how many are free at the moment of the poll. *Available* is a snapshot of a state that changes every few microseconds, so only a value that stays at 0 poll after poll means something: the switch cannot drain what the port receives.
+
+The *Transmit credit shortage* item of the SW-MIB rule (`swFCPortNoTxCredits`) is unchanged.
+
+`swConnUnitPortStatExtentionTable` augments `connUnitPortStatTable`, so it shares its index. FIBRE-CHANNEL-FE-MIB is indexed by `fcFeModuleIndex.fcFxPortIndex` instead: the rule builds `{#FXPORTINDEX}` = `1.<port number + 1>`, which assumes a single module, as on any fixed-port switch. If the two FE-MIB items turn unsupported, run `snmpconfig --show mibCapability` on the switch and enable FE-MIB.
+
+Fabric OS answers a statistic of `connUnitPortStatTable` it does not support with only the high-order bit set (`80 00 00 00 00 00 00 00`). The new counter items turn that into *not supported* instead of a false value.
+
+> **Not verified against a live switch.** The template was tested on a 6505 with Fabric OS 8.0.2c **before** these items were added. They were built from the *Brocade Fabric OS MIB Reference Manual, 9.0.x* and have not been read from a 6505 yet. Before relying on them, check that the switch answers these OIDs, and compare *Time at zero transmit BB credit* with `tim_txcrd_z` of `portstatsshow <port>` over the same minute:
+>
+> ```
+> snmpwalk <SNMPv3 options> <switch> 1.3.6.1.3.94.4.5.1.8
+> snmpwalk <SNMPv3 options> <switch> 1.3.6.1.4.1.1588.2.1.1.1.27.1.27
+> snmpwalk <SNMPv3 options> <switch> 1.3.6.1.2.1.75.1.1.5.1.5
+> ```
+
+### Graphs and dashboard
+
+Each port gets a **Buffer credit** graph (time at zero transmit credit on the left axis; transmit-timeout discards and link resets on the right). The template dashboard has a new **FC ports** page with the bandwidth and buffer credit graphs of every discovered port.
 
 ## 1.4 `FAN Discovery` / `PSU Discovery` / `Temperature Discovery`
 
@@ -145,10 +181,14 @@ FC ports do **not** go through this rule. `ifHCInOctets` is a `Counter64`, a dat
 | Class 3 frames are being discarded | WARNING | ✓ | Port is not online | FC port discovery |
 | ~~High bandwidth usage~~ (SW-MIB) | WARNING | ✓ | Port is not online | **Disabled** |
 | High bandwidth usage | WARNING | ✓ | | FC port traffic discovery |
+| Frames dropped on transmit timeout | AVERAGE | ✓ | | FC port traffic discovery |
+| High time at zero transmit BB credit | WARNING | ✓ | Frames dropped on transmit timeout | FC port traffic discovery |
 
 **Port is not online** fires on a **state change**: only when the port leaves `online(1)` after having been online, so a port that was never in use raises nothing. Silence individual ports with `{$FC.PORTCONTROL:"<port label>"}=0`.
 
 **High bandwidth usage** in the traffic rule compares against `Speed × {$FC.SPEED.PAYLOAD.RATIO}`, not against Speed itself. The two traffic items count frame octets while `connUnitPortSpeed` reports the raw signalling on the wire; multiplying by `0.8` gives the throughput figure the Fibre Channel standard publishes (16GFC = 1600 MB/s = 12.8 Gbps). This trigger has no dependency on the port state trigger, because that one belongs to the other discovery rule and Zabbix only allows dependencies within the same rule.
+
+**Frames dropped on transmit timeout** fires when every poll of the last 5 minutes shows Class 3 frames dropped on transmit timeout above `{$FC.C3TXTO.WARN}` — `0` by default, so continuous drops — and recovers once a 5-minute window stays at or below it. **High time at zero transmit BB credit** fires when the port stays above `{$FC.BBCREDIT.ZERO.WARN}` % (default `10`) for 5 minutes and recovers below 80% of it. It depends on the drop trigger, so a port that is already losing frames raises one problem, not two. Both take the port number as context, for example `{$FC.BBCREDIT.ZERO.WARN:"12"}=30` for an ISL where some credit starvation is expected.
 
 ## 2.3 Fans, power supplies, temperature
 
@@ -238,6 +278,8 @@ If a sensor moves to `absent(6)`, the next discovery run filters it out and the 
 | `{$FC.SPEED.PAYLOAD.RATIO}` | `0.8` | Fraction of the signalling rate that carries frame data, used as the 100% reference of the bandwidth trigger. `0.8` comes from 8b/10b encoding and is exact for 1/2/4/8GFC; from 16GFC on the encoding is 64b/66b, so the real ceiling is a few percent higher and a saturated port can read above 100% |
 | `{$FC.IF.ERRORS.WARN}` | `2` | CRC and encoding error threshold (errors/second) |
 | `{$FC.C3DISCARD.WARN}` | `1` | Class 3 discard threshold (frames/second) |
+| `{$FC.BBCREDIT.ZERO.WARN}` | `10` | Threshold of *Time at zero transmit BB credit*, in % of time, held for 5 minutes |
+| `{$FC.C3TXTO.WARN}` | `0` | Threshold of Class 3 discards on transmit timeout (frames/second); the trigger needs every poll of 5 minutes above it |
 
 Every FC macro accepts a context: the **port label** for the SW-MIB rule (`{$FC.IF.ERRORS.WARN:"0 port0"}`), the **port number** for the FA-MIB rule (`{$FC.SPEED.PAYLOAD.RATIO:"2"}`).
 
