@@ -67,7 +67,7 @@ zabbix_export:
       value_type: TEXT
       description: Raw GetChannelstatus response used for camera discovery/troubleshooting.
       timeout: 10s
-      url: '{$REOLINK.PROTOCOL}://{HOST.CONN}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
+      url: '{$REOLINK.PROTOCOL}://{HOST.HOST}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
       query_fields:
       - name: cmd
         value: GetChannelstatus
@@ -158,15 +158,25 @@ zabbix_export:
       key: reolink.device.serial
       history: 30d
       value_type: TEXT
-      description: NVR serial number from GetDevInfo, saved in host inventory.
+      description: Physical NVR serial number when the API supplies a nonzero serial or serialNumber. Missing and
+        zero-only values are discarded. detail is not used as a serial number.
       inventory_link: SERIALNO_A
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
-          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return\
-          \ dev.serial || dev.serialNumber ||  dev.detail || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n\
-          }\n"
+        - 'var r=JSON.parse(value); var o=Array.isArray(r)?r[0]:r;
+
+          var d=o && o.value && o.value.DevInfo;
+
+          if (!d || Number(o.code)!==0) throw ''Device info unavailable'';
+
+          var fields=[d.serial,d.serialNumber];
+
+          for(var i=0;i<fields.length;i++){if(fields[i]===undefined || fields[i]===null) continue;var s=String(fields[i]).trim();if(s
+          && !/^0+$/.test(s)) return s;}
+
+          throw ''Serial number unavailable'';'
+        error_handler: DISCARD_VALUE
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d
@@ -180,7 +190,7 @@ zabbix_export:
       value_type: TEXT
       description: Raw GetDevInfo response used as API heartbeat and authentication check source.
       timeout: 10s
-      url: '{$REOLINK.PROTOCOL}://{HOST.CONN}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
+      url: '{$REOLINK.PROTOCOL}://{HOST.HOST}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
       query_fields:
       - name: cmd
         value: GetDevInfo
@@ -205,7 +215,7 @@ zabbix_export:
       value_type: TEXT
       description: Raw GetHddInfo response used for HDD discovery/troubleshooting.
       timeout: 10s
-      url: '{$REOLINK.PROTOCOL}://{HOST.CONN}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
+      url: '{$REOLINK.PROTOCOL}://{HOST.HOST}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
       query_fields:
       - name: cmd
         value: GetHddInfo
@@ -256,7 +266,7 @@ zabbix_export:
       delay: '{$REOLINK.DELAY.PERF}'
       value_type: TEXT
       description: Aggregates running perfomance information.
-      url: '{$REOLINK.PROTOCOL}://{HOST.CONN}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
+      url: '{$REOLINK.PROTOCOL}://{HOST.HOST}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
       tags:
       - tag: component
         value: performance
@@ -409,12 +419,13 @@ zabbix_export:
         - tag: component
           value: camera
       - uuid: 31cd3f103fb9452ba46e1dd247e9754b
-        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID/Serial'
+        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID'
         type: DEPENDENT
         key: reolink.camera.uid[{#CAMERA.CHANNEL}]
         history: 30d
         value_type: TEXT
-        description: Fingerprint/UID returned by NVR; change indicates camera replacement.
+        description: Camera UID reported by GetChannelstatus; distinct from the physical S/N. Some cameras return
+          no UID.
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -427,9 +438,9 @@ zabbix_export:
         trigger_prototypes:
         - uuid: 051ab57820a64fa19b01a2d65754e7c8
           expression: change(/Reolink NVR by HTTP/reolink.camera.uid[{#CAMERA.CHANNEL}])=1
-          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID/serial changed
+          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID changed
           priority: WARNING
-          description: Triggers when the reported UID/serial changes, indicating a possible camera replacement.
+          description: Triggers when the reported camera UID changes.
         master_item:
           key: reolink.channels.raw
         tags:
@@ -444,7 +455,7 @@ zabbix_export:
         value_type: TEXT
         description: One GetChnTypeInfo POST per discovered camera supplies model, hardware and installed firmware.
         timeout: 10s
-        url: '{$REOLINK.PROTOCOL}://{HOST.CONN}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
+        url: '{$REOLINK.PROTOCOL}://{HOST.HOST}:{$REOLINK.PORT}/{$REOLINK.API.PATH}'
         query_fields:
         - name: cmd
           value: GetChnTypeInfo
