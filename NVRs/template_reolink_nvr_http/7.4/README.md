@@ -6,7 +6,7 @@ Zabbix 7.4 template for Reolink NVRs using the local HTTP API. Combines NVR came
 
 1. Enable HTTP or HTTPS in the NVR network/server settings.
 2. Import `template_reolink_nvr_http.yaml` and link it to the NVR host.
-3. Configure a host interface with the NVR IP address or DNS name and select the appropriate Connect to option. `{HOST.CONN}` uses this interface address; the technical Host name can remain a descriptive label. An Agent interface can supply the address without installing an agent on the NVR.
+3. Set the technical Host name to the NVR IP address or a resolvable DNS name (for example, `10.1.102.196`). The URL uses `{HOST.HOST}`; no host interface is required. Use Visible name for a friendly label.
 4. Set `{$REOLINK.USER}` and secret `{$REOLINK.PASS}`. HTTP on port 80 is the default; for HTTPS use `{$REOLINK.PROTOCOL}=https` and `{$REOLINK.PORT}=443`, or your custom port.
 5. Set `{$REOLINK.API.PATH}` to `api.cgi` or `cgi-bin/api.cgi` as supported by the firmware.
 6. Enable automatic host inventory to populate model, hardware, installed firmware and serial.
@@ -49,3 +49,7 @@ YAML parsing, unique UUIDs, dependent master references, JavaScript syntax and s
 ## Credits
 
 Based on the user-provided Reolink NVR template and `Reolink Camera by HTTP` from `Unsorted/template_reolink_camera_http/7.4` in this repository. The camera template documents testing on an RLC-520A; that does not establish NVR compatibility.
+
+## Serial numbers
+
+The physical S/N and UID are separate identifiers. GetDevInfo may return a zero-only serial; such values are discarded and do not populate inventory. The detail field is not used as a serial fallback. Camera UID items are labeled UID. Locate the physical S/N on the product label or packaging when the API does not supply it. An existing zero value in history/inventory is not automatically cleared by this change.
