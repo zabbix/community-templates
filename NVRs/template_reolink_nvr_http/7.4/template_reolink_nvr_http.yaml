@@ -7,10 +7,70 @@ zabbix_export:
     - uuid: ad04e9910b494d7587480bc275c3f61b
       template: 'Reolink NVR by HTTP'
       name: 'Reolink NVR by HTTP'
-      description: 'Reolink NVR by HTTP. Bulk API collection with dependent camera/channel and HDD discovery. Includes camera online status, device inventory, disk state/temperature/capacity/free space and optional performance data. No online firmware lookup or external scripts. Storage readiness does not prove actual recording. See README.md for setup and limitations.'
+      description: 'Reolink NVR by HTTP. Bulk API collection with dependent camera/channel and HDD discovery. Includes camera online status, device inventory, disk state/temperature/capacity/free space and optional performance data. Optional weekly online firmware lookup via an external script, disabled by default. Storage readiness does not prove actual recording. See README.md for setup and limitations.'
       groups:
         - name: 'Templates/Video surveillance'
       items:
+        - uuid: 7e4698d0846f494fbc984768a34c21c7
+          name: 'Reolink: Firmware online check raw'
+          type: EXTERNAL
+          key: reolink_fw_check.py["{HOST.HOST}"]
+          delay: 7d
+          history: 30d
+          value_type: TEXT
+          status: DISABLED
+          timeout: 30s
+          description: Optional weekly NVR firmware check using host inventory. Install the external script before enabling.
+          tags:
+          - tag: component
+            value: firmware
+        - uuid: 9b104293e8f3427bb88f7404389cfb6d
+          name: 'Reolink: Firmware check status'
+          type: DEPENDENT
+          key: reolink.firmware.status
+          history: 90d
+          status: DISABLED
+          preprocessing:
+          - type: JAVASCRIPT
+            parameters:
+            - var r=JSON.parse(value); return r.status || "";
+          master_item:
+            key: reolink_fw_check.py["{HOST.HOST}"]
+          tags:
+          - tag: component
+            value: firmware
+          value_type: TEXT
+        - uuid: c4a9e0c6b8d247989f3087636527e199
+          name: 'Reolink: Latest available firmware'
+          type: DEPENDENT
+          key: reolink.firmware.latest
+          history: 90d
+          status: DISABLED
+          preprocessing:
+          - type: JAVASCRIPT
+            parameters:
+            - var r=JSON.parse(value); return r.latest || "";
+          master_item:
+            key: reolink_fw_check.py["{HOST.HOST}"]
+          tags:
+          - tag: component
+            value: firmware
+          value_type: TEXT
+        - uuid: a7fed4e8f8974bb384c1208fc987f646
+          name: 'Reolink: Firmware update available'
+          type: DEPENDENT
+          key: reolink.firmware.update_available
+          history: 90d
+          status: DISABLED
+          preprocessing:
+          - type: JAVASCRIPT
+            parameters:
+            - var r=JSON.parse(value); return r.update_available || 0;
+          master_item:
+            key: reolink_fw_check.py["{HOST.HOST}"]
+          tags:
+          - tag: component
+            value: firmware
         - uuid: 9d3b3894bfaa4fcaa37251f855b7fd2d
           name: 'Reolink: API JSON status'
           type: DEPENDENT
@@ -920,6 +980,16 @@ zabbix_export:
         - macro: '{$REOLINK.USER}'
           value: admin
   triggers:
+    - uuid: 7d8864c620654af89a2abbdf505694e3
+      expression: last(/Reolink NVR by HTTP/reolink.firmware.update_available)=1 and (count(/Reolink NVR by HTTP/reolink.firmware.latest,#2)<2 or last(/Reolink NVR by HTTP/reolink.firmware.latest)<>last(/Reolink NVR by HTTP/reolink.firmware.latest,#2))
+      name: 'Reolink: Firmware update available'
+      priority: INFO
+      status: DISABLED
+      manual_close: 'YES'
+      description: One notice when an available version first appears or changes. Unchanged weekly results do not reopen a manually closed notice. The condition clears at the next unchanged result.
+      tags:
+      - tag: component
+        value: firmware
     - uuid: 7aff775af1fb4a74980ad94216954244
       expression: 'last(/Reolink NVR by HTTP/reolink.auth.status)=2 and last(/Reolink NVR by HTTP/reolink.api.json.status)=1'
       name: 'Reolink: Device API command failed'
