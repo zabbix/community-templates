@@ -18,11 +18,12 @@ Zabbix 7.4 template for Reolink NVRs using the local HTTP API. Combines NVR came
 | Command | Default interval | Data |
 |---|---|---|
 | GetDevInfo | 1 minute | Device identity, inventory, JSON/authentication/API health |
-| GetChannelstatus | 1 minute | All cameras: discovery, name, model, online state and UID changes |
+| GetChannelstatus | 1 minute | All cameras: discovery, name, online state and UID changes |
 | GetHddInfo | 5 minutes | All disks: discovery, mount/format checks, storage readiness, temperature, capacity and free space |
+| GetChnTypeInfo (POST) | 1 hour per discovered camera | Camera model (`typeInfo`), hardware (`boardInfo`) and installed firmware (`firmVer`) |
 | GetPerformance | 10 minutes, disabled initially | CPU and network throughput |
 
-Discovery and camera/disk item prototypes are dependent items. Adding cameras or disks does not add HTTP requests. Default enabled collection averages 2.2 requests per minute per NVR. API availability timeout defaults to 15 minutes and must exceed the longest enabled polling interval.
+Discovery, camera status and disk metrics use dependent items. Each discovered camera also has one GetChnTypeInfo HTTP master; its model, hardware and installed firmware items share that response. Default enabled collection averages 2.2 requests per minute per NVR plus one request per hour per discovered camera. Set `{$REOLINK.DELAY.CAMERA.INFO}` to change the identity polling interval. API availability timeout defaults to 15 minutes and must exceed the longest enabled polling interval.
 
 ## Alerts and limitations
 
@@ -34,7 +35,8 @@ Discovery and camera/disk item prototypes are dependent items. Adding cameras or
 - Capacity/free-space conversion follows the supplied camera template: capacity/size in MiB converted to bytes. Confirm the meaning of `size` on your firmware. No low-free-space alert is included because cyclic recording can normally fill the disk.
 - Optional network throughput uses the supplied camera template's conversion of netThroughput by 1000 to bps; confirm the API unit for your model before enabling it.
 - HTTPS is supported through the protocol and port macros. Credentials use API query parameters; the password macro is secret, but HTTP requests still transmit it without encryption when HTTP is selected.
-- Installed firmware stays in inventory. Online firmware lookup, update-availability alerts and external scripts have been removed. The template does not install firmware.
+- Camera identity uses a POST JSON body with the discovered channel number. Missing fields and camera API errors discard identity values, preserving the previous readings; offline detection continues through GetChannelstatus. Camera fields appear in Latest data and do not overwrite the NVR host inventory.
+- Installed NVR firmware stays in inventory. Online firmware lookup, update-availability alerts and external scripts have been removed. The template does not install firmware.
 
 ## Upgrade from the original NVR template
 
@@ -42,7 +44,7 @@ The original template UUID, existing item keys and discovery UUIDs are retained.
 
 ## Validation
 
-YAML parsing, unique UUIDs, dependent master references, JavaScript syntax and sample camera/disk/authentication/error responses were checked. Live Zabbix import and device compatibility have not yet been verified.
+YAML parsing, unique UUIDs, dependent master references, JavaScript syntax and sample camera/disk/authentication/error responses were checked. The user verified a GetChnTypeInfo POST on channel 1, returning model, boardInfo and firmVer. Camera extraction was checked against that response and missing/error responses. Live import of this revised template has not yet been verified.
 
 ## Credits
 
