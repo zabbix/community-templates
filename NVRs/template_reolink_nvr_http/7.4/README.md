@@ -6,7 +6,7 @@ Zabbix 7.4 template for Reolink NVRs using the local HTTP API. Combines NVR came
 
 1. Enable HTTP or HTTPS in the NVR network/server settings.
 2. Import `template_reolink_nvr_http.yaml` and link it to the NVR host.
-3. Set the technical Host name to the NVR IP address or a resolvable DNS name (for example, `10.1.102.196`). The URL uses `{HOST.HOST}`; no host interface is required. Use Visible name for a friendly label.
+3. Set the host macro `{$REOLINK.URL}` to the NVR base URL, for example `http://10.1.102.196:80` or `https://nvr.example.com:443`. Include the protocol and optional port, without the API path or trailing slash. No host interface or special Host name is required.
 4. Set `{$REOLINK.USER}` and secret `{$REOLINK.PASS}`. HTTP on port 80 is the default; for HTTPS use `{$REOLINK.PROTOCOL}=https` and `{$REOLINK.PORT}=443`, or your custom port.
 5. Set `{$REOLINK.API.PATH}` to `api.cgi` or `cgi-bin/api.cgi` as supported by the firmware.
 6. Enable automatic host inventory to populate model, hardware, installed firmware and serial.
@@ -34,7 +34,7 @@ Discovery, camera status and disk metrics use dependent items. Each discovered c
 - Temperature is collected only if the API provides temperature, temp or hddTemp. Missing readings are discarded; no fake 0/-1 C is stored.
 - Capacity/free-space conversion follows the supplied camera template: capacity/size in MiB converted to bytes. Confirm the meaning of `size` on your firmware. No low-free-space alert is included because cyclic recording can normally fill the disk.
 - Optional network throughput uses the supplied camera template's conversion of netThroughput by 1000 to bps; confirm the API unit for your model before enabling it.
-- HTTPS is supported through the protocol and port macros. Credentials use API query parameters; the password macro is secret, but HTTP requests still transmit it without encryption when HTTP is selected.
+- HTTPS is supported by setting an HTTPS base URL in `{$REOLINK.URL}`. Credentials use API query parameters; the password macro is secret, but HTTP requests still transmit it without encryption when HTTP is selected.
 - Camera identity uses a POST JSON body with the discovered channel number. Missing fields and camera API errors discard identity values, preserving the previous readings; offline detection continues through GetChannelstatus. Camera fields appear in Latest data and do not overwrite the NVR host inventory.
 - Installed NVR firmware stays in inventory. Online firmware lookup, update-availability alerts and external scripts have been removed. The template does not install firmware.
 
