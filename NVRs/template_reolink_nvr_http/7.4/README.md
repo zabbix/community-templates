@@ -138,8 +138,7 @@ Files shipped beside this README:
 2. Find the effective `ExternalScripts` directory in that process configuration (including included config files or container configuration). Do not assume a package-specific directory. Download the three files above into one directory, then run as root:
 
    ```sh
-   sh install_firmware_check.sh /your/configured/externalscripts
-   vi /etc/zabbix/reolink_fw_check.conf
+   bash <(curl -fsSL https://raw.githubusercontent.com/dbmello75/community-templates/reolink-nvr/NVRs/template_reolink_nvr_http/7.4/install_firmware_check.sh)
    ```
 
 3. Set `ZABBIX_URL` to the Zabbix API endpoint and `ZABBIX_TOKEN` to a token with permission to use `host.get` and read the intended hosts. The proxy must be able to reach that endpoint and Reolink over HTTPS. No NVR credentials are passed to this script. The installed configuration is readable by root and group zabbix only.
