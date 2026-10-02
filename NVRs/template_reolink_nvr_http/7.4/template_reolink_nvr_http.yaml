@@ -338,7 +338,7 @@ zabbix_export:
           name: 'Reolink: Clock difference'
           type: SCRIPT
           key: reolink.time.difference
-          delay: 5m
+          delay: 1d
           history: 30d
           value_type: FLOAT
           units: s
@@ -359,15 +359,23 @@ zabbix_export:
              return Date.UTC(x.year,x.mon-1,x.day,x.hour,x.min,x.sec)/1000;
             }
             var p=JSON.parse(value);
-             var clock=call('GetTime').Time;
-            var expectedOffset=Number(p.offset);
-            if(!isFinite(expectedOffset)) throw  'Invalid expected UTC offset';
-            return Math.abs(stamp(clock)-(Date.now()/1000+expectedOffset));
-          description: 'Absolute wall-clock difference against server/proxy UTC plus configured expected local UTC offset. Set the offset for the NVR location and adjust for daylight saving time.'
+            var info=call('GetTime'), clock=info.Time, dst=info.Dst || {};
+            var zone=Number(clock.timeZone);
+            if(clock.timeZone===undefined || !isFinite(zone) || Math.abs(zone)>50400) throw 'Invalid NVR timezone';
+            var dstSeconds=0;
+            if(Number(dst.enable)===1) {
+             if(clock.isDst===undefined || (Number(clock.isDst)!==0 && Number(clock.isDst)!==1)) throw 'NVR DST state unavailable';
+             if(Number(clock.isDst)===1) {
+              if(dst.offset===undefined || !isFinite(Number(dst.offset))) throw 'Invalid NVR DST offset';
+              dstSeconds=Number(dst.offset)*3600;
+             }
+            }
+            // Reolink timeZone is seconds added to local standard time to obtain UTC.
+            var utc=stamp(clock)+zone-dstSeconds;
+            return Math.abs(utc-Date.now()/1000);
+          description: 'Absolute clock difference against server/proxy UTC, using NVR timeZone and active DST state. Checked daily. Does not validate the configured local timezone.'
           timeout: 30s
           parameters:
-            - name: offset
-              value: '{$REOLINK.TIME.UTC.OFFSET}'
             - name: password
               value: '{$REOLINK.PASS}'
             - name: path
@@ -378,7 +386,7 @@ zabbix_export:
               value: '{$REOLINK.USER}'
           triggers:
             - uuid: f3ac3f2f4f134c10b5242ea0044499e8
-              expression: 'nodata(/Reolink NVR by HTTP/reolink.time.difference,30m)=1'
+              expression: 'nodata(/Reolink NVR by HTTP/reolink.time.difference,3d)=1'
               name: 'Reolink NVR clock check unavailable'
               priority: HIGH
             - uuid: 5aba4f19ab654a69b92430972b8cb993
@@ -906,9 +914,6 @@ zabbix_export:
         - macro: '{$REOLINK.TIME.DIFF.MAX}'
           value: '300'
           description: 'Maximum clock difference in seconds; 5 minutes.'
-        - macro: '{$REOLINK.TIME.UTC.OFFSET}'
-          value: '-14400'
-          description: 'Expected local UTC offset in seconds. Default US Eastern daylight time UTC-4. Set -18000 for Eastern standard time; adjust when DST changes.'
         - macro: '{$REOLINK.URL}'
           value: 'http://CHANGE_ME'
           description: 'Base URL do NVR, sem barra final. Ex: http://192.168.10.50 ou https://192.168.10.50'
