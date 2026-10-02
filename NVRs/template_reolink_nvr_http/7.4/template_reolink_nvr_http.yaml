@@ -1,0 +1,671 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: d37f71c7e3f7469bab645852a69a2018
+    name: Templates/Video surveillance
+  templates:
+  - uuid: ad04e9910b494d7587480bc275c3f61b
+    template: Reolink NVR by HTTP
+    name: Reolink NVR by HTTP
+    description: Reolink NVR by HTTP. Bulk API collection with dependent camera/channel and HDD discovery. Includes camera
+      online status and UID changes, device inventory, disk state/temperature/capacity/free space and optional performance
+      data. No online firmware lookup or external scripts. Storage readiness does not prove actual recording. See README.md
+      for setup and limitations.
+    groups:
+    - name: Templates/Video surveillance
+    items:
+    - uuid: 9d3b3894bfaa4fcaa37251f855b7fd2d
+      name: 'Reolink: API JSON status'
+      type: DEPENDENT
+      key: reolink.api.json.status
+      history: 30d
+      description: 1=GetDevInfo returned parseable JSON, 0=API path/response invalid. Offline is covered by nodata on raw
+        item.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'try { var r=JSON.parse(value); return r && typeof r===''object'' && (!Array.isArray(r) || r.length>0) ? 1 : 0;
+          } catch(e) { return 0; }'
+      master_item:
+        key: reolink.devinfo.raw
+      triggers:
+      - uuid: 00fc7c57d4b84902915a96fd8b220055
+        expression: last(/Reolink NVR by HTTP/reolink.api.json.status)=0
+        name: Reolink NVR API response is not valid JSON
+        priority: WARNING
+        description: Ajuda a pegar path errado, proxy retornando HTML, captive portal ou resposta inválida.
+    - uuid: 665a163979f04c1da7dfa76d5d7b67ff
+      name: 'Reolink: Authentication status'
+      type: DEPENDENT
+      key: reolink.auth.status
+      history: 30d
+      description: 0=explicit authentication error, 1=successful GetDevInfo, 2=other API error or invalid response.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "try {\n var r=JSON.parse(value), o=Array.isArray(r)?r[0]:r;\n if (!o) return 2;\n var detail=String(o.error &&\
+          \ o.error.detail || '').toLowerCase();\n if (/invalid user|invalid username|login failed|auth.*failed|unauthorized|wrong\
+          \ password|password.*error|please login/.test(detail)) return 0;\n if (Number(o.code)===0 && o.value && o.value.DevInfo)\
+          \ return 1;\n return 2;\n} catch(e) { return 2; }"
+      master_item:
+        key: reolink.devinfo.raw
+      triggers:
+      - uuid: 2bbc615aaf1f40f3934a32d66d2b270c
+        expression: last(/Reolink NVR by HTTP/reolink.auth.status)=0
+        name: Reolink NVR authentication failed or API returned invalid credentials
+        priority: HIGH
+        description: Dispara quando GetDevInfo responde erro de usuário/senha/autenticação ou resposta não-JSON no endpoint
+          da API.
+      - uuid: 7aff775af1fb4a74980ad94216954244
+        name: 'Reolink: Device API command failed'
+        expression: last(/Reolink NVR by HTTP/reolink.auth.status)=2 and last(/Reolink NVR by HTTP/reolink.api.json.status)=1
+        priority: WARNING
+    - uuid: 89b8497a27d34f36977b5d294f8ddc07
+      name: 'Reolink: Channel status raw'
+      type: HTTP_AGENT
+      key: reolink.channels.raw
+      history: '0'
+      value_type: TEXT
+      description: Raw GetChannelstatus response used for camera discovery/troubleshooting.
+      timeout: 10s
+      url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+      query_fields:
+      - name: cmd
+        value: GetChannelstatus
+      - name: user
+        value: '{$REOLINK.USER}'
+      - name: password
+        value: '{$REOLINK.PASS}'
+      delay: '{$REOLINK.DELAY.CHANNELS}'
+      tags:
+      - tag: component
+        value: camera
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if (!Array.isArray(o.value.status)) throw ''Expected array unavailable''; return value;'
+      triggers:
+      - uuid: dc3b4e36e36849e3aac6f65a4eb3e365
+        name: 'Reolink: Channel API data unavailable'
+        expression: nodata(/Reolink NVR by HTTP/reolink.channels.raw,{$REOLINK.NODATA.TIME})=1
+        priority: WARNING
+    - uuid: 96d030665b134c0290f2f71c36fc9827
+      name: 'Reolink: Device firmware current'
+      type: DEPENDENT
+      key: reolink.device.firmware
+      history: 90d
+      value_type: TEXT
+      description: Firmware atual do NVR extraído de GetDevInfo e salvo no Host inventory.
+      inventory_link: SOFTWARE
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
+          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return dev.firmVer\
+          \ || dev.firmware || dev.firmwareVersion  || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n}\n"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: reolink.devinfo.raw
+    - uuid: 6b4d30263dc740dab0e82a565d8ceec4
+      name: 'Reolink: Device hardware version'
+      type: DEPENDENT
+      key: reolink.device.hw_version
+      history: 90d
+      value_type: TEXT
+      description: Hardware version do NVR extraída de GetDevInfo e salva no Host inventory.
+      inventory_link: HARDWARE
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
+          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return dev.hardVer\
+          \ || dev.hardwareVersion  || dev.hwVersion || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n}\n"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: reolink.devinfo.raw
+    - uuid: a2fb16ffc6984d0dbb2f018123f3de10
+      name: 'Reolink: Device model'
+      type: DEPENDENT
+      key: reolink.device.model
+      history: 90d
+      value_type: TEXT
+      description: Modelo do NVR extraído de GetDevInfo e salvo no Host inventory. Usa JavaScript com fallback para array/objeto
+        para evitar JSONPath quebrar.
+      inventory_link: MODEL
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
+          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return dev.model\
+          \ || dev.exactType || dev.type  || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n}\n"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: reolink.devinfo.raw
+    - uuid: b609621c6e4446fb8e4f740b482b9846
+      name: 'Reolink: Device serial number'
+      type: DEPENDENT
+      key: reolink.device.serial
+      history: 30d
+      value_type: TEXT
+      description: Serial number do NVR extraído de GetDevInfo e salvo no Host inventory.
+      inventory_link: SERIALNO_A
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
+          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return dev.serial\
+          \ || dev.serialNumber ||  dev.detail || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n}\n"
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: reolink.devinfo.raw
+    - uuid: 82f262e3e3184275915d748d52becfcd
+      name: 'Reolink: Device info raw'
+      type: HTTP_AGENT
+      key: reolink.devinfo.raw
+      history: '0'
+      value_type: TEXT
+      description: Raw GetDevInfo response used as API heartbeat and authentication check source.
+      timeout: 10s
+      url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+      query_fields:
+      - name: cmd
+        value: GetDevInfo
+      - name: user
+        value: '{$REOLINK.USER}'
+      - name: password
+        value: '{$REOLINK.PASS}'
+      triggers:
+      - uuid: bd383bfc50184742b7a3d94758c34fae
+        expression: nodata(/Reolink NVR by HTTP/reolink.devinfo.raw,{$REOLINK.NODATA.TIME})=1
+        name: Reolink NVR offline or API not responding
+        priority: HIGH
+      delay: '{$REOLINK.DELAY.DEVICE}'
+      tags:
+      - tag: component
+        value: device
+    - uuid: 79b2d42d302c412993651f8ec6ca81ea
+      name: 'Reolink: HDD info raw'
+      type: HTTP_AGENT
+      key: reolink.hdd.raw
+      history: '0'
+      value_type: TEXT
+      description: Raw GetHddInfo response used for HDD discovery/troubleshooting.
+      timeout: 10s
+      url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+      query_fields:
+      - name: cmd
+        value: GetHddInfo
+      - name: user
+        value: '{$REOLINK.USER}'
+      - name: password
+        value: '{$REOLINK.PASS}'
+      delay: '{$REOLINK.DELAY.STORAGE}'
+      tags:
+      - tag: component
+        value: storage
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if (!Array.isArray(o.value.HddInfo)) throw ''Expected array unavailable''; return value;'
+      triggers:
+      - uuid: a2528b97c6084c0f80333c5cb4572c92
+        name: 'Reolink: Storage API data unavailable'
+        expression: nodata(/Reolink NVR by HTTP/reolink.hdd.raw,{$REOLINK.NODATA.TIME})=1
+        priority: WARNING
+    - uuid: 97677a548d6d404c8995ec0ad9a8b7e1
+      name: 'Reolink: Device name'
+      type: DEPENDENT
+      key: reolink.device.name
+      value_type: TEXT
+      description: Assigned device name.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if (!o.value.DevInfo || o.value.DevInfo.name===undefined) throw ''Name unavailable''; return o.value.DevInfo.name;'
+      master_item:
+        key: reolink.devinfo.raw
+      tags:
+      - tag: component
+        value: system
+    - uuid: ee892d5f311d4fd99912d292f0d8602f
+      name: 'Reolink: Get performance info'
+      type: HTTP_AGENT
+      key: reolink.performance.get
+      delay: '{$REOLINK.DELAY.PERF}'
+      value_type: TEXT
+      description: Aggregates running perfomance information.
+      url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+      tags:
+      - tag: component
+        value: performance
+      query_fields:
+      - name: cmd
+        value: GetPerformance
+      - name: user
+        value: '{$REOLINK.USER}'
+      - name: password
+        value: '{$REOLINK.PASS}'
+      history: '0'
+      timeout: 10s
+      status: DISABLED
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if (!o.value.Performance) throw ''Performance unavailable''; return value;'
+    - uuid: 456818298909491aafa2afb9f2b8fd69
+      name: 'Reolink: CPU usage'
+      type: DEPENDENT
+      key: reolink.performance.cpu
+      units: '%'
+      description: CPU use percentage.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if(!o.value.Performance || o.value.Performance.cpuUsed===undefined) throw ''Performance field unavailable'';return
+          o.value.Performance.cpuUsed;'
+      master_item:
+        key: reolink.performance.get
+      tags:
+      - tag: component
+        value: cpu
+      triggers:
+      - uuid: 4da0ecdfd6c84a3daf72d42fe2c92749
+        name: 'Reolink: High CPU usage'
+        expression: min(/Reolink NVR by HTTP/reolink.performance.cpu,{$REOLINK.CPU.TIME})>{$REOLINK.CPU.MAX}
+        priority: WARNING
+    - uuid: 30dfdebcb38542d3881e5bc972ed1504
+      name: 'Reolink: Network throughput'
+      type: DEPENDENT
+      key: reolink.performance.throughput
+      units: bps
+      description: Camera network throughput.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+          if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+          if(!o.value.Performance || o.value.Performance.netThroughput===undefined) throw ''Performance field unavailable'';return
+          o.value.Performance.netThroughput;'
+      - type: MULTIPLIER
+        parameters:
+        - '1000'
+      master_item:
+        key: reolink.performance.get
+      tags:
+      - tag: component
+        value: network
+    discovery_rules:
+    - uuid: 35fba65435974e178bd3a5537e10a370
+      name: 'Reolink: Discover cameras/channels'
+      type: DEPENDENT
+      key: reolink.camera.discovery
+      lifetime: 30d
+      item_prototypes:
+      - uuid: b6bea440f18245738725e97a379f6da8
+        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: Model'
+        type: DEPENDENT
+        key: reolink.camera.model[{#CAMERA.CHANNEL}]
+        history: 30d
+        value_type: TEXT
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var ch=String('{#CAMERA.CHANNEL}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o\
+            \ || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar\
+            \ arr=o.value.status; if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++)\
+            \ {\n  if (String(arr[i].channel)  === ch) {\n    var v = arr[i]['typeInfo'];\n    if (v === undefined  || v ===\
+            \ null) throw 'Camera field unavailable';\n    return v;\n  }\n}\nthrow 'Camera field unavailable';\n"
+        master_item:
+          key: reolink.channels.raw
+        tags:
+        - tag: component
+          value: camera
+      - uuid: 764ebb9fd4144c0d87698da18f566d76
+        name: 'Camera {#CAMERA.CHANNEL}: Name'
+        type: DEPENDENT
+        key: reolink.camera.name[{#CAMERA.CHANNEL}]
+        history: 30d
+        value_type: TEXT
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var ch=String('{#CAMERA.CHANNEL}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o\
+            \ || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar\
+            \ arr=o.value.status; if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++)\
+            \ {\n  if (String(arr[i].channel)  === ch) {\n    var v = arr[i]['name'];\n    if (v === undefined || v  === null)\
+            \ throw 'Camera field unavailable';\n    return v;\n  }\n}\nthrow 'Camera field unavailable';\n"
+        master_item:
+          key: reolink.channels.raw
+        tags:
+        - tag: component
+          value: camera
+      - uuid: bd04498339404cd69f70bef0e268d560
+        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: Online'
+        type: DEPENDENT
+        key: reolink.camera.online[{#CAMERA.CHANNEL}]
+        history: 30d
+        description: 1=online, 0=offline.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var ch=String('{#CAMERA.CHANNEL}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o\
+            \ || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar\
+            \ arr=o.value.status; if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++)\
+            \ {\n  if (String(arr[i].channel)  === ch) {\n    var v = arr[i]['online'];\n    if (v === undefined ||  v ===\
+            \ null) throw 'Camera field unavailable';\n    return v;\n  }\n}\nthrow 'Camera field unavailable';\n"
+        trigger_prototypes:
+        - uuid: 66d5c8cd807f41808af8c1ba02ad8125
+          expression: last(/Reolink NVR by HTTP/reolink.camera.online[{#CAMERA.CHANNEL}])=0
+          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] is offline
+          priority: HIGH
+          description: Dispara quando uma câmera descoberta fica offline.
+        master_item:
+          key: reolink.channels.raw
+        tags:
+        - tag: component
+          value: camera
+      - uuid: 31cd3f103fb9452ba46e1dd247e9754b
+        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID/Serial'
+        type: DEPENDENT
+        key: reolink.camera.uid[{#CAMERA.CHANNEL}]
+        history: 30d
+        value_type: TEXT
+        description: Fingerprint/UID returned by NVR; change indicates camera replacement.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var ch=String('{#CAMERA.CHANNEL}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o\
+            \ || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar\
+            \ arr=o.value.status; if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++)\
+            \ {\n  if (String(arr[i].channel)  === ch) {\n    var v = arr[i]['uid'];\n    if (v === undefined || v  === null)\
+            \ throw 'Camera field unavailable';\n    return v;\n  }\n}\nthrow 'Camera field unavailable';\n"
+        trigger_prototypes:
+        - uuid: 051ab57820a64fa19b01a2d65754e7c8
+          expression: change(/Reolink NVR by HTTP/reolink.camera.uid[{#CAMERA.CHANNEL}])=1
+          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID/serial changed
+          priority: WARNING
+          description: Dispara quando o UID/serial reportado muda, indicando possível troca de câmera.
+        master_item:
+          key: reolink.channels.raw
+        tags:
+        - tag: component
+          value: camera
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o || (o.code !== undefined && Number(o.code)\
+          \ !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.status; if (!Array.isArray(arr))\
+          \ throw 'Discovery array unavailable';\nvar out = [];\nfor (var i = 0; i < arr.length;  i++) {\n  var c = arr[i];\n\
+          \  if (c.online == 1 || c.uid || c.name || c.typeInfo)  {\n    out.push({\n      \"{#CAMERA.CHANNEL}\": String(c.channel),\n\
+          \       \"{#CAMERA.NAME}\": c.name || (\"Channel \" + c.channel),\n      \"{#CAMERA.UID}\": c.uid || \"\",\n   \
+          \   \"{#CAMERA.TYPE}\": c.typeInfo ||  \"\"\n    });\n  }\n}\nreturn JSON.stringify({\"data\": out});\n"
+      master_item:
+        key: reolink.channels.raw
+    - uuid: 7fc27371230546e78a0f4e2a4c46b4fd
+      name: 'Reolink: Discover HDD/SD storage'
+      type: DEPENDENT
+      key: reolink.hdd.discovery
+      lifetime: 30d
+      item_prototypes:
+      - uuid: 816c30c7ff7542caaac7c35b8a541dc3
+        name: 'HDD {#HDD.NUMBER}: Health OK'
+        type: DEPENDENT
+        key: reolink.hdd.ok[{#HDD.NUMBER}]
+        history: 30d
+        description: 1=mount/format/status OK; 0=problem.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var disk=String('{#HDD.NUMBER}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o ||\
+            \ (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.HddInfo;\
+            \ if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++) {\n  var d = arr[i];\n\
+            \   var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);\n  if (String(n) === disk)\
+            \ {\n    var v = 1;\nif (d.mount  !== undefined && Number(d.mount) !== 1) v = 0;\nif (d.format !== undefined \
+            \ && Number(d.format) !== 1) v = 0;\n// Do not infer undocumented numeric status meanings; use explicit mount/format\
+            \ flags.\nif (d.status !== undefined && /error|fail|abnormal/i.test(String(d.status))) v = 0;\n     return v;\n\
+            \  }\n}\nreturn 0;\n"
+        trigger_prototypes:
+        - uuid: a533db0833ac4770bfd547d77e08a10d
+          expression: last(/Reolink NVR by HTTP/reolink.hdd.ok[{#HDD.NUMBER}])=0
+          name: Reolink HDD {#HDD.NUMBER} has error/unmounted/unformatted state
+          priority: HIGH
+        master_item:
+          key: reolink.hdd.raw
+        tags:
+        - tag: component
+          value: storage
+      - uuid: 6588988a5b8e4e6cb2517a7a00777532
+        name: 'HDD {#HDD.NUMBER}: Present/mounted'
+        type: DEPENDENT
+        key: reolink.hdd.present[{#HDD.NUMBER}]
+        history: 30d
+        description: 1=present/mounted/formatted/capacity seen; 0=not present.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var disk=String('{#HDD.NUMBER}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o ||\
+            \ (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.HddInfo;\
+            \ if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++) {\n  var d = arr[i];\n\
+            \   var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);\n  if (String(n) === disk)\
+            \ {\n    var v = (d.mount !== undefined ? Number(d.mount) === 1 : Number(d.capacity) > 0) ? 1 : 0;\n    return\
+            \ v;\n  }\n}\n return 0;\n"
+        trigger_prototypes:
+        - uuid: 405c0b41c63345179161cf6b396f590f
+          expression: last(/Reolink NVR by HTTP/reolink.hdd.present[{#HDD.NUMBER}])=0
+          name: Reolink HDD {#HDD.NUMBER} is missing
+          priority: HIGH
+          description: Dispara quando um disco/slot descoberto deixa de aparecer como presente/montado.
+        master_item:
+          key: reolink.hdd.raw
+        tags:
+        - tag: component
+          value: storage
+      - uuid: 7ae33144f80141de8f59b82a319441c5
+        name: 'HDD {#HDD.NUMBER}: Storage ready'
+        type: DEPENDENT
+        key: reolink.hdd.recording.available[{#HDD.NUMBER}]
+        history: 30d
+        description: Mounted, formatted and positive capacity. Does not verify actual recording.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var disk=String('{#HDD.NUMBER}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o ||\
+            \ (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.HddInfo;\
+            \ if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++) {\n  var d = arr[i];\n\
+            \   var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);\n  if (String(n) === disk)\
+            \ {\n    var v = (d.mount == 1  && d.format == 1 && d.capacity > 0) ? 1 : 0;\n    return v;\n  }\n}\n return 0;\n"
+        trigger_prototypes:
+        - uuid: a257389bcb884040ad783300886bfeb8
+          expression: last(/Reolink NVR by HTTP/reolink.hdd.recording.available[{#HDD.NUMBER}])=0
+          name: Reolink HDD {#HDD.NUMBER} storage is not ready
+          priority: HIGH
+        master_item:
+          key: reolink.hdd.raw
+        tags:
+        - tag: component
+          value: storage
+      - uuid: 4a0ae962e92b4e53baaad8520374fc7f
+        name: 'HDD {#HDD.NUMBER}: Temperature'
+        type: DEPENDENT
+        key: reolink.hdd.temperature[{#HDD.NUMBER}]
+        history: 30d
+        value_type: FLOAT
+        units: °C
+        description: HDD temperature when reported by firmware. Missing temperatures are discarded, never stored as 0 or -1.
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var disk=String('{#HDD.NUMBER}');\nvar r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o ||\
+            \ (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.HddInfo;\
+            \ if (!Array.isArray(arr)) throw 'Array unavailable';\nfor (var i = 0; i < arr.length; i++) {\n  var d = arr[i];\n\
+            \   var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);\n  if (String(n) === disk)\
+            \ {\n    var v = d.temperature;  if (v === undefined) v = d.temp; if (v === undefined) v = d.hddTemp;  if (v ===\
+            \ undefined || v === null || !isFinite(Number(v))) throw 'Temperature unavailable';\n    return v;\n  }\n}\nthrow\
+            \ 'Disk missing';"
+          error_handler: DISCARD_VALUE
+        trigger_prototypes:
+        - uuid: f694f49fa7ea487fb2036f7a1111da7e
+          expression: last(/Reolink NVR by HTTP/reolink.hdd.temperature[{#HDD.NUMBER}])>{$REOLINK.HDD.TEMP.MAX} and last(/Reolink
+            NVR by HTTP/reolink.hdd.temperature[{#HDD.NUMBER}])>=0
+          name: Reolink HDD {#HDD.NUMBER} high temperature
+          priority: WARNING
+        master_item:
+          key: reolink.hdd.raw
+        tags:
+        - tag: component
+          value: storage
+      - uuid: 5d6cd4dee82a426091e804452c81cf30
+        name: 'HDD {#HDD.NUMBER}: Total capacity'
+        type: DEPENDENT
+        key: reolink.hdd.capacity[{#HDD.NUMBER}]
+        history: 30d
+        units: B
+        master_item:
+          key: reolink.hdd.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+            if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+            var arr=o.value.HddInfo; if (!Array.isArray(arr)) throw ''Disk array unavailable'';
+
+            var disk=String(''{#HDD.NUMBER}'');
+
+            for(var i=0;i<arr.length;i++){var d=arr[i];var n=d.number!==undefined?d.number:(d.id!==undefined?d.id:i);if(String(n)===disk){var
+            v=d.capacity;if(v===undefined || v===null || !isFinite(Number(v))) throw ''Capacity unavailable'';return Number(v)*1048576;}}
+            throw ''Disk missing'';'
+      - uuid: 9de40ec01aef4d068a9fc738d7595c41
+        name: 'HDD {#HDD.NUMBER}: Free space'
+        type: DEPENDENT
+        key: reolink.hdd.free[{#HDD.NUMBER}]
+        history: 30d
+        units: B
+        master_item:
+          key: reolink.hdd.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;
+
+            if (!o || (o.code !== undefined && Number(o.code) !== 0) || o.error || !o.value) throw ''Invalid API response'';
+
+            var arr=o.value.HddInfo; if (!Array.isArray(arr)) throw ''Disk array unavailable'';
+
+            var disk=String(''{#HDD.NUMBER}'');
+
+            for(var i=0;i<arr.length;i++){var d=arr[i];var n=d.number!==undefined?d.number:(d.id!==undefined?d.id:i);if(String(n)===disk){var
+            v=d.size;if(v===undefined || v===null || !isFinite(Number(v))) throw ''Capacity unavailable'';return Number(v)*1048576;}}
+            throw ''Disk missing'';'
+      graph_prototypes:
+      - uuid: c0964cde11be4ccba978863a72a56788
+        name: 'HDD {#HDD.NUMBER}: Temperature'
+        graph_items:
+        - color: 199C0D
+          item:
+            host: Reolink NVR by HTTP
+            key: reolink.hdd.temperature[{#HDD.NUMBER}]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var r = JSON.parse(value); var o = Array.isArray(r) ? r[0] : r;\nif (!o || (o.code !== undefined && Number(o.code)\
+          \ !== 0) || o.error || !o.value) throw 'Invalid API response';\nvar arr=o.value.HddInfo; if (!Array.isArray(arr))\
+          \ throw 'Discovery array unavailable';\nvar out = [];\nfor (var i = 0; i < arr.length;  i++) {\n  var d = arr[i];\n\
+          \  var n = (d.number !== undefined) ? d.number  : ((d.id !== undefined) ? d.id : i);\n  if (d.mount == 1 || d.format\
+          \ ==  1 || d.capacity > 0 || d.size > 0 || d.status) {\n    out.push({\n       \"{#HDD.NUMBER}\": String(n),\n \
+          \     \"{#HDD.TYPE}\": String(d.storageType  || \"\"),\n      \"{#HDD.CAPACITY}\": String(d.capacity || \"\")\n\
+          \     });\n  }\n}\nreturn JSON.stringify({\"data\": out});\n"
+      master_item:
+        key: reolink.hdd.raw
+    macros:
+    - macro: '{$REOLINK.API.PATH}'
+      value: api.cgi
+      description: Caminho da API. Use api.cgi ou cgi-bin/api.cgi dependendo do firmware.
+    - macro: '{$REOLINK.HDD.TEMP.MAX}'
+      value: '55'
+      description: Limite de temperatura do HDD em °C.
+    - macro: '{$REOLINK.PASS}'
+      type: SECRET_TEXT
+    - macro: '{$REOLINK.URL}'
+      value: http://CHANGE_ME
+      description: 'Base URL do NVR, sem barra final. Ex: http://192.168.10.50 ou https://192.168.10.50'
+    - macro: '{$REOLINK.USER}'
+      value: admin
+    - macro: '{$REOLINK.DELAY.DEVICE}'
+      value: 1m
+      description: Device/API availability polling.
+    - macro: '{$REOLINK.DELAY.CHANNELS}'
+      value: 1m
+      description: One request for all camera channels.
+    - macro: '{$REOLINK.DELAY.STORAGE}'
+      value: 5m
+      description: One request for all disks.
+    - macro: '{$REOLINK.DELAY.PERF}'
+      value: 10m
+      description: Optional performance polling.
+    - macro: '{$REOLINK.NODATA.TIME}'
+      value: 15m
+      description: Unavailable API data grace period; keep above storage polling interval.
+    - macro: '{$REOLINK.CPU.TIME}'
+      value: 20m
+      description: Sustained high CPU window.
+    - macro: '{$REOLINK.CPU.MAX}'
+      value: '90'
+      description: CPU alert threshold in percent.
+    tags:
+    - tag: class
+      value: hardware
+    - tag: target
+      value: reolink
+    - tag: target
+      value: nvr
+  graphs:
+  - uuid: 31a31f73c5554918805cdb814755a316
+    name: CPU Usage
+    ymin_type_1: FIXED
+    ymax_type_1: FIXED
+    graph_items:
+    - drawtype: FILLED_REGION
+      color: 199C0D
+      item:
+        host: Reolink NVR by HTTP
+        key: reolink.performance.cpu
+  - uuid: 7f50146e87474264b59b5a9e36cd15bb
+    name: Network Throughput
+    yaxismax: '0'
+    graph_items:
+    - color: EF6C00
+      item:
+        host: Reolink NVR by HTTP
+        key: reolink.performance.throughput
