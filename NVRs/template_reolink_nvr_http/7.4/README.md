@@ -17,7 +17,7 @@ Zabbix 7.4 template for Reolink NVRs using the local HTTP API. Combines NVR came
 | Command | Default interval | Data |
 |---|---|---|
 | GetDevInfo | 1 minute | Device identity, inventory, JSON/authentication/API health |
-| GetChannelstatus | 1 minute | All cameras: discovery, name, online state and UID changes |
+| GetChannelstatus | 1 minute | All cameras: discovery, name, online state |
 | GetHddInfo | 5 minutes | All disks: discovery, mount/format checks, storage readiness, temperature, capacity and free space |
 | GetChnTypeInfo (POST) | 1 hour per discovered camera | Model (typeInfo), hardware (boardInfo), installed firmware (firmVer) |
 | GetPerformance | 10 minutes, disabled initially | CPU and network throughput |
@@ -26,7 +26,7 @@ Camera status and disk discovery/metrics remain dependent items. Each discovered
 
 ## Alerts and limitations
 
-- Camera offline and UID changes remain enabled. Discovery retains lost cameras/disks for 30 days; fully unidentified empty channels are excluded. A channel disappearing entirely may leave its dependent item unsupported instead of returning offline: verify actual firmware behavior during commissioning.
+- Camera offline alerts remain enabled. Discovery retains lost cameras/disks for 30 days; fully unidentified empty channels are excluded. A channel disappearing entirely may leave its dependent item unsupported instead of returning offline: verify actual firmware behavior during commissioning.
 - Invalid command responses are rejected before channel/disk extraction, rather than being interpreted as empty discovery or failed disks. Per-command no-data alerts identify unavailable channel/storage data.
 - Authentication alerts require explicit authentication error text. Other API errors and invalid JSON have separate diagnostics; undocumented error codes are not assumed to be authentication failures.
 - HDD storage readiness means mounted, formatted and positive capacity. It does **not** prove recording is taking place. HDD checks do not replace SMART diagnostics.
@@ -38,7 +38,7 @@ Camera status and disk discovery/metrics remain dependent items. Each discovered
 
 ## Upgrade from the original NVR template
 
-The original template UUID, existing item keys and discovery UUIDs are retained. Import with update-existing options to migrate existing definitions. Review/remove obsolete firmware-check items using import deletion options deliberately. Existing polling intervals now come from macros. Test import and real API data in a staging host before applying broadly.
+The original template UUID, existing item keys and discovery UUIDs are retained. Import with update-existing options to migrate existing definitions. Review/remove obsolete firmware-check items using import deletion options deliberately. To remove the old camera UID prototype and its change alert, enable Delete missing for item prototypes when importing this version. Existing polling intervals now come from macros. Test import and real API data in a staging host before applying broadly.
 
 ## Validation
 
@@ -50,4 +50,4 @@ Based on the user-provided Reolink NVR template and `Reolink Camera by HTTP` fro
 
 ## Baseline
 
-Restored from the user-confirmed working commit `9e8edc9a`, adding only camera identity collection. Existing URL/authentication, device items, serial handling, camera status, disk checks and discovery behavior are preserved from that commit. The supplied GetChnTypeInfo response was verified for all three fields. Live Zabbix import of the revised template still needs verification.
+Restored from the user-confirmed working commit `9e8edc9a`, adding camera identity collection and removing camera UID collection. Existing URL/authentication, device items, serial handling, camera status, disk checks and discovery behavior are preserved from that commit. The supplied GetChnTypeInfo response was verified for all three fields. Live Zabbix import of the revised template still needs verification.
