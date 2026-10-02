@@ -1,0 +1,767 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: d37f71c7e3f7469bab645852a69a2018
+      name: 'Templates/Video surveillance'
+  templates:
+    - uuid: ad04e9910b494d7587480bc275c3f61b
+      template: 'Reolink NVR by HTTP'
+      name: 'Reolink NVR by HTTP'
+      description: 'Template HTTP para Reolink NVR: API health, discovery de cameras por canal/UID, e HDD via GetHddInfo. inclui alertas globais para NVR offline/API sem resposta e falha de autenticação; graph prototype de temperatura de HDD; e checagem externa de firmware baseada no Inventory do host. v8: parsing de model/hardware/firmware via JavaScript com fallback para resposta array/objeto do GetDevInfo. Os itens GetDevInfo populam Model/Hardware/Software/Serial no inventory; o external script reolink_fw_check.py recebe apenas {HOST.HOST}, lê o inventory via API do Zabbix e faz scraping da Reolink sem receber senha do NVR.'
+      groups:
+        - name: 'Templates/Video surveillance'
+      items:
+        - uuid: 9d3b3894bfaa4fcaa37251f855b7fd2d
+          name: 'Reolink: API JSON status'
+          type: DEPENDENT
+          key: reolink.api.json.status
+          history: 30d
+          description: '1=GetDevInfo returned parseable JSON, 0=API path/response invalid. Offline is covered by nodata on raw item.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var r = JSON.parse(value);
+                    if (Array.isArray(r) && r.length  > 0) return 1;
+                    if (r && typeof r === 'object') return 1;
+                    return  0;
+                  } catch (e) {
+                    return 0;
+                  }
+          master_item:
+            key: reolink.devinfo.raw
+          triggers:
+            - uuid: 00fc7c57d4b84902915a96fd8b220055
+              expression: 'last(/Reolink NVR by HTTP/reolink.api.json.status)=0'
+              name: 'Reolink NVR API response is not valid JSON'
+              priority: WARNING
+              description: 'Ajuda a pegar path errado, proxy retornando HTML, captive portal ou resposta inválida.'
+        - uuid: 665a163979f04c1da7dfa76d5d7b67ff
+          name: 'Reolink: Authentication status'
+          type: DEPENDENT
+          key: reolink.auth.status
+          history: 30d
+          description: '1=authentication/API response OK, 0=invalid user/password/authentication failure or non-JSON API response.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var s = String(value || '');
+                  var low = s.toLowerCase();
+                  
+                  // Fast string  checks for common auth failures returned by Reolink/NVR firmwares.
+                  if  (low.indexOf('invalid user') >= 0 ||
+                      low.indexOf('invalid username')  >= 0 ||
+                      low.indexOf('login failed') >= 0 ||
+                      low.indexOf('auth  failed') >= 0 ||
+                      low.indexOf('authentication failed') >= 0 ||
+                       low.indexOf('unauthorized') >= 0 ||
+                      low.indexOf('forbidden') >=  0 ||
+                      low.indexOf('wrong password') >= 0 ||
+                      low.indexOf('password  error') >= 0 ||
+                      low.indexOf('please login') >= 0) {
+                    return 0;
+                   }
+                  
+                  try {
+                    var r = JSON.parse(s);
+                    var arr = Array.isArray(r) ? r :  [r];
+                  
+                    for (var i = 0; i < arr.length; i++) {
+                      var o = arr[i] ||  {};
+                      var code = Number(o.code);
+                      var rsp = null;
+                  
+                      if (o.error)  {
+                        if (o.error.rspCode !== undefined) rsp = Number(o.error.rspCode);
+                         if (o.error.detail && String(o.error.detail).toLowerCase().match(/user|password|login|auth/))  return 0;
+                      }
+                  
+                      // Reolink commonly returns code 0 on success.  Negative rspCode often means auth/session errors.
+                      if (!isNaN(code)  && code !== 0) {
+                        if (rsp !== null && !isNaN(rsp) && rsp < 0) return  0;
+                        if (o.error) return 0;
+                      }
+                      if (rsp !== null && !isNaN(rsp)  && rsp < 0) return 0;
+                    }
+                  
+                    return 1;
+                  } catch (e) {
+                    // Non JSON  from the URL is not valid API/auth success.
+                    return 0;
+                  }
+          master_item:
+            key: reolink.devinfo.raw
+          triggers:
+            - uuid: 2bbc615aaf1f40f3934a32d66d2b270c
+              expression: 'last(/Reolink NVR by HTTP/reolink.auth.status)=0'
+              name: 'Reolink NVR authentication failed or API returned invalid credentials'
+              priority: HIGH
+              description: 'Dispara quando GetDevInfo responde erro de usuário/senha/autenticação ou resposta não-JSON no endpoint da API.'
+        - uuid: 89b8497a27d34f36977b5d294f8ddc07
+          name: 'Reolink: Channel status raw'
+          type: HTTP_AGENT
+          key: reolink.channels.raw
+          history: '0'
+          value_type: TEXT
+          description: 'Raw GetChannelstatus response used for camera discovery/troubleshooting.'
+          timeout: 10s
+          url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+          query_fields:
+            - name: cmd
+              value: GetChannelstatus
+            - name: user
+              value: '{$REOLINK.USER}'
+            - name: password
+              value: '{$REOLINK.PASS}'
+        - uuid: 96d030665b134c0290f2f71c36fc9827
+          name: 'Reolink: Device firmware current'
+          type: DEPENDENT
+          key: reolink.device.firmware
+          history: 90d
+          value_type: TEXT
+          description: 'Firmware atual do NVR extraído de GetDevInfo e salvo no Host inventory.'
+          inventory_link: SOFTWARE
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var data = JSON.parse(value);
+                    var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value ? data.value.DevInfo : data.DevInfo);
+                     if (!dev) { return ""; }
+                    return dev.firmVer || dev.firmware || dev.firmwareVersion  || "";
+                  } catch (e) {
+                    return "";
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: reolink.devinfo.raw
+        - uuid: 6b4d30263dc740dab0e82a565d8ceec4
+          name: 'Reolink: Device hardware version'
+          type: DEPENDENT
+          key: reolink.device.hw_version
+          history: 90d
+          value_type: TEXT
+          description: 'Hardware version do NVR extraída de GetDevInfo e salva no Host inventory.'
+          inventory_link: HARDWARE
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var data = JSON.parse(value);
+                    var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value ? data.value.DevInfo : data.DevInfo);
+                     if (!dev) { return ""; }
+                    return dev.hardVer || dev.hardwareVersion  || dev.hwVersion || "";
+                  } catch (e) {
+                    return "";
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: reolink.devinfo.raw
+        - uuid: a2fb16ffc6984d0dbb2f018123f3de10
+          name: 'Reolink: Device model'
+          type: DEPENDENT
+          key: reolink.device.model
+          history: 90d
+          value_type: TEXT
+          description: 'Modelo do NVR extraído de GetDevInfo e salvo no Host inventory. Usa JavaScript com fallback para array/objeto para evitar JSONPath quebrar.'
+          inventory_link: MODEL
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var data = JSON.parse(value);
+                    var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value ? data.value.DevInfo : data.DevInfo);
+                     if (!dev) { return ""; }
+                    return dev.model || dev.exactType || dev.type  || "";
+                  } catch (e) {
+                    return "";
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: reolink.devinfo.raw
+        - uuid: b609621c6e4446fb8e4f740b482b9846
+          name: 'Reolink: Device serial number'
+          type: DEPENDENT
+          key: reolink.device.serial
+          history: 30d
+          value_type: TEXT
+          description: 'Serial number do NVR extraído de GetDevInfo e salvo no Host inventory.'
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                    var data = JSON.parse(value);
+                    var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value ? data.value.DevInfo : data.DevInfo);
+                     if (!dev) { return ""; }
+                    return dev.serial || dev.serialNumber ||  dev.detail || "";
+                  } catch (e) {
+                    return "";
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: reolink.devinfo.raw
+        - uuid: 82f262e3e3184275915d748d52becfcd
+          name: 'Reolink: Device info raw'
+          type: HTTP_AGENT
+          key: reolink.devinfo.raw
+          history: '0'
+          value_type: TEXT
+          description: 'Raw GetDevInfo response used as API heartbeat and authentication check source.'
+          timeout: 10s
+          url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+          query_fields:
+            - name: cmd
+              value: GetDevInfo
+            - name: user
+              value: '{$REOLINK.USER}'
+            - name: password
+              value: '{$REOLINK.PASS}'
+          triggers:
+            - uuid: bd383bfc50184742b7a3d94758c34fae
+              expression: 'nodata(/Reolink NVR by HTTP/reolink.devinfo.raw,5m)=1'
+              name: 'Reolink NVR offline or API not responding'
+              priority: HIGH
+        - uuid: b0e18a30f98e49cebd3f04efd5322d26
+          name: 'Reolink: Firmware current detected'
+          type: DEPENDENT
+          key: reolink.firmware.current
+          history: 30d
+          value_type: TEXT
+          description: 'Firmware atual detectado via GetDevInfo do NVR.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.current
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+        - uuid: 36614bee547849899b8b7250ae4ffe8a
+          name: 'Reolink: Firmware latest available'
+          type: DEPENDENT
+          key: reolink.firmware.latest
+          history: 30d
+          value_type: TEXT
+          description: 'Último firmware encontrado no site da Reolink para model/hardware detectados.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.latest
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+        - uuid: 8aa0aaf0c7e5481c812e35a334a3a0b2
+          name: 'Reolink: Firmware latest updated date'
+          type: DEPENDENT
+          key: reolink.firmware.latest_updated
+          history: 30d
+          value_type: TEXT
+          description: 'Data de publicação/atualização no site, se o scraping conseguir extrair.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.latest_updated
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+        - uuid: cf0abef4b51a4b68b3de854be5546897
+          name: 'Reolink: Firmware model hardware match status'
+          type: DEPENDENT
+          key: reolink.firmware.match_found
+          history: 30d
+          description: '1=modelo/hardware foram encontrados no site; 0=não encontrou combinação compatível.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.match_found
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+        - uuid: 019877ead7d64172b5653f5e4890c918
+          name: 'Reolink: Firmware scraping status'
+          type: DEPENDENT
+          key: reolink.firmware.scrape_ok
+          history: 30d
+          description: '1=o scraping executou; 0=falha ao consultar NVR/site ou parse crítico.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.scrape_ok
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+          triggers:
+            - uuid: 073712157e6147658489bbf4d980e8b6
+              expression: 'last(/Reolink NVR by HTTP/reolink.firmware.scrape_ok)=0'
+              name: 'Reolink firmware cannot be verified online'
+              priority: WARNING
+              description: 'O script rodou, mas não conseguiu verificar o firmware online. Verifique internet no proxy/server, acesso ao NVR, credenciais e mudanças no site da Reolink.'
+        - uuid: 1331e1631e8046908d2215ec8bd81989
+          name: 'Reolink: Firmware check source URL'
+          type: DEPENDENT
+          key: reolink.firmware.source_url
+          history: 30d
+          value_type: TEXT
+          description: 'URL usada automaticamente pelo script como fonte do scraping.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.source
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+        - uuid: 21e117af6b6a4a5dbeb62d7f337beaf3
+          name: 'Reolink: Firmware update available'
+          type: DEPENDENT
+          key: reolink.firmware.update_available
+          history: 30d
+          description: '1=há update disponível, 0=não há update ou não foi possível comparar.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.update_available
+          master_item:
+            key: 'reolink_fw_check.py["{HOST.HOST}"]'
+          triggers:
+            - uuid: 5d88e9d6516a49a6962ca42f781a80e2
+              expression: 'last(/Reolink NVR by HTTP/reolink.firmware.update_available)=1'
+              name: 'Reolink firmware update available'
+              status: DISABLED
+              priority: INFO
+              description: 'O firmware instalado no NVR é menor que o firmware encontrado no site oficial para o modelo/hardware detectados.'
+        - uuid: 79b2d42d302c412993651f8ec6ca81ea
+          name: 'Reolink: HDD info raw'
+          type: HTTP_AGENT
+          key: reolink.hdd.raw
+          history: '0'
+          value_type: TEXT
+          description: 'Raw GetHddInfo response used for HDD discovery/troubleshooting.'
+          timeout: 10s
+          url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+          query_fields:
+            - name: cmd
+              value: GetHddInfo
+            - name: user
+              value: '{$REOLINK.USER}'
+            - name: password
+              value: '{$REOLINK.PASS}'
+        - uuid: 61ed91c663a04cb09bcf03f567522335
+          name: 'Reolink: Firmware online check raw'
+          type: EXTERNAL
+          key: 'reolink_fw_check.py["{HOST.HOST}"]'
+          delay: 1d
+          history: 7d
+          value_type: TEXT
+          description: 'External check de firmware. Recebe somente {HOST.HOST}; o script deve consultar a API do Zabbix, ler o Inventory do host (model/hardware/software) e comparar com o firmware disponível no site da Reolink. Não recebe URL/usuário/senha do NVR.'
+          timeout: 30s
+          triggers:
+            - uuid: e9295783b34c46e6a78d65f38c9b94c4
+              expression: 'nodata(/Reolink NVR by HTTP/reolink_fw_check.py["{HOST.HOST}"],2d)=1'
+              name: 'Reolink firmware check is not running or script is missing'
+              priority: WARNING
+              description: 'Dispara quando o external check não gera dados. Causas comuns: script ausente em ExternalScripts, permissão errada, config/API token do Zabbix ausente, proxy/server sem internet ou erro de execução.'
+      discovery_rules:
+        - uuid: 35fba65435974e178bd3a5537e10a370
+          name: 'Reolink: Discover cameras/channels'
+          type: HTTP_AGENT
+          key: reolink.camera.discovery
+          delay: 5m
+          lifetime: 30d
+          item_prototypes:
+            - uuid: b6bea440f18245738725e97a379f6da8
+              name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: Model'
+              type: HTTP_AGENT
+              key: 'reolink.camera.model[{#CAMERA.CHANNEL}]'
+              delay: 1h
+              history: 30d
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var ch = String('{#CAMERA.CHANNEL}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.status) ? r[0].value.status  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        if (String(arr[i].channel)  === ch) {
+                          var v = arr[i]['typeInfo'];
+                          if (v === undefined  || v === null) return '';
+                          return v;
+                        }
+                      }
+                      return '';
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetChannelstatus
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+            - uuid: 764ebb9fd4144c0d87698da18f566d76
+              name: 'Camera {#CAMERA.CHANNEL}: Name'
+              type: HTTP_AGENT
+              key: 'reolink.camera.name[{#CAMERA.CHANNEL}]'
+              delay: 1h
+              history: 30d
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var ch = String('{#CAMERA.CHANNEL}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.status) ? r[0].value.status  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        if (String(arr[i].channel)  === ch) {
+                          var v = arr[i]['name'];
+                          if (v === undefined || v  === null) return '';
+                          return v;
+                        }
+                      }
+                      return '';
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetChannelstatus
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+            - uuid: bd04498339404cd69f70bef0e268d560
+              name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: Online'
+              type: HTTP_AGENT
+              key: 'reolink.camera.online[{#CAMERA.CHANNEL}]'
+              history: 30d
+              description: '1=online, 0=offline.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var ch = String('{#CAMERA.CHANNEL}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.status) ? r[0].value.status  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        if (String(arr[i].channel)  === ch) {
+                          var v = arr[i]['online'];
+                          if (v === undefined ||  v === null) return '';
+                          return v;
+                        }
+                      }
+                      return '';
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetChannelstatus
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: 66d5c8cd807f41808af8c1ba02ad8125
+                  expression: 'last(/Reolink NVR by HTTP/reolink.camera.online[{#CAMERA.CHANNEL}])=0'
+                  name: 'Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] is offline'
+                  priority: HIGH
+                  description: 'Dispara quando uma câmera descoberta fica offline.'
+            - uuid: 31cd3f103fb9452ba46e1dd247e9754b
+              name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID/Serial'
+              type: HTTP_AGENT
+              key: 'reolink.camera.uid[{#CAMERA.CHANNEL}]'
+              delay: 5m
+              history: 30d
+              value_type: TEXT
+              description: 'Fingerprint/UID returned by NVR; change indicates camera replacement.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var ch = String('{#CAMERA.CHANNEL}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.status) ? r[0].value.status  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        if (String(arr[i].channel)  === ch) {
+                          var v = arr[i]['uid'];
+                          if (v === undefined || v  === null) return '';
+                          return v;
+                        }
+                      }
+                      return '';
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetChannelstatus
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: 051ab57820a64fa19b01a2d65754e7c8
+                  expression: 'change(/Reolink NVR by HTTP/reolink.camera.uid[{#CAMERA.CHANNEL}])=1'
+                  name: 'Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID/serial changed'
+                  priority: WARNING
+                  description: 'Dispara quando o UID/serial reportado muda, indicando possível troca de câmera.'
+          timeout: 10s
+          url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+          query_fields:
+            - name: cmd
+              value: GetChannelstatus
+            - name: user
+              value: '{$REOLINK.USER}'
+            - name: password
+              value: '{$REOLINK.PASS}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var r = JSON.parse(value);
+                  var arr = (r[0] && r[0].value && r[0].value.status)  ? r[0].value.status : [];
+                  var out = [];
+                  for (var i = 0; i < arr.length;  i++) {
+                    var c = arr[i];
+                    if (c.online == 1 || c.uid || c.name || c.typeInfo)  {
+                      out.push({
+                        "{#CAMERA.CHANNEL}": String(c.channel),
+                         "{#CAMERA.NAME}": c.name || ("Channel " + c.channel),
+                        " {#CAMERA.UID}": c.uid || "",
+                        "{#CAMERA.TYPE}": c.typeInfo ||  ""
+                      });
+                    }
+                  }
+                  return JSON.stringify({"data": out});
+        - uuid: 7fc27371230546e78a0f4e2a4c46b4fd
+          name: 'Reolink: Discover HDD/SD storage'
+          type: HTTP_AGENT
+          key: reolink.hdd.discovery
+          delay: 5m
+          lifetime: 30d
+          item_prototypes:
+            - uuid: 816c30c7ff7542caaac7c35b8a541dc3
+              name: 'HDD {#HDD.NUMBER}: Health OK'
+              type: HTTP_AGENT
+              key: 'reolink.hdd.ok[{#HDD.NUMBER}]'
+              history: 30d
+              description: '1=mount/format/status OK; 0=problem.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var disk = String('{#HDD.NUMBER}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.HddInfo) ? r[0].value.HddInfo  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        var d = arr[i];
+                         var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);
+                        if (String(n) === disk) {
+                          var v = 1;
+                      if (d.mount  !== undefined && Number(d.mount) !== 1) v = 0;
+                      if (d.format !== undefined  && Number(d.format) !== 1) v = 0;
+                      if (d.status !== undefined && String(d.status).toLowerCase()  !== 'ok' && String(d.status).toLowerCase() !== 'normal') v = 0;
+                           return v;
+                        }
+                      }
+                      return 0;
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetHddInfo
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: a533db0833ac4770bfd547d77e08a10d
+                  expression: 'last(/Reolink NVR by HTTP/reolink.hdd.ok[{#HDD.NUMBER}])=0'
+                  name: 'Reolink HDD {#HDD.NUMBER} has error/unmounted/unformatted state'
+                  priority: HIGH
+            - uuid: 6588988a5b8e4e6cb2517a7a00777532
+              name: 'HDD {#HDD.NUMBER}: Present/mounted'
+              type: HTTP_AGENT
+              key: 'reolink.hdd.present[{#HDD.NUMBER}]'
+              history: 30d
+              description: '1=present/mounted/formatted/capacity seen; 0=not present.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var disk = String('{#HDD.NUMBER}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.HddInfo) ? r[0].value.HddInfo  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        var d = arr[i];
+                         var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);
+                        if (String(n) === disk) {
+                          var v = (d.mount == 1  || d.format == 1 || d.capacity > 0) ? 1 : 0;
+                          return v;
+                        }
+                      }
+                       return 0;
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetHddInfo
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: 405c0b41c63345179161cf6b396f590f
+                  expression: 'last(/Reolink NVR by HTTP/reolink.hdd.present[{#HDD.NUMBER}])=0'
+                  name: 'Reolink HDD {#HDD.NUMBER} is missing'
+                  priority: HIGH
+                  description: 'Dispara quando um disco/slot descoberto deixa de aparecer como presente/montado.'
+            - uuid: 7ae33144f80141de8f59b82a319441c5
+              name: 'HDD {#HDD.NUMBER}: Recording/storage available'
+              type: HTTP_AGENT
+              key: 'reolink.hdd.recording.available[{#HDD.NUMBER}]'
+              history: 30d
+              description: 'Proxy for recording availability from GetHddInfo: mounted + formatted + capacity > 0.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var disk = String('{#HDD.NUMBER}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.HddInfo) ? r[0].value.HddInfo  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        var d = arr[i];
+                         var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);
+                        if (String(n) === disk) {
+                          var v = (d.mount == 1  && d.format == 1 && d.capacity > 0) ? 1 : 0;
+                          return v;
+                        }
+                      }
+                       return 0;
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetHddInfo
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: a257389bcb884040ad783300886bfeb8
+                  expression: 'last(/Reolink NVR by HTTP/reolink.hdd.recording.available[{#HDD.NUMBER}])=0'
+                  name: 'Reolink HDD {#HDD.NUMBER} not available for recording'
+                  priority: HIGH
+            - uuid: 4a0ae962e92b4e53baaad8520374fc7f
+              name: 'HDD {#HDD.NUMBER}: Temperature'
+              type: HTTP_AGENT
+              key: 'reolink.hdd.temperature[{#HDD.NUMBER}]'
+              history: 30d
+              value_type: FLOAT
+              units: °C
+              description: 'Temperature if exposed by firmware. Returns -1 when the API does not expose a temperature field.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var disk = String('{#HDD.NUMBER}');
+                      var r = JSON.parse(value);
+                      var  arr = (r[0] && r[0].value && r[0].value.HddInfo) ? r[0].value.HddInfo  : [];
+                      for (var i = 0; i < arr.length; i++) {
+                        var d = arr[i];
+                         var n = (d.number !== undefined) ? d.number : ((d.id !== undefined)  ? d.id : i);
+                        if (String(n) === disk) {
+                          var v = d.temperature;  if (v === undefined) v = d.temp; if (v === undefined) v = d.hddTemp;  if (v === undefined) v = -1;
+                          return v;
+                        }
+                      }
+                      return 0;
+              timeout: 10s
+              url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+              query_fields:
+                - name: cmd
+                  value: GetHddInfo
+                - name: user
+                  value: '{$REOLINK.USER}'
+                - name: password
+                  value: '{$REOLINK.PASS}'
+              trigger_prototypes:
+                - uuid: f694f49fa7ea487fb2036f7a1111da7e
+                  expression: 'last(/Reolink NVR by HTTP/reolink.hdd.temperature[{#HDD.NUMBER}])>{$REOLINK.HDD.TEMP.MAX} and last(/Reolink NVR by HTTP/reolink.hdd.temperature[{#HDD.NUMBER}])>=0'
+                  name: 'Reolink HDD {#HDD.NUMBER} high temperature'
+                  priority: WARNING
+          graph_prototypes:
+            - uuid: c0964cde11be4ccba978863a72a56788
+              name: 'HDD {#HDD.NUMBER}: Temperature'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'Reolink NVR by HTTP'
+                    key: 'reolink.hdd.temperature[{#HDD.NUMBER}]'
+          timeout: 10s
+          url: '{$REOLINK.URL}/{$REOLINK.API.PATH}'
+          query_fields:
+            - name: cmd
+              value: GetHddInfo
+            - name: user
+              value: '{$REOLINK.USER}'
+            - name: password
+              value: '{$REOLINK.PASS}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var r = JSON.parse(value);
+                  var arr = (r[0] && r[0].value && r[0].value.HddInfo)  ? r[0].value.HddInfo : [];
+                  var out = [];
+                  for (var i = 0; i < arr.length;  i++) {
+                    var d = arr[i];
+                    var n = (d.number !== undefined) ? d.number  : ((d.id !== undefined) ? d.id : i);
+                    if (d.mount == 1 || d.format ==  1 || d.capacity > 0 || d.size > 0 || d.status) {
+                      out.push({
+                         "{#HDD.NUMBER}": String(n),
+                        "{#HDD.TYPE}": String(d.storageType  || ""),
+                        "{#HDD.CAPACITY}": String(d.capacity || "")
+                       });
+                    }
+                  }
+                  return JSON.stringify({"data": out});
+      macros:
+        - macro: '{$REOLINK.API.PATH}'
+          value: api.cgi
+          description: 'Caminho da API. Use api.cgi ou cgi-bin/api.cgi dependendo do firmware.'
+        - macro: '{$REOLINK.HDD.TEMP.MAX}'
+          value: '55'
+          description: 'Limite de temperatura do HDD em °C.'
+        - macro: '{$REOLINK.PASS}'
+          type: SECRET_TEXT
+        - macro: '{$REOLINK.URL}'
+          value: 'http://CHANGE_ME'
+          description: 'Base URL do NVR, sem barra final. Ex: http://192.168.10.50 ou https://192.168.10.50'
+        - macro: '{$REOLINK.USER}'
+          value: admin
+  triggers:
+    - uuid: 99504544810e41508811bb5cf53137ae
+      expression: 'last(/Reolink NVR by HTTP/reolink.firmware.match_found)=0 and last(/Reolink NVR by HTTP/reolink.firmware.scrape_ok)=1'
+      name: 'Reolink firmware model/hardware not found online'
+      priority: WARNING
+      description: 'O scraping funcionou, mas não encontrou firmware compatível com o modelo/hardware retornados pelo NVR.'
