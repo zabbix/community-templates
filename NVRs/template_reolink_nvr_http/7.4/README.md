@@ -38,6 +38,7 @@ Credentials are sent as API query parameters. Use HTTPS when supported; HTTP tra
 | Storage | Discovery, presence/mount state, mount/format checks, storage readiness, total capacity and free space | GetHddInfo | 5 minutes, one request for all disks |
 | Storage temperature | Temperature, only when the firmware supplies it | GetHddInfo | Same 5-minute storage request |
 | NVR clock | Absolute difference between NVR UTC time and Zabbix server/proxy time | GetTime | Once per day |
+| Optional NVR firmware catalog | Latest compatible firmware and a specific lookup status, using Zabbix inventory | External script, no NVR request | Once per week; disabled by default |
 | Optional performance | CPU utilization and network throughput | GetPerformance | 10 minutes; disabled by default |
 
 Camera UID/serial collection and its change alert have been removed. The NVR serial item remains.
@@ -119,7 +120,55 @@ The clock polling interval is set to `1d` in its item. The recording-search and 
 - Optional network throughput uses the inherited conversion of `netThroughput` multiplied by 1000 to bps; verify the API unit before relying on it.
 - API support varies with hardware and firmware. GetAbility advertising a feature does not guarantee a successful command.
 - Camera discovery retains lost resources for 30 days and excludes fully unidentified empty channels. A channel disappearing entirely may leave a dependent item unsupported instead of returning offline.
-- No firmware installation, online firmware-update checks or external scripts are included.
+- Firmware installation is never performed. Optional online NVR firmware checks are included but disabled by default; camera firmware lookup is not included.
+
+## Optional weekly firmware check
+
+The main template includes four disabled firmware items and one disabled Information trigger. No extra template is required. Leave them disabled to use normal NVR monitoring without installing scripts.
+
+Files shipped beside this README:
+
+- `reolink_fw_check.py`: Python 3 external check, using only the standard library.
+- `reolink_fw_check.conf.example`: API configuration example.
+- `install_firmware_check.sh`: installs the script and preserves an existing configuration.
+
+### Installation
+
+1. Install Python 3 on the server or proxy responsible for this NVR host. External checks for proxy-monitored hosts run on that proxy, so installation on the server alone is insufficient.
+2. Find the effective `ExternalScripts` directory in that process configuration (including included config files or container configuration). Do not assume a package-specific directory. Download the three files above into one directory, then run as root:
+
+   ```sh
+   sh install_firmware_check.sh /your/configured/externalscripts
+   vi /etc/zabbix/reolink_fw_check.conf
+   ```
+
+3. Set `ZABBIX_URL` to the Zabbix API endpoint and `ZABBIX_TOKEN` to a token with permission to use `host.get` and read the intended hosts. The proxy must be able to reach that endpoint and Reolink over HTTPS. No NVR credentials are passed to this script. The installed configuration is readable by root and group zabbix only.
+4. Enable automatic inventory and confirm Model, Hardware and Software are populated for the NVR. The script resolves the exact technical host name (`{HOST.HOST}`), avoiding ambiguous display-name matches.
+5. Test using the actual ExternalScripts directory and technical host name:
+
+   ```sh
+   runuser -u zabbix -- python3 /your/configured/externalscripts/reolink_fw_check.py 'NVR technical host name'
+   ```
+
+6. On the desired host, enable Firmware online check raw, Firmware check status, Latest available firmware, Firmware update available, and the Firmware update available trigger. The master interval is `7d` and its timeout is `30s`. No service restart is needed if the effective directory configuration remains unchanged. On template reimport, preserve host-level enablement choices in the import preview.
+
+### Results and alarms
+
+The script parses explicit firmware records, matching the model and hardware within the same record. The default page covers RLN8-410/RLN16-410. Configure `REOLINK_DEFAULT_URL` for another supported model catalog; arbitrary page layouts are not inferred. Missing entries mean absent from the consulted catalog, not proof that the manufacturer has never released firmware.
+
+Examples shown in Firmware check status:
+
+- `Model not found: RLN8-410`
+- `Hardware type not found: N2MB02 (model RLN8-410)`
+- `Firmware not found for model RLN8-410 / hardware N2MB02`
+- `Firmware update available: v...`
+- `Firmware is up to date`
+
+Missing inventory, API/network errors and unrecognized website/version formats show an explanatory error instead of claiming firmware is current. No lookup failure, missing model, missing hardware or missing firmware generates an alarm. The latest-version item is blank when no compatible firmware is resolved; read the status item for the reason.
+
+Only a confirmed newer compatible version creates an Information event. Manual close is allowed. The trigger uses the first available version and subsequent changes to it, so repeated unchanged weekly results do not reopen a closed notice. Its condition clears on the next unchanged weekly result, rearming it for future versions; consecutive changes before rearming may stay in the existing single event. A lookup failure clears the version item, so a later rediscovery can produce a new notice. Weekly polling can delay notification by up to seven days.
+
+The script has a 25-second overall execution limit and 6-second network timeouts. Website parsing was checked against the current support catalog and synthetic cross-model records. Live token permissions, proxy connectivity and Zabbix event behavior must still be verified in your installation.
 
 ## Updating an existing installation
 
