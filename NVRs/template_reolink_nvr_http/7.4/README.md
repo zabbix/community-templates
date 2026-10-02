@@ -54,7 +54,7 @@ Restored from the user-confirmed working commit `9e8edc9a`, adding camera identi
 
 ## Recording and clock monitoring
 
-- A Zabbix Script item per discovered camera queries GetTime and searches the previous 48 hours via Search every 15 minutes. Positive-size files are compared by EndTime to the NVR clock. This is evidence of indexed recordings, not video integrity. No files in the window is represented as an age of 48 hours; failed requests raise a separate unavailable-check alert.
+- A Zabbix Script item per discovered camera queries GetTime and searches the previous 26 hours via Search every 2 hours. Positive-size files are compared by EndTime to the NVR clock. This is evidence of indexed recordings, not video integrity. No files in the window is represented as an age of 26 hours; failed requests raise a separate unavailable-check alert after 6 hours without successful data.
 - Camera recording age greater than `{$REOLINK.RECORDING.MAX.AGE}` (86400 seconds / 24 hours) raises a high-severity alert. File closure delays and motion-only recording must be considered.
 - A clock Script item runs every 5 minutes and alerts when absolute local clock difference exceeds `{$REOLINK.TIME.DIFF.MAX}` (300 seconds). Server/proxy system time must be synchronized.
 - Configure `{$REOLINK.TIME.UTC.OFFSET}` for the expected current local UTC offset in seconds. Default -14400 is US Eastern daylight time; use -18000 during Eastern standard time. Adjust this macro at DST changes. Using the expected offset detects incorrect local timezone settings as well as clock drift.
