@@ -33,7 +33,7 @@ zabbix_export:
         expression: last(/Reolink NVR by HTTP/reolink.api.json.status)=0
         name: Reolink NVR API response is not valid JSON
         priority: WARNING
-        description: Detects an incorrect API path, HTML returned by a proxy, a captive portal or an invalid response.
+        description: Ajuda a pegar path errado, proxy retornando HTML, captive portal ou resposta inválida.
     - uuid: 665a163979f04c1da7dfa76d5d7b67ff
       name: 'Reolink: Authentication status'
       type: DEPENDENT
@@ -54,7 +54,8 @@ zabbix_export:
         expression: last(/Reolink NVR by HTTP/reolink.auth.status)=0
         name: Reolink NVR authentication failed or API returned invalid credentials
         priority: HIGH
-        description: Triggers when GetDevInfo returns an explicit authentication error.
+        description: Dispara quando GetDevInfo responde erro de usuário/senha/autenticação ou resposta não-JSON
+          no endpoint da API.
       - uuid: 7aff775af1fb4a74980ad94216954244
         name: 'Reolink: Device API command failed'
         expression: last(/Reolink NVR by HTTP/reolink.auth.status)=2 and last(/Reolink NVR by HTTP/reolink.api.json.status)=1
@@ -98,7 +99,7 @@ zabbix_export:
       key: reolink.device.firmware
       history: 90d
       value_type: TEXT
-      description: Installed NVR firmware from GetDevInfo, saved in host inventory.
+      description: Firmware atual do NVR extraído de GetDevInfo e salvo no Host inventory.
       inventory_link: SOFTWARE
       preprocessing:
       - type: JAVASCRIPT
@@ -118,7 +119,7 @@ zabbix_export:
       key: reolink.device.hw_version
       history: 90d
       value_type: TEXT
-      description: NVR hardware version from GetDevInfo, saved in host inventory.
+      description: Hardware version do NVR extraída de GetDevInfo e salva no Host inventory.
       inventory_link: HARDWARE
       preprocessing:
       - type: JAVASCRIPT
@@ -138,7 +139,8 @@ zabbix_export:
       key: reolink.device.model
       history: 90d
       value_type: TEXT
-      description: NVR model from GetDevInfo, saved in host inventory. Supports array and object responses.
+      description: Modelo do NVR extraído de GetDevInfo e salvo no Host inventory. Usa JavaScript com fallback para
+        array/objeto para evitar JSONPath quebrar.
       inventory_link: MODEL
       preprocessing:
       - type: JAVASCRIPT
@@ -158,25 +160,15 @@ zabbix_export:
       key: reolink.device.serial
       history: 30d
       value_type: TEXT
-      description: Physical NVR serial number when the API supplies a nonzero serial or serialNumber. Missing and
-        zero-only values are discarded. detail is not used as a serial number.
+      description: Serial number do NVR extraído de GetDevInfo e salvo no Host inventory.
       inventory_link: SERIALNO_A
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - 'var r=JSON.parse(value); var o=Array.isArray(r)?r[0]:r;
-
-          var d=o && o.value && o.value.DevInfo;
-
-          if (!d || Number(o.code)!==0) throw ''Device info unavailable'';
-
-          var fields=[d.serial,d.serialNumber];
-
-          for(var i=0;i<fields.length;i++){if(fields[i]===undefined || fields[i]===null) continue;var s=String(fields[i]).trim();if(s
-          && !/^0+$/.test(s)) return s;}
-
-          throw ''Serial number unavailable'';'
-        error_handler: DISCARD_VALUE
+        - "try {\n  var data = JSON.parse(value);\n  var dev = Array.isArray(data)  ? data[0].value.DevInfo : (data.value\
+          \ ? data.value.DevInfo : data.DevInfo);\n   if (!dev) { throw 'Device field unavailable'; }\n  return\
+          \ dev.serial || dev.serialNumber ||  dev.detail || \"\";\n} catch (e) {\n  throw 'Device field unavailable';\n\
+          }\n"
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d
@@ -412,20 +404,19 @@ zabbix_export:
           expression: last(/Reolink NVR by HTTP/reolink.camera.online[{#CAMERA.CHANNEL}])=0
           name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] is offline
           priority: HIGH
-          description: Triggers when a discovered camera goes offline.
+          description: Dispara quando uma câmera descoberta fica offline.
         master_item:
           key: reolink.channels.raw
         tags:
         - tag: component
           value: camera
       - uuid: 31cd3f103fb9452ba46e1dd247e9754b
-        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID'
+        name: 'Camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}]: UID/Serial'
         type: DEPENDENT
         key: reolink.camera.uid[{#CAMERA.CHANNEL}]
         history: 30d
         value_type: TEXT
-        description: Camera UID reported by GetChannelstatus; distinct from the physical S/N. Some cameras return
-          no UID.
+        description: Fingerprint/UID returned by NVR; change indicates camera replacement.
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -438,9 +429,9 @@ zabbix_export:
         trigger_prototypes:
         - uuid: 051ab57820a64fa19b01a2d65754e7c8
           expression: change(/Reolink NVR by HTTP/reolink.camera.uid[{#CAMERA.CHANNEL}])=1
-          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID changed
+          name: Reolink camera {#CAMERA.CHANNEL} [{#CAMERA.NAME}] UID/serial changed
           priority: WARNING
-          description: Triggers when the reported camera UID changes.
+          description: Dispara quando o UID/serial reportado muda, indicando possível troca de câmera.
         master_item:
           key: reolink.channels.raw
         tags:
@@ -596,7 +587,7 @@ zabbix_export:
           expression: last(/Reolink NVR by HTTP/reolink.hdd.present[{#HDD.NUMBER}])=0
           name: Reolink HDD {#HDD.NUMBER} is missing
           priority: HIGH
-          description: Triggers when a discovered disk/slot is no longer reported as present/mounted.
+          description: Dispara quando um disco/slot descoberto deixa de aparecer como presente/montado.
         master_item:
           key: reolink.hdd.raw
         tags:
@@ -725,22 +716,19 @@ zabbix_export:
       master_item:
         key: reolink.hdd.raw
     macros:
-    - macro: '{$REOLINK.URL}'
-      value: http://127.0.0.1
-      description: NVR base URL including protocol and optional port, for example http://192.168.1.100:80 or https://nvr.example.com:443.
-        Do not include the API path or a trailing slash. Override on each host.
     - macro: '{$REOLINK.API.PATH}'
       value: api.cgi
-      description: API path. Use api.cgi or cgi-bin/api.cgi depending on the firmware.
+      description: Caminho da API. Use api.cgi ou cgi-bin/api.cgi dependendo do firmware.
     - macro: '{$REOLINK.HDD.TEMP.MAX}'
       value: '55'
-      description: HDD temperature threshold in degrees Celsius.
+      description: Limite de temperatura do HDD em °C.
     - macro: '{$REOLINK.PASS}'
       type: SECRET_TEXT
-      description: NVR API password. Keep the macro type set to Secret text.
+    - macro: '{$REOLINK.URL}'
+      value: http://CHANGE_ME
+      description: 'Base URL do NVR, sem barra final. Ex: http://192.168.10.50 ou https://192.168.10.50'
     - macro: '{$REOLINK.USER}'
       value: admin
-      description: NVR API username.
     - macro: '{$REOLINK.DELAY.DEVICE}'
       value: 1m
       description: Device/API availability polling.
