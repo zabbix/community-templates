@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="https://raw.githubusercontent.com/dbmello75/community-templates/reolink-nvr/NVRs/template_reolink_nvr_http/7.4"
+BASE_URL="https://raw.githubusercontent.com/dbmello75/community-templates/reolink-nvr/NVRs/template_reolink_nvr_http/7.4/files"
 CONF="/etc/zabbix/reolink_fw_check.conf"
 
 die() {
