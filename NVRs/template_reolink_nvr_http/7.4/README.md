@@ -126,7 +126,7 @@ The clock polling interval is set to `1d` in its item. The recording-search and 
 
 The main template includes four disabled firmware items and one disabled Information trigger. No extra template is required. Leave them disabled to use normal NVR monitoring without installing scripts.
 
-Files shipped beside this README:
+Helper files shipped in the `files/` directory:
 
 - `reolink_fw_check.py`: Python 3 external check, using only the standard library.
 - `reolink_fw_check.conf.example`: API configuration example.
@@ -138,7 +138,7 @@ Files shipped beside this README:
 2. Find the effective `ExternalScripts` directory in that process configuration (including included config files or container configuration). Do not assume a package-specific directory. Download the three files above into one directory, then run as root:
 
    ```sh
-   bash <(curl -fsSL https://raw.githubusercontent.com/dbmello75/community-templates/reolink-nvr/NVRs/template_reolink_nvr_http/7.4/install_firmware_check.sh)
+   bash <(curl -fsSL https://raw.githubusercontent.com/dbmello75/community-templates/reolink-nvr/NVRs/template_reolink_nvr_http/7.4/files/install_firmware_check.sh)
    ```
 
 3. Set `ZABBIX_URL` to the Zabbix API endpoint and `ZABBIX_TOKEN` to a token with permission to use `host.get` and read the intended hosts. The proxy must be able to reach that endpoint and Reolink over HTTPS. No NVR credentials are passed to this script. The installed configuration is readable by root and group zabbix only.
@@ -149,7 +149,7 @@ Files shipped beside this README:
    runuser -u zabbix -- python3 /your/configured/externalscripts/reolink_fw_check.py 'NVR technical host name'
    ```
 
-6. On the desired host, enable Firmware online check raw, Firmware check status, Latest available firmware, Firmware update available, and the Firmware update available trigger. The master interval is `7d` and its timeout is `30s`. No service restart is needed if the effective directory configuration remains unchanged. On template reimport, preserve host-level enablement choices in the import preview.
+6. On the desired host, enable Firmware online check raw, Firmware check status, Latest available firmware, Firmware update available, and the Firmware update available trigger. The master schedule is `0;wd1h3m0` (Mondays at 03:00 in the responsible server/proxy timezone) and its timeout is `30s`. No service restart is needed if the effective directory configuration remains unchanged. On template reimport, preserve host-level enablement choices in the import preview.
 
 ### Results and alarms
 
