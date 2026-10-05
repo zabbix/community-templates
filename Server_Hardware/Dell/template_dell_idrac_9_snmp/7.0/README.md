@@ -36,7 +36,7 @@ Conversion follows the [Zabbix 7.0 export format](https://www.zabbix.com/documen
 
 ## Monitoring coverage
 
-21 regular items, 9 discovery rules, 41 item prototypes, 9 triggers, 15 trigger prototypes, 2 graph prototypes and 8 bundled value maps.
+21 regular items, 9 discovery rules, 41 item prototypes, 10 triggers, 15 trigger prototypes, 2 graph prototypes and 8 bundled value maps.
 
 | Discovery rule | Key | Item prototypes |
 |---|---|---|
@@ -56,6 +56,7 @@ Regular items cover system health, power state, BIOS, iDRAC firmware, model and 
 
 - Discovery runs once per day, except the inherited memory discovery schedule `1d;50s/1-7,00:00-24:00`, which effectively runs every 50 seconds.
 - Hardware alerts retain the original Dell status checks and power-state conditions. The no-data trigger fires after 10 minutes without overall system status data.
+- BIOS version changes raise a Warning with the previous and current versions recorded in the event name. Detection follows the daily polling interval and requires two collected values. The problem resolves on the next unchanged sample or can be closed manually after review.
 - Available sensors and storage OIDs depend on hardware and firmware. Investigate unsupported items with `snmpget`/`snmpwalk` from the assigned server/proxy.
 - RAID controller items retain the original fixed controller index; multiple RAID controllers are not discovered.
 - Temperature thresholds come from iDRAC. Verify that each sensor supplies valid thresholds.
