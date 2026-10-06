@@ -11,9 +11,9 @@ The original author reported testing on PowerEdge R440 with iDRAC firmware 3.21.
 ## Setup
 
 1. Enable the SNMP agent on iDRAC and configure its read-only community. Allow UDP port 161 from the assigned Zabbix server/proxy to iDRAC.
-2. In Zabbix 7.0, open **Data collection → Templates → Import** and import `template_dell_idrac_9_snmp.yaml`.
+2. Ensure the standard **ICMP Ping** template exists in Zabbix (import the official Zabbix 7.0 template first if missing). Open **Data collection → Templates → Import** and import `template_dell_idrac_9_snmp.yaml` with **Template linkage → Create new** enabled.
 3. Add an **SNMP interface** to the host using the iDRAC address, port **161**, **SNMPv2**, and the correct community. If the community field uses `{$SNMP_COMMUNITY}`, define that macro on the host.
-4. Link **SNMP-iDRAC-9**. No Zabbix agent, external script, linked template or separate value-map import is required.
+4. Link **SNMP-iDRAC-9**. The linked **ICMP Ping** template automatically adds ping availability, packet loss and response time monitoring. No Zabbix agent, custom script or separate value-map import is required.
 5. Check **Monitoring → Latest data**. Use **Execute now** on discovery rules to discover components sooner.
 
 Test from the assigned Zabbix server/proxy, replacing the example values:
@@ -36,7 +36,7 @@ Conversion follows the [Zabbix 7.0 export format](https://www.zabbix.com/documen
 
 ## Monitoring coverage
 
-21 regular items, 9 discovery rules, 41 item prototypes, 10 triggers, 15 trigger prototypes, 2 graph prototypes and 8 bundled value maps.
+21 regular items, 9 discovery rules, 41 item prototypes, 10 triggers, 15 trigger prototypes, 2 graph prototypes and 8 bundled value maps, plus monitoring inherited from **ICMP Ping**.
 
 | Discovery rule | Key | Item prototypes |
 |---|---|---|
@@ -54,6 +54,7 @@ Regular items cover system health, power state, BIOS, iDRAC firmware, model and 
 
 ## Operational notes
 
+- ICMP checks run from the assigned Zabbix server/proxy and require a working `fping` installation and ICMP access to the monitored address. For a dedicated iDRAC host with only an SNMP interface, ping uses that interface's address; verify the ICMP item interface if the host has multiple interface types.
 - Discovery runs once per day, except the inherited memory discovery schedule `1d;50s/1-7,00:00-24:00`, which effectively runs every 50 seconds.
 - Hardware alerts retain the original Dell status checks and power-state conditions. The no-data trigger fires after 10 minutes without overall system status data.
 - BIOS version changes raise a Warning with the previous and current versions recorded in the event name. Detection follows the daily polling interval and requires two collected values. The problem resolves on the next unchanged sample or can be closed manually after review.
