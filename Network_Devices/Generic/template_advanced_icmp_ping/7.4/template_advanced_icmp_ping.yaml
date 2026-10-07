@@ -1,0 +1,267 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 57b7ae836ca64446ba2c296389c009b7
+      name: Templates/Modules
+  templates:
+    - uuid: d767df207c12452981d9f60cdce4b209
+      template: 'Module advanced ICMP Ping'
+      name: 'Module advanced ICMP Ping'
+      description: |
+        Advanced ICMP ping, inspired by SmokePing.
+        Sends a batch of ICMP requests at once (fping, external script Advanced_ping.sh)
+        and evaluates min / avg / max response time, packet loss and the min/max ratio (jitter).
+
+        Requirements: Zabbix 7.4+, fping and Advanced_ping.sh in the external scripts directory.
+        Source: https://github.com/DuprTECH/Zabbix-AdvancedPING
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: Templates/Modules
+      items:
+        - uuid: bec5e5da785b4e7d8a6cbd9a0917c670
+          name: 'Advanced ping sum results'
+          type: EXTERNAL
+          key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          history: 31d
+          value_type: TEXT
+          timeout: 30s
+          description: 'Raw fping summary, for example "10.0.0.1 : xmt/rcv/%loss = 10/10/0%, min/avg/max = 1.88/12.49/45.03". All other items are taken from this one.'
+          tags:
+            - tag: Application
+              value: Status
+        - uuid: 8848a686d0324cb3b7e96dfeb9020c2b
+          name: 'Advanced ping avg'
+          type: DEPENDENT
+          key: advanced.ping.avg
+          value_type: FLOAT
+          units: ms
+          description: 'Average ICMP response time of the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = \d+\/\d+\/\d+%, min\/avg\/max = .*\/(.*)\/.*'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: fa53e38661584a28925ba5bdd26bb338
+              expression: 'avg(/Module advanced ICMP Ping/advanced.ping.avg,5m)>{$ADV_ICMP_RESPONSE_TIME_WARN}'
+              name: 'High ICMP ping response time'
+              opdata: 'Last value: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'High ICMP ping loss'
+                  expression: 'min(/Module advanced ICMP Ping/advanced.ping.loss,#2)>{$ADV_ICMP_LOSS_WARN}'
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Module advanced ICMP Ping/advanced.ping.rcv,#3)=0'
+        - uuid: ddfb110af67147b7965c449641739139
+          name: 'Advanced ping loss'
+          type: DEPENDENT
+          key: advanced.ping.loss
+          units: '%'
+          description: 'Packet loss of the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = \d+\/\d+\/(\d+)%.*'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: cb508fc2d2a24c3c814833ac6712039f
+              expression: 'min(/Module advanced ICMP Ping/advanced.ping.loss,#2)>{$ADV_ICMP_LOSS_WARN}'
+              name: 'High ICMP ping loss'
+              opdata: 'Last value: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Module advanced ICMP Ping/advanced.ping.rcv,#3)=0'
+        - uuid: c7917bada5c84fe19a4c6e34cb031924
+          name: 'Advanced ping max'
+          type: DEPENDENT
+          key: advanced.ping.max
+          value_type: FLOAT
+          units: ms
+          description: 'Maximum ICMP response time of the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = \d+\/\d+\/\d+%, min\/avg\/max = .*\/.*\/(.*)'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+        - uuid: 6871917ab13640b3b7f1aba6eb755021
+          name: 'Advanced ping min'
+          type: DEPENDENT
+          key: advanced.ping.min
+          value_type: FLOAT
+          units: ms
+          description: 'Minimum ICMP response time of the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = \d+\/\d+\/\d+%, min\/avg\/max = (.*)\/.*\/.*'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+        - uuid: 3856206c41f64a12ac530c8267364b0b
+          name: 'Advanced ping received'
+          type: DEPENDENT
+          key: advanced.ping.rcv
+          description: 'Number of ICMP replies received in the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = \d+\/(\d+)\/\d+%.*'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: 2d4215f5263b4b668caee18798f979b5
+              expression: 'max(/Module advanced ICMP Ping/advanced.ping.rcv,#3)=0'
+              name: 'Unavailable by ICMP ping'
+              opdata: 'Last value: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'No ICMP reply received in the last three batches.'
+        - uuid: 18ab31ec3a9d4ab0ac6dbff2e558aaa7
+          name: 'Advanced ping sent'
+          type: DEPENDENT
+          key: advanced.ping.xmt
+          description: 'Number of ICMP requests sent in the batch.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '.* : xmt\/rcv\/%loss = (\d+)\/\d+\/\d+%.*'
+                - '\1'
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+          tags:
+            - tag: Application
+              value: Status
+      macros:
+        - macro: '{$ADV_FPING_POOL_COUNT}'
+          value: '10'
+          description: 'Number of ICMP requests in one batch (max ~14, the script must finish within the 30 s item timeout)'
+        - macro: '{$ADV_ICMP_LOSS_WARN}'
+          value: '20'
+          description: 'Maximum tolerated packet loss (%)'
+        - macro: '{$ADV_ICMP_MAX_TIME_MULTIPLE}'
+          value: '10'
+          description: 'Maximum tolerated ratio between max and min response time'
+        - macro: '{$ADV_ICMP_RESPONSE_TIME_WARN}'
+          value: '200'
+          description: 'Maximum tolerated average response time (ms)'
+      dashboards:
+        - uuid: 98c3fb93930549a4918599189732c54e
+          name: 'Advanced ICMP PING'
+          pages:
+            - widgets:
+                - type: graph
+                  width: '72'
+                  height: '7'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Module advanced ICMP Ping'
+                        name: 'ICMP Advanced Ping, min/max (yellow), loss % (red, left Y-axis)'
+                    - type: STRING
+                      name: reference
+                      value: AAAML
+                - type: itemhistory
+                  'y': '7'
+                  width: '72'
+                  fields:
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'Module advanced ICMP Ping'
+                        key: 'Advanced_ping.sh["{HOST.IP}","{$ADV_FPING_POOL_COUNT}"]'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Advanced ping sum results'
+                    - type: STRING
+                      name: reference
+                      value: AABLY
+                    - type: INTEGER
+                      name: show_lines
+                      value: '5'
+                    - type: INTEGER
+                      name: show_timestamp
+                      value: '1'
+                    - type: STRING
+                      name: time_period.from
+                      value: now-31d
+                    - type: STRING
+                      name: time_period.to
+                      value: now
+  triggers:
+    - uuid: c228dbc250e44897a1f72fdec0ccc8b5
+      expression: 'avg(/Module advanced ICMP Ping/advanced.ping.max,5m)/avg(/Module advanced ICMP Ping/advanced.ping.min,5m)>{$ADV_ICMP_MAX_TIME_MULTIPLE}'
+      name: 'High ICMP ping time differences (Min/Max)'
+      opdata: 'Last min: {ITEM.LASTVALUE2}, max: {ITEM.LASTVALUE1}'
+      priority: WARNING
+      description: 'The maximum response time is more than {$ADV_ICMP_MAX_TIME_MULTIPLE} times the minimum. This usually means jitter or an overloaded link.'
+      dependencies:
+        - name: 'Unavailable by ICMP ping'
+          expression: 'max(/Module advanced ICMP Ping/advanced.ping.rcv,#3)=0'
+  graphs:
+    - uuid: 9a5a5b9da2b844ae87fc31de4c94de31
+      name: 'ICMP Advanced Ping, min/max (yellow), loss % (red, left Y-axis)'
+      show_legend: 'NO'
+      show_triggers: 'NO'
+      ymin_type_1: FIXED
+      graph_items:
+        - drawtype: GRADIENT_LINE
+          color: FF0000
+          calc_fnc: ALL
+          item:
+            host: 'Module advanced ICMP Ping'
+            key: advanced.ping.loss
+        - sortorder: '1'
+          drawtype: DASHED_LINE
+          color: FFC000
+          yaxisside: RIGHT
+          calc_fnc: MAX
+          item:
+            host: 'Module advanced ICMP Ping'
+            key: advanced.ping.max
+        - sortorder: '2'
+          drawtype: DASHED_LINE
+          color: FFC000
+          yaxisside: RIGHT
+          calc_fnc: MIN
+          item:
+            host: 'Module advanced ICMP Ping'
+            key: advanced.ping.min
+        - sortorder: '3'
+          drawtype: BOLD_LINE
+          color: 2774A4
+          yaxisside: RIGHT
+          item:
+            host: 'Module advanced ICMP Ping'
+            key: advanced.ping.avg
