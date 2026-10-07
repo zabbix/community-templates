@@ -1,0 +1,538 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  host_groups:
+    - uuid: 23fa5292ba4a468a8fb2d2252b75c20d
+      name: 'Alvao users'
+  templates:
+    - uuid: c218ff56929e429b864b2b468d5128d4
+      template: 'APP Alvao service desk'
+      name: 'APP Alvao service desk'
+      description: |
+        ALVAO Service Desk statistics through the ALVAO REST API (HTTP agent, no Zabbix agent needed).
+        - Totals for the whole team: open, unassigned, new today, closed today, all tickets, tickets without activity
+        - LLD of ALVAO users (solvers) by an OData filter: every user gets its own host with personal statistics
+          (template 'APP Alvao service desk users')
+
+        Requirements: Zabbix 7.4+, ALVAO REST API (paid ALVAO module), ALVAO account with read access.
+        Set the {$ALVAO.*} and {$API_*} macros (best as global macros).
+        Source: https://github.com/DuprTECH/Zabbix-ALVAO-Service-Desk-dashboard-and-history
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 44c98cd6dfa14da5873ffbf4d80f2e90
+          name: 'Alvao all closed IT tickets'
+          type: CALCULATED
+          key: alvao.all.closed.tickets
+          history: 90d
+          status: DISABLED
+          params: 'sum(last_foreach(/*/alvao.closed.tickets.[*]))'
+        - uuid: 2a7368df13df43888a68181c0f757378
+          name: 'Alvao all open IT tickets'
+          type: CALCULATED
+          key: alvao.all.open.tickets
+          history: 90d
+          params: 'sum(last_foreach(/*/alvao.open.tickets.[*]))'
+        - uuid: 59c5c647b49845019986aadcad428b04
+          name: 'Alvao all no assign'
+          type: DEPENDENT
+          key: alvao.all.open.tickets.no.assign.sum
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[''@odata.count'']'
+          master_item:
+            key: alvao.open.tickets.raw
+        - uuid: 248d10b8ebae40de947d494616b68b4e
+          name: 'Alvao all IT tickets'
+          type: CALCULATED
+          key: alvao.all.tickets
+          history: 90d
+          params: 'sum(last_foreach(/*/alvao.all.tickets.[*]))'
+        - uuid: 4e9f8d2f28824437b8cb9a566358bbcb
+          name: 'Alvao all today closed IT tickets'
+          type: CALCULATED
+          key: alvao.all.today.closed.tickets
+          history: 90d
+          params: 'sum(last_foreach(/*/alvao.today.closed.tickets.[*]))'
+        - uuid: d58d5c64620a497e8861ddf38022aa7e
+          name: 'Alvao all today new IT tickets'
+          type: CALCULATED
+          key: alvao.all.today.new.tickets
+          history: 90d
+          params: 'sum(last_foreach(/*/alvao.today.new.tickets.[*]))'
+        - uuid: 8f8b4a2436494599af1993d0ebe72c43
+          name: 'Alvao avg no resolved IT tickets'
+          type: CALCULATED
+          key: alvao.avg.no.resolved.tickets
+          history: 90d
+          value_type: FLOAT
+          params: 'avg(last_foreach(/*/alvao.no.resolved.tickets.[*]))'
+        - uuid: eacc7ec187af43179131a9084daa994b
+          name: 'Alvao open tickets raw'
+          type: HTTP_AGENT
+          key: alvao.open.tickets.raw
+          delay: 15m
+          history: 90d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          url: '{$ALVAO.API.URL}/tickets'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '100'
+            - name: $filter
+              value: 'solverId eq null and startswith(serviceName,''{$ALVAO.SERVICE.PREFIX}'') and stateName ne ''Closed'' and stateName ne ''Deleted'' and stateName ne ''Resolved'' and not startswith(processName,''{$ALVAO.CHANGE.PROCESS}'')'
+            - name: $orderby
+              value: 'createdDate desc'
+        - uuid: 7532e3c93df947fa9a2d5dee517ea803
+          name: 'Alvao today new tickets 15m ago no assign'
+          type: DEPENDENT
+          key: alvao.today.new.tickets.15m
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..createdDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  const fifteenMinutesAgo = new Date(today.getTime() - 15 * 60 * 1000);
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date.getTime() > fifteenMinutesAgo.getTime()) {
+                      count++;
+                    }
+                  }
+                  
+                  return count;
+                  
+                  
+          master_item:
+            key: alvao.open.tickets.raw
+      discovery_rules:
+        - uuid: 772833a621504c529971ccbe9221feb4
+          name: 'Alvao get users'
+          type: HTTP_AGENT
+          key: get.users
+          delay: 1d
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          lifetime: 366d
+          enabled_lifetime_type: DISABLE_NEVER
+          host_prototypes:
+            - uuid: 9e969e0076c549f5a057001a6f23a43e
+              host: 'Alvao user {#USER.ID}'
+              name: '{#USER.NAME}'
+              inventory_mode: AUTOMATIC
+              group_links:
+                - group:
+                    name: 'Alvao users'
+              templates:
+                - name: 'APP Alvao service desk peoples'
+              macros:
+                - macro: '{$USER.ID}'
+                  value: '{#USER.ID}'
+                - macro: '{$USER.NAME}'
+                  value: '{#USER.NAME}'
+          url: '{$ALVAO.API.URL}/users'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '{$ALVAO.USERS.MAX}'
+            - name: $filter
+              value: '{$ALVAO.USERS.FILTER}'
+          description: |
+            Discovers ALVAO users (solvers) through the REST API and creates a host for each one,
+            linked to template 'APP Alvao service desk peoples'.
+            Which users are discovered is set by the OData filter in {$ALVAO.USERS.FILTER}.
+          lld_macro_paths:
+            - lld_macro: '{#USER.ADPATH}'
+              path: $..adPath.first()
+            - lld_macro: '{#USER.ID}'
+              path: $..id.first()
+            - lld_macro: '{#USER.NAME}'
+              path: $..name.first()
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..value.first()
+      macros:
+        - macro: '{$ALVAO.API.URL}'
+          value: 'https://alvao.example.com/AlvaoRestApi/v1'
+          description: 'ALVAO REST API base URL'
+        - macro: '{$ALVAO.CHANGE.PROCESS}'
+          value: 'Request for change'
+          description: 'Process name (prefix) of change requests, counted separately from tickets'
+        - macro: '{$ALVAO.SERVICE.PREFIX}'
+          value: 'IT'
+          description: 'Service name prefix of the tickets counted as unassigned team tickets'
+        - macro: '{$ALVAO.USERS.FILTER}'
+          value: 'startswith(department,''IT'') and isDisabled eq false'
+          description: 'OData filter of the users (solvers) to discover'
+        - macro: '{$ALVAO.USERS.MAX}'
+          value: '100'
+          description: 'Maximum number of discovered users'
+        - macro: '{$API_PASS}'
+          type: SECRET_TEXT
+          description: 'ALVAO API password'
+        - macro: '{$API_USER}'
+          value: 'zabbix.api'
+          description: 'ALVAO API user name'
+    - uuid: cfd7a161e31b41e3b9d104b22e4d7f8a
+      template: 'APP Alvao service desk peoples'
+      name: 'APP Alvao service desk users'
+      description: |
+        Personal ALVAO Service Desk statistics of one user (solver): open tickets, closed tickets, new and closed today,
+        tickets without activity for 7 days, open change requests.
+        Linked automatically to the hosts discovered by 'APP Alvao service desk', don't link it by hand.
+        Source: https://github.com/DuprTECH/Zabbix-ALVAO-Service-Desk-dashboard-and-history
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 5fc9f26e5aa046e59247f6c88d6e19a2
+          name: 'Alvao all tickets'
+          type: HTTP_AGENT
+          key: 'alvao.all.tickets.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[''@odata.count'']'
+          url: '{$ALVAO.API.URL}/tickets'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '1'
+            - name: $filter
+              value: 'solverId eq ''{$USER.ID}'' and not startswith(processName,''{$ALVAO.CHANGE.PROCESS}'')'
+        - uuid: d59492549f1e45a18910d1e6835502d9
+          name: 'Alvao closed tickets avg per day'
+          type: CALCULATED
+          key: 'alvao.closed.tickets.month.avg.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          value_type: FLOAT
+          units: '/ day'
+          params: 'avg(//alvao.closed.tickets.per.day.max.[{USER.ID}],1d)'
+        - uuid: d5558c0ddcce40999a60196912b8ad19
+          name: 'Alvao closed tickets per day max'
+          type: CALCULATED
+          key: 'alvao.closed.tickets.per.day.max.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          value_type: FLOAT
+          params: 'max(//alvao.today.closed.tickets.[{USER.ID}],1d)'
+        - uuid: 9541595038244a64b26f62d9def6a2d8
+          name: 'Alvao closed tickets raw'
+          type: HTTP_AGENT
+          key: 'alvao.closed.tickets.raw.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          url: '{$ALVAO.API.URL}/tickets'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '50'
+            - name: $filter
+              value: 'solverId eq ''{$USER.ID}'' and (stateName eq ''Closed'' or stateName eq ''Resolved'') and not startswith(processName,''{$ALVAO.CHANGE.PROCESS}'')'
+            - name: $orderby
+              value: 'closedDate desc'
+        - uuid: 0f0025e8b5a946068ccef6f19d9b388d
+          name: 'Alvao closed tickets'
+          type: DEPENDENT
+          key: 'alvao.closed.tickets.[{USER.ID}]'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[''@odata.count'']'
+          master_item:
+            key: 'alvao.closed.tickets.raw.[{USER.ID}]'
+        - uuid: 96a573500ca5413c80221fb23b688a0d
+          name: 'Alvao no resolved tickets filter'
+          type: DEPENDENT
+          key: 'alvao.no.resolved.tickets.filter.[{USER.ID}]'
+          history: 90d
+          value_type: TEXT
+          description: 'Open tickets of this user without activity for more than 7 days (JSON).'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Open tickets whose lastActivityDate is older than 7 days
+                  var data = JSON.parse(value);
+                  var sevenDaysAgo = new Date();
+                  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                  var filtered = (data.value || []).filter(function (record) {
+                    return new Date(record.lastActivityDate) < sevenDaysAgo;
+                  });
+                  return JSON.stringify({ "@odata.count": filtered.length, "value": filtered });
+          master_item:
+            key: 'alvao.open.tickets.raw.[{USER.ID}]'
+        - uuid: 93a77ed17a0e4052b043cb8b8f6354a4
+          name: 'Alvao no resolved tickets'
+          type: DEPENDENT
+          key: 'alvao.no.resolved.tickets.[{USER.ID}]'
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..lastActivityDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  const tenDaysAgo = new Date(today.setDate(today.getDate() - 7));
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date < tenDaysAgo) {
+                      count++;
+                    }
+                  }
+                  
+                  
+                  return count;
+                  
+          master_item:
+            key: 'alvao.open.tickets.raw.[{USER.ID}]'
+        - uuid: 2f4062fb3e314761b8fcead3aaaa79fe
+          name: 'Alvao open change requests raw'
+          type: HTTP_AGENT
+          key: 'alvao.open.change.raw.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          url: '{$ALVAO.API.URL}/tickets'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '100'
+            - name: $filter
+              value: 'solverId eq ''{$USER.ID}'' and stateName ne ''Closed'' and stateName ne ''Deleted'' and stateName ne ''Resolved'' and startswith(processName,''{$ALVAO.CHANGE.PROCESS}'')'
+            - name: $orderby
+              value: 'createdDate desc'
+        - uuid: 1ffc274c20e74dca87d6b2a718dbf33c
+          name: 'Alvao open change requests'
+          type: DEPENDENT
+          key: 'alvao.open.change.[{USER.ID}]'
+          history: 90d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var m = value.match(/"@odata\.count"\s*:\s*(\d+)/);
+                  if (m) {
+                      return m[1];
+                  }
+                  try {
+                      var data = JSON.parse(value);
+                      if (Array.isArray(data.value)) {
+                          return data.value.length;
+                      }
+                  } catch (e) {}
+                  return 0;
+          master_item:
+            key: 'alvao.open.change.raw.[{USER.ID}]'
+        - uuid: 4147e5e6ebcc428da10c74e28ea2d951
+          name: 'Alvao open tickets raw'
+          type: HTTP_AGENT
+          key: 'alvao.open.tickets.raw.[{USER.ID}]'
+          delay: 15m
+          history: 90d
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$API_USER}'
+          password: '{$API_PASS}'
+          url: '{$ALVAO.API.URL}/tickets'
+          query_fields:
+            - name: $count
+              value: 'true'
+            - name: $top
+              value: '100'
+            - name: $filter
+              value: 'solverId eq ''{$USER.ID}'' and stateName ne ''Closed'' and stateName ne ''Deleted'' and stateName ne ''Resolved'' and not startswith(processName,''{$ALVAO.CHANGE.PROCESS}'')'
+            - name: $orderby
+              value: 'createdDate desc'
+        - uuid: 19727647f70741d48b2489e3409c8ae9
+          name: 'Alvao open tickets'
+          type: DEPENDENT
+          key: 'alvao.open.tickets.[{USER.ID}]'
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[''@odata.count'']'
+          master_item:
+            key: 'alvao.open.tickets.raw.[{USER.ID}]'
+        - uuid: cf6238fe7e18427c8a22c36e6b1787c6
+          name: 'Alvao today closed tickets 15m ago'
+          type: DEPENDENT
+          key: 'alvao.today.closed.tickets.15m[{USER.ID}]'
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..closedDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  const fifteenMinutesAgo = new Date(today.getTime() - 15 * 60 * 1000);
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date.getTime() > fifteenMinutesAgo.getTime()) {
+                      count++;
+                    }
+                  }
+                  
+                  return count;
+                  
+                  
+          master_item:
+            key: 'alvao.closed.tickets.raw.[{USER.ID}]'
+        - uuid: a0f5bd5e2fff4a75abd4fa820d18b142
+          name: 'Alvao today closed tickets'
+          type: DEPENDENT
+          key: 'alvao.today.closed.tickets.[{USER.ID}]'
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..closedDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date.getDate() == today.getDate() && date.getMonth() == today.getMonth() && date.getFullYear() == today.getFullYear()) {
+                      count++;
+                    }
+                  }
+                  
+                  return count;
+                  
+          master_item:
+            key: 'alvao.closed.tickets.raw.[{USER.ID}]'
+        - uuid: 35eeef6a7f8343f99541a74e9f8cb42d
+          name: 'Alvao today new tickets 15m ago'
+          type: DEPENDENT
+          key: 'alvao.today.new.tickets.15m[{USER.ID}]'
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..createdDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  const fifteenMinutesAgo = new Date(today.getTime() - 15 * 60 * 1000);
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date.getTime() > fifteenMinutesAgo.getTime()) {
+                      count++;
+                    }
+                  }
+                  
+                  return count;
+                  
+                  
+          master_item:
+            key: 'alvao.open.tickets.raw.[{USER.ID}]'
+        - uuid: 2aeb9891fad44c249768cba8dcf41f7c
+          name: 'Alvao today new tickets'
+          type: DEPENDENT
+          key: 'alvao.today.new.tickets.[{USER.ID}]'
+          history: 90d
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $..createdDate
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  const dateArray = JSON.parse(value);
+                  count = 0;
+                  const today = new Date();
+                  
+                  for (i = 0; i < dateArray.length; i++) {
+                    const date = new Date(dateArray[i]);
+                    if (date.getDate() == today.getDate() && date.getMonth() == today.getMonth() && date.getFullYear() == today.getFullYear()) {
+                      count++;
+                    }
+                  }
+                  
+                  return count;
+                  
+          master_item:
+            key: 'alvao.open.tickets.raw.[{USER.ID}]'
+      macros:
+        - macro: '{$ALVAO.API.URL}'
+          value: 'https://alvao.example.com/AlvaoRestApi/v1'
+          description: 'ALVAO REST API base URL'
+        - macro: '{$ALVAO.CHANGE.PROCESS}'
+          value: 'Request for change'
+          description: 'Process name (prefix) of change requests, counted separately from tickets'
+        - macro: '{$ALVAO.SERVICE.PREFIX}'
+          value: 'IT'
+          description: 'Service name prefix of the tickets counted as unassigned team tickets'
+        - macro: '{$ALVAO.USERS.FILTER}'
+          value: 'startswith(department,''IT'') and isDisabled eq false'
+          description: 'OData filter of the users (solvers) to discover'
+        - macro: '{$ALVAO.USERS.MAX}'
+          value: '100'
+          description: 'Maximum number of discovered users'
+        - macro: '{$API_PASS}'
+          type: SECRET_TEXT
+          description: 'ALVAO API password'
+        - macro: '{$API_USER}'
+          value: 'zabbix.api'
+          description: 'ALVAO API user name'
