@@ -38,7 +38,7 @@ When upgrading from a revision containing `TempWarnLowLimit` and `TempWarnUpLimi
 
 ## Monitoring coverage
 
-21 regular items, 9 discovery rules, 39 item prototypes, 10 triggers, 13 trigger prototypes, 2 graph prototypes and 8 bundled value maps, plus monitoring inherited from **ICMP Ping**.
+21 regular items, 9 discovery rules, 41 item prototypes, 10 triggers, 15 trigger prototypes, 2 graph prototypes and 9 bundled value maps, plus monitoring inherited from **ICMP Ping**.
 
 | Discovery rule | Key | Item prototypes |
 |---|---|---|
@@ -50,7 +50,7 @@ When upgrading from a revision containing `TempWarnLowLimit` and `TempWarnUpLimi
 | Processor Enumeration | `ProcEnum` | 1 |
 | Temperature Enumeration | `TempEnum` | 4 |
 | Voltage Table Enumeration | `VoltageTable` | 1 |
-| Disk Volume Enumeration | `VolumeEnum` | 5 |
+| Disk Volume Enumeration | `VolumeEnum` | 7 |
 
 Regular items cover system health, power state, BIOS, iDRAC firmware, model and asset information, RAID controller health, storage health, CMOS battery, power and voltage status. Graph prototypes cover fan speed and temperature.
 
@@ -62,4 +62,5 @@ Regular items cover system health, power state, BIOS, iDRAC firmware, model and 
 - BIOS version changes raise a Warning with the previous and current versions recorded in the event name. Detection follows the daily polling interval and requires two collected values. The problem resolves on the next unchanged sample or can be closed manually after review.
 - Available sensors and storage OIDs depend on hardware and firmware. Investigate unsupported items with `snmpget`/`snmpwalk` from the assigned server/proxy.
 - RAID controller items retain the original fixed controller index; multiple RAID controllers are not discovered.
+- Virtual disk progressive operations are read from `virtualDiskOperationalState` (`1.3.6.1.4.1.674.10892.5.5.1.20.140.1.1.30`) and `virtualDiskProgress` (`...140.1.1.31`) every 5 minutes. A virtual disk stays `Online`/`OK` during these operations, so the state and status triggers do not fire. **Reconstructing** (capacity expansion, RAID level migration) raises a Warning; **Resynching** (consistency check), **Initializing** and **Background init** raise an Information event. Both resolve when the operation ends. On an existing host, run **Execute now** on **Disk Volume Enumeration** after the import, otherwise the new items appear only at the next daily discovery.
 - Temperature monitoring includes readings, sensor status and Critical low/high thresholds from iDRAC. Warning low/high threshold polling and the corresponding comparison triggers are omitted because those OIDs are unavailable on the reported device. The sensor-status alert remains enabled.
