@@ -2,7 +2,7 @@
 
 Zabbix 7.4 template that extends the classic ICMP ping. Inspired by [SmokePing](https://oss.oetiker.ch/smokeping/): instead of a single ping it sends a **batch of ICMP requests at once** (default 10) with `fping` and evaluates **min / avg / max response time, packet loss and jitter (max/min ratio)**. You can see unstable links, not just links that are down.
 
-![Advanced ICMP Ping graph and raw results](screenshot.jpg)
+![Advanced ICMP Ping graph and raw results](files/screenshot.jpg)
 
 ## ✨ Highlights
 
@@ -16,8 +16,8 @@ Zabbix 7.4 template that extends the classic ICMP ping. Inspired by [SmokePing](
 | File | Description |
 |------|-------------|
 | `template_advanced_icmp_ping.yaml` | Zabbix **7.4** export with the template `Module advanced ICMP Ping` |
-| `Advanced_ping.sh` | External script that runs `fping` |
-| `legacy/advanced_ping_zabbix5.0.xml` | Original template for **Zabbix 5.0** (no longer maintained) |
+| `files/Advanced_ping.sh` | External script that runs `fping` |
+| [`../5.0/template_advanced_icmp_ping.xml`](../5.0/template_advanced_icmp_ping.xml) | Original template for **Zabbix 5.0** (no longer maintained) |
 
 ### `Module advanced ICMP Ping`
 
@@ -52,7 +52,7 @@ The warnings depend on *Unavailable by ICMP ping*, so when the host is down you 
 
 ## Requirements
 
-- Zabbix server / proxy **7.4** or newer (for Zabbix 5.0 use the file in `legacy/`)
+- Zabbix server / proxy **7.4** or newer (for Zabbix 5.0 use the template in [`../5.0/`](../5.0/))
 - `fping` installed on the server / proxy that runs the check
 
 ## Installation
@@ -64,7 +64,7 @@ The warnings depend on *Unavailable by ICMP ping*, so when the host is down you 
    ```
 2. **Copy the script** to the external scripts directory and make it executable:
    ```bash
-   cp Advanced_ping.sh /usr/lib/zabbix/externalscripts/
+   cp files/Advanced_ping.sh /usr/lib/zabbix/externalscripts/
    chmod a+x /usr/lib/zabbix/externalscripts/Advanced_ping.sh
    ```
    The directory is set by `ExternalScripts` in `zabbix_server.conf` / `zabbix_proxy.conf`.
