@@ -15,11 +15,11 @@ Zabbix 7.4 template for monitoring **Microsoft DHCP Server** on Windows Server. 
 | File | Description |
 |------|-------------|
 | `template_microsoft_dhcp_scopes.yaml` | Zabbix **7.4** export with the template `APP Discovery DHCP scopes` |
-| `scripts/DHCPv4ScopesLLD.ps1` | List of scopes (discovery) |
-| `scripts/DHCPv4ScopeStats.ps1` | Statistics of one scope, with failover data |
-| `scripts/DHCPv4SuperScopeStats.ps1` | Statistics of super scopes (discovery) |
-| `zabbix_agentd.conf.d/DHCPv4Scope.conf` | UserParameters for the Zabbix agent |
-| `legacy/` | Original templates for **Zabbix 5.2** (no longer maintained) |
+| `files/scripts/DHCPv4ScopesLLD.ps1` | List of scopes (discovery) |
+| `files/scripts/DHCPv4ScopeStats.ps1` | Statistics of one scope, with failover data |
+| `files/scripts/DHCPv4SuperScopeStats.ps1` | Statistics of super scopes (discovery) |
+| `files/zabbix_agentd.conf.d/DHCPv4Scope.conf` | UserParameters for the Zabbix agent |
+| [`../5.2/template_microsoft_dhcp_scopes.xml`](../5.2/template_microsoft_dhcp_scopes.xml) | Original templates `APP Discovery DHCP scopes` and `Micrososft DHCP` for **Zabbix 5.2** (no longer maintained) |
 
 ### `APP Discovery DHCP scopes` (link to the DHCP server host)
 
@@ -45,7 +45,7 @@ Each scope and super scope also gets its own graph.
 
 ## Requirements
 
-- Zabbix server / proxy **7.4** or newer (for Zabbix 5.2 use the files in `legacy/`)
+- Zabbix server / proxy **7.4** or newer (for Zabbix 5.2 use the template in [`../5.2/`](../5.2/))
 - Windows Server 2012 or newer with the DHCP Server role and the `DhcpServer` PowerShell module (installed with the role)
 - Zabbix agent or Zabbix agent 2 in **active** mode, running as Local System (or an account that can read DHCP statistics)
 
