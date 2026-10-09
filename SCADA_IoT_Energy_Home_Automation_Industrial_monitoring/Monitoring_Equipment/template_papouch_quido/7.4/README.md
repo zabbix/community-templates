@@ -13,7 +13,7 @@ Zabbix 7.4 template for monitoring **Papouch Quido** Ethernet I/O modules over S
 | File | Description |
 |------|-------------|
 | `template_papouch_quido.yaml` | Zabbix **7.4** export with the template `HW Quido` |
-| `legacy/quido_papouch_zabbix5.0.xml` | Original template for **Zabbix 5.0** (no longer maintained) |
+| [`../5.0/template_papouch_quido.xml`](../5.0/template_papouch_quido.xml) | Original template for **Zabbix 5.0** (no longer maintained) |
 
 ### `HW Quido` (link to the Quido host)
 
@@ -49,7 +49,7 @@ All triggers depend on *HOST DOWN*, so when Quido is unreachable you only get on
 
 ## Requirements
 
-- Zabbix server / proxy **7.4** or newer (for Zabbix 5.0 use the file in `legacy/`)
+- Zabbix server / proxy **7.4** or newer (for Zabbix 5.0 use the template in [`../5.0/`](../5.0/))
 - SNMP enabled on Quido, reachable from the Zabbix server / proxy
 - `fping` installed on the server / proxy (ICMP items)
 
