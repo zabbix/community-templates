@@ -8,7 +8,7 @@ Access points managed by the controller are discovered automatically, with statu
 | File | Description |
 |------|-------------|
 | `template_zyxel_wlc_discovery.yaml` | Zabbix **7.4** export with the template `HW Zyxel WLC Discovery` |
-| `legacy/Zyxel_NXC5500_WLC_zabbix5.2.xml` | Original template for **Zabbix 5.2** (no longer maintained) |
+| [`../5.2/template_zyxel_wlc_discovery.xml`](../5.2/template_zyxel_wlc_discovery.xml) | Original template for **Zabbix 5.2** (no longer maintained) |
 
 ### `HW Zyxel WLC Discovery` (link to the WLC host)
 
