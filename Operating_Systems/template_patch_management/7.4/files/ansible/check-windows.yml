@@ -1,0 +1,120 @@
+---
+# ----------------------------------------------------------------------------
+# Check only (no updates are installed) - Windows
+#
+# Installs the check script zbx-patch-windows.ps1 on Windows hosts, schedules it and runs it,
+# so Zabbix (template 'APP Patch management all OS') gets the update status of the hosts:
+#   1. downloads the script from this repository (on the controller, the hosts don't need internet)
+#   2. installs it to <Zabbix agent folder>\scripts and runs it by Task Scheduler
+#      (task "Zabbix patch check", SYSTEM) every 12 hours (+/- 30 min per host)
+#   3. runs the check now and shows its output (pending updates, reboot, zabbix_sender result)
+#
+# Use it when you only want the reporting (updates are installed by WSUS, SCCM, Intune, another
+# tool or by hand), or to run the check more often than the install job. To install the updates
+# as well, use patch-and-report.yml.
+#
+#   ansible-playbook -i inventory.ini ansible/check-windows.yml
+#   ansible-playbook -i inventory.ini ansible/check-windows.yml -e zabbix_check_interval_hours=4
+#
+# Optional extra-vars:
+#   target=windows_web                (inventory group / host, default: windows)
+#   zabbix_check_interval_hours=6     (interval in hours, a divisor of 24, default: 12)
+#   zabbix_check_run=false            (install only, don't run the check now)
+#
+# Requirements: collection ansible.windows; Zabbix agent 2 (or agent) with zabbix_sender.exe on the hosts
+#
+# Author : Dusan Priechodsky
+# Source : https://github.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux
+# Contact: info@duprtech.sk
+# License: MIT
+# ----------------------------------------------------------------------------
+- name: Install Zabbix patch check (Windows)
+  hosts: "{{ target | default('windows') }}"
+  gather_facts: false
+
+  vars:
+    zabbix_agent_dirs:
+      - 'C:\Program Files\Zabbix Agent 2'
+      - 'C:\Program Files\Zabbix Agent'
+    zabbix_check_script_url: https://raw.githubusercontent.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux/main/scripts/zbx-patch-windows.ps1
+    zabbix_check_interval_hours: 12
+    # Per-host offset -30..+30 min around the planned time (stable for a host, spreads the load)
+    zabbix_check_offset: "{{ (61 | random(seed=inventory_hostname)) - 30 }}"
+    zabbix_check_task_name: Zabbix patch check
+    zabbix_check_run: true
+
+  tasks:
+    # A url lookup runs inside Ansible on the controller and needs no connection, so the WinRM
+    # settings of the Windows hosts don't matter (a task delegated to localhost would use them)
+    - name: Download the check script (on the controller)
+      ansible.builtin.set_fact:
+        zbx_check_script_content: "{{ lookup('ansible.builtin.url', zabbix_check_script_url, split_lines=false) }}"
+
+    - name: Find the Zabbix agent (zabbix_sender.exe, config)
+      ansible.windows.win_shell: |
+        $dirs = @('{{ zabbix_agent_dirs | join("', '") }}')
+        $dir  = $dirs | Where-Object { Test-Path (Join-Path $_ 'zabbix_sender.exe') } | Select-Object -First 1
+        if (-not $dir) { '{}'; exit 0 }
+        $conf = Get-ChildItem $dir -Filter 'zabbix_agent*.conf' | Select-Object -First 1
+        [pscustomobject]@{
+            dir    = $dir
+            sender = Join-Path $dir 'zabbix_sender.exe'
+            conf   = if ($conf) { $conf.FullName } else { '' }
+            script = Join-Path $dir 'scripts\zbx-patch-windows.ps1'
+        } | ConvertTo-Json -Compress
+      register: zbx_agent_probe
+      changed_when: false
+
+    - name: Save the Zabbix agent paths
+      ansible.builtin.set_fact:
+        zbx_win: "{{ zbx_agent_probe.stdout | default('{}', true) | from_json }}"
+
+    - name: Fail if the Zabbix agent was not found
+      ansible.builtin.fail:
+        msg: "zabbix_sender.exe not found in {{ zabbix_agent_dirs | join(', ') }} - install the Zabbix agent first"
+      when: zbx_win.dir is not defined
+
+    - name: Scripts folder
+      ansible.windows.win_file:
+        path: "{{ zbx_win.dir }}\\scripts"
+        state: directory
+
+    - name: Install the check script
+      ansible.windows.win_copy:
+        content: "{{ zbx_check_script_content }}"
+        dest: "{{ zbx_win.script }}"
+
+    - name: Task Scheduler - run the check script every {{ zabbix_check_interval_hours }} h
+      ansible.windows.win_shell: |
+        $name   = '{{ zabbix_check_task_name }}'
+        $arg    = '-NoProfile -ExecutionPolicy Bypass -File "{{ zbx_win.script }}" -SenderPath "{{ zbx_win.sender }}" -ConfigPath "{{ zbx_win.conf }}"'
+        $offset = {{ zabbix_check_offset | int }}
+        $minute = (($offset % 60) + 60) % 60
+        $hours  = @(0..23 | Where-Object { $_ % {{ zabbix_check_interval_hours | int }} -eq 0 })
+
+        $t = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+        if ($t -and $t.Actions[0].Arguments -eq $arg -and $t.Triggers.Count -eq $hours.Count -and
+            ([datetime]$t.Triggers[0].StartBoundary).Minute -eq $minute) { 'unchanged'; exit 0 }
+
+        $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
+        $triggers  = foreach ($h in $hours) { New-ScheduledTaskTrigger -Daily -At (Get-Date).Date.AddHours($h).AddMinutes($offset) }
+        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+        $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+        Register-ScheduledTask -TaskName $name -Action $action -Trigger $triggers -Principal $principal -Settings $settings -Force | Out-Null
+        'changed'
+      register: zbx_task
+      changed_when: zbx_task.stdout | trim == 'changed'
+
+    - name: Run the check script (the update search can take a few minutes)
+      ansible.windows.win_shell: >-
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{ zbx_win.script }}"
+        -SenderPath "{{ zbx_win.sender }}" -ConfigPath "{{ zbx_win.conf }}"
+      register: zbx_check_run
+      changed_when: false
+      failed_when: false
+      when: zabbix_check_run | bool
+
+    - name: Check script result
+      ansible.builtin.debug:
+        msg: "{{ zbx_check_run.stdout_lines | default([]) + zbx_check_run.stderr_lines | default([]) }}"
+      when: zabbix_check_run | bool
