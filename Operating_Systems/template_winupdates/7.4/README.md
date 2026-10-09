@@ -1,10 +1,10 @@
 # Legacy: Windows Update template `APP Winupdates check`
 
 > ⚠️ **This is the original Windows only template.** For new installations use the OS independent template
-> [`APP Patch management all OS`](../README.md) (Windows and Linux, the same keys, host dashboard included).
-> This folder is kept for existing installations.
+> [`APP Patch management all OS`](../../template_patch_management/7.4/README.md) (Windows and Linux, the same keys, host dashboard included).
+> This template is kept for existing installations.
 
-![Example Zabbix patch management dashboard](screen.png)
+![Example Zabbix patch management dashboard](files/screen.png)
 
 *Example global dashboard built from the data of this template: all hosts with pending updates by category, reboot needed, WSUS status, last check, last install run and result; totals, servers with / without updates over a year, average uptime. The screenshot is anonymized, the dashboard is not part of the template.*
 
@@ -13,7 +13,7 @@
 | File | Description |
 |------|-------------|
 | `template_winupdates.yaml` | Zabbix **7.4** export with the template `APP Winupdates check` |
-| `scripts/zbx-windows-updates.ps1` | Windows check script (PowerShell, Windows Update Agent API) |
+| `files/scripts/zbx-windows-updates.ps1` | Windows check script (PowerShell, Windows Update Agent API) |
 
 ## Items
 
@@ -36,7 +36,7 @@ Triggers: critical updates (High), security updates (Warning), reboot required (
 
 1. Import `template_winupdates.yaml` (*Data collection → Templates → Import*) and link `APP Winupdates check` to Windows hosts.
 2. Check the macros, mainly `{$WU.TIMEZONE}`.
-3. Copy `scripts/zbx-windows-updates.ps1` to `C:\Program Files\Zabbix Agent 2\scripts\` and choose how the check runs:
+3. Copy `files/scripts/zbx-windows-updates.ps1` to `C:\Program Files\Zabbix Agent 2\scripts\` and choose how the check runs:
    - **Zabbix agent**: add `AllowKey=system.run[*]` to `zabbix_agent2.conf` and restart the agent. The item *WU - Run update check* starts the script (every 12 h, and every 3 h on working days 07:00–17:00).
    - **Task Scheduler**: disable the item *WU - Run update check* and create a task, for example:
      ```powershell
@@ -46,7 +46,7 @@ Triggers: critical updates (High), security updates (Warning), reboot required (
 
 Script parameters: `-SenderPath`, `-ConfigPath` (agent config with `Hostname` and `ServerActive`), optionally `-ZabbixServer` and `-HostName`.
 
-The Ansible playbook [`ansible/patch-and-report.yml`](../ansible/patch-and-report.yml) sends the install results to this template with `-e zabbix_keys=legacy` (or `both` during the migration to the new template).
+The Ansible playbook [`files/ansible/patch-and-report.yml`](../../template_patch_management/7.4/files/ansible/patch-and-report.yml) sends the install results to this template with `-e zabbix_keys=legacy` (or `both` during the migration to the new template).
 
 ## Macros
 
