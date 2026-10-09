@@ -112,10 +112,6 @@ I'm adding more tools and templates over time, so feel free to [follow me on Git
 
 Thanks to [KLESYS](https://github.com/KLESYS) for improvements to the documentation.
 
-## License
-
-[MIT](LICENSE)
-
 ## More scripts, improvements and frequent updates
 
 This folder holds a snapshot of the template. **More scripts, improvements and frequent updates are on my GitHub:**
