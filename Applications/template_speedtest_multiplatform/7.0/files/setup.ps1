@@ -46,6 +46,10 @@ param(
     [string]$Schedule = "Hourly",
 
     [Parameter()]
+    [ValidateSet("Auto", "JA", "EN")]
+    [string]$Language = "Auto",
+
+    [Parameter()]
     [string]$ZabbixUrl = "",
 
     [Parameter()]
@@ -132,7 +136,8 @@ if (-not [string]::IsNullOrWhiteSpace($ZabbixUrl) -and -not [string]::IsNullOrWh
     $importArgs = @(
         "-ZabbixUrl", $ZabbixUrl,
         "-ApiToken", $ApiToken,
-        "-LinkToHost", $resolvedHost
+        "-LinkToHost", $resolvedHost,
+        "-Language", $Language
     )
     & (Join-Path $PSScriptRoot "import_template.ps1") @importArgs
 }

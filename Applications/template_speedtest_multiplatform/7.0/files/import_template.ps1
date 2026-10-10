@@ -41,6 +41,10 @@ param(
     [string]$TemplatePath = "",
 
     [Parameter()]
+    [ValidateSet("Auto", "JA", "EN")]
+    [string]$Language = "Auto",
+
+    [Parameter()]
     [string]$LinkToHost = ""
 )
 
@@ -54,7 +58,24 @@ function Write-Log {
 
 # 1. テンプレートファイルの確認
 if ([string]::IsNullOrWhiteSpace($TemplatePath)) {
-    $cand1 = Join-Path $PSScriptRoot "Speedtest.yaml"
+    $selectedTemplateName = "Speedtest.yaml"
+    if ($Language -eq "EN") {
+        $selectedTemplateName = "Speedtest_EN.yaml"
+    } elseif ($Language -eq "JA") {
+        $selectedTemplateName = "Speedtest.yaml"
+    } else {
+        # Auto: カルチャ判定
+        $cultureName = (Get-Culture).Name
+        if ($cultureName -like "ja*") {
+            $selectedTemplateName = "Speedtest.yaml"
+            Write-Log "OS言語 ($cultureName) に基づき、日本語テンプレート ($selectedTemplateName) を選択しました。" "INFO"
+        } else {
+            $selectedTemplateName = "Speedtest_EN.yaml"
+            Write-Log "OS culture ($cultureName): Auto-selected English template ($selectedTemplateName)." "INFO"
+        }
+    }
+
+    $cand1 = Join-Path $PSScriptRoot $selectedTemplateName
     $cand2 = Join-Path (Split-Path $PSScriptRoot -Parent) "template_speedtest_multiplatform.yaml"
     if (Test-Path $cand1 -PathType Leaf) {
         $TemplatePath = $cand1

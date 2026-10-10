@@ -57,6 +57,7 @@ def main():
     parser.add_argument("--url", "-u", required=True, help="Zabbix Web URL (例: http://192.168.1.10/zabbix)")
     parser.add_argument("--token", "-t", required=True, help="Zabbix API Token")
     parser.add_argument("--template", "-f", default="", help="Speedtest.yaml のパス")
+    parser.add_argument("--language", "-l", choices=["auto", "ja", "en", "JA", "EN", "Auto"], default="auto", help="テンプレート言語 (auto, ja, en)")
     parser.add_argument("--link-host", "-s", default="", help="テンプレートをリンクする監視ホスト名")
 
     args = parser.parse_args()
@@ -64,7 +65,21 @@ def main():
     # 1. テンプレートファイル
     template_path = args.template
     if not template_path:
-        cand1 = Path(__file__).parent / "Speedtest.yaml"
+        lang = args.language.lower()
+        if lang == "en":
+            selected_name = "Speedtest_EN.yaml"
+        elif lang == "ja":
+            selected_name = "Speedtest.yaml"
+        else:
+            env_lang = os.environ.get("LANG", "").lower()
+            if "ja" in env_lang:
+                selected_name = "Speedtest.yaml"
+                log(f"環境言語 ({env_lang}) に基づき、日本語テンプレート ({selected_name}) を選択しました。", "INFO")
+            else:
+                selected_name = "Speedtest_EN.yaml"
+                log(f"Detected language ({env_lang or 'default'}): Auto-selected English template ({selected_name}).", "INFO")
+
+        cand1 = Path(__file__).parent / selected_name
         cand2 = Path(__file__).parent.parent / "template_speedtest_multiplatform.yaml"
         if cand1.is_file():
             template_path = str(cand1)

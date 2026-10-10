@@ -13,6 +13,7 @@ log() {
 ZABBIX_SERVER=""
 HOSTNAME=""
 SCHEDULE="hourly"
+LANGUAGE="auto"
 ZABBIX_URL=""
 API_TOKEN=""
 
@@ -24,6 +25,7 @@ Options:
   -z <server>    送信先 Zabbix サーバー (省略時は agentd.conf または 127.0.0.1)
   -s <host>      Zabbix 上の登録ホスト名 (未指定時は conf -> デバイス名 -> SpeedtestHost)
   -c <schedule>  cron 登録間隔: "hourly" (毎時0分), "daily" (毎日深夜0時), "none" (デフォルト: hourly)
+  -l <language>  テンプレート言語: "auto", "ja", "en" (デフォルト: auto)
   -u <url>       テンプレート登録を行う場合の Zabbix Web URL
   -t <token>     テンプレート登録を行う場合の Zabbix API Token
   -h             このヘルプを表示
@@ -34,11 +36,12 @@ EOF
     exit 0
 }
 
-while getopts "z:s:c:u:t:h" opt; do
+while getopts "z:s:c:l:u:t:h" opt; do
     case "$opt" in
         z) ZABBIX_SERVER="$OPTARG" ;;
         s) HOSTNAME="$OPTARG" ;;
         c) SCHEDULE="$OPTARG" ;;
+        l) LANGUAGE="$OPTARG" ;;
         u) ZABBIX_URL="$OPTARG" ;;
         t) API_TOKEN="$OPTARG" ;;
         h) usage ;;
@@ -101,8 +104,8 @@ log "INFO" "DryRun 検証が正常に完了しました。"
 
 # 5. テンプレートのインポート (URL と Token が提供された場合)
 if [ -n "$ZABBIX_URL" ] && [ -n "$API_TOKEN" ]; then
-    log "INFO" "Zabbix サーバーへテンプレートをインポート中..."
-    python3 "$SCRIPT_DIR/import_template.py" -u "$ZABBIX_URL" -t "$API_TOKEN" -s "$RESOLVED_HOST" || true
+    log "INFO" "Zabbix サーバーへテンプレートをインポート中 (言語: $LANGUAGE)..."
+    python3 "$SCRIPT_DIR/import_template.py" -u "$ZABBIX_URL" -t "$API_TOKEN" -s "$RESOLVED_HOST" -l "$LANGUAGE" || true
 fi
 
 # 6. cron への登録
