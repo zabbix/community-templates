@@ -1,0 +1,1017 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: d37f71c7e3f7469bab645852a69a2018
+      name: 'Templates/Video surveillance'
+  host_groups:
+    - uuid: dd7a5394434d444990ffd55dde7faeb5
+      name: Cameras
+    - uuid: ea74a740df264d49a4a61fb23283f7f3
+      name: 'Template UNVIEW NVR'
+  templates:
+    - uuid: e96bc2e2bf394b48a5509bb118b76a54
+      template: 'Template UNV Camera'
+      name: 'Template UNV Camera'
+      description: |
+        Шаблон для обнаруженных камер шаблоном Template UNV NVR
+        Камера получает в макросе {$CHANNEL.NVR} хост регистратора к которму подключена. В макросе {$CHANNEL.ID} указан ID канала на регистраторе.
+        Также из шаблона камера наследует макрос содержащий API token и с его помощью получает из хоста регистратора последние данные опроса регистратора.
+      groups:
+        - name: 'Templates/Video surveillance'
+      items:
+        - uuid: bd7ef547e0964898a6224f59fa2d7ed9
+          name: 'Camera FULL'
+          type: HTTP_AGENT
+          key: camera.full
+          value_type: TEXT
+          description: 'Proxy item получает данные из привязанного регистратора с помощью API Zabbix, т.к. напрямую Zabbix не позволяет этого сделать (В Calculated не раскрывается макрос в имени узла, а Depended не может ссылаться на внешний хост).'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  if (!data.result || !data.result.length) {
+                      return null;
+                  }
+                  var inner = JSON.parse(data.result[0].lastvalue);
+                  if (!inner.channels) {
+                      return null;
+                  }
+                  var channelId = parseInt('{$CHANNEL.ID}');
+                  for (var i = 0; i < inner.channels.length; i++) {
+                      var ch = inner.channels[i];
+                      if (ch.id === channelId) {
+                          return JSON.stringify(ch);
+                      }
+                  }
+                  return null;
+          url: 'http://127.0.0.1/api_jsonrpc.php'
+          post_type: JSON
+          posts: |
+            {
+              "jsonrpc": "2.0",
+              "method": "item.get",
+              "params": {
+                "output": ["lastvalue"],
+                "host": "{$CHANNEL.NVR}",
+                "filter": {
+                  "key_": "nvr.channels.full"
+                }
+              },
+              "id": 1
+            }
+          headers:
+            - name: Authorization
+              value: 'Bearer {$TEMPLATE_UNVIEW_NVR.API_TOKEN}'
+        - uuid: da763e3931124000af9f04ccc2da96ff
+          name: 'Camera MAC address'
+          type: DEPENDENT
+          key: camera.mac
+          value_type: TEXT
+          description: 'MAC адрес камеры'
+          inventory_link: MACADDRESS_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.mac
+          master_item:
+            key: camera.full
+        - uuid: 29c7131c2a554f76b538be4f17e00acf
+          name: 'Camera model'
+          type: DEPENDENT
+          key: camera.model
+          value_type: TEXT
+          description: 'Модель камеры'
+          inventory_link: MODEL
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.model
+          master_item:
+            key: camera.full
+        - uuid: d9ff001ab19541bd8c826bffdb956f5c
+          name: 'Camera serial number'
+          type: DEPENDENT
+          key: camera.sn
+          value_type: TEXT
+          description: 'Серийный номер'
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.serial
+          master_item:
+            key: camera.full
+        - uuid: eda3d52229704fae9ef92d515a610af4
+          name: 'Camera status'
+          type: DEPENDENT
+          key: camera.status
+          history: 365d
+          trends: '0'
+          description: 'Статус камеры'
+          valuemap:
+            name: 'Camera Status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+          master_item:
+            key: camera.full
+          triggers:
+            - uuid: 92aff6759c684a9581bf87b93a010688
+              expression: 'last(/Template UNV Camera/camera.status,#1)<>1'
+              name: 'Camera offline'
+              priority: HIGH
+              manual_close: 'YES'
+        - uuid: 1bd19621187646b5a223870f446d9635
+          name: depend_on_nvr
+          type: SCRIPT
+          key: depend_on_nvr
+          delay: 1d
+          value_type: TEXT
+          params: |
+            // ===== CONFIG =====
+            var ZABBIX_URL = "http://127.0.0.1/api_jsonrpc.php";
+            var TOKEN = "{$TEMPLATE_UNVIEW_NVR.API_TOKEN}";
+            
+            var NVR_TRIGGER_NAME = "Can't update info from NVR";
+            var CAMERA_TRIGGER_NAME = "Camera offline";
+            
+            var params = JSON.parse(value);
+            var cameraHost = params.camera;
+            var nvrHost = "{$CHANNEL.NVR}";
+            
+            
+            // ===== HTTP =====
+            function api(method, prms) {
+                var req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                req.addHeader('Authorization: Bearer ' + TOKEN);
+            
+                var payload = {
+                    jsonrpc: "2.0",
+                    method: method,
+                    params: prms,
+                    id: 1
+                };
+            
+                var resp = JSON.parse(req.post(ZABBIX_URL, JSON.stringify(payload)));
+            
+                if (resp.error) {
+                    throw method + " error: " + JSON.stringify(resp.error);
+                }
+            
+                return resp;
+            }
+            
+            // ===== 1. camera =====
+            var cam = api("host.get", {
+                filter: { host: cameraHost },
+                output: ["hostid"]
+            });
+            
+            if (!cam.result || !cam.result.length) {
+                return "Camera not found: " + cameraHost;
+            }
+            
+            var camHostId = cam.result[0].hostid;
+            
+            // ===== 2. nvr =====
+            var nvr = api("host.get", {
+                filter: { host: nvrHost },
+                output: ["hostid"]
+            });
+            
+            if (!nvr.result || !nvr.result.length) {
+                return "NVR not found: " + nvrHost;
+            }
+            
+            var nvrHostId = nvr.result[0].hostid;
+            
+            // ===== 3. camera trigger =====
+            var camTrig = api("trigger.get", {
+                hostids: camHostId,
+                filter: { description: CAMERA_TRIGGER_NAME },
+                output: ["triggerid"]
+            });
+            
+            if (!camTrig.result || !camTrig.result.length) {
+                return "Camera trigger not found";
+            }
+            
+            var camTrigId = camTrig.result[0].triggerid;
+            
+            // ===== 4. nvr trigger =====
+            var nvrTrig = api("trigger.get", {
+                hostids: nvrHostId,
+                filter: { description: NVR_TRIGGER_NAME },
+                output: ["triggerid"]
+            });
+            
+            if (!nvrTrig.result || !nvrTrig.result.length) {
+                return "NVR trigger not found";
+            }
+            
+            var nvrTrigId = nvrTrig.result[0].triggerid;
+            
+            // ===== 5. check current dependency =====
+            var depsResp = api("trigger.get", {
+                triggerids: camTrigId,
+                selectDependencies: "extend",
+                output: ["triggerid"]
+            });
+            
+            var currentDeps = [];
+            var alreadySet = false;
+            
+            if (depsResp.result &&
+                depsResp.result.length &&
+                depsResp.result[0].dependencies) {
+            
+                for (var i = 0; i < depsResp.result[0].dependencies.length; i++) {
+                    var depId = depsResp.result[0].dependencies[i].triggerid;
+            
+                    currentDeps.push({ triggerid: depId });
+            
+                    if (depId == nvrTrigId) {
+                        alreadySet = true;
+                    }
+                }
+            }
+            
+            // ===== 6. if already correct dependency =====
+            if (alreadySet && currentDeps.length === 1) {
+                return "OK: dependency already set to NVR";
+            }
+            
+            // ===== 7. if no dependency → set ONLY NVR =====
+            if (!alreadySet) {
+                currentDeps = [{ triggerid: nvrTrigId }];
+            
+                var res = api("trigger.update", {
+                    triggerid: camTrigId,
+                    dependencies: currentDeps
+                });
+            
+                return "CREATED";
+            }
+            
+            return "OK";
+          description: 'Устанавливает зависимость триггера камеры от NVR'
+          timeout: 30s
+          parameters:
+            - name: camera
+              value: '{HOST.HOST}'
+      macros:
+        - macro: '{$CHANNEL.NVR}'
+        - macro: '{$TEMPLATE_UNVIEW_NVR.API_TOKEN}'
+          type: SECRET_TEXT
+          description: 'Токен для запроса значений item из master NVR'
+      valuemaps:
+        - uuid: fd2c9e6826394dca8871e61f0cf53b7e
+          name: 'Camera Status'
+          mappings:
+            - value: '0'
+              newvalue: Offline
+            - value: '1'
+              newvalue: Online
+            - value: '2'
+              newvalue: Idle
+    - uuid: 909fba9e417d4876a2b35fdcaab7ca48
+      template: 'Template UNV NVR'
+      name: 'Template UNV NVR'
+      description: 'Uniview NVR monitoring via LightAPI v4.00 with digest authentication, camera discovery, and inventory tracking.'
+      groups:
+        - name: 'Templates/Video surveillance'
+      items:
+        - uuid: 3f4f4af659674891b81f6f7136dd27de
+          name: map_update
+          type: SCRIPT
+          key: map_update
+          delay: 1d
+          value_type: TEXT
+          params: |
+            // ===== CONFIG =====
+            var ZABBIX_URL = "http://127.0.0.1/api_jsonrpc.php";
+            var TOKEN = "{$TEMPLATE_UNVIEW_NVR.API_TOKEN}";
+            
+            var CAMERA_ICON = "{$CAMERA.ICON.DEFAULT}";
+            var NVR_ICON = "{$NVR.ICON.DEFAULT}";
+            
+            var START_X = 43;
+            var START_Y = 93;
+            var STEP_X = 100;
+            var STEP_Y = 100;
+            var PER_ROW = 8;
+            
+            var NVR_X = 11;
+            var NVR_Y = 8;
+            
+            // ===== INPUT =====
+            var params = JSON.parse(value);
+            var nvrHost = params.nvr;
+            
+            // ===== API =====
+            function api(method, prms) {
+                var req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                req.addHeader('Authorization: Bearer ' + TOKEN);
+            
+                var resp = JSON.parse(req.post(ZABBIX_URL, JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: method,
+                    params: prms,
+                    id: 1
+                })));
+            
+                if (resp.error) {
+                    throw method + " error: " + JSON.stringify(resp.error);
+                }
+            
+                return resp.result;
+            }
+            
+            // ===== LOG =====
+            var changeLog = [];
+            
+            // ===== 1. GET NVR =====
+            var nvr = api("host.get", {
+                filter: { host: nvrHost },
+                output: ["hostid", "host"]
+            });
+            
+            if (!nvr.length) {
+                return "ERROR: NVR not found " + nvrHost;
+            }
+            
+            var nvrHostId = nvr[0].hostid;
+            
+            // ===== 2. MAP =====
+            var maps = api("map.get", {
+                filter: { name: nvrHost },
+                selectSelements: "extend"
+            });
+            
+            var mapId;
+            var existingElements = [];
+            var mapCreated = false;
+            
+            if (!maps.length) {
+            
+                var created = api("map.create", {
+                    name: nvrHost,
+                    width: 850,
+                    height: 500
+                });
+            
+                mapId = created.sysmapids[0];
+                mapCreated = true;
+            
+                changeLog.push("Map created");
+            
+            } else {
+                mapId = maps[0].sysmapid;
+                existingElements = maps[0].selements || [];
+            }
+            
+            // ===== 3. HOSTS =====
+            var hosts = api("host.get", {
+                output: ["hostid", "host"],
+                selectMacros: "extend"
+            });
+            
+            // ===== 4. CAMERAS =====
+            var cameras = [];
+            
+            for (var i = 0; i < hosts.length; i++) {
+                var h = hosts[i];
+                if (!h.macros) continue;
+            
+                var ok = false;
+                var channel = null;
+            
+                for (var m = 0; m < h.macros.length; m++) {
+                    var mac = h.macros[m];
+            
+                    if (mac.macro == "{$CHANNEL.NVR}" && mac.value == nvrHost) ok = true;
+                    if (mac.macro == "{$CHANNEL.ID}") channel = parseInt(mac.value);
+                }
+            
+                if (ok && channel) {
+                    cameras.push({
+                        hostid: h.hostid,
+                        host: h.host,
+                        channel: channel
+                    });
+                }
+            }
+            
+            // ===== 5. STATE MAP =====
+            var desired = {};
+            for (var i = 0; i < cameras.length; i++) {
+                desired[cameras[i].hostid] = true;
+            }
+            
+            // ===== 6. CURRENT STATE =====
+            var current = {};
+            var hasNVR = false;
+            
+            for (var i = 0; i < existingElements.length; i++) {
+                var e = existingElements[i];
+            
+                if (e.elements && e.elements.length) {
+                    var hid = e.elements[0].hostid;
+            
+                    if (hid == nvrHostId) hasNVR = true;
+                    if (desired[hid]) current[hid] = true;
+                }
+            }
+            
+            // ===== 7. PRESERVE NON-CAMERA ELEMENTS =====
+            var preserved = [];
+            
+            for (var i = 0; i < existingElements.length; i++) {
+                var e = existingElements[i];
+            
+                delete e.permission;
+            
+                if (e.elements && e.elements.length) {
+                    var hid = e.elements[0].hostid;
+            
+                    // remove old cameras only
+                    if (!desired[hid]) {
+                        preserved.push(e);
+                    }
+            
+                } else {
+                    preserved.push(e);
+                }
+            }
+            
+            // ===== 8. NVR ADD =====
+            if (!hasNVR) {
+                changeLog.push("NVR added to map");
+            
+                preserved.push({
+                    elementtype: "0",
+                    elements: [{ hostid: nvrHostId }],
+                    iconid_off: NVR_ICON,
+                    iconid_on: NVR_ICON,
+                    iconid_maintenance: "0",
+                    iconid_disabled: "0",
+                    x: NVR_X,
+                    y: NVR_Y,
+                    label: "{HOST.HOST}\n{HOST.CONN}",
+                    label_location: "-1",
+                    show_label: "1",
+                    use_iconmap: "0",
+                    zindex: 1,
+                    urls: [],
+                    tags: []
+                });
+            }
+            
+            // ===== 9. BUILD CAMERAS =====
+            var cameraElements = [];
+            
+            for (var i = 0; i < cameras.length; i++) {
+            
+                var ch = cameras[i].channel - 1;
+                var col = ch % PER_ROW;
+                var row = Math.floor(ch / PER_ROW);
+            
+                cameraElements.push({
+                    elementtype: "0",
+                    elements: [{ hostid: cameras[i].hostid }],
+                    iconid_off: CAMERA_ICON,
+                    iconid_on: CAMERA_ICON,
+                    iconid_maintenance: "0",
+                    iconid_disabled: "0",
+                    x: START_X + col * STEP_X,
+                    y: START_Y + row * STEP_Y,
+                    label: "{HOST.HOST}\n{HOST.IP}",
+                    label_location: "-1",
+                    show_label: "1",
+                    use_iconmap: "0",
+                    zindex: 0,
+                    urls: [],
+                    tags: []
+                });
+            
+                if (!current[cameras[i].hostid]) {
+                    changeLog.push("Camera added: " + cameras[i].host);
+                }
+            }
+            
+            // ===== 10. REMOVALS =====
+            for (var i = 0; i < existingElements.length; i++) {
+                var e = existingElements[i];
+            
+                if (e.elements && e.elements.length) {
+                    var hid = e.elements[0].hostid;
+            
+                    if (hid != nvrHostId && !desired[hid]) {
+                        changeLog.push("Camera removed hostid=" + hid);
+                    }
+                }
+            }
+            
+            // ===== 11. NO CHANGES =====
+            if (changeLog.length === 0) {
+                return "No changes";
+            }
+            
+            // ===== 12. UPDATE MAP =====
+            api("map.update", {
+                sysmapid: mapId,
+                selements: preserved.concat(cameraElements)
+            });
+            
+            // ===== OUTPUT =====
+            return changeLog.join("\n");
+          description: 'Создаёт и обновляет карту регистратора, добавляет только актуальные камеры. Если камера переехала на другой регистратор или удалена - удаляет с карты.'
+          parameters:
+            - name: nvr
+              value: '{HOST.HOST}'
+          triggers:
+            - uuid: 58f12dcc2ced48abb058658b9fa4eec4
+              expression: |
+                last(/Template UNV NVR/map_update)<>"No changes"
+                and
+                change(/Template UNV NVR/map_update)<>0
+              recovery_mode: NONE
+              name: 'Map changed'
+              event_name: 'Map changed: {ITEM.LASTVALUE}'
+              priority: WARNING
+              manual_close: 'YES'
+        - uuid: e100e9c5bb9e4f9ab58eec8a348da6d8
+          name: 'Status Code'
+          type: DEPENDENT
+          key: nvr.auth.status
+          trends: '0'
+          description: |
+            Код результата:
+            0 - OK
+            50801 - wrong user name\password
+          valuemap:
+            name: 'Status code'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.StatusCode
+          master_item:
+            key: nvr.device.raw
+          triggers:
+            - uuid: 3e46af3a373e42b5a8cfb64a25cef494
+              expression: 'last(/Template UNV NVR/nvr.auth.status)<>0'
+              name: 'Can''t update info from NVR'
+              priority: HIGH
+              description: 'Не удалось получить данные, возможно неверный логин или пароль.'
+        - uuid: 7bf8ffedbdfb4acb85d8c104c293e235
+          name: 'Channels FULL'
+          type: SCRIPT
+          key: nvr.channels.full
+          history: 7d
+          value_type: TEXT
+          params: |
+            var params = JSON.parse(value);
+            
+            var host_host = params.host_host;
+            var host_conn = params.host_conn;
+            var cam_group = params.camera_group;
+            var schema    = params.schema;
+            var username  = params.user;
+            var password  = params.pass;
+            
+            var baseUrl = schema + "://" + host_conn;
+            
+            // --- safe getter ---
+            function safe(val, def) {
+                return (val !== undefined && val !== null) ? val : def;
+            }
+            
+            // --- HTTP helper ---
+            function httpGet(url) {
+                var req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                req.setHttpAuth(HTTPAUTH_DIGEST, username, password);
+            
+                var resp = req.get(url);
+            
+                if (req.getStatus() != 200) {
+                    throw "HTTP error " + req.getStatus() + " URL: " + url;
+                }
+            
+                return JSON.parse(resp);
+            }
+            
+            // --- unwrap UNV response ---
+            function unwrap(resp, name) {
+                if (!resp.Response) {
+                    throw name + ": no Response field";
+                }
+            
+                if (resp.Response.ResponseCode !== 0) {
+                    throw name + ": API error " + JSON.stringify(resp.Response);
+                }
+            
+                if (!resp.Response.Data) {
+                    throw name + ": no Data field";
+                }
+            
+                return resp.Response.Data;
+            }
+            
+            // --- запросы ---
+            var deviceRaw = httpGet(baseUrl + "/LAPI/V1.0/Channels/System/DeviceInfos");
+            var detailRaw = httpGet(baseUrl + "/LAPI/V1.0/Channels/System/ChannelDetailInfos");
+            
+            // --- нормализация ---
+            var deviceData = unwrap(deviceRaw, "DeviceInfos");
+            var detailData = unwrap(detailRaw, "DetailInfos");
+            
+            var deviceInfos = deviceData.DeviceInfos;
+            var detailInfos = detailData.DetailInfos;
+            
+            if (!deviceInfos || !detailInfos) {
+                throw "Invalid API structure";
+            }
+            
+            // --- индекс устройств ---
+            var devices = {};
+            for (var i = 0; i < deviceInfos.length; i++) {
+                devices[deviceInfos[i].ID] = deviceInfos[i];
+            }
+            
+            // --- объединение ---
+            var result = [];
+            
+            for (var j = 0; j < detailInfos.length; j++) {
+                var ch = detailInfos[j];
+                var dev = devices[ch.ID];
+                
+                if (!dev) continue;
+            
+            	var addr = ch.AddressInfo || {};
+                
+                result.push({
+                    // --- ID ---
+                    id: ch.ID,
+                    nvr: host_host,
+                    camera_group: cam_group, 
+            
+                    // --- DeviceInfos ---
+                    device_name: safe(dev.DeviceName, ""),
+                    device_type: safe(dev.DeviceType, ""),
+                    device_code: safe(dev.DeviceCode, ""),
+                    model: safe(dev.DeviceModel, ""),
+                    serial: safe(dev.SerialNumber, ""),
+                    firmware: safe(dev.FirmwareVersion, ""),
+                    hardware_id: safe(dev.HardwareID, ""),
+                    uboot: safe(dev.UbootVersion, ""),
+            
+                    // --- DetailInfos ---
+                    //name: safe(ch.Name, ""),
+                    status: safe(ch.Status, -1),
+            
+                    poe: safe(ch.IsPoEPort, ""),
+                    poe_status: safe(ch.PoEStatus, ""),
+                    streams: safe(ch.StreamNums, ""),
+            
+                    off_reason: safe(ch.OffReason, ""),
+                    remote_index: safe(ch.RemoteIndex, ""),
+            
+                    gbid: safe(ch.GBID, ""),
+                    add_type: safe(ch.AddType, ""),
+            
+                    protocol: safe(ch.AccessProtocol, ""),
+            
+                    // --- AddressInfo ---
+                    ip: safe(addr.Address, ""),
+                    port: safe(addr.Port, ""),
+                    mac: safe(addr.MAC, ""),
+                    address_type: safe(addr.AddressType, "")
+                });
+            }
+            
+            // --- FULL ---
+            return JSON.stringify({
+                channels: result
+            });
+          description: 'Скрипт собирает информацию с 2х эндпоинтов и создаёт объединенный массив камер.'
+          timeout: 15s
+          parameters:
+            - name: camera_group
+              value: '{$CAMERA.GROUP}'
+            - name: host_conn
+              value: '{HOST.CONN}'
+            - name: host_host
+              value: '{HOST.HOST}'
+            - name: pass
+              value: '{$NVR.PASSWORD}'
+            - name: schema
+              value: '{$NVR.SCHEMA}'
+            - name: user
+              value: '{$NVR.USERNAME}'
+        - uuid: f5721af2ba3f4602b04e9a9c16cb1677
+          name: 'Device Code'
+          type: DEPENDENT
+          key: nvr.device.code
+          trends: '0'
+          description: 'ID устройства'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.DeviceCode
+          master_item:
+            key: nvr.device.raw
+        - uuid: 8d47ce55a86444d083a68d77a8b988cf
+          name: 'Firmware Version'
+          type: DEPENDENT
+          key: nvr.device.firmware
+          value_type: TEXT
+          description: Прошивка
+          inventory_link: OS
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.FirmwareVersion
+          master_item:
+            key: nvr.device.raw
+          triggers:
+            - uuid: 2d7511a834c44a50b33d78e4a2736f9c
+              expression: 'last(/Template UNV NVR/nvr.device.firmware,#1)<>last(/Template UNV NVR/nvr.device.firmware,#2)'
+              recovery_mode: NONE
+              name: 'Firmware version changed'
+              event_name: 'Firmware version changed: {?last(/{HOST.HOST}/nvr.device.firmware,#2)} → {?last(/{HOST.HOST}/nvr.device.firmware,#1)}'
+              priority: INFO
+              type: MULTIPLE
+              manual_close: 'YES'
+        - uuid: 6c6a3b086cec4d0482e346e50a1f0332
+          name: 'Hardware ID'
+          type: DEPENDENT
+          key: nvr.device.hardware
+          value_type: TEXT
+          description: 'Hardware ID (Revision)'
+          inventory_link: HARDWARE
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.HardwareID
+          master_item:
+            key: nvr.device.raw
+        - uuid: 05398810acb74e63b8469fe8eddd31a7
+          name: Manufacturer
+          type: DEPENDENT
+          key: nvr.device.manufacturer
+          value_type: TEXT
+          description: Производитель
+          inventory_link: VENDOR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.Manufacturer
+          master_item:
+            key: nvr.device.raw
+        - uuid: b01bd2cba0364a629a393d01e645ffa0
+          name: 'Device Model'
+          type: DEPENDENT
+          key: nvr.device.model
+          value_type: TEXT
+          description: 'Модель устройства'
+          inventory_link: MODEL
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.DeviceModel
+          master_item:
+            key: nvr.device.raw
+        - uuid: 18c28f59e6264a568461332c19a2e99e
+          name: 'Device Name'
+          type: DEPENDENT
+          key: nvr.device.name
+          value_type: TEXT
+          description: 'Название устройства'
+          inventory_link: NAME
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.DeviceName
+          master_item:
+            key: nvr.device.raw
+          triggers:
+            - uuid: 2f1944e479fc47e687e204a4ab10c462
+              expression: 'last(/Template UNV NVR/nvr.device.name,#1)<>last(/Template UNV NVR/nvr.device.name,#2)'
+              recovery_mode: NONE
+              name: 'Device name changed'
+              event_name: 'Device name changed: {?last(/{HOST.HOST}/nvr.device.name,#2)} → {?last(/{HOST.HOST}/nvr.device.name,#1)}'
+              priority: INFO
+              type: MULTIPLE
+              manual_close: 'YES'
+        - uuid: b48b5382f77f4578b51c09c62974acfd
+          name: 'Proto Name'
+          type: DEPENDENT
+          key: nvr.device.proto
+          value_type: TEXT
+          inventory_link: CHASSIS
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.ProtoName
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var decoded = atob(value);
+                  
+                  if (decoded instanceof Uint8Array) {
+                      var result = "";
+                      for (var i = 0; i < decoded.length; i++) {
+                          result += String.fromCharCode(decoded[i]);
+                      }
+                      return result;
+                  }
+                  
+                  return decoded;
+          master_item:
+            key: nvr.device.raw
+        - uuid: cf93d0a19f884a8897a36662105e8b19
+          name: 'RAW NVR Info'
+          type: HTTP_AGENT
+          key: nvr.device.raw
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          authtype: DIGEST
+          username: '{$NVR.USERNAME}'
+          password: '{$NVR.PASSWORD}'
+          description: 'Discovers NVR device information'
+          url: '{$NVR.SCHEMA}://{HOST.CONN}/LAPI/V1.0/System/DeviceInfo'
+          status_codes: ''
+        - uuid: 362fef5201814b5280b729b3176e0f72
+          name: 'Serial Number'
+          type: DEPENDENT
+          key: nvr.device.serial
+          value_type: TEXT
+          description: 'Серийный номер'
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.SerialNumber
+          master_item:
+            key: nvr.device.raw
+        - uuid: aeebde785ba748d9b12c410dcd2194f1
+          name: 'Device Type'
+          type: DEPENDENT
+          key: nvr.device.type
+          trends: '0'
+          description: |
+            Тип устройства: 
+            0: IPC
+            1: NVR
+            2: DVR
+            3: VMS
+          inventory_link: TYPE
+          valuemap:
+            name: 'NVR Device Type'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.DeviceType
+          master_item:
+            key: nvr.device.raw
+        - uuid: 7f460d0d1c3f4ca78c7df69c1cbf00bb
+          name: 'Uboot Version'
+          type: DEPENDENT
+          key: nvr.device.uboot
+          value_type: TEXT
+          description: 'UBOOT version'
+          inventory_link: OS_FULL
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Response.Data.UbootVersion
+          master_item:
+            key: nvr.device.raw
+      discovery_rules:
+        - uuid: 577f33c88c474a81b9bea2d54905f45f
+          name: 'LLD Camera'
+          type: DEPENDENT
+          key: nvr.camera.discovery
+          lifetime: 90d
+          host_prototypes:
+            - uuid: 49d76bd36b1542c1b4925c820b38c099
+              host: '{#NVR}_cam{#ID_SAFE}'
+              name: '{#NVR}_cam{#ID}: {#NAME}'
+              inventory_mode: AUTOMATIC
+              group_links:
+                - group:
+                    name: Cameras
+                - group:
+                    name: 'Template UNVIEW NVR'
+              group_prototypes:
+                - name: '{#CAMERA_GROUP}'
+              templates:
+                - name: 'Template UNV Camera'
+              macros:
+                - macro: '{$CAMERA.MODEL}'
+                  value: '{#MODEL}'
+                  description: 'Модель камеры (удалить)'
+                - macro: '{$CAMERA.SERIAL}'
+                  value: '{#SERIAL}'
+                  description: 'Серийный номер камеры (удалить)'
+                - macro: '{$CHANNEL.ID}'
+                  value: '{#ID}'
+                  description: 'Номер канала на регистраторе'
+                - macro: '{$CHANNEL.NVR}'
+                  value: '{#NVR}'
+                  description: 'Регистратор куда подключена камера'
+              custom_interfaces: 'YES'
+              interfaces:
+                - ip: '{#CAMERA_IP}'
+                  port: '{#CAMERA_PORT}'
+          master_item:
+            key: nvr.channels.full
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  
+                  if (!data.channels) {
+                      return JSON.stringify({ data: [] });
+                  }
+                  
+                  function sanitize(str) {
+                      return String(str).replace(/[^a-zA-Z0-9._-]/g, "_");
+                  }
+                  
+                  var out = [];
+                  
+                  for (var i = 0; i < data.channels.length; i++) {
+                      var ch = data.channels[i];
+                  
+                      out.push({
+                          "{#ID}": ch.id,
+                          "{#ID_SAFE}": sanitize(ch.id),
+                          "{#NAME}": ch.device_name,
+                          "{#NAME_SAFE}": sanitize(ch.device_name),
+                          "{#NVR}": ch.nvr,
+                          "{#CAMERA_GROUP}": ch.camera_group,
+                          "{#MODEL}": ch.model,
+                          "{#MODEL_SAFE}": sanitize(ch.model),
+                          "{#SERIAL}": ch.serial,
+                          "{#SERIAL_SAFE}": sanitize(ch.serial),
+                          "{#CAMERA_IP}": sanitize(ch.ip),
+                          "{#CAMERA_PORT}": sanitize(ch.port)
+                      });
+                  }
+                  
+                  return JSON.stringify({ data: out });
+      macros:
+        - macro: '{$CAMERA.GROUP}'
+          value: Cameras
+          description: 'Заменить в NVR хосте на группу, в которую должны быть добавлены все камеры'
+        - macro: '{$CAMERA.ICON.DEFAULT}'
+          value: '189'
+          description: 'ID иконки камеры'
+        - macro: '{$NVR.ICON.DEFAULT}'
+          value: '16'
+        - macro: '{$NVR.PASSWORD}'
+          type: SECRET_TEXT
+          description: Password
+        - macro: '{$NVR.SCHEMA}'
+          value: http
+          description: 'HTTP or HTTPS'
+        - macro: '{$NVR.USERNAME}'
+          value: admin
+          description: Login
+        - macro: '{$TEMPLATE_UNVIEW_NVR.API_TOKEN}'
+          type: SECRET_TEXT
+      valuemaps:
+        - uuid: 75a13b6539fc4decb4335e6d3954df21
+          name: 'NVR Device Type'
+          mappings:
+            - value: '0'
+              newvalue: IPC
+            - value: '1'
+              newvalue: NVR
+            - value: '2'
+              newvalue: DVR
+            - value: '3'
+              newvalue: VMS
+        - uuid: 1cc3eac207184e60ae56ba7605209c1f
+          name: 'Status code'
+          mappings:
+            - value: '0'
+              newvalue: OK
+            - type: DEFAULT
+              newvalue: ERROR
+  triggers:
+    - uuid: f362fab95eeb40679f675ab0a3eb2ea3
+      expression: 'change(/Template UNV NVR/nvr.device.code)<>0 or change(/Template UNV NVR/nvr.device.model)<>0 or change(/Template UNV NVR/nvr.device.hardware)<>0 or change(/Template UNV NVR/nvr.device.type)<>0 or change(/Template UNV NVR/nvr.device.manufacturer)<>0 or change(/Template UNV NVR/nvr.device.proto)<>0 or change(/Template UNV NVR/nvr.device.serial)<>0'
+      recovery_mode: NONE
+      name: 'Device info changed'
+      priority: HIGH
+      description: 'Device info changed (Device Code / Model / Hardware / Type / Manufacturer / Proto / Serial)'
+      manual_close: 'YES'
