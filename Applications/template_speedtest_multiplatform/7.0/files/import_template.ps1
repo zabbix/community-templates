@@ -141,7 +141,7 @@ $importRules = @{
         createMissing  = $true
         updateExisting = $true
     }
-    template_dashboards = @{
+    templateDashboards = @{
         createMissing  = $true
         updateExisting = $true
     }
@@ -164,26 +164,16 @@ Write-Log "テンプレートのインポートが正常に完了しました！
 if (-not [string]::IsNullOrWhiteSpace($LinkToHost)) {
     Write-Log "ホスト '$LinkToHost' へのテンプレートリンクを確認中..." "INFO"
 
-    # ホストの取得
-    $hosts = Invoke-ZabbixApi -Method "host.get" -Params @{
-        filter = @{ host = @($LinkToHost) }
-        selectParentTemplates = @("templateid", "name")
-    }
-
-    if ($null -eq $hosts -or $hosts.Count -eq 0) {
-        Write-Log "ホスト '$LinkToHost' が見つかりませんでした。Zabbix Web UI 上でホストを作成後に手動でリンクしてください。" "WARN"
-        exit 0
-    }
-
-    $targetHost = $hosts[0]
-    $hostId = $targetHost.hostid
-
     # インポートしたテンプレートの templateid を取得
     $templates = Invoke-ZabbixApi -Method "template.get" -Params @{
-        filter = @{ host = @("Speedtest（Ookla CLI）") }
+        filter = @{ host = @("template_speedtest_multiplatform") }
     }
     if ($null -eq $templates -or $templates.Count -eq 0) {
-        # テンプレート名フォールバック
+        $templates = Invoke-ZabbixApi -Method "template.get" -Params @{
+            filter = @{ host = @("Speedtest（Ookla CLI）") }
+        }
+    }
+    if ($null -eq $templates -or $templates.Count -eq 0) {
         $templates = Invoke-ZabbixApi -Method "template.get" -Params @{
             search = @{ name = "Speedtest" }
         }
@@ -196,30 +186,103 @@ if (-not [string]::IsNullOrWhiteSpace($LinkToHost)) {
 
     $speedtestTemplateId = $templates[0].templateid
 
-    # 既にリンクされているかチェック
-    $alreadyLinked = $false
-    $currentTemplates = @()
-    if ($targetHost.parentTemplates) {
-        foreach ($t in $targetHost.parentTemplates) {
-            $currentTemplates += @{ templateid = $t.templateid }
-            if ($t.templateid -eq $speedtestTemplateId) {
-                $alreadyLinked = $true
-            }
-        }
+    # ホストの取得
+    $hosts = Invoke-ZabbixApi -Method "host.get" -Params @{
+        filter = @{ host = @($LinkToHost) }
+        selectParentTemplates = @("templateid", "name")
     }
 
-    if ($alreadyLinked) {
-        Write-Log "ホスト '$LinkToHost' には既に Speedtest テンプレートがリンクされています。" "INFO"
-    } else {
-        $currentTemplates += @{ templateid = $speedtestTemplateId }
-        $updateResult = Invoke-ZabbixApi -Method "host.update" -Params @{
-            hostid    = $hostId
-            templates = $currentTemplates
+    if ($null -eq $hosts -or $hosts.Count -eq 0) {
+        Write-Log "ホスト '$LinkToHost' が存在しないため、host.create で自動新規作成します..." "INFO"
+        
+        # 既存ホストグループの検索
+        $hostGroups = Invoke-ZabbixApi -Method "hostgroup.get" -Params @{
+            output = @("groupid", "name")
         }
-        if ($null -ne $updateResult) {
-            Write-Log "ホスト '$LinkToHost' に Speedtest テンプレートを正常にリンクしました！" "INFO"
+
+        $targetGroupId = $null
+        if ($null -ne $hostGroups -and $hostGroups.Count -gt 0) {
+            # 優先グループ名
+            foreach ($g in $hostGroups) {
+                if ($g.name -in @("Discovered hosts", "Linux servers", "Zabbix servers", "General")) {
+                    $targetGroupId = $g.groupid
+                    break
+                }
+            }
+            if (-not $targetGroupId) {
+                $targetGroupId = $hostGroups[0].groupid
+            }
         } else {
-            Write-Log "ホストへのテンプレートリンクに失敗しました。" "WARN"
+            # グループが無ければ新規作成
+            $createGroup = Invoke-ZabbixApi -Method "hostgroup.create" -Params @{
+                name = "Discovered hosts"
+            }
+            if ($null -ne $createGroup -and $createGroup.groupids) {
+                $targetGroupId = $createGroup.groupids[0]
+            }
+        }
+
+        if (-not $targetGroupId) {
+            Write-Log "ホストグループの取得に失敗したため、ホストを自動作成できませんでした。Web UI 上で手動作成してください。" "WARN"
+            exit 0
+        }
+
+        # host.create の実行
+        $createHostParams = @{
+            host = $LinkToHost
+            interfaces = @(
+                @{
+                    type = 1
+                    main = 1
+                    useip = 1
+                    ip = "127.0.0.1"
+                    dns = ""
+                    port = "10050"
+                }
+            )
+            groups = @(
+                @{ groupid = $targetGroupId }
+            )
+            templates = @(
+                @{ templateid = $speedtestTemplateId }
+            )
+        }
+
+        $createdHost = Invoke-ZabbixApi -Method "host.create" -Params $createHostParams
+        if ($null -ne $createdHost -and $createdHost.hostids) {
+            Write-Log "ホスト '$LinkToHost' を自動新規作成し、Speedtest テンプレートを正常にリンクしました！" "INFO"
+        } else {
+            Write-Log "ホスト '$LinkToHost' の自動作成に失敗しました。" "WARN"
+        }
+    } else {
+        $targetHost = $hosts[0]
+        $hostId = $targetHost.hostid
+
+        # 既にリンクされているかチェック
+        $alreadyLinked = $false
+        $currentTemplates = @()
+        if ($targetHost.parentTemplates) {
+            foreach ($t in $targetHost.parentTemplates) {
+                $currentTemplates += @{ templateid = $t.templateid }
+                if ($t.templateid -eq $speedtestTemplateId) {
+                    $alreadyLinked = $true
+                }
+            }
+        }
+
+        if ($alreadyLinked) {
+            Write-Log "ホスト '$LinkToHost' には既に Speedtest テンプレートがリンクされています。" "INFO"
+        } else {
+            $currentTemplates += @{ templateid = $speedtestTemplateId }
+            $updateResult = Invoke-ZabbixApi -Method "host.update" -Params @{
+                hostid    = $hostId
+                templates = $currentTemplates
+            }
+            if ($null -ne $updateResult) {
+                Write-Log "既存ホスト '$LinkToHost' に Speedtest テンプレートを正常にリンクしました！" "INFO"
+            } else {
+                Write-Log "ホストへのテンプレートリンクに失敗しました。" "WARN"
+            }
         }
     }
 }

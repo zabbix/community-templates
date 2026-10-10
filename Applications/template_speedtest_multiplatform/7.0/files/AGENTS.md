@@ -88,13 +88,23 @@ If the user asks how to generate an API token, provide these step-by-step instru
 
 ### Step 3: Tool Verification & DryRun Test
 
-1. **If Ookla Speedtest CLI is missing**:
-   - **Windows**: Guide the user to download `speedtest.exe` from [https://www.speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) and place it in the repository folder.
-   - **Linux**: Install via package manager:
-     ```bash
-     curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
-     sudo apt-get install speedtest
-     ```
+1. **If Ookla Speedtest CLI is missing (AI Autonomous Action Allowed)**:
+   - **AI autonomous installation is strongly encouraged** to achieve a zero-touch experience:
+     - **Windows (Automatic Download & Extract)**:
+       ```powershell
+       # AI can directly download and unpack official binary into repository root:
+       Invoke-WebRequest -Uri "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-win64.zip" -OutFile "ookla-speedtest.zip"
+       Expand-Archive -Path "ookla-speedtest.zip" -DestinationPath . -Force
+       Remove-Item "ookla-speedtest.zip"
+       ```
+       *(Alternatively, run `winget install Ookla.Speedtest.CLI --accept-source-agreements --accept-package-agreements`)*
+     - **Linux (Package Manager or Tarball)**:
+       ```bash
+       curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
+       sudo apt-get install -y speedtest
+       ```
+   - If autonomous download fails or is prohibited by policy, guide the user to download `speedtest.exe` manually from [https://www.speedtest.net/apps/cli](https://www.speedtest.net/apps/cli).
+
 2. **Execute DryRun**:
    - Verify that JSON parsing works without sending metrics to Zabbix:
      - **Windows**: `.\speedtest.ps1 -DryRun`
@@ -102,7 +112,13 @@ If the user asks how to generate an API token, provide these step-by-step instru
 
 ---
 
-### Step 4: Execute Setup Command
+### Step 4: Execute Setup Command & Host Creation Protocol
+
+> [!IMPORTANT]
+> **Host Linking & Creation Protocol (CRITICAL)**:  
+> - `import_template.ps1` and `import_template.py` automatically detect whether the target host (`-LinkToHost`) exists on Zabbix.
+> - **If the host DOES NOT exist on Zabbix**: The scripts will automatically invoke `host.create` to create a new host with the specified hostname and link the Speedtest template to it.
+> - **AI Action Rule**: **NEVER search for or reuse existing unrelated Zabbix hosts** (such as past test hosts or templates). Always use the exact hostname determined in Step 1 / Step 2.
 
 Run the bundled setup wizard based on the user's responses:
 
@@ -111,7 +127,7 @@ Run the bundled setup wizard based on the user's responses:
 # Basic setup (Hourly recurring task)
 .\setup.ps1 -Schedule Hourly
 
-# Full setup with custom parameters & API template import
+# Full setup with custom parameters & API template import (auto-creates host if missing)
 .\setup.ps1 -ZabbixServer "<IP>" -Hostname "<Host>" -Schedule Hourly -ZabbixUrl "<URL>" -ApiToken "<TOKEN>"
 ```
 
@@ -120,7 +136,7 @@ Run the bundled setup wizard based on the user's responses:
 # Basic setup (Hourly cron job)
 ./setup.sh -c hourly
 
-# Full setup with custom parameters & API template import
+# Full setup with custom parameters & API template import (auto-creates host if missing)
 ./setup.sh -z "<IP>" -s "<Host>" -c hourly -u "<URL>" -t "<TOKEN>"
 ```
 

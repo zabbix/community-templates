@@ -101,7 +101,7 @@ def main():
         "triggers": {"createMissing": True, "updateExisting": True},
         "graphs": {"createMissing": True, "updateExisting": True},
         "template_groups": {"createMissing": True, "updateExisting": True},
-        "template_dashboards": {"createMissing": True, "updateExisting": True},
+        "templateDashboards": {"createMissing": True, "updateExisting": True},
     }
 
     result = invoke_zabbix_api(api_url, args.token, "configuration.import", {
@@ -119,21 +119,15 @@ def main():
     # 4. ホストへのリンク
     if args.link_host:
         log(f"ホスト '{args.link_host}' へのテンプレートリンクを確認中...", "INFO")
-        hosts = invoke_zabbix_api(api_url, args.token, "host.get", {
-            "filter": {"host": [args.link_host]},
-            "selectParentTemplates": ["templateid", "name"],
-        })
-        if not hosts:
-            log(f"ホスト '{args.link_host}' が見つかりませんでした。Zabbix Web UI 上でホスト作成後に手動でリンクしてください。", "WARN")
-            return
-
-        target_host = hosts[0]
-        host_id = target_host["hostid"]
 
         # テンプレート ID の取得
         templates = invoke_zabbix_api(api_url, args.token, "template.get", {
-            "filter": {"host": ["Speedtest（Ookla CLI）"]},
+            "filter": {"host": ["template_speedtest_multiplatform"]},
         })
+        if not templates:
+            templates = invoke_zabbix_api(api_url, args.token, "template.get", {
+                "filter": {"host": ["Speedtest（Ookla CLI）"]},
+            })
         if not templates:
             templates = invoke_zabbix_api(api_url, args.token, "template.get", {
                 "search": {"name": "Speedtest"},
@@ -144,25 +138,88 @@ def main():
             return
 
         speedtest_template_id = templates[0]["templateid"]
-        already_linked = False
-        current_templates = []
-        for t in target_host.get("parentTemplates", []):
-            current_templates.append({"templateid": t["templateid"]})
-            if t["templateid"] == speedtest_template_id:
-                already_linked = True
 
-        if already_linked:
-            log(f"ホスト '{args.link_host}' には既に Speedtest テンプレートがリンクされています。", "INFO")
-        else:
-            current_templates.append({"templateid": speedtest_template_id})
-            up_res = invoke_zabbix_api(api_url, args.token, "host.update", {
-                "hostid": host_id,
-                "templates": current_templates,
+        hosts = invoke_zabbix_api(api_url, args.token, "host.get", {
+            "filter": {"host": [args.link_host]},
+            "selectParentTemplates": ["templateid", "name"],
+        })
+
+        if not hosts:
+            log(f"ホスト '{args.link_host}' が存在しないため、host.create で自動新規作成します...", "INFO")
+            
+            # ホストグループの取得
+            host_groups = invoke_zabbix_api(api_url, args.token, "hostgroup.get", {
+                "output": ["groupid", "name"],
             })
-            if up_res:
-                log(f"ホスト '{args.link_host}' に Speedtest テンプレートを正常にリンクしました！", "INFO")
+
+            target_group_id = None
+            if host_groups:
+                for g in host_groups:
+                    if g.get("name") in ["Discovered hosts", "Linux servers", "Zabbix servers", "General"]:
+                        target_group_id = g["groupid"]
+                        break
+                if not target_group_id:
+                    target_group_id = host_groups[0]["groupid"]
             else:
-                log("ホストへのテンプレートリンクに失敗しました。", "WARN")
+                create_grp = invoke_zabbix_api(api_url, args.token, "hostgroup.create", {
+                    "name": "Discovered hosts",
+                })
+                if create_grp and create_grp.get("groupids"):
+                    target_group_id = create_grp["groupids"][0]
+
+            if not target_group_id:
+                log("ホストグループの取得に失敗したため、ホストを自動作成できませんでした。Web UI 上で手動作成してください。", "WARN")
+                return
+
+            # host.create の実行
+            create_host_params = {
+                "host": args.link_host,
+                "interfaces": [
+                    {
+                        "type": 1,
+                        "main": 1,
+                        "useip": 1,
+                        "ip": "127.0.0.1",
+                        "dns": "",
+                        "port": "10050",
+                    }
+                ],
+                "groups": [
+                    {"groupid": target_group_id}
+                ],
+                "templates": [
+                    {"templateid": speedtest_template_id}
+                ],
+            }
+
+            created_host = invoke_zabbix_api(api_url, args.token, "host.create", create_host_params)
+            if created_host and created_host.get("hostids"):
+                log(f"ホスト '{args.link_host}' を自動新規作成し、Speedtest テンプレートを正常にリンクしました！", "INFO")
+            else:
+                log(f"ホスト '{args.link_host}' の自動作成に失敗しました。", "WARN")
+        else:
+            target_host = hosts[0]
+            host_id = target_host["hostid"]
+
+            already_linked = False
+            current_templates = []
+            for t in target_host.get("parentTemplates", []):
+                current_templates.append({"templateid": t["templateid"]})
+                if t["templateid"] == speedtest_template_id:
+                    already_linked = True
+
+            if already_linked:
+                log(f"ホスト '{args.link_host}' には既に Speedtest テンプレートがリンクされています。", "INFO")
+            else:
+                current_templates.append({"templateid": speedtest_template_id})
+                up_res = invoke_zabbix_api(api_url, args.token, "host.update", {
+                    "hostid": host_id,
+                    "templates": current_templates,
+                })
+                if up_res:
+                    log(f"既存ホスト '{args.link_host}' に Speedtest テンプレートを正常にリンクしました！", "INFO")
+                else:
+                    log("ホストへのテンプレートリンクに失敗しました。", "WARN")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-﻿#
+#
 <#
 .SYNOPSIS
     Speedtest to Zabbix の Windows 自動セットアップスクリプト。
@@ -96,10 +96,19 @@ if ([string]::IsNullOrWhiteSpace($resolvedHost)) {
 # 2. speedtest.exe の確認
 $speedtestExe = Join-Path $PSScriptRoot "speedtest.exe"
 if (-not (Test-Path $speedtestExe) -and -not (Get-Command speedtest.exe -ErrorAction SilentlyContinue)) {
-    Write-Log "speedtest CLI が見つかりません。" "ERROR"
-    Write-Log "以下の公式サイトから speedtest.exe をダウンロードして、本フォルダ ($PSScriptRoot) に配置してください:" "WARN"
-    Write-Log "  https://www.speedtest.net/ja/apps/cli" "WARN"
-    exit 1
+    Write-Log "speedtest CLI が未配置のため、公式パッケージから自動ダウンロードを試みます..." "INFO"
+    try {
+        $zipPath = Join-Path $PSScriptRoot "ookla-speedtest.zip"
+        Invoke-WebRequest -Uri "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-win64.zip" -OutFile $zipPath -UseBasicParsing
+        Expand-Archive -Path $zipPath -DestinationPath $PSScriptRoot -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        Write-Log "speedtest CLI の自動ダウンロードと配置に成功しました！" "INFO"
+    } catch {
+        Write-Log "自動ダウンロードに失敗しました: $_" "WARN"
+        Write-Log "以下の公式サイトから speedtest.exe をダウンロードして、本フォルダ ($PSScriptRoot) に配置してください:" "WARN"
+        Write-Log "  https://www.speedtest.net/ja/apps/cli" "WARN"
+        exit 1
+    }
 }
 Write-Log "speedtest CLI を検出しました。" "INFO"
 
