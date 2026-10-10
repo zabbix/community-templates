@@ -145,10 +145,19 @@ if (-not [string]::IsNullOrWhiteSpace($ZabbixUrl) -and -not [string]::IsNullOrWh
 # 5. タスクスケジューラへの自動登録
 if ($Schedule -ne "None") {
     $taskName = "Speedtest-to-Zabbix"
-    Write-Log "タスクスケジューラにタスク '$taskName' を登録中 (スケジュール: $Schedule)..." "INFO"
+    # タスクスケジューラ実行時 (0x80070002) の起動失敗を防ぐため、実行バイナリの絶対パスを確実に解決
+    $defaultPowershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $psExePath = $defaultPowershell
 
-    $pwshExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)
-    $psExePath = if ($pwshExe) { "pwsh.exe" } else { "powershell.exe" }
+    # 正規インストールされた PowerShell 7 のフルパスが存在するか確認 (Store版 WindowsApps のエイリアスはバックグラウンド起動で失敗するため除外)
+    $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+    if ($pwshCmd -and $pwshCmd.Source -and $pwshCmd.Source -notmatch 'WindowsApps' -and (Test-Path $pwshCmd.Source)) {
+        $psExePath = $pwshCmd.Source
+    } elseif (Test-Path "$env:ProgramFiles\PowerShell\7\pwsh.exe") {
+        $psExePath = "$env:ProgramFiles\PowerShell\7\pwsh.exe"
+    }
+
+    Write-Log "タスク実行バイナリとして '$psExePath' を使用します。" "INFO"
 
     $scriptPath = Join-Path $PSScriptRoot "speedtest.ps1"
     $actionArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" -Hostname `"$resolvedHost`""
@@ -156,7 +165,8 @@ if ($Schedule -ne "None") {
         $actionArgs += " -ZabbixServer `"$ZabbixServer`""
     }
 
-    $schArgs = @("/create", "/tn", $taskName, "/tr", "$psExePath $actionArgs", "/f")
+    $taskRunCommand = "$psExePath $actionArgs"
+    $schArgs = @("/create", "/tn", $taskName, "/tr", $taskRunCommand, "/f")
     if ($Schedule -eq "Hourly") {
         $schArgs += @("/sc", "hourly")
     } elseif ($Schedule -eq "Daily") {
