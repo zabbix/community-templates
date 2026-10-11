@@ -1,0 +1,264 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+    name: Templates/Applications
+  templates:
+  - uuid: c2a75b2beaaa4560b1202cb86644e199
+    template: template_ptp_accuracy_en
+    name: PTP Accuracy Time Synchronization (linuxptp)
+    description: |
+      ## Overview
+      PTP (IEEE 1588-2008 / PTPv2) precision time synchronization monitoring template using linuxptp (ptp4l, phc2sys, pmc).
+
+      ## Requirements
+      - linuxptp package (ptp4l, phc2sys, pmc) installed
+      - zabbix-agent or zabbix-agent2 with remote commands enabled, or configured UserParameter
+      
+      ## Agent Configuration
+      ```ini
+      AllowKey=system.run[*]
+      ```
+      Or with UserParameter:
+      ```ini
+      UserParameter=ptp.pmc.raw[*],pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET'
+      ```
+    groups:
+    - name: Templates/Applications
+    items:
+    - uuid: 08885d27d1844f6f9830fedd2617bc9f
+      name: 'PTP: PMC raw output'
+      type: ZABBIX_ACTIVE
+      key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      delay: 30s
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      description: Collects TIME_STATUS_NP, CURRENT_DATA_SET, and PORT_DATA_SET in batch and converts to JSON.
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var lines = value.split('\n');
+          var res = {};
+          for (var i = 0; i < lines.length; i++) {
+              var line = lines[i].trim();
+              if (!line || line.indexOf('RESPONSE') !== -1 || line.indexOf('sending:') === 0) {
+                  continue;
+              }
+              var match = line.match(/^([a-zA-Z0-9_]+)\s+(.+)$/);
+              if (match) {
+                  res[match[1]] = match[2].trim();
+              }
+          }
+          return JSON.stringify(res);
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: 6a2941832c3f41e68444d6a3c34c6e8d
+      name: 'PTP: Offset from master'
+      type: DEPENDENT
+      key: ptp.offset_from_master
+      delay: '0'
+      history: 7d
+      value_type: FLOAT
+      units: ns
+      description: Time offset from Grandmaster clock in nanoseconds.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.offsetFromMaster
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: da9a3b205f6f4068947bfe244e5358cb
+        expression: |
+          last(/template_ptp_accuracy_en/ptp.offset_from_master)>{$PTP_OFFSET_CRIT} or 
+          last(/template_ptp_accuracy_en/ptp.offset_from_master)<-{$PTP_OFFSET_CRIT}
+        name: 'PTP: Offset from master exceeds {$PTP_OFFSET_CRIT}ns (Critical)'
+        priority: HIGH
+      - uuid: 590f1a0696034ea29a6931518e629e66
+        expression: |
+          last(/template_ptp_accuracy_en/ptp.offset_from_master)>{$PTP_OFFSET_WARN} or 
+          last(/template_ptp_accuracy_en/ptp.offset_from_master)<-{$PTP_OFFSET_WARN}
+        name: 'PTP: Offset from master exceeds {$PTP_OFFSET_WARN}ns (Warning)'
+        priority: WARNING
+        dependencies:
+        - name: 'PTP: Offset from master exceeds {$PTP_OFFSET_CRIT}ns (Critical)'
+          expression: |
+            last(/template_ptp_accuracy_en/ptp.offset_from_master)>{$PTP_OFFSET_CRIT} or 
+            last(/template_ptp_accuracy_en/ptp.offset_from_master)<-{$PTP_OFFSET_CRIT}
+    - uuid: 1cac51abc0be47bb890369247dd802a0
+      name: 'PTP: Mean path delay'
+      type: DEPENDENT
+      key: ptp.mean_path_delay
+      delay: '0'
+      history: 7d
+      value_type: FLOAT
+      units: ns
+      description: Mean network propagation delay between master and slave in nanoseconds.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.meanPathDelay
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: a1687690d8114e1389e149c24667b0fd
+      name: 'PTP: Grandmaster present status'
+      type: DEPENDENT
+      key: ptp.gm_present
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Indicates whether a Grandmaster clock is present (true/false).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.gmPresent
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 2bcae2e0ce56447e87a8c86af8f1d1de
+        expression: find(/template_ptp_accuracy_en/ptp.gm_present,,"regexp","^true$")=0
+        name: 'PTP: Grandmaster clock is not present'
+        priority: HIGH
+    - uuid: 6119759fa0b645c2bb17ff996104023c
+      name: 'PTP: Port state'
+      type: DEPENDENT
+      key: ptp.port_state
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: 'PTP port state (SLAVE, MASTER, PASSIVE, LISTENING, FAULTY, etc.).'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.portState
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: f1d84ba6b4eb41a18703ed861c1c81c4
+        expression: find(/template_ptp_accuracy_en/ptp.port_state,,"regexp","^(SLAVE|MASTER)$")=0
+        name: 'PTP: Port state is abnormal ({ITEM.VALUE})'
+        priority: WARNING
+    - uuid: f0ce7451081246c6a92c7ad3ca02be21
+      name: 'PTP: Grandmaster identity'
+      type: DEPENDENT
+      key: ptp.gm_identity
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Clock identity of the Grandmaster (EUI-64).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.gmIdentity
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: f828539ff34c41a9ba69ad2b2e553220
+      name: 'PTP: Steps removed'
+      type: DEPENDENT
+      key: ptp.steps_removed
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      description: Distance measured by boundary clock hops to the Grandmaster.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.stepsRemoved
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: 15d568ed530c4527bb53ffab87c70a66
+      name: 'PTP: Port identity'
+      type: DEPENDENT
+      key: ptp.port_identity
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Identity of the local PTP port.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.portIdentity
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: da2778f053084cc8a66ab50a3645c7de
+      name: 'PTP: Number of ptp4l processes'
+      type: ZABBIX_ACTIVE
+      key: proc.num[ptp4l]
+      delay: 1m
+      history: 7d
+      value_type: UNSIGNED
+      description: Number of running ptp4l daemon processes.
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: e52c9cacb0484cf38c6b556368d4c25a
+        expression: last(/template_ptp_accuracy_en/proc.num[ptp4l])=0
+        name: 'PTP: ptp4l daemon is not running'
+        priority: AVERAGE
+    - uuid: cfb5cdd2ead9487eb28c1b578681f96d
+      name: 'PTP: Number of phc2sys processes'
+      type: ZABBIX_ACTIVE
+      key: proc.num[phc2sys]
+      delay: 1m
+      history: 7d
+      value_type: UNSIGNED
+      description: Number of running phc2sys daemon processes.
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 42c51c1ace124909aecac16ef27afc1e
+        expression: last(/template_ptp_accuracy_en/proc.num[phc2sys])=0
+        name: 'PTP: phc2sys daemon is not running'
+        priority: AVERAGE
+    macros:
+    - macro: '{$PTP_OFFSET_WARN}'
+      value: '1000'
+      description: Warning threshold for PTP master offset (nanoseconds, 1000ns = 1µs)
+    - macro: '{$PTP_OFFSET_CRIT}'
+      value: '10000'
+      description: Critical threshold for PTP master offset (nanoseconds, 10000ns = 10µs)
+  graphs:
+  - uuid: d6a15dbd35144f448a45001367dda65f
+    name: 'PTP: Master offset history'
+    graph_items:
+    - color: 199C0D
+      item:
+        host: template_ptp_accuracy_en
+        key: ptp.offset_from_master
+  - uuid: f978516af4dd44da8e406d10c7e5c075
+    name: 'PTP: Path delay history'
+    graph_items:
+    - color: F63100
+      item:
+        host: template_ptp_accuracy_en
+        key: ptp.mean_path_delay
