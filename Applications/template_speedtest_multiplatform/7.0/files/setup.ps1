@@ -145,27 +145,38 @@ if (-not [string]::IsNullOrWhiteSpace($ZabbixUrl) -and -not [string]::IsNullOrWh
 # 5. タスクスケジューラへの自動登録
 if ($Schedule -ne "None") {
     $taskName = "Speedtest-to-Zabbix"
-    # タスクスケジューラ実行時 (0x80070002) の起動失敗を防ぐため、実行バイナリの絶対パスを確実に解決
-    $defaultPowershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $psExePath = $defaultPowershell
-
-    # 正規インストールされた PowerShell 7 のフルパスが存在するか確認 (Store版 WindowsApps のエイリアスはバックグラウンド起動で失敗するため除外)
-    $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
-    if ($pwshCmd -and $pwshCmd.Source -and $pwshCmd.Source -notmatch 'WindowsApps' -and (Test-Path $pwshCmd.Source)) {
-        $psExePath = $pwshCmd.Source
-    } elseif (Test-Path "$env:ProgramFiles\PowerShell\7\pwsh.exe") {
-        $psExePath = "$env:ProgramFiles\PowerShell\7\pwsh.exe"
-    }
-
-    Write-Log "タスク実行バイナリとして '$psExePath' を使用します。" "INFO"
-
+    $vbsPath = Join-Path $PSScriptRoot "run_hidden.vbs"
     $scriptPath = Join-Path $PSScriptRoot "speedtest.ps1"
-    $actionArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" -Hostname `"$resolvedHost`""
-    if (-not [string]::IsNullOrWhiteSpace($ZabbixServer)) {
-        $actionArgs += " -ZabbixServer `"$ZabbixServer`""
+    $wscriptExe = "$env:SystemRoot\System32\wscript.exe"
+
+    if (Test-Path $vbsPath -PathType Leaf) {
+        Write-Log "完全非表示ラッパー ($vbsPath) を使用してタスクを構成します（コンソールチラつきゼロ）。" "INFO"
+        $actionArgs = "`"$vbsPath`" -File `"$scriptPath`" -Hostname `"$resolvedHost`""
+        if (-not [string]::IsNullOrWhiteSpace($ZabbixServer)) {
+            $actionArgs += " -ZabbixServer `"$ZabbixServer`""
+        }
+        $taskRunCommand = "$wscriptExe $actionArgs"
+    } else {
+        # フォールバック: PowerShell 直起動
+        $defaultPowershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $psExePath = $defaultPowershell
+
+        $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+        if ($pwshCmd -and $pwshCmd.Source -and $pwshCmd.Source -notmatch 'WindowsApps' -and (Test-Path $pwshCmd.Source)) {
+            $psExePath = $pwshCmd.Source
+        } elseif (Test-Path "$env:ProgramFiles\PowerShell\7\pwsh.exe") {
+            $psExePath = "$env:ProgramFiles\PowerShell\7\pwsh.exe"
+        }
+
+        Write-Log "タスク実行バイナリとして '$psExePath' を使用します。" "INFO"
+
+        $actionArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" -Hostname `"$resolvedHost`""
+        if (-not [string]::IsNullOrWhiteSpace($ZabbixServer)) {
+            $actionArgs += " -ZabbixServer `"$ZabbixServer`""
+        }
+        $taskRunCommand = "$psExePath $actionArgs"
     }
 
-    $taskRunCommand = "$psExePath $actionArgs"
     $schArgs = @("/create", "/tn", $taskName, "/tr", $taskRunCommand, "/f")
     if ($Schedule -eq "Hourly") {
         $schArgs += @("/sc", "hourly")
