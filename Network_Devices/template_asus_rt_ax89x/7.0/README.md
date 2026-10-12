@@ -34,15 +34,16 @@ By consolidating all metrics into a single SSH Master Item, this template minimi
 2. Create or open the host for your ASUS router, link the `ASUS-Router` template, and set the router IP address.
 3. In the host's **Macros** tab, configure the user macros:
 
-| Macro | Default | Type | Description |
-| :--- | :--- | :--- | :--- |
-| `{$SSH_USER}` | `admin` | Text | SSH login username for the router |
-| `{$SSH_PASS}` | (empty) | Secret text | SSH login password for the router |
-| `{$SSH_PORT}` | `22` | Text | SSH port number |
-| `{$CPU_UTIL_WARN}` | `80` | Text | CPU utilization warning threshold (%) |
-| `{$CPU_UTIL_CRIT}` | `90` | Text | CPU utilization high threshold (%) |
-| `{$TEMP_WARN}` | `80` | Text | Thermal zone temperature warning threshold (°C) |
-| `{$PING_TIME_WARN}` | `50ms` | Text | Internet connectivity ping latency warning threshold |
+| Macro | Default | Type | Required | Description |
+| :--- | :--- | :--- | :---: | :--- |
+| `{$SSH_USER}` | (empty) | Text | **Yes** | SSH login username for the router |
+| `{$SSH_PASS}` | (empty) | **Secret text** | **Yes** | SSH login password for the router |
+| `{$AX89X.TEMP.WARN}` | `80` | Text | Optional | Thermal zone temperature warning threshold (°C) |
+
+> [!WARNING]
+> **Security Notice**:
+> - In Asuswrt, the SSH account is identical to the router's web administration account (root privileges). Never enable "Allow SSH access from WAN" under **Administration -> System -> SSH Daemon** (keep SSH accessible from LAN only).
+> - Always configure `{$SSH_PASS}` as **Secret text** in the Zabbix Web UI.
 
 ---
 
