@@ -9,9 +9,9 @@ zabbix_export:
     name: SentinelOne by HTTP
     vendor:
       name: Rémi Piazza
-      version: 7.0-2
-    description: 'Monitors the status of the SentinelOne agent installed on a machine through the SentinelOne Management Console REST API (v2.1), using an HTTP agent master item and dependent items. No
-      external script is required.
+      version: 7.0-3
+    description: 'Monitors the status of the SentinelOne agent installed on a machine through the SentinelOne Management Console REST API (v2.1), using a script master item and dependent items. No external
+      script is required.
 
 
       Setup:
@@ -20,7 +20,7 @@ zabbix_export:
 
       2. Set the macros {$SENTINELONE.URL} and {$SENTINELONE.TOKEN} (secret), preferably on a parent template or on the host group.
 
-      3. Make sure the DNS name field of the host interface is filled: the part before the first dot must match the computer name in SentinelOne.
+      3. Make sure the DNS name field of the host interface is filled: the DNS name (or its short name) must match the computer name in SentinelOne.
 
       4. Link the template to the host.
 
@@ -34,27 +34,47 @@ zabbix_export:
     items:
     - uuid: 57c050a352f045c7a379fb5fc9c203bc
       name: 'SentinelOne: Get agent'
-      type: HTTP_AGENT
+      type: SCRIPT
       key: sentinelone.agent.get
       delay: '{$SENTINELONE.INTERVAL}'
       history: '0'
       trends: '0'
       value_type: TEXT
       timeout: '{$SENTINELONE.TIMEOUT}'
-      url: '{$SENTINELONE.URL}{$SENTINELONE.API.PATH}/agents'
-      query_fields:
-      - name: computerName
-        value: '{{HOST.DNS}.regsub("^([^.]+)", \1)}'
-      - name: limit
-        value: '1'
-      headers:
-      - name: Authorization
-        value: ApiToken {$SENTINELONE.TOKEN}
-      http_proxy: '{$SENTINELONE.HTTP.PROXY}'
-      verify_peer: 'YES'
-      verify_host: 'YES'
-      description: Queries the SentinelOne API for the agent whose computer name matches the short name (part before the first dot) of the DNS name of the host interface. The raw response feeds all dependent
-        items.
+      description: Looks up the agent in the SentinelOne Management Console by exact computer name, trying in order the DNS name of the host interface as is, then its short name (part before the first dot,
+        as is and then in upper case), and stops at the first match. The DNS name of the host interface is required. This covers agents registered with the short name (usually Windows) as well as with the
+        FQDN (usually Linux). The result is reduced to the fields used by the dependent items.
+      params: "var CTlsConfig = function (raw_value) {\n\traw_value = String(raw_value).trim().toLowerCase();\n\n\tif (['none', 'peer', 'full'].indexOf(raw_value) === -1) {\n\t\traw_value = 'full';\n\t\
+        }\n\n\tthis.options = {\n\t\tSSLVerifyPeer: (raw_value === 'peer' || raw_value === 'full'),\n\t\tSSLVerifyHost: (raw_value === 'full')\n\t};\n};\n\nfunction shortName(name) {\n\treturn String(typeof\
+        \ name === 'undefined' ? '' : name).split('.')[0];\n}\n\ntry {\n\tvar params = JSON.parse(value);\n\n\t['url', 'token'].forEach(function (field) {\n\t\tif (typeof params[field] === 'undefined' ||\
+        \ params[field] === '') {\n\t\t\tthrow 'Required param is not set: \"' + field + '\".';\n\t\t}\n\t});\n\n\tvar base = String(params.url).replace(/\\/+$/, '') + params.path,\n\t\ttls = new CTlsConfig(params.tls_verify),\n\
+        \t\tcandidates = [];\n\n\t// Names tried in order: DNS name as is, its short name, its short name in upper case.\n\t[params.dns, shortName(params.dns), shortName(params.dns).toUpperCase()].forEach(function\
+        \ (name) {\n\t\tname = String(typeof name === 'undefined' ? '' : name).trim();\n\n\t\tif (name !== '' && name.charAt(0) !== '{' && candidates.indexOf(name) === -1) {\n\t\t\tcandidates.push(name);\n\
+        \t\t}\n\t});\n\n\tif (candidates.length === 0) {\n\t\tthrow 'No name to look up: fill in the DNS name of the host interface.';\n\t}\n\n\tvar found = null,\n\t\ttotal = 0,\n\t\ttried = [];\n\n\t\
+        for (var i = 0; i < candidates.length; i++) {\n\t\tvar request = new HttpRequest(tls.options),\n\t\t\turl = base + '/agents?limit=1&computerName=' + encodeURIComponent(candidates[i]),\n\t\t\tresponse,\n\
+        \t\t\tjson;\n\n\t\trequest.addHeader('Accept: application/json');\n\t\trequest.addHeader('Authorization: ApiToken ' + params.token);\n\n\t\tif (typeof params.proxy === 'string' && params.proxy !==\
+        \ '') {\n\t\t\trequest.setProxy(params.proxy);\n\t\t}\n\n\t\tZabbix.log(4, '[ SentinelOne ] Sending request: ' + url);\n\t\tresponse = request.get(url);\n\t\tZabbix.log(4, '[ SentinelOne ] Received\
+        \ response with status code ' + request.getStatus());\n\n\t\tif (request.getStatus() !== 200) {\n\t\t\tthrow 'Request failed with status code ' + request.getStatus() + ': ' + response;\n\t\t}\n\n\
+        \t\ttry {\n\t\t\tjson = JSON.parse(response);\n\t\t}\n\t\tcatch (error) {\n\t\t\tthrow 'Failed to parse the response received from the console.';\n\t\t}\n\n\t\ttried.push(candidates[i]);\n\t\ttotal\
+        \ = (json.pagination && json.pagination.totalItems) || 0;\n\n\t\tif (total > 0 && Array.isArray(json.data) && json.data.length > 0) {\n\t\t\tfound = json.data[0];\n\t\t\tbreak;\n\t\t}\n\t}\n\n\t\
+        var result = {\n\t\tpagination: {totalItems: (found === null) ? 0 : total},\n\t\tdata: [],\n\t\tlookup: {tried: tried, matched: (found === null) ? null : found.computerName}\n\t};\n\n\tif (found\
+        \ !== null) {\n\t\tresult.data.push({\n\t\t\tcomputerName: found.computerName,\n\t\t\tisActive: found.isActive,\n\t\t\tinfected: found.infected,\n\t\t\tactiveThreats: found.activeThreats,\n\t\t\t\
+        networkStatus: found.networkStatus,\n\t\t\toperationalState: found.operationalState,\n\t\t\toperationalStateExpiration: found.operationalStateExpiration,\n\t\t\tagentVersion: found.agentVersion,\n\
+        \t\t\tisUpToDate: found.isUpToDate,\n\t\t\tlastActiveDate: found.lastActiveDate\n\t\t});\n\t}\n\n\treturn JSON.stringify(result);\n}\ncatch (error) {\n\terror += (String(error).endsWith('.')) ?\
+        \ '' : '.';\n\tZabbix.log(3, '[ SentinelOne ] ERROR: ' + error);\n\tthrow 'Requesting failed: ' + error;\n}\n"
+      parameters:
+      - name: dns
+        value: '{HOST.DNS}'
+      - name: path
+        value: '{$SENTINELONE.API.PATH}'
+      - name: proxy
+        value: '{$SENTINELONE.HTTP.PROXY}'
+      - name: tls_verify
+        value: '{$HTTP.TLS.VERIFY:"SentinelOne"}'
+      - name: token
+        value: '{$SENTINELONE.TOKEN}'
+      - name: url
+        value: '{$SENTINELONE.URL}'
       tags:
       - tag: component
         value: raw
@@ -96,8 +116,8 @@ zabbix_export:
         expression: last(/SentinelOne by HTTP/sentinelone.agent.found)=0
         name: 'SentinelOne: Agent not found in console'
         priority: HIGH
-        description: 'No agent with this name exists in the console: the agent is not installed, was removed or decommissioned, the machine was renamed, or the DNS name of the host does not match the SentinelOne
-          computer name. Check the DNS name of the host interface and the console inventory.'
+        description: 'No agent in the console matches the DNS name of the host or its short name: the agent is not installed, was removed or decommissioned, the machine was renamed, or the DNS name of the
+          host does not match the SentinelOne computer name. Check the DNS name of the host interface and the console inventory.'
         tags:
         - tag: scope
           value: availability
@@ -619,19 +639,23 @@ zabbix_export:
       description: Sub-path of the SentinelOne REST API.
     - macro: '{$SENTINELONE.HTTP.PROXY}'
       value: ''
-      description: HTTP proxy for the API request. If empty, no proxy is used.
+      description: HTTP proxy for the API requests. If empty, no proxy is used.
     - macro: '{$SENTINELONE.INTERVAL}'
       value: 10m
       description: Update interval of the API request.
     - macro: '{$SENTINELONE.TIMEOUT}'
-      value: 15s
-      description: Timeout of the API request.
+      value: 30s
+      description: Timeout of the script that queries the API (up to four requests).
     - macro: '{$SENTINELONE.NODATA_TIMEOUT}'
       value: 30m
       description: Period without data after which the "No data from API" trigger fires.
     - macro: '{$SENTINELONE.LAST_ACTIVE.MAX.WARN}'
       value: 1h
       description: Maximum time since the last agent communication before the "No recent activity" trigger fires.
+    - macro: '{$HTTP.TLS.VERIFY}'
+      value: full
+      description: 'TLS certificate verification for the script item: "none" - disabled, "peer" - verify the certificate chain and expiration, "full" - full verification. Any other value enables full verification.
+        To override the setting for this template only, define the macro with the context "SentinelOne", e.g. {$HTTP.TLS.VERIFY:"SentinelOne"}.'
     valuemaps:
     - uuid: a6813ae967b446adb04b13ee68ce00df
       name: SentinelOne Yes/No
