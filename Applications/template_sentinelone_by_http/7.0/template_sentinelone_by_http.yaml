@@ -1,0 +1,668 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+    name: Templates/Applications
+  templates:
+  - uuid: 64f2e8a8ca334025b2ca87aacfc18c6f
+    template: SentinelOne by HTTP
+    name: SentinelOne by HTTP
+    vendor:
+      name: Rémi Piazza
+      version: 7.0-2
+    description: 'Monitors the status of the SentinelOne agent installed on a machine through the SentinelOne Management Console REST API (v2.1), using an HTTP agent master item and dependent items. No
+      external script is required.
+
+
+      Setup:
+
+      1. In the SentinelOne console, create a service user with the Viewer role (Settings > Users > Service Users) and generate its API token.
+
+      2. Set the macros {$SENTINELONE.URL} and {$SENTINELONE.TOKEN} (secret), preferably on a parent template or on the host group.
+
+      3. Make sure the DNS name field of the host interface is filled: the part before the first dot must match the computer name in SentinelOne.
+
+      4. Link the template to the host.
+
+
+      See the README file for details.
+
+
+      Author: Rémi Piazza (remipiazza).'
+    groups:
+    - name: Templates/Applications
+    items:
+    - uuid: 57c050a352f045c7a379fb5fc9c203bc
+      name: 'SentinelOne: Get agent'
+      type: HTTP_AGENT
+      key: sentinelone.agent.get
+      delay: '{$SENTINELONE.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      timeout: '{$SENTINELONE.TIMEOUT}'
+      url: '{$SENTINELONE.URL}{$SENTINELONE.API.PATH}/agents'
+      query_fields:
+      - name: computerName
+        value: '{{HOST.DNS}.regsub("^([^.]+)", \1)}'
+      - name: limit
+        value: '1'
+      headers:
+      - name: Authorization
+        value: ApiToken {$SENTINELONE.TOKEN}
+      http_proxy: '{$SENTINELONE.HTTP.PROXY}'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      description: Queries the SentinelOne API for the agent whose computer name matches the short name (part before the first dot) of the DNS name of the host interface. The raw response feeds all dependent
+        items.
+      tags:
+      - tag: component
+        value: raw
+      - tag: target
+        value: sentinelone
+    - uuid: 6c537fdd6e9d40c59c9b96876ff0e0c7
+      name: 'SentinelOne: Agents found'
+      type: DEPENDENT
+      key: sentinelone.agent.found
+      delay: '0'
+      value_type: UNSIGNED
+      description: Number of agents returned by the console for this host (pagination.totalItems). 0 means the machine is not in the console, more than 1 means duplicate agents. Not discarded with a heartbeat
+        because the "No data from API" trigger relies on it.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.pagination.totalItems
+        error_handler: DISCARD_VALUE
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 49c250c835294646b8afae139b1ec032
+        expression: nodata(/SentinelOne by HTTP/sentinelone.agent.found,{$SENTINELONE.NODATA_TIMEOUT})=1
+        name: 'SentinelOne: No data from API'
+        priority: WARNING
+        description: 'The API request has not returned data for the configured period. Possible causes: expired or revoked API token, wrong console URL or API path, network or proxy issue, API rate limiting.
+          Check the error of the "SentinelOne: Get agent" item.'
+        tags:
+        - tag: scope
+          value: availability
+        - tag: target
+          value: sentinelone
+      - uuid: 3920350c58d540cc9593b8e28742eed4
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.found)=0
+        name: 'SentinelOne: Agent not found in console'
+        priority: HIGH
+        description: 'No agent with this name exists in the console: the agent is not installed, was removed or decommissioned, the machine was renamed, or the DNS name of the host does not match the SentinelOne
+          computer name. Check the DNS name of the host interface and the console inventory.'
+        tags:
+        - tag: scope
+          value: availability
+        - tag: target
+          value: sentinelone
+        dependencies:
+        - name: 'SentinelOne: No data from API'
+          expression: nodata(/SentinelOne by HTTP/sentinelone.agent.found,{$SENTINELONE.NODATA_TIMEOUT})=1
+      - uuid: d6017f01c2b844638c2c1abc9852e091
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.found)>1
+        name: 'SentinelOne: Duplicate agents in console'
+        opdata: 'Agents found: {ITEM.LASTVALUE1}'
+        priority: INFO
+        description: More than one agent has the same name in the console; only the first one is read. Remove the stale entry in the console.
+        tags:
+        - tag: scope
+          value: notice
+        - tag: target
+          value: sentinelone
+    - uuid: 45e75e7c598143ad870945b269bc6301
+      name: 'SentinelOne: Agent active'
+      type: DEPENDENT
+      key: sentinelone.agent.active
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne Yes/No
+      description: Whether the agent is currently connected to the management console (isActive).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].isActive
+        error_handler: DISCARD_VALUE
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: network
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 59275d5966d543fda51366d8a95d68b6
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.active)=0 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: Agent is not active'
+        priority: AVERAGE
+        description: The agent is not connected to the console. The agent service may be stopped, the machine powered off, or the connection to the console blocked. Check the machine and the agent service.
+        tags:
+        - tag: scope
+          value: availability
+        - tag: target
+          value: sentinelone
+        dependencies:
+        - name: 'SentinelOne: Agent not found in console'
+          expression: last(/SentinelOne by HTTP/sentinelone.agent.found)=0
+    - uuid: a00eadc0147246db9f0d6a866d2bd21c
+      name: 'SentinelOne: Network status'
+      type: DEPENDENT
+      key: sentinelone.agent.network_status
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne network status
+      description: Network state reported by the console (networkStatus). The value "disconnected" indicates that the machine is isolated from the network by SentinelOne (network quarantine). Unrecognized
+        values are stored as 0.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].networkStatus
+        error_handler: DISCARD_VALUE
+      - type: JAVASCRIPT
+        parameters:
+        - '// 0 reserved for unknown values
+
+          const idx = {''connected'': 1, ''connecting'': 2, ''disconnected'': 3, ''disconnecting'': 4};
+
+          return typeof idx[value] === ''undefined'' ? 0 : idx[value];'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: network
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: f379b673c5da435bbffba80af0631538
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.network_status)=3 and last(/SentinelOne by HTTP/sentinelone.agent.active)=1
+        name: 'SentinelOne: Machine is network-quarantined'
+        priority: HIGH
+        description: The machine is isolated from the network by SentinelOne (network quarantine). Check that the isolation is intended and release it from the console when appropriate.
+        tags:
+        - tag: scope
+          value: security
+        - tag: target
+          value: sentinelone
+    - uuid: fe9a8f8829e6414aa4efa3ac83fe588a
+      name: 'SentinelOne: Last active'
+      type: DEPENDENT
+      key: sentinelone.agent.last_active
+      delay: '0'
+      value_type: UNSIGNED
+      units: unixtime
+      description: Date of the last communication between the agent and the console (lastActiveDate).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].lastActiveDate
+        error_handler: DISCARD_VALUE
+      - type: JAVASCRIPT
+        parameters:
+        - 'var v = String(value).replace(/\.\d+Z$/, ''Z'');
+
+          var t = Date.parse(v);
+
+          if (isNaN(t)) throw ''Invalid date: '' + value;
+
+          return Math.floor(t / 1000);'
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: network
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 0160ef2fe6cc41738be2725cbb07076a
+        expression: (now()-last(/SentinelOne by HTTP/sentinelone.agent.last_active))>{$SENTINELONE.LAST_ACTIVE.MAX.WARN} and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: No recent activity'
+        priority: WARNING
+        description: The agent has not communicated with the console for longer than the period defined by {$SENTINELONE.LAST_ACTIVE.MAX.WARN}. Check the machine, the agent service and the connectivity.
+        tags:
+        - tag: scope
+          value: availability
+        - tag: target
+          value: sentinelone
+        dependencies:
+        - name: 'SentinelOne: Agent is not active'
+          expression: last(/SentinelOne by HTTP/sentinelone.agent.active)=0 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+    - uuid: 1d15ccbce21645ccb6eff4b10cc6e3e2
+      name: 'SentinelOne: Infected'
+      type: DEPENDENT
+      key: sentinelone.agent.infected
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne Yes/No
+      description: Whether the agent reports the machine as infected (infected).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].infected
+        error_handler: DISCARD_VALUE
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 971ad0b463eb4092989dfb8527b5ac1e
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.infected)=1 or last(/SentinelOne by HTTP/sentinelone.agent.threats)>0
+        name: 'SentinelOne: Active threat detected'
+        opdata: 'Infected: {ITEM.LASTVALUE1}, active threats: {ITEM.LASTVALUE2}'
+        priority: HIGH
+        description: The agent reports an infected machine or active threats. Review the threat in the SentinelOne console and follow the incident response procedure.
+        tags:
+        - tag: scope
+          value: security
+        - tag: target
+          value: sentinelone
+    - uuid: 7a4d2548ac2441a5b6cce36bcb91e8e7
+      name: 'SentinelOne: Active threats'
+      type: DEPENDENT
+      key: sentinelone.agent.threats
+      delay: '0'
+      value_type: UNSIGNED
+      description: Number of active threats on the machine (activeThreats).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].activeThreats
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+    - uuid: c42453d395d643eba134122dbd31bc8b
+      name: 'SentinelOne: Operational state'
+      type: DEPENDENT
+      key: sentinelone.agent.operational_state
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne operational state
+      description: 'Operational state of the agent (operationalState). "na" is the normal state; any other value means the agent was disabled, fully or partially, from the console. Observed values: na,
+        partially_disabled; fully_disabled and disabled_error are mapped as well. Unrecognized values are stored as 0.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].operationalState
+        error_handler: DISCARD_VALUE
+      - type: JAVASCRIPT
+        parameters:
+        - '// 0 reserved for unknown values
+
+          const idx = {''na'': 1, ''partially_disabled'': 2, ''fully_disabled'': 3, ''disabled_error'': 4};
+
+          return typeof idx[value] === ''undefined'' ? 0 : idx[value];'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 92b9e4655c33474596467d7f3db42bc0
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.operational_state)<>1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: Agent is disabled'
+        opdata: 'Operational state: {ITEM.LASTVALUE1}'
+        priority: HIGH
+        description: The agent was disabled, fully or partially, from the console, so the machine may be unprotected while the agent still reports to the console. Check who disabled it and re-enable it;
+          the "Operational state expiration" item shows when a temporary state ends.
+        tags:
+        - tag: scope
+          value: security
+        - tag: target
+          value: sentinelone
+    - uuid: 4730fba993d44ae3b3bb355164c825f9
+      name: 'SentinelOne: Operational state expiration'
+      type: DEPENDENT
+      key: sentinelone.agent.operational_state.expiration
+      delay: '0'
+      value_type: UNSIGNED
+      units: unixtime
+      description: Date at which a temporary disabled state ends (operationalStateExpiration). 0 if there is no expiration.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].operationalStateExpiration
+        error_handler: DISCARD_VALUE
+      - type: JAVASCRIPT
+        parameters:
+        - 'if (value === ''null'' || value === '''' || value === null) return 0;
+
+          var v = String(value).replace(/\.\d+Z$/, ''Z'');
+
+          var t = Date.parse(v);
+
+          if (isNaN(t)) throw ''Invalid date: '' + value;
+
+          return Math.floor(t / 1000);'
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+    - uuid: 52245b65773d456686b9ebbd85e7f8ed
+      name: 'SentinelOne: Agent version'
+      type: DEPENDENT
+      key: sentinelone.agent.version
+      delay: '0'
+      value_type: CHAR
+      trends: '0'
+      description: Agent version (agentVersion).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].agentVersion
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+    - uuid: ab027a5723f5454599c78794b0b9fbcf
+      name: 'SentinelOne: Agent up to date'
+      type: DEPENDENT
+      key: sentinelone.agent.up_to_date
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne Yes/No
+      description: Whether the agent runs the latest version available in the console (isUpToDate).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].isUpToDate
+        error_handler: DISCARD_VALUE
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 1d8e164630ab41bc9c0886f0cee564d9
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.up_to_date)=0 and last(/SentinelOne by HTTP/sentinelone.agent.version)<>"" and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: Agent is not up to date'
+        opdata: 'Agent version: {ITEM.LASTVALUE2}'
+        priority: INFO
+        description: The agent is not at the latest version available in the console. Plan an upgrade according to your agent upgrade policy.
+        tags:
+        - tag: scope
+          value: notice
+        - tag: target
+          value: sentinelone
+    dashboards:
+    - uuid: 2893cb36aac641e8b59545601030f0a3
+      name: 'SentinelOne: Agent overview'
+      pages:
+      - name: General
+        widgets:
+        - type: item
+          name: Agent active
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.active
+          - type: STRING
+            name: reference
+            value: AAAAA
+        - type: item
+          name: Network status
+          x: '12'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.network_status
+          - type: STRING
+            name: reference
+            value: AAAAB
+        - type: item
+          name: Operational state
+          x: '24'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.operational_state
+          - type: STRING
+            name: reference
+            value: AAAAC
+        - type: item
+          name: Infected
+          x: '36'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.infected
+          - type: INTEGER
+            name: adv_conf
+            value: '1'
+          - type: STRING
+            name: thresholds.0.color
+            value: E45959
+          - type: STRING
+            name: thresholds.0.threshold
+            value: '1'
+          - type: STRING
+            name: reference
+            value: AAAAD
+        - type: item
+          name: Active threats
+          x: '48'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.threats
+          - type: INTEGER
+            name: adv_conf
+            value: '1'
+          - type: STRING
+            name: thresholds.0.color
+            value: E45959
+          - type: STRING
+            name: thresholds.0.threshold
+            value: '1'
+          - type: STRING
+            name: reference
+            value: AAAAE
+        - type: item
+          name: Agent up to date
+          x: '60'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.up_to_date
+          - type: STRING
+            name: reference
+            value: AAAAF
+        - type: item
+          name: Last active
+          y: '3'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.last_active
+          - type: STRING
+            name: reference
+            value: AAAAG
+        - type: item
+          name: Agent version
+          x: '24'
+          y: '3'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.version
+          - type: STRING
+            name: reference
+            value: AAAAH
+        - type: item
+          name: Operational state expiration
+          x: '48'
+          y: '3'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.operational_state.expiration
+          - type: STRING
+            name: reference
+            value: AAAAI
+    tags:
+    - tag: class
+      value: software
+    - tag: subclass
+      value: security
+    - tag: target
+      value: sentinelone
+    macros:
+    - macro: '{$SENTINELONE.URL}'
+      value: ''
+      description: SentinelOne Management Console URL without trailing slash, e.g., https://example.sentinelone.net.
+    - macro: '{$SENTINELONE.TOKEN}'
+      value: ''
+      type: SECRET_TEXT
+      description: API token of a read-only (Viewer) service user.
+    - macro: '{$SENTINELONE.API.PATH}'
+      value: /web/api/v2.1
+      description: Sub-path of the SentinelOne REST API.
+    - macro: '{$SENTINELONE.HTTP.PROXY}'
+      value: ''
+      description: HTTP proxy for the API request. If empty, no proxy is used.
+    - macro: '{$SENTINELONE.INTERVAL}'
+      value: 10m
+      description: Update interval of the API request.
+    - macro: '{$SENTINELONE.TIMEOUT}'
+      value: 15s
+      description: Timeout of the API request.
+    - macro: '{$SENTINELONE.NODATA_TIMEOUT}'
+      value: 30m
+      description: Period without data after which the "No data from API" trigger fires.
+    - macro: '{$SENTINELONE.LAST_ACTIVE.MAX.WARN}'
+      value: 1h
+      description: Maximum time since the last agent communication before the "No recent activity" trigger fires.
+    valuemaps:
+    - uuid: a6813ae967b446adb04b13ee68ce00df
+      name: SentinelOne Yes/No
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+    - uuid: 308ac48f2f2f4919ae0ef741a405f23e
+      name: SentinelOne network status
+      mappings:
+      - value: '0'
+        newvalue: Unknown
+      - value: '1'
+        newvalue: Connected
+      - value: '2'
+        newvalue: Connecting
+      - value: '3'
+        newvalue: Disconnected (network quarantine)
+      - value: '4'
+        newvalue: Disconnecting
+    - uuid: 0c8c0443fe2b46ed83f8279443e59786
+      name: SentinelOne operational state
+      mappings:
+      - value: '0'
+        newvalue: Unknown
+      - value: '1'
+        newvalue: Normal
+      - value: '2'
+        newvalue: Partially disabled
+      - value: '3'
+        newvalue: Fully disabled
+      - value: '4'
+        newvalue: Disabled (error)
