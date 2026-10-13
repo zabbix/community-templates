@@ -1,6 +1,6 @@
-# Zabbix templates – UPS with Generex CS121 / CS141 card (Legrand and other vendors)
+# Zabbix templates – UPS CS121 / CS141 (Generex card)
 
-Zabbix 7.4 templates for monitoring UPS units with the **Generex CS121** or **CS141 SNMP network card**. They were built and tested on **Legrand** UPS units, but they only use the standard **UPS-MIB (RFC 1628)**, so they work with UPS units from **other vendors** too. See [Compatibility](#compatibility).
+Zabbix 7.4 templates for monitoring UPS units with the **Generex CS121** or **CS141 SNMP network card**, whatever the UPS brand. They only use the standard **UPS-MIB (RFC 1628)**, so they work with UPS units from **many vendors**. See [Compatibility](#compatibility).
 
 ## ✨ Highlights
 
@@ -12,8 +12,8 @@ Zabbix 7.4 templates for monitoring UPS units with the **Generex CS121** or **CS
 
 | File | Template | Use for |
 |------|----------|---------|
-| `template_ups_generex_cs121.yaml` | `HW UPS Generex CS121 (Legrand and other UPS, RFC 1628)` | UPS with the older **CS121** card |
-| `template_ups_generex_cs141.yaml` | `HW UPS Generex CS141 (Legrand and other UPS, RFC 1628)` | UPS with the newer **CS141** card |
+| `template_ups_generex_cs121.yaml` | `UPS CS121 (Generex card)` | UPS with the older **CS121** card |
+| `template_ups_generex_cs141.yaml` | `UPS CS141 (Generex card)` | UPS with the newer **CS141** card |
 
 Both templates have the same items, discovery rules and triggers, plus the host graph `Battery`. The differences are listed in [CS121 vs. CS141](#cs121-vs-cs141).
 
@@ -129,7 +129,7 @@ Things to check on a UPS from a different vendor:
 1. **Import the template** that matches your card: *Data collection → Templates → Import* → `template_ups_generex_cs121.yaml` or `template_ups_generex_cs141.yaml`
 2. **Create the UPS host**:
    - Add an SNMP interface (network card IP address) and set the SNMP community
-   - Link the template `HW UPS Generex CS121 (...)` or `HW UPS Generex CS141 (...)`
+   - Link the template `UPS CS121 (Generex card)` or `UPS CS141 (Generex card)`
    - Turn on host inventory (*Automatic*) if you want vendor, model and location filled in
 3. Wait for discovery to run (phase discovery runs once a day; you can trigger it with *Execute now*).
 
@@ -147,7 +147,7 @@ Set the SNMP community **on the host** (or as a global macro), never in the temp
 - The thresholds for voltage (200–250 V), frequency, load (60 %) and battery temperature are set for a 230 V / 50 Hz grid. Edit the trigger prototypes if your UPS or grid is different.
 - If your UPS has no bypass, the *UPS Bypass Phases* rule finds nothing and creates no items.
 - Don't link both templates to the same host. They use the same item keys.
-- Upgrading from an older version: the technical template names stay `HW UPS Legrand CS121` / `HW UPS Legrand CS141`, so importing the new file updates the existing template and keeps your hosts and history.
+- Upgrading from an older version (`HW UPS Legrand CS121` / `HW UPS Legrand CS141`): the template UUID is the same, so importing the new file renames and updates the existing template and keeps your hosts and history. The technical names are now `UPS Generex CS121` / `UPS Generex CS141`.
 
 ## Custom work & support
 
