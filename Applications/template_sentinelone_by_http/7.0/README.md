@@ -62,7 +62,7 @@ If the agent is not found in the console, the dependent items are left without d
 | {$SENTINELONE.API.PATH} | Sub-path of the SentinelOne REST API. | `/web/api/v2.1` |
 | {$SENTINELONE.HTTP.PROXY} | HTTP proxy for the API requests. If empty, no proxy is used. |  |
 | {$SENTINELONE.INTERVAL} | Update interval of the API request. | `10m` |
-| {$SENTINELONE.TIMEOUT} | Timeout of the script that queries the API (up to four requests). | `30s` |
+| {$SENTINELONE.TIMEOUT} | Timeout of the script that queries the API (up to three requests). | `30s` |
 | {$SENTINELONE.NODATA_TIMEOUT} | Period without data after which the "No data from API" trigger fires. | `30m` |
 | {$SENTINELONE.LAST_ACTIVE.MAX.WARN} | Maximum time since the last agent communication before the "No recent activity" trigger fires. | `1h` |
 | {$HTTP.TLS.VERIFY} | TLS certificate verification for the script item: "none" - disabled, "peer" - verify the certificate chain and expiration, "full" - full verification. Any other value enables full verification. To override the setting for this template only, define the macro with the context "SentinelOne", e.g. {$HTTP.TLS.VERIFY:"SentinelOne"}. | `full` |
