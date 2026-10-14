@@ -9,9 +9,9 @@ A high-performance, lightweight, and comprehensive All-in-One Zabbix 7.0 LTS mon
 By consolidating all metrics into a single SSH Master Item, this template minimizes router resource consumption and eliminates potential instability caused by frequent polling. It includes a built-in 3-tab modern template dashboard providing out-of-the-box visibility into system telemetry, Wi-Fi 6 RF health, and 15 independent thermal zones.
 
 ### Key Features
-- **Single SSH Master Item Architecture**: Runs a single compound bash query every 30 seconds (`top`, `uptime`, `loadavg`, `ping`, thermal zones, `iwconfig`, `wlanconfig`), returning structured JSON parsed into Dependent Items.
-- **Wi-Fi 6 RF Telemetry**: Accurately tracks connected client counts (UINT64) separated by 2.4 GHz and 5 GHz bands, average/min RSSI, SNR, and noise floor.
-- **Autonomous LLD for All 15 Thermal Zones**: Auto-discovers all 15 hardware thermal sensors on the IPQ8074 platform (CPU cores, NSS cores, system blocks, chipsets, wireless power amplifiers).
+- **Single SSH Master Item Architecture**: Runs a single compound bash query every 30 seconds (`top`, `uptime`, `loadavg`, `ping`, thermal zones, `iwconfig`, `wlanconfig`), returning delimited raw text parsed into Dependent Items via Regex and JavaScript.
+- **Wi-Fi 6 RF Telemetry**: Accurately tracks connected client counts (UINT64) separated by 2.4 GHz and 5 GHz bands, average/min RSSI, SNR, and noise floor (note: noise floor may report static values on certain firmware revisions).
+- **Autonomous LLD for All 15 Thermal Zones**: Auto-discovers all 15 hardware thermal sensors on the IPQ8074 platform via LLD (sensor names mapped from underlying sysfs types as provisional labels).
 - **Zabbix 7.0 Native 3-Tab Template Dashboard**:
   - **Tab 1: System Overview**: Semi-circular CPU gauge, memory breakdown doughnut chart, Google DNS ping latency, detailed CPU breakdown, and memory trends.
   - **Tab 2: Wi-Fi Quality**: Connected client cards, staircase client count trends, and 5 GHz / 2.4 GHz RF metrics.
