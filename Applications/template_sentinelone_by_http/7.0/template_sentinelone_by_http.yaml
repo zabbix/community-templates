@@ -9,7 +9,7 @@ zabbix_export:
     name: SentinelOne by HTTP
     vendor:
       name: Rémi Piazza
-      version: 7.0-3
+      version: 7.0-6
     description: 'Monitors the status of the SentinelOne agent installed on a machine through the SentinelOne Management Console REST API (v2.1), using a script master item and dependent items. No external
       script is required.
 
@@ -57,11 +57,14 @@ zabbix_export:
         \ response with status code ' + request.getStatus());\n\n\t\tif (request.getStatus() !== 200) {\n\t\t\tthrow 'Request failed with status code ' + request.getStatus() + ': ' + response;\n\t\t}\n\n\
         \t\ttry {\n\t\t\tjson = JSON.parse(response);\n\t\t}\n\t\tcatch (error) {\n\t\t\tthrow 'Failed to parse the response received from the console.';\n\t\t}\n\n\t\ttried.push(candidates[i]);\n\t\ttotal\
         \ = (json.pagination && json.pagination.totalItems) || 0;\n\n\t\tif (total > 0 && Array.isArray(json.data) && json.data.length > 0) {\n\t\t\tfound = json.data[0];\n\t\t\tbreak;\n\t\t}\n\t}\n\n\t\
-        var result = {\n\t\tpagination: {totalItems: (found === null) ? 0 : total},\n\t\tdata: [],\n\t\tlookup: {tried: tried, matched: (found === null) ? null : found.computerName}\n\t};\n\n\tif (found\
-        \ !== null) {\n\t\tresult.data.push({\n\t\t\tcomputerName: found.computerName,\n\t\t\tisActive: found.isActive,\n\t\t\tinfected: found.infected,\n\t\t\tactiveThreats: found.activeThreats,\n\t\t\t\
-        networkStatus: found.networkStatus,\n\t\t\toperationalState: found.operationalState,\n\t\t\toperationalStateExpiration: found.operationalStateExpiration,\n\t\t\tagentVersion: found.agentVersion,\n\
-        \t\t\tisUpToDate: found.isUpToDate,\n\t\t\tlastActiveDate: found.lastActiveDate\n\t\t});\n\t}\n\n\treturn JSON.stringify(result);\n}\ncatch (error) {\n\terror += (String(error).endsWith('.')) ?\
-        \ '' : '.';\n\tZabbix.log(3, '[ SentinelOne ] ERROR: ' + error);\n\tthrow 'Requesting failed: ' + error;\n}\n"
+        // Actions required by the console, and whether a restart is needed.\n\tvar actions = [];\n\n\tif (found !== null && Array.isArray(found.userActionsNeeded)) {\n\t\tfound.userActionsNeeded.forEach(function\
+        \ (action) {\n\t\t\tactions.push((typeof action === 'string') ? action : JSON.stringify(action));\n\t\t});\n\t}\n\n\tvar result = {\n\t\tpagination: {totalItems: (found === null) ? 0 : total},\n\
+        \t\tdata: [],\n\t\tlookup: {tried: tried, matched: (found === null) ? null : found.computerName}\n\t};\n\n\tif (found !== null) {\n\t\tresult.data.push({\n\t\t\tcomputerName: found.computerName,\n\
+        \t\t\tisActive: found.isActive,\n\t\t\tinfected: found.infected,\n\t\t\tactiveThreats: found.activeThreats,\n\t\t\tnetworkStatus: found.networkStatus,\n\t\t\toperationalState: found.operationalState,\n\
+        \t\t\toperationalStateExpiration: found.operationalStateExpiration,\n\t\t\tagentVersion: found.agentVersion,\n\t\t\tisUpToDate: found.isUpToDate,\n\t\t\tlastActiveDate: found.lastActiveDate,\n\t\
+        \t\trebootNeeded: (found.threatRebootRequired === true || actions.indexOf('reboot_needed') !== -1 || actions.indexOf('reboot_required') !== -1) ? 1 : 0,\n\t\t\tunprotected: (actions.indexOf('unprotected')\
+        \ !== -1) ? 1 : 0,\n\t\t\tactionsNeeded: (actions.length > 0) ? actions.join(', ') : 'none'\n\t\t});\n\t}\n\n\treturn JSON.stringify(result);\n}\ncatch (error) {\n\terror += (String(error).endsWith('.'))\
+        \ ? '' : '.';\n\tZabbix.log(3, '[ SentinelOne ] ERROR: ' + error);\n\tthrow 'Requesting failed: ' + error;\n}\n"
       parameters:
       - name: dns
         value: '{HOST.DNS}'
@@ -363,9 +366,9 @@ zabbix_export:
         value: sentinelone
       triggers:
       - uuid: 92b9e4655c33474596467d7f3db42bc0
-        expression: last(/SentinelOne by HTTP/sentinelone.agent.operational_state)<>1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.operational_state)<>1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0 and last(/SentinelOne by HTTP/sentinelone.agent.operational_state.raw)<>"na"
         name: 'SentinelOne: Agent is disabled'
-        opdata: 'Operational state: {ITEM.LASTVALUE1}'
+        opdata: 'Operational state: {ITEM.LASTVALUE1}, raw value: {ITEM.LASTVALUE3}'
         priority: HIGH
         description: The agent was disabled, fully or partially, from the console, so the machine may be unprotected while the agent still reports to the console. Check who disabled it and re-enable it;
           the "Operational state expiration" item shows when a temporary state ends.
@@ -398,6 +401,29 @@ zabbix_export:
           if (isNaN(t)) throw ''Invalid date: '' + value;
 
           return Math.floor(t / 1000);'
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+    - uuid: 0ee57937f494412b925a6761f2532ad2
+      name: 'SentinelOne: Operational state (raw value)'
+      type: DEPENDENT
+      key: sentinelone.agent.operational_state.raw
+      delay: '0'
+      value_type: CHAR
+      trends: '0'
+      description: Operational state as returned by the console (operationalState), without conversion. Use it to identify an unexpected state that the "Operational state" item shows as "Unknown".
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].operationalState
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
       master_item:
         key: sentinelone.agent.get
       tags:
@@ -466,6 +492,103 @@ zabbix_export:
         tags:
         - tag: scope
           value: notice
+        - tag: target
+          value: sentinelone
+    - uuid: 0313a91fba4c4444ab4a457392c1aeee
+      name: 'SentinelOne: Reboot needed'
+      type: DEPENDENT
+      key: sentinelone.agent.reboot_needed
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne Yes/No
+      description: 'Whether a restart of the machine is needed: the console reports the action "reboot_needed" or "reboot_required" in userActionsNeeded, or a reboot is required to complete the remediation
+        of a threat (threatRebootRequired).'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].rebootNeeded
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id001
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: system
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: d5ae31e904a34e82b382137559576392
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.reboot_needed)=1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: Reboot needed'
+        priority: WARNING
+        description: The console asks for a restart of the machine, or a restart is required to complete the remediation of a threat. Restart the machine during the next maintenance window. The "Actions
+          needed" item lists all the actions required by the console.
+        tags:
+        - tag: scope
+          value: security
+        - tag: target
+          value: sentinelone
+    - uuid: a99eaab439da474395abf9a958fa4b59
+      name: 'SentinelOne: Actions needed'
+      type: DEPENDENT
+      key: sentinelone.agent.actions_needed
+      delay: '0'
+      value_type: CHAR
+      trends: '0'
+      description: Actions that the console requires on the machine (userActionsNeeded), separated by commas, or "none". See the SentinelOne API documentation for the possible values, for example reboot_needed,
+        reboot_required, upgrade_needed, unprotected, pending_performance_insights.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].actionsNeeded
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+    - uuid: 7f111d5fcdd24a7e81cfaba762efb53d
+      name: 'SentinelOne: Agent unprotected'
+      type: DEPENDENT
+      key: sentinelone.agent.unprotected
+      delay: '0'
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: SentinelOne Yes/No
+      description: Whether the console reports the machine as unprotected (action "unprotected" in userActionsNeeded).
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.data[0].unprotected
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: sentinelone.agent.get
+      tags:
+      - tag: component
+        value: application
+      - tag: target
+        value: sentinelone
+      triggers:
+      - uuid: 46980b427d97445f8ff189ae31c0162d
+        expression: last(/SentinelOne by HTTP/sentinelone.agent.unprotected)=1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0
+        name: 'SentinelOne: Agent is unprotected'
+        priority: HIGH
+        description: 'The console reports the machine as unprotected: the agent may not be protecting it. Check the state of the agent in the SentinelOne console and fix the cause.'
+        tags:
+        - tag: scope
+          value: security
         - tag: target
           value: sentinelone
     dashboards:
@@ -578,7 +701,7 @@ zabbix_export:
         - type: item
           name: Last active
           y: '3'
-          width: '24'
+          width: '18'
           height: '3'
           fields:
           - type: ITEM
@@ -591,9 +714,9 @@ zabbix_export:
             value: AAAAG
         - type: item
           name: Agent version
-          x: '24'
+          x: '18'
           y: '3'
-          width: '24'
+          width: '18'
           height: '3'
           fields:
           - type: ITEM
@@ -606,9 +729,9 @@ zabbix_export:
             value: AAAAH
         - type: item
           name: Operational state expiration
-          x: '48'
+          x: '36'
           y: '3'
-          width: '24'
+          width: '18'
           height: '3'
           fields:
           - type: ITEM
@@ -619,6 +742,35 @@ zabbix_export:
           - type: STRING
             name: reference
             value: AAAAI
+        - type: item
+          name: Reboot needed
+          x: '54'
+          y: '3'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.reboot_needed
+          - type: STRING
+            name: reference
+            value: AAAAJ
+        - type: item
+          name: Agent unprotected
+          y: '6'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: SentinelOne by HTTP
+              key: sentinelone.agent.unprotected
+          - type: STRING
+            name: reference
+            value: AAAAK
     tags:
     - tag: class
       value: software
