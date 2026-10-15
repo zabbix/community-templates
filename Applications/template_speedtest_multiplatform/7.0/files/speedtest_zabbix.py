@@ -210,8 +210,11 @@ def main():
     server_location = data.get("server", {}).get("location", "")
     server_id = data.get("server", {}).get("id", "")
     result_url = data.get("result", {}).get("url", "")
+    isp_name = data.get("isp", "N/A")
+    ext_ip = data.get("interface", {}).get("externalIp", "N/A")
 
     log("計測完了:")
+    log(f"  ISP / IP : {isp_name} (WAN IP: {ext_ip})")
     log(f"  Server   : {server_name} ({server_location}) [ID: {server_id}]")
     log(f"  Ping     : {ping_latency} ms (Jitter: {ping_jitter} ms)")
     log(f"  Download : {download_mbps} Mbps ({download_bps} bps)")
@@ -220,7 +223,7 @@ def main():
     log(f"  URL      : {result_url}")
 
     # 5. 送信データの生成 (Zabbix テンプレートのマスターアイテム speedtest.json 1件に統一)
-    master_key = f"{prefix}.json"
+    master_key = f"{args.prefix}.json"
 
     # 6. 送信 / DryRun
     if args.dry_run:

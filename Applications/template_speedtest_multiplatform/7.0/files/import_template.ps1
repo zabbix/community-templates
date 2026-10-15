@@ -1,4 +1,4 @@
-#
+﻿#
 <#
 .SYNOPSIS
     Zabbix API を使用して Speedtest.yaml テンプレートを Zabbix サーバーへインポート・登録するスクリプト。

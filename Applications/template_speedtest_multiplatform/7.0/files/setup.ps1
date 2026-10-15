@@ -1,4 +1,4 @@
-#
+﻿#
 <#
 .SYNOPSIS
     Speedtest to Zabbix の Windows 自動セットアップスクリプト。
@@ -118,12 +118,15 @@ Write-Log "speedtest CLI を検出しました。" "INFO"
 
 # 3. 動作検証 (DryRun)
 Write-Log "動作確認 (DryRun) を実行中..." "INFO"
-$testArgs = @("-DryRun", "-Hostname", $resolvedHost)
+$testParams = @{
+    DryRun   = $true
+    Hostname = $resolvedHost
+}
 if (-not [string]::IsNullOrWhiteSpace($ZabbixServer)) {
-    $testArgs += @("-ZabbixServer", $ZabbixServer)
+    $testParams["ZabbixServer"] = $ZabbixServer
 }
 
-& (Join-Path $PSScriptRoot "speedtest.ps1") @testArgs
+& (Join-Path $PSScriptRoot "speedtest.ps1") @testParams
 if ($LASTEXITCODE -ne 0) {
     Write-Log "DryRun 検証でエラーが発生しました。設定やネットワークを確認してください。" "ERROR"
     exit 1
@@ -133,13 +136,13 @@ Write-Log "DryRun 検証が正常に完了しました。" "INFO"
 # 4. テンプレートのインポート (URL と API トークンが提供された場合)
 if (-not [string]::IsNullOrWhiteSpace($ZabbixUrl) -and -not [string]::IsNullOrWhiteSpace($ApiToken)) {
     Write-Log "Zabbix サーバーへテンプレートをインポート中..." "INFO"
-    $importArgs = @(
-        "-ZabbixUrl", $ZabbixUrl,
-        "-ApiToken", $ApiToken,
-        "-LinkToHost", $resolvedHost,
-        "-Language", $Language
-    )
-    & (Join-Path $PSScriptRoot "import_template.ps1") @importArgs
+    $importParams = @{
+        ZabbixUrl  = $ZabbixUrl
+        ApiToken   = $ApiToken
+        LinkToHost = $resolvedHost
+        Language   = $Language
+    }
+    & (Join-Path $PSScriptRoot "import_template.ps1") @importParams
 }
 
 # 5. タスクスケジューラへの自動登録

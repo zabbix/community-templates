@@ -1,143 +1,158 @@
 zabbix_export:
   version: '7.0'
   template_groups:
-    - uuid: 846977d1dfed4968bc5f8bdb363285bc
-      name: 'Templates/Applications'
-    - uuid: 9a8b161e6ea443b5b300a59a3fe69ece
-      name: 'Templates/Network services'
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
   templates:
     - uuid: 22b975348cd340c4987a1ee61481c8b6
       template: template_speedtest_multiplatform
       name: 'Speedtest Multiplatform (Ookla CLI)'
       description: |
-        Multiplatform internet speed and network quality monitoring template for Zabbix 7.0 using official Ookla Speedtest CLI.
-        Supports Windows (native PowerShell / .bat) and Linux (Bash / Python).
-        Receives measurement JSON directly via zabbix_sender or raw TCP socket into a master trapper item (speedtest.json) and parses metrics using JSONPath preprocessing.
-
-        Upstream repository & AI-setup-ready protocol:
-        https://github.com/qryuu/speedtest-to-zabbix
+        Network bandwidth and quality monitoring template using Ookla Speedtest CLI (Linux and Windows).
+        Receives speedtest.json via zabbix_sender in a single trapper master item, and automatically parses metrics using JSONPath dependent items for performance graphing and threshold alerting.
+      vendor:
+        name: qryuu
+        version: 7.0-1
       groups:
-        - name: 'Templates/Applications'
-        - name: 'Templates/Network services'
+        - name: Templates/Applications
       items:
         - uuid: 602a3cd356e744c2ad02a72a37fa3eda
-          name: 'Speedtest: Raw JSON Data'
+          name: 'Speedtest: Raw data (JSON)'
           type: TRAP
           key: speedtest.json
           delay: '0'
-          history: '0'
+          history: 1d
           value_type: TEXT
           trends: '0'
-          description: 'Master trapper item receiving raw Speedtest CLI JSON output.'
+          description: 'Master trapper item receiving raw JSON output from Ookla Speedtest CLI'
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: raw
         - uuid: 5bace2b5aebd44a18efe562164d451f5
-          name: 'Speedtest: Download Bandwidth'
+          name: 'Speedtest: Download bandwidth'
           type: DEPENDENT
           key: speedtest.download.bps
           delay: '0'
           history: 90d
           units: bps
-          description: 'Internet download speed calculated in bits per second (bps).'
+          description: 'Network download speed in bits per second (bps)'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.download.bandwidth
+              error_handler: DISCARD_VALUE
             - type: MULTIPLIER
               parameters:
                 - '8'
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
           triggers:
             - uuid: bc452cc537944cb8b079333023858520
-              expression: 'last(/template_speedtest_multiplatform/speedtest.download.bps)<{$SPEEDTEST.WARN.DOWN} and {$SPEEDTEST.WARN.DOWN}>0'
+              expression: 'avg(/template_speedtest_multiplatform/speedtest.download.bps,#{$SPEEDTEST.EVAL.COUNT})<{$SPEEDTEST.WARN.DOWN} and {$SPEEDTEST.WARN.DOWN}>0'
               name: 'Speedtest: Download speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.DOWN})'
               priority: WARNING
-              description: 'Download bandwidth dropped below the warning threshold.'
+              description: 'Download bandwidth fell below configured threshold.'
               manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: network
+                - tag: scope
+                  value: performance
         - uuid: b61b176e5269477a8594072b1dc25421
-          name: 'Speedtest: Upload Bandwidth'
+          name: 'Speedtest: Upload bandwidth'
           type: DEPENDENT
           key: speedtest.upload.bps
           delay: '0'
           history: 90d
           units: bps
-          description: 'Internet upload speed calculated in bits per second (bps).'
+          description: 'Network upload speed in bits per second (bps)'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.upload.bandwidth
+              error_handler: DISCARD_VALUE
             - type: MULTIPLIER
               parameters:
                 - '8'
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
           triggers:
             - uuid: 38202f1cc401489892739834a86f6f5a
-              expression: 'last(/template_speedtest_multiplatform/speedtest.upload.bps)<{$SPEEDTEST.WARN.UP} and {$SPEEDTEST.WARN.UP}>0'
+              expression: 'avg(/template_speedtest_multiplatform/speedtest.upload.bps,#{$SPEEDTEST.EVAL.COUNT})<{$SPEEDTEST.WARN.UP} and {$SPEEDTEST.WARN.UP}>0'
               name: 'Speedtest: Upload speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.UP})'
               priority: WARNING
-              description: 'Upload bandwidth dropped below the warning threshold.'
+              description: 'Upload bandwidth fell below configured threshold.'
               manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: network
+                - tag: scope
+                  value: performance
         - uuid: ef7970ba8c7149eeba7cdaa701235a59
-          name: 'Speedtest: Ping Latency (Idle)'
+          name: 'Speedtest: Ping latency'
           type: DEPENDENT
           key: speedtest.ping.latency
           delay: '0'
           history: 90d
           value_type: FLOAT
           units: ms
-          description: 'Idle ping round-trip latency in milliseconds.'
+          description: 'Idle ping round-trip latency in milliseconds'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.ping.latency
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
           triggers:
             - uuid: 4c6e5aaeb40a490e8f4777819dbdba25
-              expression: 'last(/template_speedtest_multiplatform/speedtest.ping.latency)>{$SPEEDTEST.WARN.PING} and {$SPEEDTEST.WARN.PING}>0'
-              name: 'Speedtest: Ping latency is high ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.PING}ms)'
+              expression: 'min(/template_speedtest_multiplatform/speedtest.ping.latency,#{$SPEEDTEST.EVAL.COUNT})>{$SPEEDTEST.WARN.PING} and {$SPEEDTEST.WARN.PING}>0'
+              name: 'Speedtest: High ping latency ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.PING}ms)'
               priority: WARNING
-              description: 'Idle ping round-trip latency exceeded warning threshold.'
+              description: 'Ping latency exceeded configured threshold.'
               manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: network
+                - tag: scope
+                  value: performance
         - uuid: 418dfb17574c42b293f7ce25ef6d4339
-          name: 'Speedtest: Ping Jitter'
+          name: 'Speedtest: Ping jitter'
           type: DEPENDENT
           key: speedtest.ping.jitter
           delay: '0'
           history: 90d
           value_type: FLOAT
           units: ms
-          description: 'Idle ping jitter variation in milliseconds.'
+          description: 'Ping jitter latency variance in milliseconds'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.ping.jitter
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
         - uuid: f8d267a6a7634efc967110c45288dfee
-          name: 'Speedtest: Download Latency (Bufferbloat IQM)'
+          name: 'Speedtest: Download latency under load'
           type: DEPENDENT
           key: speedtest.download.latency
           delay: '0'
           history: 90d
           value_type: FLOAT
           units: ms
-          description: 'Ping latency during active download test (bufferbloat indicators).'
+          description: 'Latency under download load (Bufferbloat detection IQM)'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -146,17 +161,17 @@ zabbix_export:
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
         - uuid: 0ff5cb27b17f4f6aa3bc0f6ea6579086
-          name: 'Speedtest: Upload Latency (Bufferbloat IQM)'
+          name: 'Speedtest: Upload latency under load'
           type: DEPENDENT
           key: speedtest.upload.latency
           delay: '0'
           history: 90d
           value_type: FLOAT
           units: ms
-          description: 'Ping latency during active upload test (bufferbloat indicators).'
+          description: 'Latency under upload load (Bufferbloat detection IQM)'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -165,103 +180,112 @@ zabbix_export:
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
         - uuid: d01780745b5a4bb4ae6650c144791987
-          name: 'Speedtest: Packet Loss'
+          name: 'Speedtest: Packet loss rate'
           type: DEPENDENT
           key: speedtest.packetloss
           delay: '0'
           history: 90d
           value_type: FLOAT
           units: '%'
-          description: 'Packet loss percentage during the test.'
+          description: 'Network packet loss percentage (%)'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.packetLoss
-              error_handler: CUSTOM_VALUE
-              error_handler_params: '0'
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
           triggers:
             - uuid: 16cf912909ff4022a156aaeb69bdc2ee
-              expression: 'last(/template_speedtest_multiplatform/speedtest.packetloss)>{$SPEEDTEST.WARN.LOSS} and {$SPEEDTEST.WARN.LOSS}>0'
-              name: 'Speedtest: Packet loss detected ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.LOSS}%)'
+              expression: 'min(/template_speedtest_multiplatform/speedtest.packetloss,#{$SPEEDTEST.EVAL.COUNT})>{$SPEEDTEST.WARN.LOSS} and {$SPEEDTEST.WARN.LOSS}>0'
+              name: 'Speedtest: High packet loss ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.LOSS}%)'
               priority: WARNING
-              description: 'Packet loss exceeded the warning threshold.'
+              description: 'Packet loss percentage exceeded configured threshold.'
               manual_close: 'YES'
+              tags:
+                - tag: component
+                  value: network
+                - tag: scope
+                  value: performance
         - uuid: 7975438f6baf4692a7d2c213b17ae3f5
-          name: 'Speedtest: Download Data Consumed'
+          name: 'Speedtest: Download data transferred'
           type: DEPENDENT
           key: speedtest.download.bytes
           delay: '0'
           history: 90d
           units: B
-          description: 'Total data consumed during the download phase.'
+          description: 'Amount of data transferred during download test in bytes'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.download.bytes
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
         - uuid: 26d8b34e5e894e8fae7ebf301dbe32c7
-          name: 'Speedtest: Upload Data Consumed'
+          name: 'Speedtest: Upload data transferred'
           type: DEPENDENT
           key: speedtest.upload.bytes
           delay: '0'
           history: 90d
           units: B
-          description: 'Total data consumed during the upload phase.'
+          description: 'Amount of data transferred during upload test in bytes'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.upload.bytes
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: network
         - uuid: 9d053c2a87f24247abc834a3b3307583
-          name: 'Speedtest: Server Name'
+          name: 'Speedtest: Server name'
           type: DEPENDENT
           key: speedtest.server.name
           delay: '0'
           history: 90d
           value_type: CHAR
           trends: '0'
-          description: 'Name of the tested Speedtest server.'
+          description: 'Name of the connected Speedtest server'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.server.name
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: metadata
         - uuid: 134848637e7b409982850e70edb8f6ce
           name: 'Speedtest: Server ID'
           type: DEPENDENT
           key: speedtest.server.id
           delay: '0'
           history: 90d
-          description: 'Ookla ID of the tested Speedtest server.'
+          trends: '0'
+          description: 'Identifier ID of the connected Speedtest server'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.server.id
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: metadata
         - uuid: 7a551f91ddd046738fdebe3ad13b954b
           name: 'Speedtest: Result URL'
           type: DEPENDENT
@@ -270,39 +294,162 @@ zabbix_export:
           history: 90d
           value_type: CHAR
           trends: '0'
-          description: 'Public web URL for the measurement result on speedtest.net.'
+          description: 'Web share URL of the test result'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.result.url
+              error_handler: DISCARD_VALUE
           master_item:
             key: speedtest.json
           tags:
-            - tag: Application
-              value: Speedtest
+            - tag: component
+              value: metadata
+        - uuid: d22e530b58da444ead18569b84fc2b03
+          name: 'Speedtest: ISP name'
+          type: DEPENDENT
+          key: speedtest.isp
+          delay: '0'
+          history: 90d
+          value_type: CHAR
+          trends: '0'
+          description: 'Internet Service Provider (ISP) name'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.isp
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: speedtest.json
+          tags:
+            - tag: component
+              value: metadata
+        - uuid: 56315ebc49e24cfe96f71d153cad2e49
+          name: 'Speedtest: External IP address'
+          type: DEPENDENT
+          key: speedtest.interface.externalip
+          delay: '0'
+          history: 90d
+          value_type: CHAR
+          trends: '0'
+          description: 'Client WAN external IP address'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.interface.externalIp
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: speedtest.json
+          tags:
+            - tag: component
+              value: metadata
+        - uuid: 5547a0a05a9a477e964069d66029b222
+          name: 'Speedtest: Server location'
+          type: DEPENDENT
+          key: speedtest.server.location
+          delay: '0'
+          history: 90d
+          value_type: CHAR
+          trends: '0'
+          description: 'Geographic location of the connected Speedtest server'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.server.location
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: speedtest.json
+          tags:
+            - tag: component
+              value: metadata
+        - uuid: 3072109f92e44b7f956d8dd5ca19c2a5
+          name: 'Speedtest: Timestamp'
+          type: DEPENDENT
+          key: speedtest.timestamp
+          delay: '0'
+          history: 90d
+          value_type: CHAR
+          trends: '0'
+          description: 'Measurement completion timestamp reported by Ookla CLI (ISO 8601)'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.timestamp
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: speedtest.json
+          tags:
+            - tag: component
+              value: metadata
+      dashboards:
+        - uuid: d15f62d8b5744a4fa40ca9b1724a2567
+          name: 'Speedtest Dashboard'
+          pages:
+            - name: 'Speedtest Overview'
+              widgets:
+                - type: graph
+                  name: 'Speedtest: Bandwidth (Download / Upload)'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: template_speedtest_multiplatform
+                        name: 'Speedtest: Bandwidth (Download / Upload)'
+                - type: graph
+                  name: 'Speedtest: Latency and Jitter quality'
+                  x: '36'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: template_speedtest_multiplatform
+                        name: 'Speedtest: Latency and Jitter quality'
+                - type: graph
+                  name: 'Speedtest: Packet loss rate'
+                  'y': '5'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: template_speedtest_multiplatform
+                        name: 'Speedtest: Packet loss rate'
       macros:
-        - macro: '{$SPEEDTEST.NODATA}'
+        - macro: '{$SPEEDTEST.EVAL.COUNT}'
+          value: '3'
+          description: 'Number of recent measurements used for threshold evaluation'
+        - macro: '{$SPEEDTEST.NODATA.WARN}'
           value: 3h
-          description: 'No data threshold duration for warning trigger.'
+          description: 'Data arrival timeout for warning trigger'
         - macro: '{$SPEEDTEST.WARN.DOWN}'
           value: 50M
-          description: 'Low download speed threshold (set to 0 to disable).'
+          description: 'Download bandwidth warning threshold in bps (0 to disable)'
         - macro: '{$SPEEDTEST.WARN.UP}'
           value: 20M
-          description: 'Low upload speed threshold (set to 0 to disable).'
+          description: 'Upload bandwidth warning threshold in bps (0 to disable)'
         - macro: '{$SPEEDTEST.WARN.PING}'
           value: '50'
-          description: 'High ping latency threshold in ms (set to 0 to disable).'
+          description: 'Ping latency warning threshold in ms (0 to disable)'
         - macro: '{$SPEEDTEST.WARN.LOSS}'
           value: '2'
-          description: 'Packet loss threshold in percent (set to 0 to disable).'
+          description: 'Packet loss warning threshold in % (0 to disable)'
   triggers:
     - uuid: 8201bfbb18b74f949a35394ae64776e7
-      expression: 'nodata(/template_speedtest_multiplatform/speedtest.json,{$SPEEDTEST.NODATA})=1'
-      name: 'Speedtest: No data received for {$SPEEDTEST.NODATA}'
+      expression: 'nodata(/template_speedtest_multiplatform/speedtest.json,{$SPEEDTEST.NODATA.WARN})=1'
+      name: 'Speedtest: No metrics received for {$SPEEDTEST.NODATA.WARN}'
       priority: WARNING
-      description: 'Speedtest measurement data has not been received. Verify scheduler/cron or network connectivity.'
+      description: 'Scheduled task (cron or task scheduler) failure or network outage.'
       manual_close: 'YES'
+      tags:
+        - tag: component
+          value: network
+        - tag: scope
+          value: availability
   graphs:
     - uuid: 3f9348960d4d4103918db53e3cb741e2
       name: 'Speedtest: Bandwidth (Download / Upload)'
@@ -319,7 +466,7 @@ zabbix_export:
             host: template_speedtest_multiplatform
             key: speedtest.upload.bps
     - uuid: 9718dbcb47bd42fc84c5f8f3c250044f
-      name: 'Speedtest: Latency and Jitter Quality'
+      name: 'Speedtest: Latency and Jitter quality'
       graph_items:
         - drawtype: BOLD_LINE
           color: F63100
@@ -345,7 +492,7 @@ zabbix_export:
             host: template_speedtest_multiplatform
             key: speedtest.upload.latency
     - uuid: 9e91ca8276604ed8b6003181b619e2d1
-      name: 'Speedtest: Packet Loss Rate'
+      name: 'Speedtest: Packet loss rate'
       ymin_type_1: FIXED
       ymax_type_1: FIXED
       yaxismin: '0'

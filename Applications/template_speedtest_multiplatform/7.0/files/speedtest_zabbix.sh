@@ -124,9 +124,10 @@ JSON_OUTPUT=""
 for attempt in $(seq 1 "$MAX_RETRIES"); do
     log "INFO" "Speedtest CLI を実行中 (試行 ${attempt}/${MAX_RETRIES})..."
     
-    # 実行して出力を取得 (エラーもキャプチャ)
+    # 実行して出力を取得 (エラー出力を一時ファイルに分離)
+    ERR_TMP=$(mktemp)
     set +e
-    RAW_OUT=$(speedtest --format=json --accept-license --accept-gdpr 2>&1)
+    RAW_OUT=$(speedtest --format=json --accept-license --accept-gdpr 2>"$ERR_TMP")
     EXIT_CODE=$?
     set -e
 
@@ -135,13 +136,24 @@ for attempt in $(seq 1 "$MAX_RETRIES"); do
         JSON_LINE=$(echo "$RAW_OUT" | grep -F '"type":"result"' | tail -n 1 || true)
         if [ -n "$JSON_LINE" ]; then
             JSON_OUTPUT="$JSON_LINE"
+            rm -f "$ERR_TMP"
             break
         fi
         log "WARN" "有効な結果 JSON を検出できませんでした。"
+        if [ -s "$ERR_TMP" ]; then
+            log "WARN" "標準エラー出力:"
+            sed 's/^/  /' "$ERR_TMP" >&2
+        fi
     else
         log "WARN" "Speedtest CLI がエラーを返しました (ExitCode: ${EXIT_CODE}):"
-        echo "$RAW_OUT" | sed 's/^/  /' >&2
+        if [ -s "$ERR_TMP" ]; then
+            sed 's/^/  /' "$ERR_TMP" >&2
+        fi
+        if [ -n "$RAW_OUT" ]; then
+            echo "$RAW_OUT" | sed 's/^/  /' >&2
+        fi
     fi
+    rm -f "$ERR_TMP"
 
     if [ "$attempt" -lt "$MAX_RETRIES" ]; then
         log "INFO" "${RETRY_DELAY} 秒待機して再試行します..."

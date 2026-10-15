@@ -148,5 +148,5 @@ Confirm and report the results to the user:
 1. **Verification**: Confirm that Speedtest execution and JSON metrics parsing succeeded.
 2. **Scheduler**: Confirm that the recurring task was successfully registered in Windows Task Scheduler or Linux cron.
 3. **Template Status**:
-   - If imported via API: Confirm that `Speedtest.yaml` was registered and linked to the host.
-   - If manual: Remind the user to import `Speedtest.yaml` via Zabbix Web UI (*Data collection* -> *Templates* -> *Import*).
+   - If imported via API: Confirm that the template (`Speedtest.yaml` or `Speedtest_EN.yaml`) was registered and linked to the host.
+   - If manual: Remind the user to import `Speedtest.yaml` (or `Speedtest_EN.yaml` for English) via Zabbix Web UI (*Data collection* -> *Templates* -> *Import*).

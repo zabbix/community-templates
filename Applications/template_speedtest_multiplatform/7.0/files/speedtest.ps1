@@ -257,20 +257,35 @@ if (-not $DryRun -and $SendMethod -eq "ZabbixSender") {
 
 # 2. Speedtest CLI の実行
 Write-Log "Speedtest CLI を実行中 ($SpeedtestPath)..."
+$tempErrFile = [System.IO.Path]::GetTempFileName()
 try {
-    $rawOutput = & $SpeedtestPath --format=json --accept-license --accept-gdpr 2>&1
+    $rawOutput = & $SpeedtestPath --format=json --accept-license --accept-gdpr 2>$tempErrFile
+    $speedtestExitCode = $LASTEXITCODE
 } catch {
     Write-Log "Speedtest CLI の実行中にエラーが発生しました: $_" "ERROR"
+    if (Test-Path $tempErrFile) { Remove-Item $tempErrFile -Force -ErrorAction SilentlyContinue }
     exit 1
+}
+
+$errOutput = ""
+if (Test-Path $tempErrFile) {
+    $errOutput = Get-Content $tempErrFile -Raw -ErrorAction SilentlyContinue
+    Remove-Item $tempErrFile -Force -ErrorAction SilentlyContinue
 }
 
 # 3. JSON 行の抽出とパース
 $jsonLine = $rawOutput | Where-Object { $_ -match '^\s*\{.*"type"\s*:\s*"result"' } | Select-Object -Last 1
 
 if (-not $jsonLine) {
-    Write-Log "Speedtest CLI の出力から有効な結果 JSON を検出できませんでした。" "ERROR"
-    Write-Log "--- 出力ログ ---" "ERROR"
-    $rawOutput | ForEach-Object { Write-Log $_ "ERROR" }
+    Write-Log "Speedtest CLI の出力から有効な結果 JSON を検出できませんでした (ExitCode: $speedtestExitCode)。" "ERROR"
+    if ($errOutput) {
+        Write-Log "--- 標準エラー出力 ---" "ERROR"
+        $errOutput.Split("`n") | ForEach-Object { if ($_.Trim()) { Write-Log $_.Trim() "ERROR" } }
+    }
+    if ($rawOutput) {
+        Write-Log "--- 標準出力ログ ---" "ERROR"
+        $rawOutput | ForEach-Object { Write-Log $_ "ERROR" }
+    }
     exit 1
 }
 
@@ -296,7 +311,11 @@ if ($null -ne $data.packetLoss) {
     $packetLoss = [math]::Round([double]$data.packetLoss, 2)
 }
 
+$ispName = if ($null -ne $data.isp) { $data.isp } else { "N/A" }
+$extIp = if ($null -ne $data.interface.externalIp) { $data.interface.externalIp } else { "N/A" }
+
 Write-Log "計測完了:"
+Write-Log "  ISP / IP : $ispName (WAN IP: $extIp)"
 Write-Log "  Server   : $($data.server.name) ($($data.server.location), $($data.server.country))"
 Write-Log "  Ping     : $pingLatency ms (Jitter: $pingJitter ms)"
 Write-Log "  Download : $downloadMbps Mbps ($downloadBps bps)"

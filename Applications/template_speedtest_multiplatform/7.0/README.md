@@ -6,10 +6,12 @@ A robust, enterprise-ready internet bandwidth and connection quality monitoring 
 
 ### Key Features
 - **True Multiplatform**: Native support for **Windows** (PowerShell 7 / 5.1 & Batch) and **Linux** (POSIX Shell & Python).
-- **Zero Heavy Dependencies on Windows**: Includes a native C#/.NET raw TCP socket implementation (`speedtest.ps1`), eliminating the need to install `zabbix_sender` or Python on Windows endpoints.
-- **Advanced Quality Metrics**: Tracks not only Download / Upload bandwidth, but also **Idle Latency**, **Jitter**, **Packet Loss**, and **Bufferbloat / Latency under Load (IQM)**.
-- **High Efficiency**: Employs a single master trapper item (`speedtest.json`) with JSONPath dependent preprocessing, parsing 13+ metrics from a single network push.
-- **AI-Setup-Ready**: Includes [`AGENTS.md`](files/AGENTS.md) protocol allowing AI coding assistants (Copilot, Claude Code, Cursor, Windsurf) to inspect your environment, verify CLI paths, and complete installation autonomously with zero configuration.
+- **Zero Heavy Dependencies on Windows**: Includes a native C#/.NET raw TCP socket implementation (`speedtest.ps1`), eliminating the need to install `zabbix_sender` or Python on Windows endpoints. Includes completely silent scheduled task execution via `run_hidden.vbs`.
+- **Advanced Quality Metrics**: Tracks not only Download / Upload bandwidth, but also **Idle Latency**, **Jitter**, **Packet Loss**, **Bufferbloat / Latency under Load (IQM)**, **ISP Name**, **External IP**, and **Server Location**.
+- **High Efficiency**: Employs a single master trapper item (`speedtest.json`) with JSONPath dependent preprocessing and `DISCARD_VALUE` error handling on all dependent items, parsing 17 metrics from a single network push without entering unsupported states on transient parse errors.
+- **Flap-Resistant Alerting**: Threshold triggers evaluate multiple consecutive runs (`{$SPEEDTEST.EVAL.COUNT}`) using `avg` (bandwidth) and `min` (latency/loss) to prevent false positives from transient network noise.
+- **Out-of-the-Box Dashboard**: Includes a pre-configured template dashboard (`Speedtest Dashboard`) with bandwidth charts, latency/jitter trends, and status widgets.
+- **AI-Setup-Ready**: Includes [`AGENTS.md`](files/AGENTS.md) protocol allowing AI coding assistants (Copilot, Claude Code, Cursor, Antigravity) to inspect your environment, verify CLI paths, and complete installation autonomously with zero configuration.
 
 ### Upstream & Author
 - **Author**: [@qryuu](https://github.com/qryuu)
@@ -21,11 +23,15 @@ A robust, enterprise-ready internet bandwidth and connection quality monitoring 
 
 | Name | Description | Default | Type |
 | :--- | :--- | :--- | :--- |
-| `{$SPEEDTEST.NODATA}` | Duration without incoming data before firing alert | `3h` | Text macro |
+| `{$SPEEDTEST.NODATA.WARN}` | Duration without incoming data before firing alert | `3h` | Text macro |
+| `{$SPEEDTEST.EVAL.COUNT}` | Number of consecutive test evaluations required for threshold alert | `3` | Text macro |
 | `{$SPEEDTEST.WARN.DOWN}` | Low download speed threshold in bps (set to `0` to disable) | `50M` | Text macro |
 | `{$SPEEDTEST.WARN.UP}` | Low upload speed threshold in bps (set to `0` to disable) | `20M` | Text macro |
 | `{$SPEEDTEST.WARN.PING}` | High idle ping latency threshold in ms (set to `0` to disable) | `50` | Text macro |
 | `{$SPEEDTEST.WARN.LOSS}` | Packet loss threshold in percent (set to `0` to disable) | `2` | Text macro |
+
+> [!NOTE]
+> **Migration note for upgrading users**: The nodata macro was renamed from `{$SPEEDTEST.NODATA}` to `{$SPEEDTEST.NODATA.WARN}` for naming consistency across warning macros. If you customized this macro at the host level, please migrate your setting to `{$SPEEDTEST.NODATA.WARN}`.
 
 ---
 
@@ -45,7 +51,11 @@ There are no discovery rules in this template.
 
 | Name | Description | Type | Key and additional info |
 | :--- | :--- | :--- | :--- |
-| Speedtest: Raw JSON Data | Master item receiving raw Ookla Speedtest CLI JSON output | `Zabbix trapper` | `speedtest.json` |
+| Speedtest: Raw data (JSON) | Master item receiving raw Ookla Speedtest CLI JSON output | `Zabbix trapper` | `speedtest.json` |
+| Speedtest: ISP Name | ISP provider name detected by Speedtest | `Dependent item` | `speedtest.isp` |
+| Speedtest: External IP Address | Public WAN IP address of the monitoring client | `Dependent item` | `speedtest.interface.externalip` |
+| Speedtest: Server Location | Geographic location of the target test server | `Dependent item` | `speedtest.server.location` |
+| Speedtest: Timestamp | ISO 8601 timestamp recorded by Speedtest CLI | `Dependent item` | `speedtest.timestamp` |
 | Speedtest: Download Bandwidth | Download bandwidth calculated in bits per second | `Dependent item` | `speedtest.download.bps`<br>Units: `bps` |
 | Speedtest: Upload Bandwidth | Upload bandwidth calculated in bits per second | `Dependent item` | `speedtest.upload.bps`<br>Units: `bps` |
 | Speedtest: Ping Latency (Idle) | Idle ping round-trip time | `Dependent item` | `speedtest.ping.latency`<br>Units: `ms` |
@@ -65,11 +75,18 @@ There are no discovery rules in this template.
 
 | Name | Description | Severity | Operational expression |
 | :--- | :--- | :--- | :--- |
-| Speedtest: No data received for {$SPEEDTEST.NODATA} | Fires if scheduled execution halts or network fails | `Warning` | `nodata(/template_speedtest_multiplatform/speedtest.json,{$SPEEDTEST.NODATA})=1` |
-| Speedtest: Download speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.DOWN}) | Download bandwidth dropped below warning threshold | `Warning` | `last(/template_speedtest_multiplatform/speedtest.download.bps)<{$SPEEDTEST.WARN.DOWN} and {$SPEEDTEST.WARN.DOWN}>0` |
-| Speedtest: Upload speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.UP}) | Upload bandwidth dropped below warning threshold | `Warning` | `last(/template_speedtest_multiplatform/speedtest.upload.bps)<{$SPEEDTEST.WARN.UP} and {$SPEEDTEST.WARN.UP}>0` |
-| Speedtest: Ping latency is high ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.PING}ms) | Idle latency exceeded threshold | `Warning` | `last(/template_speedtest_multiplatform/speedtest.ping.latency)>{$SPEEDTEST.WARN.PING} and {$SPEEDTEST.WARN.PING}>0` |
-| Speedtest: Packet loss detected ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.LOSS}%) | Packet loss detected during test | `Warning` | `last(/template_speedtest_multiplatform/speedtest.packetloss)>{$SPEEDTEST.WARN.LOSS} and {$SPEEDTEST.WARN.LOSS}>0` |
+| Speedtest: No data received for {$SPEEDTEST.NODATA.WARN} | Fires if scheduled execution halts or network fails | `Warning` | `nodata(/template_speedtest_multiplatform/speedtest.json,{$SPEEDTEST.NODATA.WARN})=1` |
+| Speedtest: Download speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.DOWN}) | Average download bandwidth across consecutive tests dropped below threshold | `Warning` | `avg(/template_speedtest_multiplatform/speedtest.download.bps,#{$SPEEDTEST.EVAL.COUNT})<{$SPEEDTEST.WARN.DOWN} and {$SPEEDTEST.WARN.DOWN}>0` |
+| Speedtest: Upload speed is low ({ITEM.LASTVALUE} < {$SPEEDTEST.WARN.UP}) | Average upload bandwidth across consecutive tests dropped below threshold | `Warning` | `avg(/template_speedtest_multiplatform/speedtest.upload.bps,#{$SPEEDTEST.EVAL.COUNT})<{$SPEEDTEST.WARN.UP} and {$SPEEDTEST.WARN.UP}>0` |
+| Speedtest: Ping latency is high ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.PING}ms) | Minimum idle latency across consecutive tests exceeded threshold | `Warning` | `min(/template_speedtest_multiplatform/speedtest.ping.latency,#{$SPEEDTEST.EVAL.COUNT})>{$SPEEDTEST.WARN.PING} and {$SPEEDTEST.WARN.PING}>0` |
+| Speedtest: Packet loss detected ({ITEM.LASTVALUE} > {$SPEEDTEST.WARN.LOSS}%) | Minimum packet loss across consecutive tests detected | `Warning` | `min(/template_speedtest_multiplatform/speedtest.packetloss,#{$SPEEDTEST.EVAL.COUNT})>{$SPEEDTEST.WARN.LOSS} and {$SPEEDTEST.WARN.LOSS}>0` |
+
+---
+
+## Dashboards
+
+This template includes a built-in dashboard:
+- **Speedtest Dashboard**: Displays Download/Upload bandwidth graphs, Idle/Loaded latency & jitter graphs, Packet Loss gauge, and metadata widgets (ISP, WAN IP, Server Location, Result URL).
 
 ---
 
@@ -98,7 +115,7 @@ Import `template_speedtest_multiplatform.yaml` via Zabbix Web UI (**Data collect
 # Test push to Zabbix Server
 .\files\speedtest.ps1 -ZabbixServer "192.168.1.10" -Hostname "<HOST_NAME>"
 
-# Automated 1-step setup wizard (Registers hourly Task Scheduler)
+# Automated 1-step setup wizard (Registers hourly Task Scheduler with silent wrapper)
 .\files\setup.ps1 -ZabbixServer "192.168.1.10" -Hostname "<HOST_NAME>" -Schedule Hourly
 ```
 
