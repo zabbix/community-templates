@@ -13,10 +13,11 @@ Nanosecond-level Precision Time Protocol (IEEE 1588-2008 / PTPv2) monitoring tem
 - Zabbix 7.0 or newer
 - `linuxptp` package installed (`ptp4l`, `phc2sys`, `pmc`)
 - Access to Unix domain socket `/var/run/ptp4l` (add `zabbix` user to appropriate group or configure permissions)
-- Remote command permission:
+- Remote command permission (`zabbix_agentd.conf` / `zabbix_agent2.conf`):
   ```ini
-  AllowKey=system.run[*]
+  AllowKey=system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
   ```
+  *(Note: If using `UserParameter`, substitute template item key with `ptp.pmc.raw[]`.)*
 
 ## Collected Metrics
 | Metric | Key | Unit | Description |

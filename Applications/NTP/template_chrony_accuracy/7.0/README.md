@@ -13,10 +13,14 @@ High-precision time synchronization quality and sources accuracy monitoring temp
 ## Requirements
 - Zabbix 7.0 or newer
 - Zabbix Agent or Zabbix Agent 2
-- Remote command permission enabled in agent configuration:
+- Fixed command allowlist in `zabbix_agentd.conf` or `zabbix_agent2.conf` (avoids wildcards to prevent command injection):
   ```ini
-  AllowKey=system.run[*]
+  AllowKey=system.run[chronyc -c tracking]
+  AllowKey=system.run[chronyc sources]
+  AllowKey=system.run[chronyc -v]
+  AllowKey=system.run[chronyc sources|grep \* |awk '{print$5}']
   ```
+  *(Note: If using `UserParameter` with `DenyKey=system.run[*]`, update the template item keys to match your UserParameter names.)*
 
 ## Collected Items
 | Name | Key | Type | Description |

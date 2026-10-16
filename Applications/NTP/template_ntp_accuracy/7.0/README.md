@@ -11,7 +11,16 @@ Comprehensive NTP accuracy monitoring template for Zabbix 7.0 LTS supporting bot
 
 ## Requirements
 - Zabbix 7.0 or newer
-- Zabbix Agent / Agent 2 with `AllowKey=system.run[*]`
+- Zabbix Agent or Zabbix Agent 2
+- Command permissions in `zabbix_agentd.conf` / `zabbix_agent2.conf`:
+  ```ini
+  # For local daemon monitoring
+  AllowKey=system.run[ntpq -p]
+  AllowKey=system.run[ntpq -c version]
+
+  # For remote appliance monitoring ({$NTP_IP})
+  AllowKey=system.run[ntpq -p <target_ip>]
+  ```
 
 ## Upstream Repository
 - [qryuu/time-sync-monitoring-to-zabbix](https://github.com/qryuu/time-sync-monitoring-to-zabbix)\n

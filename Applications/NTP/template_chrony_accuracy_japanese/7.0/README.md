@@ -13,10 +13,14 @@ Zabbix 7.0 LTS 向け Chrony 高精度時刻同期品質・同期サーバー監
 ## 要件
 - Zabbix 7.0 以降
 - Zabbix Agent または Zabbix Agent 2
-- エージェント設定でリモートコマンドを許可:
+- エージェント設定で固定コマンドを個別許可（ワイルドカードによるコマンド注入を防止）:
   ```ini
-  AllowKey=system.run[*]
+  AllowKey=system.run[chronyc -c tracking]
+  AllowKey=system.run[chronyc sources]
+  AllowKey=system.run[chronyc -v]
+  AllowKey=system.run[chronyc sources|grep \* |awk '{print$5}']
   ```
+  ※ `UserParameter` で運用する場合は、テンプレート側のアイテムキーを対応するパラメータ名に置換してください。
 
 ## アップストリームリポジトリ
 - [qryuu/time-sync-monitoring-to-zabbix](https://github.com/qryuu/time-sync-monitoring-to-zabbix)\n

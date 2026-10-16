@@ -12,10 +12,11 @@ Zabbix 7.0 LTS 向け PTP (IEEE 1588-2008 / PTPv2) `linuxptp` (`ptp4l`, `phc2sys
 ## 要件
 - Zabbix 7.0 以降
 - `linuxptp` パッケージ (`ptp4l`, `phc2sys`, `pmc`)
-- Zabbix Agent でのリモートコマンド許可:
+- Zabbix Agent でのリモートコマンド許可 (`zabbix_agentd.conf` / `zabbix_agent2.conf`):
   ```ini
-  AllowKey=system.run[*]
+  AllowKey=system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
   ```
+  ※ `UserParameter` で運用する場合は、テンプレート側のアイテムキーを `ptp.pmc.raw[]` に置換してください。
 
 ## アップストリームリポジトリ
 - [qryuu/time-sync-monitoring-to-zabbix](https://github.com/qryuu/time-sync-monitoring-to-zabbix)\n

@@ -9,5 +9,18 @@ Zabbix 7.0 LTS 向け NTP (ntpd) 時刻同期精度・全ピア自動検出監�
 - **リモート外部チェック対応**: アプライアンスやネットワークスイッチをエージェント不要で監視可能。
 - **72列集約ダッシュボード**: Zabbix 7.0 のフル幅レイアウトに対応。
 
+## 要件
+- Zabbix 7.0 以降
+- Zabbix Agent または Zabbix Agent 2
+- エージェント設定 (`zabbix_agentd.conf` / `zabbix_agent2.conf`):
+  ```ini
+  # ローカルデーモン監視用
+  AllowKey=system.run[ntpq -p]
+  AllowKey=system.run[ntpq -c version]
+
+  # リモート監視用 ({$NTP_IP} の実IPアドレスを指定)
+  AllowKey=system.run[ntpq -p <実IP>]
+  ```
+
 ## アップストリームリポジトリ
 - [qryuu/time-sync-monitoring-to-zabbix](https://github.com/qryuu/time-sync-monitoring-to-zabbix)\n
