@@ -52,6 +52,7 @@ Optional: automatic registration with a network discovery rule.
 | `{$XEROX.SUPPLY.MATCHES}` | Supplies LLD: supply names to include (regex). | `.*` |
 | `{$XEROX.SUPPLY.NOT_MATCHES}` | Supplies LLD: supply names to exclude (regex). | `CHANGE_IF_NEEDED` |
 | `{$XEROX.SUPPLY.NOALERT}` | Supplies that are collected but get no triggers (waste containers by default). | `(?i)waste` |
+| `{$XEROX.TRAY.NOALERT}` | Input trays that are collected but get no "empty" trigger (bypass / manual feed trays are normally empty). | `(?i)bypass\|manual\|multi` |
 | `{$XEROX.ALERT.CODES}` | Regex matched against `prtAlertDescription`; a HIGH trigger fires on match. Example: `010-421\|091-446`. | `CHANGE_IF_NEEDED` |
 
 ## Items
