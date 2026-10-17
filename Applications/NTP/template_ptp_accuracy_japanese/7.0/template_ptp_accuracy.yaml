@@ -1,0 +1,267 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+    name: Templates/Applications
+  templates:
+  - uuid: 56fbc88731f5471fa01fe5a1b2bc997b
+    template: template_ptp_accuracy
+    name: PTP高精度時刻同期 (linuxptp)
+    description: |
+      ## 概要
+      PTP (IEEE 1588-2008 / PTPv2) の linuxptp (ptp4l, phc2sys, pmc) 高精度時刻同期監視テンプレートです。
+
+      ## 要件
+      - linuxptp パッケージ (ptp4l, phc2sys, pmc) がインストールされていること
+      - zabbix-agent または zabbix-agent2 でリモートコマンド実行が有効化されていること、または UserParameter が設定されていること
+      
+      ## Agent 設定例 (zabbix_agentd.conf / zabbix_agent2.conf)
+      ```ini
+      AllowKey=system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      ```
+      ※ UserParameter を使用する場合は、テンプレート側のキー名を UserParameter の名前に合わせて変更してください。
+    groups:
+    - name: Templates/Applications
+    items:
+    - uuid: 14566b50fa0b4c649127e8e13bb4d443
+      name: PTP PMC 生データ取得
+      type: ZABBIX_ACTIVE
+      key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      delay: 30s
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      description: pmc から TIME_STATUS_NP, CURRENT_DATA_SET, PORT_DATA_SET を一括取得し JSON 変換します。
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var lines = value.split('\n');
+          var res = {};
+          for (var i = 0; i < lines.length; i++) {
+              var line = lines[i].trim();
+              if (!line || line.indexOf('RESPONSE') !== -1 || line.indexOf('sending:') === 0) {
+                  continue;
+              }
+              var match = line.match(/^([a-zA-Z0-9_]+)\s+(.+)$/);
+              if (match) {
+                  res[match[1]] = match[2].trim();
+              }
+          }
+          return JSON.stringify(res);
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 75ce550d1cac44548d81ace3cd20fc36
+        expression: "nodata(/template_ptp_accuracy/system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET'],5m)=1"
+        name: 'PTP: PMC 生データの取得に失敗しました (5分間データなし)'
+        priority: WARNING
+        description: 'pmc コマンドによる PTP 管理データの取得に失敗しています。ptp4l サービスの状態や zabbix-agent ユーザーのソケット権限を確認してください。'
+    - uuid: f7faa7a073fe42ff9d4aa275808a4ba0
+      name: PTP マスターオフセット
+      type: DEPENDENT
+      key: ptp.offset_from_master
+      delay: '0'
+      history: 7d
+      value_type: FLOAT
+      units: ns
+      description: グランドマスターとの時刻偏差 (ナノ秒)。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.offsetFromMaster
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 4e166b50fc4741268231404f2d5b9c45
+        expression: |
+          last(/template_ptp_accuracy/ptp.offset_from_master)>{$PTP_OFFSET_CRIT} or 
+          last(/template_ptp_accuracy/ptp.offset_from_master)<-{$PTP_OFFSET_CRIT}
+        name: PTP マスターとの時刻偏差が {$PTP_OFFSET_CRIT}ns を超えています (重度)
+        priority: HIGH
+      - uuid: 6b3c5193e3444875ae9f0a5b7a513131
+        expression: |
+          last(/template_ptp_accuracy/ptp.offset_from_master)>{$PTP_OFFSET_WARN} or 
+          last(/template_ptp_accuracy/ptp.offset_from_master)<-{$PTP_OFFSET_WARN}
+        name: PTP マスターとの時刻偏差が {$PTP_OFFSET_WARN}ns を超えています (警告)
+        priority: WARNING
+        dependencies:
+        - name: PTP マスターとの時刻偏差が {$PTP_OFFSET_CRIT}ns を超えています (重度)
+          expression: |
+            last(/template_ptp_accuracy/ptp.offset_from_master)>{$PTP_OFFSET_CRIT} or 
+            last(/template_ptp_accuracy/ptp.offset_from_master)<-{$PTP_OFFSET_CRIT}
+    - uuid: f790d7689b37448ba8f7c6493d3e53c0
+      name: PTP 平均経路遅延
+      type: DEPENDENT
+      key: ptp.mean_path_delay
+      delay: '0'
+      history: 7d
+      value_type: FLOAT
+      units: ns
+      description: マスターとスレーブ間の平均ネットワーク往復遅延の片道分 (ナノ秒)。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.meanPathDelay
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: 2163be37cc0e4e37bb851d85d764c93a
+      name: PTP グランドマスター検知状態
+      type: DEPENDENT
+      key: ptp.gm_present
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: グランドマスターが検知されているかどうか (true/false)。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.gmPresent
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 6f86aee17f984ee9a1a06fe6c7d5fdea
+        expression: find(/template_ptp_accuracy/ptp.gm_present,,"regexp","^true$")=0
+        name: PTP グランドマスターが検知されていません
+        priority: HIGH
+    - uuid: d79c5e48c6c14408bfb1a6697fb9c3e4
+      name: PTP ポート状態
+      type: DEPENDENT
+      key: ptp.port_state
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: PTP ポートの動作ステータス (SLAVE, MASTER, PASSIVE, LISTENING, FAULTY 等)。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.portState
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 16d79955899a402bb7240d4e8ef428d3
+        expression: find(/template_ptp_accuracy/ptp.port_state,,"regexp","^(SLAVE|MASTER)$")=0
+        name: PTP ポート状態が異常です ({ITEM.VALUE})
+        priority: WARNING
+    - uuid: acda0965ea2b4c20b25202e9d0e0c0d0
+      name: PTP グランドマスター ID
+      type: DEPENDENT
+      key: ptp.gm_identity
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: 同期中グランドマスターのクロック識別子 (EUI-64)。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.gmIdentity
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: 19117a33a1ed41838381af5e2497824c
+      name: PTP ステップ数 (ホップ数)
+      type: DEPENDENT
+      key: ptp.steps_removed
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      description: グランドマスターからのバウンダリクロックホップ数。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.stepsRemoved
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: bbf850d2fe824d4bac4f4eb34b9962ad
+      name: PTP ポート識別子
+      type: DEPENDENT
+      key: ptp.port_identity
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: ローカル PTP ポートの識別子。
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.portIdentity
+      master_item:
+        key: system.run[pmc -u -b 0 'GET TIME_STATUS_NP' 'GET CURRENT_DATA_SET' 'GET PORT_DATA_SET']
+      tags:
+      - tag: Application
+        value: PTP
+    - uuid: 2d783c02e68f4d8c8e57585dc902d649
+      name: ptp4l プロセス稼働数
+      type: ZABBIX_ACTIVE
+      key: proc.num[ptp4l]
+      delay: 1m
+      history: 7d
+      value_type: UNSIGNED
+      description: ptp4l デーモンの稼働プロセス数。
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 37c205f2dd024a838aeef511949aa726
+        expression: last(/template_ptp_accuracy/proc.num[ptp4l])=0
+        name: ptp4l デーモンが停止しています
+        priority: AVERAGE
+    - uuid: 999aeab93607491fa146351f3e433901
+      name: phc2sys プロセス稼働数
+      type: ZABBIX_ACTIVE
+      key: proc.num[phc2sys]
+      delay: 1m
+      history: 7d
+      value_type: UNSIGNED
+      description: phc2sys デーモンの稼働プロセス数。
+      tags:
+      - tag: Application
+        value: PTP
+      triggers:
+      - uuid: 27f2a65990484008adacc7a03d997b62
+        expression: last(/template_ptp_accuracy/proc.num[phc2sys])=0
+        name: phc2sys デーモンが停止しています
+        priority: AVERAGE
+    macros:
+    - macro: '{$PTP_OFFSET_WARN}'
+      value: '1000'
+      description: PTP マスターオフセット警告閾値 (ナノ秒、1000ns = 1µs)
+    - macro: '{$PTP_OFFSET_CRIT}'
+      value: '10000'
+      description: PTP マスターオフセット重度閾値 (ナノ秒、10000ns = 10µs)
+  graphs:
+  - uuid: 4f223b1f01674d5fac1db91981fbb88d
+    name: PTP マスターオフセット推移
+    graph_items:
+    - color: 199C0D
+      item:
+        host: template_ptp_accuracy
+        key: ptp.offset_from_master
+  - uuid: 42124079a4294d869324fd7c3f4b514c
+    name: PTP 経路遅延推移
+    graph_items:
+    - color: F63100
+      item:
+        host: template_ptp_accuracy
+        key: ptp.mean_path_delay
