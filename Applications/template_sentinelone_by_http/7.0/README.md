@@ -1,0 +1,122 @@
+# SentinelOne by HTTP
+
+Author: Rémi Piazza ([remipiazza](https://github.com/remipiazza)).
+
+## Overview
+
+This template monitors the status of the SentinelOne agent of a machine through the SentinelOne Management Console REST API (v2.1) using a script item. It does not require any external script file.
+
+For each host, one master item looks the agent up by exact computer name (first the DNS name of the host interface, then its short name), and dependent items extract the metrics from the response.
+
+## Requirements
+
+Zabbix version: 7.0 and higher.
+
+## Tested versions
+
+This template has been tested on:
+
+- SentinelOne Management Console API v2.1 (agent version 26.1.2.177)
+
+## Configuration
+
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/current/en/manual/config/templates_out_of_the_box) section.
+
+## Setup
+
+### SentinelOne side
+
+Nothing else needs to be configured in SentinelOne: no webhook, rule or policy change. The template only reads data through the API.
+
+1. **Create a service user.** In the console, go to `Settings` -> `Users` -> `Service Users` (labelled `Policies and Settings` -> `User Management` -> `Service Users` in some console versions) and create a service user with the **Viewer** role and a scope covering the monitored sites.
+2. **Generate the token.** Choose the longest expiration offered and note the date. Copy the token in full: it is displayed only once, and a truncated token is rejected with `401 Authentication Failed`.
+3. **Check the token** before using it in Zabbix (on Windows PowerShell, use `curl.exe`):
+
+   ```
+   curl -s -H "Authorization: ApiToken <TOKEN>" "https://example.sentinelone.net/web/api/v2.1/agents?computerName=server01&limit=1"
+   ```
+
+   The response must contain `"totalItems":1`.
+4. **Check the computer name.** The template looks the agent up by exact computer name, trying in order: the DNS name of the host interface as is, then its short name (the part before the first dot, as is and then in upper case). It stops at the first match, so it works whether the agent is registered with the short name (usually Windows) or with the FQDN (usually Linux). Check in the endpoints list of the console that the name of the agent is one of these names.
+
+### Zabbix side
+
+1. Set the following user macros, preferably on a parent template or on the host group so that they are defined once:
+   - `{$SENTINELONE.URL}` - the console URL, e.g., `https://example.sentinelone.net`;
+   - `{$SENTINELONE.TOKEN}` - the API token (secret macro).
+2. Make sure the **DNS name** field of the main interface of each host is filled. It is looked up as is (for example `server01.example.local`) and, if no agent has this name, by its short name (`server01`). The DNS field is required: if it is empty, the item reports an error. Each lookup is an exact match, so names that merely contain the host name are never matched.
+3. Link the template to the hosts.
+
+### Token renewal
+
+The API token expires on the date chosen when it was generated. Before this date, use `Actions` -> `Regenerate API Token` on the service user and update `{$SENTINELONE.TOKEN}`. If this option is not available on an expired account, use `Actions` -> `Copy User` to create a new service user with the same scope, then delete the old one. Menu labels may differ between console versions. If the token is not renewed in time, the "No data from API" trigger fires.
+
+If the agent is not found in the console, the dependent items are left without data and the "Agent not found in console" trigger fires.
+
+### Macros used
+
+| Name | Description | Default |
+| ---- | ----------- | ------- |
+| {$SENTINELONE.URL} | SentinelOne Management Console URL without trailing slash, e.g., https://example.sentinelone.net. |  |
+| {$SENTINELONE.TOKEN} | API token of a read-only (Viewer) service user. |  |
+| {$SENTINELONE.API.PATH} | Sub-path of the SentinelOne REST API. | `/web/api/v2.1` |
+| {$SENTINELONE.HTTP.PROXY} | HTTP proxy for the API requests. If empty, no proxy is used. |  |
+| {$SENTINELONE.INTERVAL} | Update interval of the API request. | `10m` |
+| {$SENTINELONE.TIMEOUT} | Timeout of the script that queries the API (up to three requests). | `30s` |
+| {$SENTINELONE.NODATA_TIMEOUT} | Period without data after which the "No data from API" trigger fires. | `30m` |
+| {$SENTINELONE.LAST_ACTIVE.MAX.WARN} | Maximum time since the last agent communication before the "No recent activity" trigger fires. | `1h` |
+| {$HTTP.TLS.VERIFY} | TLS certificate verification for the script item: "none" - disabled, "peer" - verify the certificate chain and expiration, "full" - full verification. Any other value enables full verification. To override the setting for this template only, define the macro with the context "SentinelOne", e.g. {$HTTP.TLS.VERIFY:"SentinelOne"}. | `full` |
+
+### Items
+
+| Name | Description | Type | Key and additional info |
+| ---- | ----------- | ---- | ----------------------- |
+| SentinelOne: Get agent | Looks up the agent in the SentinelOne Management Console by exact computer name, trying in order the DNS name of the host interface as is, then its short name (part before the first dot, as is and then in upper case), and stops at the first match. The DNS name of the host interface is required. This covers agents registered with the short name (usually Windows) as well as with the FQDN (usually Linux). The result is reduced to the fields used by the dependent items. | Script | sentinelone.agent.get |
+| SentinelOne: Agents found | Number of agents returned by the console for this host (pagination.totalItems). 0 means the machine is not in the console, more than 1 means duplicate agents. Not discarded with a heartbeat because the "No data from API" trigger relies on it. | Dependent item | sentinelone.agent.found<br>**Preprocessing**<br>JSON Path: `$.pagination.totalItems` (on fail: discard value) |
+| SentinelOne: Agent active | Whether the agent is currently connected to the management console (isActive). | Dependent item | sentinelone.agent.active<br>**Preprocessing**<br>JSON Path: `$.data[0].isActive` (on fail: discard value)<br>Boolean to decimal<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Network status | Network state reported by the console (networkStatus). The value "disconnected" indicates that the machine is isolated from the network by SentinelOne (network quarantine). Unrecognized values are stored as 0. | Dependent item | sentinelone.agent.network_status<br>**Preprocessing**<br>JSON Path: `$.data[0].networkStatus` (on fail: discard value)<br>JavaScript: `see the template`<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Last active | Date of the last communication between the agent and the console (lastActiveDate). | Dependent item | sentinelone.agent.last_active<br>**Preprocessing**<br>JSON Path: `$.data[0].lastActiveDate` (on fail: discard value)<br>JavaScript: `see the template` |
+| SentinelOne: Infected | Whether the agent reports the machine as infected (infected). | Dependent item | sentinelone.agent.infected<br>**Preprocessing**<br>JSON Path: `$.data[0].infected` (on fail: discard value)<br>Boolean to decimal<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Active threats | Number of active threats on the machine (activeThreats). | Dependent item | sentinelone.agent.threats<br>**Preprocessing**<br>JSON Path: `$.data[0].activeThreats` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Operational state | Operational state of the agent (operationalState). "na" is the normal state; any other value means the agent was disabled, fully or partially, from the console. Observed values: na, partially_disabled; fully_disabled and disabled_error are mapped as well. Unrecognized values are stored as 0. | Dependent item | sentinelone.agent.operational_state<br>**Preprocessing**<br>JSON Path: `$.data[0].operationalState` (on fail: discard value)<br>JavaScript: `see the template`<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Operational state expiration | Date at which a temporary disabled state ends (operationalStateExpiration). 0 if there is no expiration. | Dependent item | sentinelone.agent.operational_state.expiration<br>**Preprocessing**<br>JSON Path: `$.data[0].operationalStateExpiration` (on fail: discard value)<br>JavaScript: `see the template` |
+| SentinelOne: Operational state (raw value) | Operational state as returned by the console (operationalState), without conversion. Use it to identify an unexpected state that the "Operational state" item shows as "Unknown". | Dependent item | sentinelone.agent.operational_state.raw<br>**Preprocessing**<br>JSON Path: `$.data[0].operationalState` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Agent version | Agent version (agentVersion). | Dependent item | sentinelone.agent.version<br>**Preprocessing**<br>JSON Path: `$.data[0].agentVersion` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Agent up to date | Whether the agent runs the latest version available in the console (isUpToDate). | Dependent item | sentinelone.agent.up_to_date<br>**Preprocessing**<br>JSON Path: `$.data[0].isUpToDate` (on fail: discard value)<br>Boolean to decimal<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Reboot needed | Whether a restart of the machine is needed: the console reports the action "reboot_needed" or "reboot_required" in userActionsNeeded, or a reboot is required to complete the remediation of a threat (threatRebootRequired). | Dependent item | sentinelone.agent.reboot_needed<br>**Preprocessing**<br>JSON Path: `$.data[0].rebootNeeded` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Actions needed | Actions that the console requires on the machine (userActionsNeeded), separated by commas, or "none". See the SentinelOne API documentation for the possible values, for example reboot_needed, reboot_required, upgrade_needed, unprotected, pending_performance_insights. | Dependent item | sentinelone.agent.actions_needed<br>**Preprocessing**<br>JSON Path: `$.data[0].actionsNeeded` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+| SentinelOne: Agent unprotected | Whether the console reports the machine as unprotected (action "unprotected" in userActionsNeeded). | Dependent item | sentinelone.agent.unprotected<br>**Preprocessing**<br>JSON Path: `$.data[0].unprotected` (on fail: discard value)<br>Discard unchanged with heartbeat: `1h` |
+
+### Triggers
+
+| Name | Description | Expression | Severity | Dependencies and additional info |
+| ---- | ----------- | ---------- | -------- | -------------------------------- |
+| SentinelOne: No data from API | The API request has not returned data for the configured period. Possible causes: expired or revoked API token, wrong console URL or API path, network or proxy issue, API rate limiting. Check the error of the "SentinelOne: Get agent" item. | `nodata(/SentinelOne by HTTP/sentinelone.agent.found,{$SENTINELONE.NODATA_TIMEOUT})=1` | Warning |  |
+| SentinelOne: Agent not found in console | No agent in the console matches the DNS name of the host or its short name: the agent is not installed, was removed or decommissioned, the machine was renamed, or the DNS name of the host does not match the SentinelOne computer name. Check the DNS name of the host interface and the console inventory. | `last(/SentinelOne by HTTP/sentinelone.agent.found)=0` | High | **Depends on**:<br>SentinelOne: No data from API |
+| SentinelOne: Duplicate agents in console | More than one agent has the same name in the console; only the first one is read. Remove the stale entry in the console. | `last(/SentinelOne by HTTP/sentinelone.agent.found)>1` | Info |  |
+| SentinelOne: Active threat detected | The agent reports an infected machine or active threats. Review the threat in the SentinelOne console and follow the incident response procedure. | `last(/SentinelOne by HTTP/sentinelone.agent.infected)=1 or last(/SentinelOne by HTTP/sentinelone.agent.threats)>0` | High |  |
+| SentinelOne: Agent is not active | The agent is not connected to the console. The agent service may be stopped, the machine powered off, or the connection to the console blocked. Check the machine and the agent service. | `last(/SentinelOne by HTTP/sentinelone.agent.active)=0 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0` | Average | **Depends on**:<br>SentinelOne: Agent not found in console |
+| SentinelOne: Machine is network-quarantined | The machine is isolated from the network by SentinelOne (network quarantine). Check that the isolation is intended and release it from the console when appropriate. | `last(/SentinelOne by HTTP/sentinelone.agent.network_status)=3 and last(/SentinelOne by HTTP/sentinelone.agent.active)=1` | High |  |
+| SentinelOne: Agent is disabled | The agent was disabled, fully or partially, from the console, so the machine may be unprotected while the agent still reports to the console. Check who disabled it and re-enable it; the "Operational state expiration" item shows when a temporary state ends. | `last(/SentinelOne by HTTP/sentinelone.agent.operational_state)<>1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0 and last(/SentinelOne by HTTP/sentinelone.agent.operational_state.raw)<>"na"` | High |  |
+| SentinelOne: No recent activity | The agent has not communicated with the console for longer than the period defined by {$SENTINELONE.LAST_ACTIVE.MAX.WARN}. Check the machine, the agent service and the connectivity. | `(now()-last(/SentinelOne by HTTP/sentinelone.agent.last_active))>{$SENTINELONE.LAST_ACTIVE.MAX.WARN} and last(/SentinelOne by HTTP/sentinelone.agent.found)>0` | Warning | **Depends on**:<br>SentinelOne: Agent is not active |
+| SentinelOne: Agent is not up to date | The agent is not at the latest version available in the console. Plan an upgrade according to your agent upgrade policy. | `last(/SentinelOne by HTTP/sentinelone.agent.up_to_date)=0 and last(/SentinelOne by HTTP/sentinelone.agent.version)<>"" and last(/SentinelOne by HTTP/sentinelone.agent.found)>0` | Info |  |
+| SentinelOne: Reboot needed | The console asks for a restart of the machine, or a restart is required to complete the remediation of a threat. Restart the machine during the next maintenance window. The "Actions needed" item lists all the actions required by the console. | `last(/SentinelOne by HTTP/sentinelone.agent.reboot_needed)=1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0` | Warning |  |
+| SentinelOne: Agent is unprotected | The console reports the machine as unprotected: the agent may not be protecting it. Check the state of the agent in the SentinelOne console and fix the cause. | `last(/SentinelOne by HTTP/sentinelone.agent.unprotected)=1 and last(/SentinelOne by HTTP/sentinelone.agent.found)>0` | High |  |
+
+### Dashboards
+
+The template includes the dashboard **SentinelOne: Agent overview**, which shows the main agent states (active, network, operational state, infection, threats, version, last activity, reboot needed, unprotected) for the host.
+
+### Tags
+
+- Template: `class: software`, `subclass: security`, `target: sentinelone`.
+- Items: `component` (`raw`, `application` or `network`) and `target: sentinelone`.
+- Triggers: `scope` (`security`, `availability` or `notice`) and `target: sentinelone`.
+
+## Feedback
+
+Please report any issues or suggestions through the [Zabbix community templates repository](https://github.com/zabbix/community-templates), mentioning the template name and its author (@remipiazza).
+
+You can also discuss this template on the [Zabbix forum](https://www.zabbix.com/forum).
+
+This template is published under the MIT license.
