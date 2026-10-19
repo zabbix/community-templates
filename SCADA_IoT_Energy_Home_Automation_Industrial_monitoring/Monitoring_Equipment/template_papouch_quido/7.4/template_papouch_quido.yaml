@@ -1,0 +1,258 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 307f4f8025ce4f7697c70b2c8367cd3c
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 622f1e1c06ad457d9c020c62f2137fb3
+      template: 'HW Quido'
+      name: 'HW Quido'
+      description: |
+        Papouch Quido I/O module monitoring via SNMP.
+        - Digital inputs and relay outputs are discovered automatically (only those with a name set in Quido)
+        - Temperature sensor with high temperature and fast temperature change triggers
+        - Location, uptime, ICMP ping / loss / response time
+        
+        Requirements: Zabbix 7.4+, SNMP enabled on Quido, fping on the server/proxy.
+        Source: https://github.com/DuprTECH/Zabbix-Quido-Papouch
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 00cc154010bf48a188a251725f591732
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: 'icmppingloss[,10,,24,]'
+          history: 1w
+          value_type: FLOAT
+          units: '%'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: 17c801ae315e46c39b34d2a89e6991ed
+              expression: 'min(/HW Quido/icmppingloss[,10,,24,],5m)>{$ICMP_LOSS_WARN} and min(/HW Quido/icmppingloss[,10,,24,],5m)<100'
+              name: 'High ICMP ping loss'
+              priority: HIGH
+              description: 'Last value: {ITEM.LASTVALUE1}.'
+              dependencies:
+                - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                  expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+        - uuid: db2af2289bf343018f8f85827fdfb4a2
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: 'icmppingsec[,1,,24,]'
+          history: 1w
+          value_type: FLOAT
+          units: s
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: 1e1fb2ad3f574d2c9976ded6a9552776
+              expression: 'avg(/HW Quido/icmppingsec[,1,,24,],5m)>{$ICMP_RESPONSE_TIME_WARN}'
+              name: 'High ICMP ping response time'
+              priority: WARNING
+              description: 'Last value: {ITEM.LASTVALUE1}.'
+              dependencies:
+                - name: 'High ICMP ping loss'
+                  expression: 'min(/HW Quido/icmppingloss[,10,,24,],5m)>{$ICMP_LOSS_WARN} and min(/HW Quido/icmppingloss[,10,,24,],5m)<100'
+                - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                  expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+        - uuid: 78a392eb6f574c719a34658193cba012
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: 'icmpping[,1,,24,]'
+          history: 1w
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: b89b0d5dfe014d05acfaf6f337341241
+              expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+              name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+              priority: DISASTER
+              description: |
+                Last value: {ITEM.LASTVALUE1}.
+                Last three attempts returned timeout.  Please check device connectivity.
+        - uuid: b80a2ef6c3b44676956ef418c0532177
+          name: Location
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.18248.16.1.3.0
+          key: quido.location
+          history: 90d
+          value_type: TEXT
+          inventory_link: LOCATION
+          tags:
+            - tag: Application
+              value: General
+        - uuid: e7799cd5a3134a30949674c8f7eb5ff6
+          name: 'Sensor temperature'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.18248.16.1.1.0
+          key: quido.temp
+          history: 90d
+          value_type: FLOAT
+          units: '°C'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.1'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: 91cb0e434f1f42739b9611cc6a7f19a1
+              expression: 'min(/HW Quido/quido.temp,#3)>{$QUIDO_TEMP_WARN}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/HW Quido/quido.temp,#3)<{$QUIDO_TEMP_RECOVER}'
+              name: 'High sensor temperature'
+              opdata: 'Current: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              manual_close: 'YES'
+              dependencies:
+                - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                  expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+            - uuid: db3cfc8cf77c4439b74d33c53800f40e
+              expression: '(max(/HW Quido/quido.temp,1h)-min(/HW Quido/quido.temp,1h))>{$QUIDO_TEMP_CHANGE}'
+              recovery_mode: NONE
+              name: 'Large temperature change in the last hour'
+              description: 'Temperature changed by more than {$QUIDO_TEMP_CHANGE} °C within the last hour (for example air conditioning failure). Close the problem manually.'
+              priority: HIGH
+              manual_close: 'YES'
+              dependencies:
+                - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                  expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+        - uuid: 0baff4192c1b484380fcafd343121f18
+          name: Uptime
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.3.0
+          key: quido.uptime
+          history: 90d
+          units: uptime
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: Application
+              value: Status
+          triggers:
+            - uuid: f2a4974c8b9e496ea45b6cff954dcf4c
+              expression: 'last(/HW Quido/quido.uptime)<600'
+              name: 'Device rebooted'
+              priority: INFO
+              dependencies:
+                - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                  expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+      discovery_rules:
+        - uuid: 0441b52ff14f426b8217a167816ed017
+          name: Inputs
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPNAME},1.3.6.1.4.1.18248.16.2.1.1.2]'
+          key: quido.inputs
+          filter:
+            conditions:
+              - macro: '{#SNMPNAME}'
+                value: '^(\s*$)'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          item_prototypes:
+            - uuid: b2708c0125304c30a11df2b423c951b9
+              name: 'Digital input [{#SNMPINDEX}] {#SNMPNAME}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.18248.16.2.1.1.1.{#SNMPINDEX}'
+              key: 'quido.imputs.[{#SNMPINDEX}]'
+              history: 90d
+              valuemap:
+                name: 'QUIDO Inputs'
+              tags:
+                - tag: Application
+                  value: Inputs
+              trigger_prototypes:
+                - uuid: 7f84a613784a43bc995086677b11ddc6
+                  expression: 'last(/HW Quido/quido.imputs.[{#SNMPINDEX}])=0'
+                  name: '{#SNMPNAME}'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                      expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+        - uuid: 3d92c4cbcc444d2a8ffc43d50e4dc507
+          name: Outputs
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMPNAME},1.3.6.1.4.1.18248.16.3.1.1.2]'
+          key: quido.outputs
+          filter:
+            conditions:
+              - macro: '{#SNMPNAME}'
+                value: '^(\s*$)'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          item_prototypes:
+            - uuid: 44972ac5f8c54474be919dd2cc6c2994
+              name: 'Relay [{#SNMPINDEX}] {#SNMPNAME}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.18248.16.3.1.1.1.{#SNMPINDEX}'
+              key: 'quido.outputs.[{#SNMPINDEX}]'
+              history: 90d
+              valuemap:
+                name: 'QUIDO Outputs (NC Relay)'
+              tags:
+                - tag: Application
+                  value: Outputs
+              trigger_prototypes:
+                - uuid: 7c3f1d12328441e8801aa0e3c809580c
+                  expression: 'last(/HW Quido/quido.outputs.[{#SNMPINDEX}])=1'
+                  name: 'Powersupply on relay [{#SNMPINDEX}] {#SNMPNAME} is OFF'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                      expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+                - uuid: b547c967f9ae4e3cb6566a0af5ada02c
+                  expression: 'change(/HW Quido/quido.outputs.[{#SNMPINDEX}])=-1'
+                  name: 'Powersupply on relay [{#SNMPINDEX}] {#SNMPNAME} RESTART'
+                  priority: INFO
+                  dependencies:
+                    - name: 'HOST DOWN ! (Unavailable by ICMP ping)'
+                      expression: 'max(/HW Quido/icmpping[,1,,24,],#3)=0'
+      macros:
+        - macro: '{$ICMP_LOSS_WARN}'
+          value: '20'
+        - macro: '{$ICMP_RESPONSE_TIME_WARN}'
+          value: '0.15'
+        - macro: '{$QUIDO_TEMP_CHANGE}'
+          value: '5'
+          description: 'Maximum tolerated temperature change within one hour (°C)'
+        - macro: '{$QUIDO_TEMP_RECOVER}'
+          value: '35'
+          description: 'High temperature problem recovers below this value (°C)'
+        - macro: '{$QUIDO_TEMP_WARN}'
+          value: '45'
+          description: 'High temperature threshold (°C)'
+      valuemaps:
+        - uuid: 528c2167500a4f65a306037667b67942
+          name: 'QUIDO Inputs'
+          mappings:
+            - value: '0'
+              newvalue: 'Alert ⚠️'
+            - value: '1'
+              newvalue: 'OK ✅'
+        - uuid: 29b2203389134404b1b6891a5797416e
+          name: 'QUIDO Outputs (NC Relay)'
+          mappings:
+            - value: '0'
+              newvalue: 'Relay (NC)✅ON'
+            - value: '1'
+              newvalue: 'Relay (NC)❌OFF'
+        - uuid: 8b1fa8b8c497424cb44d19e0054e0c82
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
