@@ -1,0 +1,408 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 846977d1dfed4968bc5f8bdb363285bc
+      name: 'Templates/Operating systems'
+  templates:
+    - uuid: a7c5e63640d74e92b853a7eaddcfc72f
+      template: 'APP Winupdates check'
+      name: 'APP Winupdates check'
+      description: |
+        Windows Update / patch management monitoring for Windows servers and workstations.
+        - Available updates by category: all, critical, security, definition, service packs, update rollups
+        - Reboot required, WSUS availability, Windows Update service startup type
+        - Last check and last install run: date, age, search / download / install result, last restart
+        - Patch day of the last install (for example "2.Tue") in host inventory and tag UpdatePlan
+
+        Data are sent by the check script zbx-windows-updates.ps1 with zabbix_sender (trapper items). It can be started
+        by the Zabbix agent (system.run) or by Task Scheduler / cron.
+        Requirements: Zabbix 7.4+, Zabbix agent 2 on Windows, zabbix_sender.
+        Source: https://github.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: 'Templates/Operating systems'
+      items:
+        - uuid: 4ec7e881747e42c7a2bebb28c030e44d
+          name: 'WU - Service startup type'
+          key: 'service.info[wuauserv,startup]'
+          delay: 4h
+          history: 30d
+          trends: 30d
+          description: |
+            Windows Update service startup mode:
+            0 - auto,
+            1 - auto (delayed launch),
+            2 - manual,
+            3 - disable,
+            4 - unknown.
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+          triggers:
+            - uuid: 27c4e13c8a0e4a3a99dec3d7d6d3f979
+              expression: 'last(/APP Winupdates check/service.info[wuauserv,startup])=2'
+              name: 'Windows Update service startup type is manual'
+              priority: WARNING
+              tags:
+                - tag: WIN
+                  value: WU
+            - uuid: 9ff4a54ab6c548f5b551285dbec1c6cb
+              expression: 'last(/APP Winupdates check/service.info[wuauserv,startup])=4'
+              name: 'Windows Update service startup type is unknown'
+              priority: WARNING
+              tags:
+                - tag: WIN
+                  value: WU
+            - uuid: 1b270ad80d894d0f900c13cbc2235096
+              expression: 'last(/APP Winupdates check/service.info[wuauserv,startup])=3'
+              name: 'Windows Update service has been disabled'
+              priority: WARNING
+              tags:
+                - tag: WIN
+                  value: WU
+        - uuid: 8e111d0327124517bf0055d6f8000cb3
+          name: 'WU - Run update check'
+          key: 'system.run[start /low powershell -NoProfile -ExecutionPolicy Bypass -File "{$WU.SCRIPT.PATH}",nowait]'
+          delay: '12h;3h/1-5,07:00-17:00'
+          history: 1d
+          value_type: LOG
+          description: 'Starts the Windows Update check script through the Zabbix agent (needs AllowKey=system.run[*] in the agent config). Disable this item if the script runs from Task Scheduler instead.'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+        - uuid: 9f736ed1d9e7446e83c7e2812e0b8df0
+          name: 'WU - All'
+          type: TRAP
+          key: zbx.winupdate.vbs.all
+          history: 30d
+          trends: 30d
+          description: 'All available Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+          triggers:
+            - uuid: b9ca7ebc197c4a44bdeff6b153ef518e
+              expression: 'last(/APP Winupdates check/zbx.winupdate.vbs.all)>0'
+              name: 'Windows updates are available'
+              status: DISABLED
+              priority: INFO
+              tags:
+                - tag: WIN
+                  value: WU
+        - uuid: 1e7cb390bcf24a89aa09538cfeb000df
+          name: 'WU - Critical'
+          type: TRAP
+          key: zbx.winupdate.vbs.critical
+          history: 30d
+          trends: 30d
+          description: 'Critical Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+          triggers:
+            - uuid: e191904b76a841c0afb4a68c27411345
+              expression: 'last(/APP Winupdates check/zbx.winupdate.vbs.critical)>0'
+              name: 'Critical Windows updates are available'
+              priority: HIGH
+              tags:
+                - tag: WIN
+                  value: WU
+        - uuid: 379c4a6fe07d4b69b377863a6b41afaa
+          name: 'WU - Last check date'
+          type: TRAP
+          key: zbx.winupdate.vbs.datetime
+          history: 30d
+          value_type: TEXT
+          description: 'Date and time of the last update check'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+        - uuid: 9b3e0059b5cd453ba966b1963a68e35f
+          name: 'WU - Last check age'
+          type: CALCULATED
+          key: zbx.winupdate.vbs.datetime.timestamp
+          delay: 10s
+          history: 30d
+          trends: '0'
+          units: uptime
+          params: last(//zbx.winupdate.vbs.datetime)
+          description: 'Time since the last update check'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Age of the reported date/time in seconds.
+                  // The script reports local time of the Windows host; {$WU.TIMEZONE} is its time zone.
+                  const dateObject = new Date(value);
+                  const inputTimestamp = Math.floor(dateObject.getTime() / 1000);
+
+                  // Current time in the time zone of the Windows hosts
+                  const nowUTC = new Date();
+                  const nowLocal = new Date(nowUTC.toLocaleString('en-US', { timeZone: '{$WU.TIMEZONE}' }));
+                  const nowLocalTimestamp = Math.floor(nowLocal.getTime() / 1000);
+
+                  return nowLocalTimestamp + {$WU.TIMEZONE.CORRECTION} - inputTimestamp;          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+        - uuid: fb75e86aa789445cb676f858c520637f
+          name: 'WU - Definition'
+          type: TRAP
+          key: zbx.winupdate.vbs.definition
+          history: 30d
+          trends: 30d
+          description: 'Definition Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: acf8fed71dfc44cca3e230bf392e1b14
+          name: 'WU install - Last install date'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.datetime
+          history: 30d
+          value_type: TEXT
+          description: 'Date and time of the last install run'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+        - uuid: 60c0a2c907fc4bf19de7f314265c7235
+          name: 'WU install - Patch day (day of month)'
+          type: CALCULATED
+          key: zbx.winupdate.vbs.install.datetime.day_of_mounth
+          delay: 1h
+          history: 30d
+          value_type: TEXT
+          params: last(//zbx.winupdate.vbs.install.datetime)
+          description: 'Day of the month of the last install run, for example 2.Tue (2nd Tuesday). Stored in host inventory (Type) and used in tag UpdatePlan.'
+          inventory_link: TYPE
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |2
+                      // Split the value into year, month and day
+                      var year = parseInt(value.split("T")[0].split("-")[0]);
+                      var month = parseInt(value.split("T")[0].split("-")[1]);
+                      var day = parseInt(value.split("T")[0].split("-")[2]);
+                  
+                      // Create the date
+                      var date = new Date(year, month - 1, day);
+                  
+                      // Day of week abbreviations
+                      var weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                  
+                      // Day of week (0 = Sunday, 6 = Saturday)
+                      var dayOfWeek = weekdays[date.getDay()];
+                  
+                      // Position of the day in the month (for example 2nd Friday)
+                      var position = Math.floor((date.getDate() - 1) / 7) + 1;
+                  
+                      // Return for example "2.Fri"
+                      return position + "." + dayOfWeek;
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+            - tag: UpdatePlan
+              value: '{INVENTORY.TYPE1}'
+        - uuid: 4d5ec5cda2ce4e6e803babae10758933
+          name: 'WU install - Last install age'
+          type: CALCULATED
+          key: zbx.winupdate.vbs.install.datetime.timestamp
+          delay: 5m
+          history: 30d
+          trends: '0'
+          units: uptime
+          params: last(//zbx.winupdate.vbs.install.datetime)
+          description: 'Time since the last install run'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Age of the reported date/time in seconds.
+                  // The script reports local time of the Windows host; {$WU.TIMEZONE} is its time zone.
+                  const dateObject = new Date(value);
+                  const inputTimestamp = Math.floor(dateObject.getTime() / 1000);
+
+                  // Current time in the time zone of the Windows hosts
+                  const nowUTC = new Date();
+                  const nowLocal = new Date(nowUTC.toLocaleString('en-US', { timeZone: '{$WU.TIMEZONE}' }));
+                  const nowLocalTimestamp = Math.floor(nowLocal.getTime() / 1000);
+
+                  return nowLocalTimestamp + {$WU.TIMEZONE.CORRECTION} - inputTimestamp;          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+        - uuid: cf0d7f5d689642289120996f17fb3de9
+          name: 'WU install - Download result'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.download
+          history: 30d
+          value_type: TEXT
+          description: 'Result of the update download in the last install run'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: 158ae24a036149618813bacb627ecc52
+          name: 'WU install - Installed updates'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.install
+          history: 366d
+          value_type: TEXT
+          description: 'Updates installed in the last install run'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: f59c0bcd729a442bb943336a81b61c18
+          name: 'WU install - Install result'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.install.res
+          history: 30d
+          value_type: TEXT
+          description: 'Result of the last install run'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: 5f5d951f9c774fdc9d28aab96526a4cc
+          name: 'WU install - Last restart'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.lastrestart
+          history: 30d
+          value_type: TEXT
+          description: 'Last restart after installing updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: 7f1cc8ca34054839ac42b96a5d3b7050
+          name: 'WU install - Search result'
+          type: TRAP
+          key: zbx.winupdate.vbs.install.search
+          history: 30d
+          value_type: TEXT
+          description: 'Result of the update search in the last install run'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: 91f2a16ce6b3439fa1d6a5fca64eb0fd
+          name: 'WU - Reboot required'
+          type: TRAP
+          key: zbx.winupdate.vbs.rebootrequired
+          history: 30d
+          trends: 30d
+          description: |
+            Is reboot required:
+            1 - true,
+            0 - false.
+          valuemap:
+            name: Reboot
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+          triggers:
+            - uuid: 0315d0fd20e0444b972d9b390cd5769b
+              expression: 'last(/APP Winupdates check/zbx.winupdate.vbs.rebootrequired)<>0'
+              name: 'Reboot required to finish installing Windows updates'
+              priority: INFO
+        - uuid: a67285143d404781affb8be89c1d7c00
+          name: 'WU - Security'
+          type: TRAP
+          key: zbx.winupdate.vbs.security
+          history: 30d
+          trends: 30d
+          description: 'Security Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+          triggers:
+            - uuid: bba7432a9e724b9e8f76f11c2d175d26
+              expression: 'last(/APP Winupdates check/zbx.winupdate.vbs.security)>0'
+              name: 'Security Windows updates are available'
+              priority: WARNING
+              tags:
+                - tag: WIN
+                  value: WU
+        - uuid: 85f715f1c06e4ba3bcfea8c44181ea13
+          name: 'WU - ServicePacks'
+          type: TRAP
+          key: zbx.winupdate.vbs.servicepacks
+          history: 30d
+          trends: 30d
+          description: 'ServicePacks Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: 5ae0d08ef8c4433782d7f42fc7634e6c
+          name: 'WU - UpdateRollUps'
+          type: TRAP
+          key: zbx.winupdate.vbs.updaterollups
+          history: 30d
+          trends: 30d
+          description: 'UpdateRollUps Windows updates'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+        - uuid: c0ebfa559b0d45b195fd6cb8fdc33de0
+          name: 'WU - WSUS availability'
+          type: TRAP
+          key: zbx.winupdate.vbs.wsusavailability
+          history: 30d
+          trends: 30d
+          description: 'WSUS server availability'
+          valuemap:
+            name: WSUS
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs'
+          triggers:
+            - uuid: a079b772775c44c787a73d83f93eceb8
+              expression: 'last(/APP Winupdates check/zbx.winupdate.vbs.wsusavailability)=0'
+              name: 'Unable to get full list of Windows updates'
+              status: DISABLED
+              priority: WARNING
+              description: 'Perhaps WSUS server is unavailable'
+              tags:
+                - tag: WIN
+                  value: WU
+        - uuid: 5dfb45b0fc5242a9a3009ba8aa1cff7b
+          name: 'WU - Pending updates list'
+          type: TRAP
+          key: zbx.winupdate.vbs.list
+          history: 30d
+          value_type: TEXT
+          description: 'List of pending updates, one per line: [category] KB - title'
+          tags:
+            - tag: Application
+              value: 'Winupdates vbs panel'
+          triggers:
+            - uuid: d317c1dbd13742338bf7b2efc823bf54
+              expression: 'nodata(/APP Winupdates check/zbx.winupdate.vbs.list,{$WU.NODATA})=1'
+              name: 'No Windows Update check data for {$WU.NODATA}'
+              priority: WARNING
+              description: 'The update check script has not sent any data. Check that it runs (agent item or scheduled task) and that zabbix_sender can reach the Zabbix server / proxy.'
+              tags:
+                - tag: WIN
+                  value: WU
+      macros:
+        - macro: '{$WU.NODATA}'
+          value: 2d
+          description: 'Alert when the check script sends no data for this time'
+        - macro: '{$WU.SCRIPT.PATH}'
+          value: 'C:\Program Files\Zabbix Agent 2\scripts\zbx-windows-updates.ps1'
+          description: 'Path to the update check script on the Windows host'
+        - macro: '{$WU.TIMEZONE}'
+          value: Europe/Bratislava
+          description: 'Time zone of the Windows hosts (IANA name), used to calculate the age of the last check / install'
+        - macro: '{$WU.TIMEZONE.CORRECTION}'
+          value: '3600'
+          description: 'Extra correction in seconds for the age calculation (default 3600 as in the original setup, set 0 if ages are 1 hour off)'
+      valuemaps:
+        - uuid: bc43daa9595b4012b30628d6bb7b6b65
+          name: Reboot
+          mappings:
+            - value: '0'
+              newvalue: 'NO'
+            - value: '1'
+              newvalue: NEED
+        - uuid: 1db9f89b0e1f4b4d84a86053ea35398b
+          name: WSUS
+          mappings:
+            - value: '0'
+              newvalue: DOWN
+            - value: '1'
+              newvalue: UP
