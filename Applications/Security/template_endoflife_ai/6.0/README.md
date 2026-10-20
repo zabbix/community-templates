@@ -2,7 +2,7 @@
 
 Zabbix template that watches the software stack you define and alerts before —
 and after — any of it goes end-of-life, using the
-[endoflife.ai API](https://endoflife.ai/api) (480+ products, verified daily
+[endoflife.ai API](https://endoflife.ai/api) (700+ products, verified daily
 against vendor lifecycle pages).
 
 Works on Zabbix 6.0 LTS and later. Agentless: one HTTP call from the Zabbix
