@@ -1,0 +1,1604 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: abfc7db1a16f42c28bab6cb272285568
+      template: Servarr by HTTP
+      name: Servarr by HTTP
+      description: |-
+        The whole Servarr stack: links all application templates.
+        For a part of the stack, link only the application templates to the host instead.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      templates:
+        - name: Prowlarr by HTTP
+        - name: Sonarr by HTTP
+        - name: Radarr by HTTP
+        - name: Lidarr by HTTP
+        - name: Bazarr by HTTP
+        - name: Overseerr by HTTP
+      groups:
+        - name: Templates/Applications
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: servarr
+    - uuid: 2d4ddaf5e3fc4cc582bf91a8cfe694bd
+      template: Prowlarr by HTTP
+      name: Prowlarr by HTTP
+      description: |-
+        The template to monitor Prowlarr and its indexers by HTTP.
+        Set {$PROWLARR.URL} and {$PROWLARR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 0730fb77c8f84cea89a914969c8369f7
+          name: 'Prowlarr: Service status'
+          type: HTTP_AGENT
+          key: prowlarr.service.status
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Response of the ping endpoint.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.status === "OK" ? 1 : 0;
+          url: '{$PROWLARR.URL}/ping'
+          http_proxy: '{$PROWLARR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 9bca4327a54b4f4789560ca6d377e12b
+              expression: nodata(/Prowlarr by HTTP/prowlarr.service.status,{$PROWLARR.STATUS.NODATA.TIMEOUT})=1 or last(/Prowlarr by HTTP/prowlarr.service.status)=0
+              name: 'Prowlarr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond to ping.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 76b243ce81d7425a892dda399fcb6de2
+          name: 'Prowlarr: Health issues'
+          type: HTTP_AGENT
+          key: prowlarr.health
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+          description: Issues from the health page.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  var lines = [];
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].type !== 'ok' && !/^Indexer(LongTerm)?StatusCheck$/.test(data[i].source)) {
+                          lines.push('[' + data[i].type.toUpperCase() + '] ' + data[i].source + ': ' + data[i].message);
+                      }
+                  }
+                  return lines.length > 0 ? lines.join('\n') : 'OK';
+          url: '{$PROWLARR.URL}/api/v1/health'
+          http_proxy: '{$PROWLARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$PROWLARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 2e8f6fc5d4af4c108dca9b7297f839b6
+              expression: find(/Prowlarr by HTTP/prowlarr.health,,"like","[ERROR]")=1
+              name: 'Prowlarr: Health check reports an error'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: See operational data for details.
+              dependencies:
+                - name: 'Prowlarr: Service is unavailable'
+                  expression: nodata(/Prowlarr by HTTP/prowlarr.service.status,{$PROWLARR.STATUS.NODATA.TIMEOUT})=1 or last(/Prowlarr by HTTP/prowlarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 6073c1dc770a4ae583b1cb05435ea688
+              expression: find(/Prowlarr by HTTP/prowlarr.health,,"like","[WARNING]")=1
+              name: 'Prowlarr: Health check reports a warning'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: See operational data for details.
+              dependencies:
+                - name: 'Prowlarr: Health check reports an error'
+                  expression: find(/Prowlarr by HTTP/prowlarr.health,,"like","[ERROR]")=1
+                - name: 'Prowlarr: Service is unavailable'
+                  expression: nodata(/Prowlarr by HTTP/prowlarr.service.status,{$PROWLARR.STATUS.NODATA.TIMEOUT})=1 or last(/Prowlarr by HTTP/prowlarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: e0c8a6e7165c46f28a14ebb59bd4d699
+          name: 'Prowlarr: Update status'
+          type: HTTP_AGENT
+          key: prowlarr.update.status
+          delay: 1h
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version can be installed.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].latest === true) {
+                          return data[i].installable === true ? 1 : 0;
+                      }
+                  }
+                  return 0;
+          url: '{$PROWLARR.URL}/api/v1/update'
+          http_proxy: '{$PROWLARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$PROWLARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 26f7a18f9f90460b856a438a214e9e8e
+              expression: last(/Prowlarr by HTTP/prowlarr.update.status)=1
+              name: 'Prowlarr: Update is available'
+              priority: INFO
+              description: A newer version can be installed.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 97bc3e6d40c3457e8dfebf4edc815aa7
+          name: 'Prowlarr: Get indexers'
+          type: HTTP_AGENT
+          key: prowlarr.indexers.get
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          timeout: 30s
+          description: Enabled indexers.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  var result = [];
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].enable === true) {
+                          result.push({ id: data[i].id, name: data[i].name });
+                      }
+                  }
+                  return JSON.stringify(result);
+          url: '{$PROWLARR.URL}/api/v1/indexer'
+          http_proxy: '{$PROWLARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$PROWLARR.API.KEY}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 1ae86483193942588b7b6fbd813fcc48
+          name: 'Prowlarr: Enabled indexers'
+          type: DEPENDENT
+          key: prowlarr.indexers.enabled
+          delay: '0'
+          description: Number of enabled indexers.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - return JSON.parse(value).length;
+          master_item:
+            key: prowlarr.indexers.get
+          tags:
+            - tag: component
+              value: application
+        - uuid: c8f209d04ddc46658eda9ce45e9e9b63
+          name: 'Prowlarr: Get blocked indexers'
+          type: HTTP_AGENT
+          key: prowlarr.indexer_status.get
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: Indexers blocked after failures.
+          url: '{$PROWLARR.URL}/api/v1/indexerstatus'
+          http_proxy: '{$PROWLARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$PROWLARR.API.KEY}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: f06995b83de649ac869e15225cc5e4f4
+          name: 'Prowlarr: Blocked indexers'
+          type: DEPENDENT
+          key: prowlarr.indexers.blocked
+          delay: '0'
+          description: Number of blocked indexers.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - return JSON.parse(value).length;
+          master_item:
+            key: prowlarr.indexer_status.get
+          tags:
+            - tag: component
+              value: application
+      discovery_rules:
+        - uuid: 44980a5c479749f08e225e400a6bf284
+          name: Indexer discovery
+          type: DEPENDENT
+          key: prowlarr.indexer.discovery
+          delay: '0'
+          lifetime_type: DELETE_IMMEDIATELY
+          lifetime: '0'
+          description: Discovery of enabled indexers.
+          item_prototypes:
+            - uuid: 6dd9edabdbc848e581030032303fa631
+              name: 'Prowlarr: Indexer [{#NAME}]: State'
+              type: DEPENDENT
+              key: prowlarr.indexer.state[{#ID}]
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: Indexer state
+              description: Whether Prowlarr has blocked the indexer.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |-
+                      var data = JSON.parse(value);
+                      for (var i = 0; i < data.length; i++) {
+                          if (data[i].indexerId === {#ID}) {
+                              return 1;
+                          }
+                      }
+                      return 0;
+              master_item:
+                key: prowlarr.indexer_status.get
+              tags:
+                - tag: component
+                  value: application
+                - tag: indexer
+                  value: '{#NAME}'
+              trigger_prototypes:
+                - uuid: 6fa8bf891da540658096c1c5bc9fe8e3
+                  expression: min(/Prowlarr by HTTP/prowlarr.indexer.state[{#ID}],{$PROWLARR.INDEXER.BLOCKED.TIMEOUT:"{#NAME}"})=1
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: max(/Prowlarr by HTTP/prowlarr.indexer.state[{#ID}],{$PROWLARR.INDEXER.RECOVERY.TIMEOUT:"{#NAME}"})=0
+                  name: 'Prowlarr: Indexer [{#NAME}]: Unavailable'
+                  priority: AVERAGE
+                  description: The indexer has been blocked for {$PROWLARR.INDEXER.BLOCKED.TIMEOUT:"{#NAME}"}.
+                  dependencies:
+                    - name: 'Prowlarr: All indexers are unavailable'
+                      expression: last(/Prowlarr by HTTP/prowlarr.indexers.enabled)>0 and min(/Prowlarr by HTTP/prowlarr.indexers.blocked,{$PROWLARR.INDEXER.BLOCKED.TIMEOUT})>=last(/Prowlarr by HTTP/prowlarr.indexers.enabled)
+                      recovery_expression: max(/Prowlarr by HTTP/prowlarr.indexers.blocked,{$PROWLARR.INDEXER.RECOVERY.TIMEOUT})<last(/Prowlarr by HTTP/prowlarr.indexers.enabled)
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: prowlarr.indexers.get
+          lld_macro_paths:
+            - lld_macro: '{#ID}'
+              path: $.id
+            - lld_macro: '{#NAME}'
+              path: $.name
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: prowlarr
+      macros:
+        - macro: '{$PROWLARR.API.KEY}'
+          type: SECRET_TEXT
+          description: Prowlarr API key.
+        - macro: '{$PROWLARR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$PROWLARR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$PROWLARR.INDEXER.BLOCKED.TIMEOUT}'
+          value: 15m
+          description: How long an indexer stays blocked before the problem. Supports context.
+        - macro: '{$PROWLARR.INDEXER.RECOVERY.TIMEOUT}'
+          value: 1h
+          description: How long an indexer stays unblocked before recovery. Supports context.
+        - macro: '{$PROWLARR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$PROWLARR.URL}'
+          value: http://prowlarr:9696
+          description: Prowlarr URL.
+      valuemaps:
+        - uuid: 47a6a10739db4d2a8e2652011bceb05b
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 24be12afb49d44c28928cb79819f2c10
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+        - uuid: bbccc02c4fcd471d8ac682c183e258ed
+          name: Indexer state
+          mappings:
+            - value: '0'
+              newvalue: Available
+            - value: '1'
+              newvalue: Blocked
+    - uuid: 1818f8521d6f479387a5bbf6486cbe07
+      template: Sonarr by HTTP
+      name: Sonarr by HTTP
+      description: |-
+        The template to monitor Sonarr by HTTP.
+        Set {$SONARR.URL} and {$SONARR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 17e4e75050e246d3817adcb7ca6e2fa6
+          name: 'Sonarr: Service status'
+          type: HTTP_AGENT
+          key: sonarr.service.status
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Response of the ping endpoint.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.status === "OK" ? 1 : 0;
+          url: '{$SONARR.URL}/ping'
+          http_proxy: '{$SONARR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 772f53872ee546cb87441e1a1cf65923
+              expression: nodata(/Sonarr by HTTP/sonarr.service.status,{$SONARR.STATUS.NODATA.TIMEOUT})=1 or last(/Sonarr by HTTP/sonarr.service.status)=0
+              name: 'Sonarr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond to ping.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: d8395c43e3694f16879b0386e499473c
+          name: 'Sonarr: Health issues'
+          type: HTTP_AGENT
+          key: sonarr.health
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+          description: Issues from the health page.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  var lines = [];
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].type !== 'ok') {
+                          lines.push('[' + data[i].type.toUpperCase() + '] ' + data[i].source + ': ' + data[i].message);
+                      }
+                  }
+                  return lines.length > 0 ? lines.join('\n') : 'OK';
+          url: '{$SONARR.URL}/api/v3/health'
+          http_proxy: '{$SONARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$SONARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 5c1f1fdc95db465f86f17ba697a7facb
+              expression: find(/Sonarr by HTTP/sonarr.health,,"like","[ERROR]")=1
+              name: 'Sonarr: Health check reports an error'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: See operational data for details.
+              dependencies:
+                - name: 'Sonarr: Service is unavailable'
+                  expression: nodata(/Sonarr by HTTP/sonarr.service.status,{$SONARR.STATUS.NODATA.TIMEOUT})=1 or last(/Sonarr by HTTP/sonarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 7d0e9a19e57641f484e7bad727eef0ba
+              expression: find(/Sonarr by HTTP/sonarr.health,,"like","[WARNING]")=1
+              name: 'Sonarr: Health check reports a warning'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: See operational data for details.
+              dependencies:
+                - name: 'Sonarr: Health check reports an error'
+                  expression: find(/Sonarr by HTTP/sonarr.health,,"like","[ERROR]")=1
+                - name: 'Sonarr: Service is unavailable'
+                  expression: nodata(/Sonarr by HTTP/sonarr.service.status,{$SONARR.STATUS.NODATA.TIMEOUT})=1 or last(/Sonarr by HTTP/sonarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 13a63e3f249042b185fd9c28d3374063
+          name: 'Sonarr: Update status'
+          type: HTTP_AGENT
+          key: sonarr.update.status
+          delay: 1h
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version can be installed.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].latest === true) {
+                          return data[i].installable === true ? 1 : 0;
+                      }
+                  }
+                  return 0;
+          url: '{$SONARR.URL}/api/v3/update'
+          http_proxy: '{$SONARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$SONARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 725d820e54ec4ae685087261f253fbad
+              expression: last(/Sonarr by HTTP/sonarr.update.status)=1
+              name: 'Sonarr: Update is available'
+              priority: INFO
+              description: A newer version can be installed.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 5c105ca45d4d427e84aa51091aa07f9e
+          name: 'Sonarr: Queue size'
+          type: HTTP_AGENT
+          key: sonarr.queue.size
+          delay: 15m
+          description: Items in the download queue.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$SONARR.URL}/api/v3/queue'
+          http_proxy: '{$SONARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$SONARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 6aac597b41da4b678f8f49852183aa89
+              expression: min(/Sonarr by HTTP/sonarr.queue.size,{$SONARR.QUEUE.TIMEOUT})>0
+              name: 'Sonarr: Queue has not been empty for too long'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: The queue has not been empty for {$SONARR.QUEUE.TIMEOUT}.
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: ede4c73a1cd74ba28bae08c0f169be98
+          name: 'Sonarr: Missing items'
+          type: HTTP_AGENT
+          key: sonarr.wanted.missing
+          delay: 15m
+          description: Monitored items without a file.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$SONARR.URL}/api/v3/wanted/missing'
+          http_proxy: '{$SONARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$SONARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 67d189222273434286342a04cbf203da
+              expression: min(/Sonarr by HTTP/sonarr.wanted.missing,#2)>0
+              name: 'Sonarr: Missing items are wanted'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: Monitored items have no file.
+              tags:
+                - tag: scope
+                  value: notice
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: sonarr
+      macros:
+        - macro: '{$SONARR.API.KEY}'
+          type: SECRET_TEXT
+          description: Sonarr API key.
+        - macro: '{$SONARR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$SONARR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$SONARR.QUEUE.TIMEOUT}'
+          value: 1h
+          description: How long the queue may stay non-empty.
+        - macro: '{$SONARR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$SONARR.URL}'
+          value: http://sonarr:8989
+          description: Sonarr URL.
+      valuemaps:
+        - uuid: 6175c4d55dae4e76815eabf5f234622d
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: ba317014adb648f48b5c6444a1350797
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+    - uuid: b699f8ad7e5441e58a6ffbd4f6dd6ff7
+      template: Radarr by HTTP
+      name: Radarr by HTTP
+      description: |-
+        The template to monitor Radarr by HTTP.
+        Set {$RADARR.URL} and {$RADARR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 3362b614808b455a80f45a78cca156ac
+          name: 'Radarr: Service status'
+          type: HTTP_AGENT
+          key: radarr.service.status
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Response of the ping endpoint.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.status === "OK" ? 1 : 0;
+          url: '{$RADARR.URL}/ping'
+          http_proxy: '{$RADARR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: bf8ef4634cd54b8b85a893e2046feff0
+              expression: nodata(/Radarr by HTTP/radarr.service.status,{$RADARR.STATUS.NODATA.TIMEOUT})=1 or last(/Radarr by HTTP/radarr.service.status)=0
+              name: 'Radarr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond to ping.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 91715fb36dea4d6c8581df7254806a5e
+          name: 'Radarr: Health issues'
+          type: HTTP_AGENT
+          key: radarr.health
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+          description: Issues from the health page.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  var lines = [];
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].type !== 'ok') {
+                          lines.push('[' + data[i].type.toUpperCase() + '] ' + data[i].source + ': ' + data[i].message);
+                      }
+                  }
+                  return lines.length > 0 ? lines.join('\n') : 'OK';
+          url: '{$RADARR.URL}/api/v3/health'
+          http_proxy: '{$RADARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$RADARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: ca2801cd38184d9d87c5222ba6122c1e
+              expression: find(/Radarr by HTTP/radarr.health,,"like","[ERROR]")=1
+              name: 'Radarr: Health check reports an error'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: See operational data for details.
+              dependencies:
+                - name: 'Radarr: Service is unavailable'
+                  expression: nodata(/Radarr by HTTP/radarr.service.status,{$RADARR.STATUS.NODATA.TIMEOUT})=1 or last(/Radarr by HTTP/radarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 89d39509963a436e89e4f51b7b11fd30
+              expression: find(/Radarr by HTTP/radarr.health,,"like","[WARNING]")=1
+              name: 'Radarr: Health check reports a warning'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: See operational data for details.
+              dependencies:
+                - name: 'Radarr: Health check reports an error'
+                  expression: find(/Radarr by HTTP/radarr.health,,"like","[ERROR]")=1
+                - name: 'Radarr: Service is unavailable'
+                  expression: nodata(/Radarr by HTTP/radarr.service.status,{$RADARR.STATUS.NODATA.TIMEOUT})=1 or last(/Radarr by HTTP/radarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 91c94f7844cd443d86b3f8ed4c9ba18f
+          name: 'Radarr: Update status'
+          type: HTTP_AGENT
+          key: radarr.update.status
+          delay: 1h
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version can be installed.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].latest === true) {
+                          return data[i].installable === true ? 1 : 0;
+                      }
+                  }
+                  return 0;
+          url: '{$RADARR.URL}/api/v3/update'
+          http_proxy: '{$RADARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$RADARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: c06621183ab643918710ce71cd48a169
+              expression: last(/Radarr by HTTP/radarr.update.status)=1
+              name: 'Radarr: Update is available'
+              priority: INFO
+              description: A newer version can be installed.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 80e35e4344e1462987d9e8f5bf7ddc12
+          name: 'Radarr: Queue size'
+          type: HTTP_AGENT
+          key: radarr.queue.size
+          delay: 15m
+          description: Items in the download queue.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$RADARR.URL}/api/v3/queue'
+          http_proxy: '{$RADARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$RADARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: a84d798d3b3144558a092883b4ff909a
+              expression: min(/Radarr by HTTP/radarr.queue.size,{$RADARR.QUEUE.TIMEOUT})>0
+              name: 'Radarr: Queue has not been empty for too long'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: The queue has not been empty for {$RADARR.QUEUE.TIMEOUT}.
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 4a65695957e4476c8b3afea34186d23d
+          name: 'Radarr: Missing items'
+          type: HTTP_AGENT
+          key: radarr.wanted.missing
+          delay: 15m
+          description: Monitored items without a file.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$RADARR.URL}/api/v3/wanted/missing'
+          http_proxy: '{$RADARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$RADARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 16676b8865b5460585c8b38d62db49e0
+              expression: min(/Radarr by HTTP/radarr.wanted.missing,#2)>0
+              name: 'Radarr: Missing items are wanted'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: Monitored items have no file.
+              tags:
+                - tag: scope
+                  value: notice
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: radarr
+      macros:
+        - macro: '{$RADARR.API.KEY}'
+          type: SECRET_TEXT
+          description: Radarr API key.
+        - macro: '{$RADARR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$RADARR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$RADARR.QUEUE.TIMEOUT}'
+          value: 1h
+          description: How long the queue may stay non-empty.
+        - macro: '{$RADARR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$RADARR.URL}'
+          value: http://radarr:7878
+          description: Radarr URL.
+      valuemaps:
+        - uuid: 0c0dc415adab44d1854fd0d2452b6d5a
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 2ec9f7e8409f4c0b81526edf935dfbb2
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+    - uuid: 8dbdd9b693634e928982d856c85dd710
+      template: Lidarr by HTTP
+      name: Lidarr by HTTP
+      description: |-
+        The template to monitor Lidarr by HTTP.
+        Set {$LIDARR.URL} and {$LIDARR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 4c105ffa5647431a8da613a61feb156f
+          name: 'Lidarr: Service status'
+          type: HTTP_AGENT
+          key: lidarr.service.status
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Response of the ping endpoint.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.status === "OK" ? 1 : 0;
+          url: '{$LIDARR.URL}/ping'
+          http_proxy: '{$LIDARR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: ed0209fd14224029801531aa40fe4108
+              expression: nodata(/Lidarr by HTTP/lidarr.service.status,{$LIDARR.STATUS.NODATA.TIMEOUT})=1 or last(/Lidarr by HTTP/lidarr.service.status)=0
+              name: 'Lidarr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond to ping.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 94748937257c4e02885ab058e1257f02
+          name: 'Lidarr: Health issues'
+          type: HTTP_AGENT
+          key: lidarr.health
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+          description: Issues from the health page.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  var lines = [];
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].type !== 'ok') {
+                          lines.push('[' + data[i].type.toUpperCase() + '] ' + data[i].source + ': ' + data[i].message);
+                      }
+                  }
+                  return lines.length > 0 ? lines.join('\n') : 'OK';
+          url: '{$LIDARR.URL}/api/v1/health'
+          http_proxy: '{$LIDARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$LIDARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 4a3b2637296f474d8974c26df6fd383a
+              expression: find(/Lidarr by HTTP/lidarr.health,,"like","[ERROR]")=1
+              name: 'Lidarr: Health check reports an error'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: See operational data for details.
+              dependencies:
+                - name: 'Lidarr: Service is unavailable'
+                  expression: nodata(/Lidarr by HTTP/lidarr.service.status,{$LIDARR.STATUS.NODATA.TIMEOUT})=1 or last(/Lidarr by HTTP/lidarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: aaf5661af97247a68b5e29a6a0b667e6
+              expression: find(/Lidarr by HTTP/lidarr.health,,"like","[WARNING]")=1
+              name: 'Lidarr: Health check reports a warning'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: See operational data for details.
+              dependencies:
+                - name: 'Lidarr: Health check reports an error'
+                  expression: find(/Lidarr by HTTP/lidarr.health,,"like","[ERROR]")=1
+                - name: 'Lidarr: Service is unavailable'
+                  expression: nodata(/Lidarr by HTTP/lidarr.service.status,{$LIDARR.STATUS.NODATA.TIMEOUT})=1 or last(/Lidarr by HTTP/lidarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 9f2d01f3e8a94c61828fbd75bb17d60a
+          name: 'Lidarr: Update status'
+          type: HTTP_AGENT
+          key: lidarr.update.status
+          delay: 1h
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version can be installed.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  for (var i = 0; i < data.length; i++) {
+                      if (data[i].latest === true) {
+                          return data[i].installable === true ? 1 : 0;
+                      }
+                  }
+                  return 0;
+          url: '{$LIDARR.URL}/api/v1/update'
+          http_proxy: '{$LIDARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$LIDARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 9f0dc34eead6493b8046f4d3b9648d2a
+              expression: last(/Lidarr by HTTP/lidarr.update.status)=1
+              name: 'Lidarr: Update is available'
+              priority: INFO
+              description: A newer version can be installed.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 1d5bf239716a4c3f8f2008c16d5680d2
+          name: 'Lidarr: Queue size'
+          type: HTTP_AGENT
+          key: lidarr.queue.size
+          delay: 15m
+          description: Items in the download queue.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$LIDARR.URL}/api/v1/queue'
+          http_proxy: '{$LIDARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$LIDARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: aabaebb15ccf42838d788989b9b45eee
+              expression: min(/Lidarr by HTTP/lidarr.queue.size,{$LIDARR.QUEUE.TIMEOUT})>0
+              name: 'Lidarr: Queue has not been empty for too long'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: The queue has not been empty for {$LIDARR.QUEUE.TIMEOUT}.
+              tags:
+                - tag: scope
+                  value: performance
+        - uuid: 55276ff703404e3586410649c0fc7147
+          name: 'Lidarr: Missing items'
+          type: HTTP_AGENT
+          key: lidarr.wanted.missing
+          delay: 15m
+          description: Monitored items without a file.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalRecords
+          url: '{$LIDARR.URL}/api/v1/wanted/missing'
+          http_proxy: '{$LIDARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$LIDARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 0a5b181ef8874226875e4cb4bf14e555
+              expression: min(/Lidarr by HTTP/lidarr.wanted.missing,#2)>0
+              name: 'Lidarr: Missing items are wanted'
+              opdata: 'Items: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: Monitored items have no file.
+              tags:
+                - tag: scope
+                  value: notice
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: lidarr
+      macros:
+        - macro: '{$LIDARR.API.KEY}'
+          type: SECRET_TEXT
+          description: Lidarr API key.
+        - macro: '{$LIDARR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$LIDARR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$LIDARR.QUEUE.TIMEOUT}'
+          value: 1h
+          description: How long the queue may stay non-empty.
+        - macro: '{$LIDARR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$LIDARR.URL}'
+          value: http://lidarr:8686
+          description: Lidarr URL.
+      valuemaps:
+        - uuid: e3d8214d125b43ba82e7b0b6d714021f
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: f5660f4253ae44a3850703b601a85438
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+    - uuid: 41a3229441f24e3088cf42c5117cf585
+      template: Bazarr by HTTP
+      name: Bazarr by HTTP
+      description: |-
+        The template to monitor Bazarr and its subtitle providers by HTTP.
+        Set {$BAZARR.URL} and {$BAZARR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 3af7a7c008a9465e82b90dc4e2c8c5e9
+          name: 'Bazarr: Service status'
+          type: HTTP_AGENT
+          key: bazarr.service.status
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Response of the ping endpoint.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.status === "OK" ? 1 : 0;
+          url: '{$BAZARR.URL}/api/system/ping'
+          http_proxy: '{$BAZARR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: a7ee19d9aa87418e86566419c0b14657
+              expression: nodata(/Bazarr by HTTP/bazarr.service.status,{$BAZARR.STATUS.NODATA.TIMEOUT})=1 or last(/Bazarr by HTTP/bazarr.service.status)=0
+              name: 'Bazarr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond to ping.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: c29411b9829843428e44a8db53d39806
+          name: 'Bazarr: Health issues'
+          type: HTTP_AGENT
+          key: bazarr.health
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+          description: Issues from the status page.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value).data;
+                  var lines = [];
+                  for (var i = 0; i < data.length; i++) {
+                      lines.push(data[i].object + ': ' + data[i].issue);
+                  }
+                  return lines.length > 0 ? lines.join('\n') : 'OK';
+          url: '{$BAZARR.URL}/api/system/health'
+          http_proxy: '{$BAZARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$BAZARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 703b5d88dee84643899120a920c198c1
+              expression: find(/Bazarr by HTTP/bazarr.health,,"regexp","^OK$")=0
+              name: 'Bazarr: Health check reports an issue'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: See operational data for details.
+              dependencies:
+                - name: 'Bazarr: Service is unavailable'
+                  expression: nodata(/Bazarr by HTTP/bazarr.service.status,{$BAZARR.STATUS.NODATA.TIMEOUT})=1 or last(/Bazarr by HTTP/bazarr.service.status)=0
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: c1373808fb55468f82f655dc5eb0a0e4
+          name: 'Bazarr: Update status'
+          type: HTTP_AGENT
+          key: bazarr.update.status
+          delay: 1h
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version is available.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value).data;
+                  return data.length > 0 && data[0].current !== true ? 1 : 0;
+          url: '{$BAZARR.URL}/api/system/releases'
+          http_proxy: '{$BAZARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$BAZARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 8c09dd376f8d4ff88593b9ce68239692
+              expression: last(/Bazarr by HTTP/bazarr.update.status)=1
+              name: 'Bazarr: Update is available'
+              priority: INFO
+              description: A newer version is available.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: ab883f668d664a5d86fdeb5ef6f97b0c
+          name: 'Bazarr: Missing subtitles'
+          type: HTTP_AGENT
+          key: bazarr.subtitles.missing
+          delay: 15m
+          timeout: 30s
+          description: Subtitles wanted for episodes and movies.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value);
+                  return data.episodes + data.movies;
+          url: '{$BAZARR.URL}/api/badges'
+          http_proxy: '{$BAZARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$BAZARR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: d6a97176075c46f48ecfecefea2a60ea
+              expression: min(/Bazarr by HTTP/bazarr.subtitles.missing,#2)>0
+              name: 'Bazarr: Subtitles are missing'
+              opdata: 'Subtitles: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: Episodes or movies have no wanted subtitles.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 7ee338c73f494342866c1eacfd4b0d4f
+          name: 'Bazarr: Get providers'
+          type: HTTP_AGENT
+          key: bazarr.providers.get
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: Enabled subtitle providers and their state.
+          url: '{$BAZARR.URL}/api/providers'
+          http_proxy: '{$BAZARR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$BAZARR.API.KEY}'
+          tags:
+            - tag: component
+              value: raw
+      discovery_rules:
+        - uuid: 65c6abf49e2b40808993cec84908474a
+          name: Provider discovery
+          type: DEPENDENT
+          key: bazarr.provider.discovery
+          delay: '0'
+          lifetime_type: DELETE_IMMEDIATELY
+          lifetime: '0'
+          description: Discovery of enabled subtitle providers.
+          item_prototypes:
+            - uuid: 875cd5b5a3b640b38a96e16975c5d6aa
+              name: 'Bazarr: Provider [{#NAME}]: State'
+              type: DEPENDENT
+              key: bazarr.provider.state["{#NAME}"]
+              delay: '0'
+              trends: '0'
+              valuemap:
+                name: Provider state
+              description: Whether Bazarr has throttled the provider.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |-
+                      var data = JSON.parse(value).data;
+                      for (var i = 0; i < data.length; i++) {
+                          if (data[i].name === '{#NAME}') {
+                              return data[i].status === 'Good' ? 0 : 1;
+                          }
+                      }
+                      return 0;
+              master_item:
+                key: bazarr.providers.get
+              tags:
+                - tag: component
+                  value: application
+                - tag: provider
+                  value: '{#NAME}'
+              trigger_prototypes:
+                - uuid: 74412d08de5e494b85ce6d100e86ce13
+                  expression: min(/Bazarr by HTTP/bazarr.provider.state["{#NAME}"],{$BAZARR.PROVIDER.THROTTLED.TIMEOUT:"{#NAME}"})=1
+                  name: 'Bazarr: Provider [{#NAME}]: Unavailable'
+                  priority: WARNING
+                  description: The provider has been throttled for {$BAZARR.PROVIDER.THROTTLED.TIMEOUT:"{#NAME}"}.
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: bazarr.providers.get
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var data = JSON.parse(value).data;
+                  var result = [];
+                  for (var i = 0; i < data.length; i++) {
+                      result.push({ '{#NAME}': data[i].name });
+                  }
+                  return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: bazarr
+      macros:
+        - macro: '{$BAZARR.API.KEY}'
+          type: SECRET_TEXT
+          description: Bazarr API key.
+        - macro: '{$BAZARR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$BAZARR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$BAZARR.PROVIDER.THROTTLED.TIMEOUT}'
+          value: 15m
+          description: How long a provider stays throttled before the problem. Supports context.
+        - macro: '{$BAZARR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$BAZARR.URL}'
+          value: http://bazarr:6767
+          description: Bazarr URL.
+      valuemaps:
+        - uuid: a9e0e0bf66a1467886cd32c1b002177e
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: bed9dcd32f794a838bf29be08a3205f3
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+        - uuid: 6d8b39ab834240cd8b58c2bc2e2e4e4d
+          name: Provider state
+          mappings:
+            - value: '0'
+              newvalue: Available
+            - value: '1'
+              newvalue: Throttled
+    - uuid: 4940290d363849f48a8ab5a43cee3c1b
+      template: Overseerr by HTTP
+      name: Overseerr by HTTP
+      description: |-
+        The template to monitor Overseerr by HTTP.
+        Set {$OVERSEERR.URL} and {$OVERSEERR.API.KEY}.
+
+        Author: noakky
+        https://github.com/noakky/zabbix-template-servarr
+      vendor:
+        name: noakky
+        version: 7.0-1
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: ec40c55914294a1c830ba89fdd09fab1
+          name: 'Overseerr: Get status'
+          type: HTTP_AGENT
+          key: overseerr.status.get
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: Status endpoint response.
+          url: '{$OVERSEERR.URL}/api/v1/status'
+          http_proxy: '{$OVERSEERR.HTTP.PROXY}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 78e98149496b4059838d2f7744836730
+          name: 'Overseerr: Service status'
+          type: DEPENDENT
+          key: overseerr.service.status
+          delay: '0'
+          trends: '0'
+          valuemap:
+            name: Service state
+          description: Set when the status endpoint responds.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - return 1;
+          master_item:
+            key: overseerr.status.get
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 6290500388ed4ad0899ad42267209657
+              expression: nodata(/Overseerr by HTTP/overseerr.service.status,{$OVERSEERR.STATUS.NODATA.TIMEOUT})=1
+              name: 'Overseerr: Service is unavailable'
+              priority: HIGH
+              description: The service does not respond.
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 39d24471628a486c870136288a1498a1
+          name: 'Overseerr: Update status'
+          type: DEPENDENT
+          key: overseerr.update.status
+          delay: '0'
+          trends: '0'
+          valuemap:
+            name: Update status
+          description: Whether a newer version is available.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.updateAvailable
+            - type: BOOL_TO_DECIMAL
+              parameters:
+                - ''
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: overseerr.status.get
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: d20005ddc626496289f2ae2b26bb2ced
+              expression: last(/Overseerr by HTTP/overseerr.update.status)=1
+              name: 'Overseerr: Update is available'
+              priority: INFO
+              description: A newer version is available.
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: b707708f851648098e85c0d8c2415ef8
+          name: 'Overseerr: Version'
+          type: DEPENDENT
+          key: overseerr.version
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: Installed version.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: overseerr.status.get
+          tags:
+            - tag: component
+              value: application
+        - uuid: a5ca8e8149a9468581cd2183132b8212
+          name: 'Overseerr: Open issues'
+          type: HTTP_AGENT
+          key: overseerr.issues.open
+          delay: 5m
+          description: Number of open issues.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.open
+          url: '{$OVERSEERR.URL}/api/v1/issue/count'
+          http_proxy: '{$OVERSEERR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$OVERSEERR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 461f7c05181f469783b8b7f5cd082743
+              expression: last(/Overseerr by HTTP/overseerr.issues.open)>={$OVERSEERR.ISSUES.OPEN.MAX.HIGH}
+              name: 'Overseerr: Too many open issues'
+              opdata: 'Issues: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: Open issues reached {$OVERSEERR.ISSUES.OPEN.MAX.HIGH}.
+              tags:
+                - tag: scope
+                  value: notice
+            - uuid: 2c839aed48e2455080ce22cedb680d7d
+              expression: last(/Overseerr by HTTP/overseerr.issues.open)>={$OVERSEERR.ISSUES.OPEN.MAX.WARN}
+              name: 'Overseerr: There are open issues'
+              opdata: 'Issues: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: Open issues reached {$OVERSEERR.ISSUES.OPEN.MAX.WARN}.
+              dependencies:
+                - name: 'Overseerr: Too many open issues'
+                  expression: last(/Overseerr by HTTP/overseerr.issues.open)>={$OVERSEERR.ISSUES.OPEN.MAX.HIGH}
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 1342f50f6efe42398fae3094744bbc8d
+          name: 'Overseerr: Pending requests'
+          type: HTTP_AGENT
+          key: overseerr.requests.pending
+          delay: 15m
+          description: Number of pending requests.
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pending
+          url: '{$OVERSEERR.URL}/api/v1/request/count'
+          http_proxy: '{$OVERSEERR.HTTP.PROXY}'
+          headers:
+            - name: X-Api-Key
+              value: '{$OVERSEERR.API.KEY}'
+          tags:
+            - tag: component
+              value: application
+          triggers:
+            - uuid: 15f0393e6f3741a38f8135c1dfdd0663
+              expression: last(/Overseerr by HTTP/overseerr.requests.pending)>0
+              name: 'Overseerr: Requests are pending'
+              opdata: 'Requests: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: Requests are waiting for approval.
+              tags:
+                - tag: scope
+                  value: notice
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: overseerr
+      macros:
+        - macro: '{$OVERSEERR.API.KEY}'
+          type: SECRET_TEXT
+          description: Overseerr API key.
+        - macro: '{$OVERSEERR.API.NODATA.TIMEOUT}'
+          value: 15m
+          description: No API data for this long raises a problem.
+        - macro: '{$OVERSEERR.HTTP.PROXY}'
+          description: HTTP proxy for requests, if needed.
+        - macro: '{$OVERSEERR.ISSUES.OPEN.MAX.HIGH}'
+          value: '10'
+          description: Open issues for the average severity problem.
+        - macro: '{$OVERSEERR.ISSUES.OPEN.MAX.WARN}'
+          value: '1'
+          description: Open issues for the warning problem.
+        - macro: '{$OVERSEERR.STATUS.NODATA.TIMEOUT}'
+          value: 3m
+          description: No response for this long raises a problem.
+        - macro: '{$OVERSEERR.URL}'
+          value: http://overseerr:5055
+          description: Overseerr URL.
+      valuemaps:
+        - uuid: d5cfaf9ee8ee4b848f25644dd622695d
+          name: Service state
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: e8670fcc6a5549f089f0d5582a34dfb4
+          name: Update status
+          mappings:
+            - value: '0'
+              newvalue: Up to date
+            - value: '1'
+              newvalue: Update available
+  triggers:
+    - uuid: 53e39ab62a4348da81223b434ac29446
+      expression: nodata(/Sonarr by HTTP/sonarr.health,{$SONARR.API.NODATA.TIMEOUT})=1
+      name: 'Sonarr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$SONARR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Sonarr: Service is unavailable'
+          expression: nodata(/Sonarr by HTTP/sonarr.service.status,{$SONARR.STATUS.NODATA.TIMEOUT})=1 or last(/Sonarr by HTTP/sonarr.service.status)=0
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: c23734f34bf040da87fc3c12db6f6391
+      expression: nodata(/Radarr by HTTP/radarr.health,{$RADARR.API.NODATA.TIMEOUT})=1
+      name: 'Radarr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$RADARR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Radarr: Service is unavailable'
+          expression: nodata(/Radarr by HTTP/radarr.service.status,{$RADARR.STATUS.NODATA.TIMEOUT})=1 or last(/Radarr by HTTP/radarr.service.status)=0
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: bd4719b954624ea6803df09d439ad0cd
+      expression: nodata(/Lidarr by HTTP/lidarr.health,{$LIDARR.API.NODATA.TIMEOUT})=1
+      name: 'Lidarr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$LIDARR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Lidarr: Service is unavailable'
+          expression: nodata(/Lidarr by HTTP/lidarr.service.status,{$LIDARR.STATUS.NODATA.TIMEOUT})=1 or last(/Lidarr by HTTP/lidarr.service.status)=0
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 9c0bba02c0914c578aa8210e54eba6c0
+      expression: last(/Prowlarr by HTTP/prowlarr.indexers.enabled)>0 and min(/Prowlarr by HTTP/prowlarr.indexers.blocked,{$PROWLARR.INDEXER.BLOCKED.TIMEOUT})>=last(/Prowlarr by HTTP/prowlarr.indexers.enabled)
+      recovery_mode: RECOVERY_EXPRESSION
+      recovery_expression: max(/Prowlarr by HTTP/prowlarr.indexers.blocked,{$PROWLARR.INDEXER.RECOVERY.TIMEOUT})<last(/Prowlarr by HTTP/prowlarr.indexers.enabled)
+      name: 'Prowlarr: All indexers are unavailable'
+      priority: HIGH
+      description: Every enabled indexer has been blocked for {$PROWLARR.INDEXER.BLOCKED.TIMEOUT}.
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 8c7760b394a740cc85dffa07a68f2765
+      expression: nodata(/Prowlarr by HTTP/prowlarr.indexers.enabled,{$PROWLARR.API.NODATA.TIMEOUT})=1 or nodata(/Prowlarr by HTTP/prowlarr.indexers.blocked,{$PROWLARR.API.NODATA.TIMEOUT})=1
+      name: 'Prowlarr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$PROWLARR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Prowlarr: Service is unavailable'
+          expression: nodata(/Prowlarr by HTTP/prowlarr.service.status,{$PROWLARR.STATUS.NODATA.TIMEOUT})=1 or last(/Prowlarr by HTTP/prowlarr.service.status)=0
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: a5d5c47ed59c46408a08d1b19a3c5da0
+      expression: nodata(/Overseerr by HTTP/overseerr.issues.open,{$OVERSEERR.API.NODATA.TIMEOUT})=1
+      name: 'Overseerr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$OVERSEERR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Overseerr: Service is unavailable'
+          expression: nodata(/Overseerr by HTTP/overseerr.service.status,{$OVERSEERR.STATUS.NODATA.TIMEOUT})=1
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: ced513df39f5483b88cd5ea5563dd45c
+      expression: nodata(/Bazarr by HTTP/bazarr.health,{$BAZARR.API.NODATA.TIMEOUT})=1
+      name: 'Bazarr: Failed to fetch API data'
+      priority: AVERAGE
+      description: No API data for {$BAZARR.API.NODATA.TIMEOUT}. Check the API key.
+      dependencies:
+        - name: 'Bazarr: Service is unavailable'
+          expression: nodata(/Bazarr by HTTP/bazarr.service.status,{$BAZARR.STATUS.NODATA.TIMEOUT})=1 or last(/Bazarr by HTTP/bazarr.service.status)=0
+      tags:
+        - tag: scope
+          value: availability
