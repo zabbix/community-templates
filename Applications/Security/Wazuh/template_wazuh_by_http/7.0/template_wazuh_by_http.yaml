@@ -1,0 +1,1925 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+    name: Templates/Applications
+  templates:
+  - uuid: 0a82404504e642bd9a8f06c5c6953edb
+    template: Wazuh by HTTP
+    name: Wazuh by HTTP
+    description: |
+      Wazuh all-in-one: links the manager, indexer and dashboard templates. Link this template to a host that runs
+      all Wazuh components (all-in-one deployment). For a distributed deployment, link each sub-template to the host
+      that runs the matching component instead:
+      - Wazuh Manager by HTTP
+      - Wazuh Indexer by HTTP
+      - Wazuh Dashboard by HTTP
+
+      Create a dedicated read-only user named zbx_monitor for the Wazuh API and for the indexer, and set it in the
+      macros {$WAZUH.API.USER}, {$WAZUH.API.PASSWORD}, {$WAZUH.INDEXER.USER} and {$WAZUH.INDEXER.PASSWORD}.
+
+      Optional: link "Wazuh Manager by Zabbix agent" to the manager host for process, alerts.json freshness and
+      ossec.log checks. It is not included here because it requires a Zabbix agent on that host.
+
+      Host CPU, memory and disk metrics are not part of this template: link the standard Linux template as well.
+
+      Author: Rémi Piazza
+    templates:
+    - name: Wazuh Manager by HTTP
+    - name: Wazuh Indexer by HTTP
+    - name: Wazuh Dashboard by HTTP
+    groups: &id001
+    - name: Templates/Applications
+    tags:
+    - tag: class
+      value: application
+    - tag: target
+      value: wazuh
+  - uuid: 8a39fdd7382a4af28a0c1cf110ea9295
+    template: Wazuh Manager by HTTP
+    name: Wazuh Manager by HTTP
+    description: |
+      Monitors a Wazuh manager through its REST API (port 55000) without any agent or external script.
+
+      Requirements:
+      - Wazuh 4.x with the API reachable from the Zabbix server or proxy.
+      - A dedicated Wazuh API user named zbx_monitor with a read-only role, allowed to call
+        GET /manager/info, /manager/status, /manager/configuration/validation, /cluster/status, /agents
+        and /agents/summary/status.
+      - Set the macros {$WAZUH.API.USER} and {$WAZUH.API.PASSWORD} on the host.
+
+      The host interface address ({HOST.CONN}) is used to reach the API.
+
+      TLS: the API requests are made by script items, which always verify the certificate against the CA store
+      of the Zabbix server or proxy. With the default self-signed Wazuh API certificate, replace it with a
+      certificate signed by a CA that the Zabbix server trusts, and valid for the name or address used by the host.
+
+      Author: Rémi Piazza
+    groups: *id001
+    items:
+    - uuid: f4199769d30e42dbbc2aeba6b1514581
+      name: 'Wazuh Manager: Get core data'
+      type: SCRIPT
+      key: wazuh.api.core.get
+      delay: '{$WAZUH.API.INTERVAL}'
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.scheme + '://' + p.host + ':' + p.port;
+
+        var auth = new HttpRequest();
+        if (p.proxy) {
+            auth.setProxy(p.proxy);
+        }
+        auth.addHeader('Authorization: Basic ' + btoa(p.user + ':' + p.password));
+        var token = auth.post(base + '/security/user/authenticate?raw=true');
+        if (auth.getStatus() !== 200) {
+            throw 'Wazuh API authentication failed (HTTP ' + auth.getStatus() + ')';
+        }
+        token = String(token).replace(/\s+/g, '');
+
+        var req = new HttpRequest();
+        if (p.proxy) {
+            req.setProxy(p.proxy);
+        }
+        req.addHeader('Authorization: Bearer ' + token);
+
+        function get(path) {
+            var body = req.get(base + path);
+            if (req.getStatus() !== 200) {
+                throw 'GET ' + path + ' failed (HTTP ' + req.getStatus() + ')';
+            }
+            return JSON.parse(body);
+        }
+
+        return JSON.stringify({
+            info: get('/manager/info'),
+            status: get('/manager/status'),
+            cluster: get('/cluster/status'),
+            summary: get('/agents/summary/status')
+        });
+      parameters: &id002
+      - name: scheme
+        value: '{$WAZUH.API.SCHEME}'
+      - name: host
+        value: '{HOST.CONN}'
+      - name: port
+        value: '{$WAZUH.API.PORT}'
+      - name: user
+        value: '{$WAZUH.API.USER}'
+      - name: password
+        value: '{$WAZUH.API.PASSWORD}'
+      - name: proxy
+        value: '{$WAZUH.API.HTTP.PROXY}'
+      timeout: 30s
+      description: Authenticates against the Wazuh API (JWT) and collects manager info, daemon status, cluster status and the agents connection summary in a single JSON document. TLS certificates are verified against the CA store of the Zabbix server or proxy.
+      tags: &id003
+      - tag: component
+        value: raw
+      triggers:
+      - uuid: 79ac58a0d6e84bbab422fa3f95b9c8fa
+        expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+        name: 'Wazuh Manager: API is unavailable or not returning data'
+        priority: HIGH
+        description: No data received from the Wazuh API. Check the manager service, the API port, the credentials and the TLS trust (the item error message gives the reason).
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 49373e5f1a584a5cbc93003a92ad806e
+      name: 'Wazuh Manager: Get agents list'
+      type: SCRIPT
+      key: wazuh.api.agents.get
+      delay: '{$WAZUH.API.AGENTS.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.scheme + '://' + p.host + ':' + p.port;
+
+        var auth = new HttpRequest();
+        if (p.proxy) {
+            auth.setProxy(p.proxy);
+        }
+        auth.addHeader('Authorization: Basic ' + btoa(p.user + ':' + p.password));
+        var token = auth.post(base + '/security/user/authenticate?raw=true');
+        if (auth.getStatus() !== 200) {
+            throw 'Wazuh API authentication failed (HTTP ' + auth.getStatus() + ')';
+        }
+        token = String(token).replace(/\s+/g, '');
+
+        var req = new HttpRequest();
+        if (p.proxy) {
+            req.setProxy(p.proxy);
+        }
+        req.addHeader('Authorization: Bearer ' + token);
+
+        function get(path) {
+            var body = req.get(base + path);
+            if (req.getStatus() !== 200) {
+                throw 'GET ' + path + ' failed (HTTP ' + req.getStatus() + ')';
+            }
+            return JSON.parse(body);
+        }
+
+        var codes = {'active': 0, 'disconnected': 1, 'never_connected': 2, 'pending': 3};
+        var agents = [];
+        var offset = 0;
+        var limit = 500;
+        var total = 0;
+
+        do {
+            var d = get('/agents?select=id,name,ip,status,version&limit=' + limit + '&offset=' + offset);
+            var rows = d.data.affected_items;
+            total = d.data.total_affected_items;
+            for (var i = 0; i < rows.length; i++) {
+                var a = rows[i];
+                agents.push({
+                    id: a.id,
+                    name: a.name,
+                    ip: a.ip || '',
+                    version: a.version || '',
+                    st: codes.hasOwnProperty(a.status) ? codes[a.status] : 4
+                });
+            }
+            if (rows.length === 0) {
+                break;
+            }
+            offset += limit;
+        } while (offset < total);
+
+        return JSON.stringify(agents);
+      parameters: *id002
+      timeout: 30s
+      description: Retrieves the list of registered agents (id, name, IP, version, status code) with pagination.
+      tags: *id003
+    - uuid: 2d3145fc4a914d5abd7ca4680742d669
+      name: 'Wazuh Manager: Get configuration validation'
+      type: SCRIPT
+      key: wazuh.api.validation.get
+      delay: '{$WAZUH.API.VALIDATION.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.scheme + '://' + p.host + ':' + p.port;
+
+        var auth = new HttpRequest();
+        if (p.proxy) {
+            auth.setProxy(p.proxy);
+        }
+        auth.addHeader('Authorization: Basic ' + btoa(p.user + ':' + p.password));
+        var token = auth.post(base + '/security/user/authenticate?raw=true');
+        if (auth.getStatus() !== 200) {
+            throw 'Wazuh API authentication failed (HTTP ' + auth.getStatus() + ')';
+        }
+        token = String(token).replace(/\s+/g, '');
+
+        var req = new HttpRequest();
+        if (p.proxy) {
+            req.setProxy(p.proxy);
+        }
+        req.addHeader('Authorization: Bearer ' + token);
+
+        function get(path) {
+            var body = req.get(base + path);
+            if (req.getStatus() !== 200) {
+                throw 'GET ' + path + ' failed (HTTP ' + req.getStatus() + ')';
+            }
+            return JSON.parse(body);
+        }
+
+        return JSON.stringify({validation: get('/manager/configuration/validation')});
+      parameters: *id002
+      timeout: 30s
+      description: Asks the manager to validate its ossec.conf (GET /manager/configuration/validation).
+      tags: *id003
+    - uuid: b3ca793a842c4490a6f6fd9397d51f0e
+      name: 'Wazuh Manager: Version'
+      type: DEPENDENT
+      key: wazuh.manager.version
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Installed Wazuh manager version. Every value is kept so that the change trigger can compare two consecutive values.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.info.data.affected_items[0].version
+      master_item:
+        key: wazuh.api.core.get
+      tags: &id004
+      - tag: component
+        value: application
+      - tag: service
+        value: manager
+      triggers:
+      - uuid: 7c5144a478304b638c0175e3398be5e4
+        expression: change(/Wazuh Manager by HTTP/wazuh.manager.version)=1 and length(last(/Wazuh Manager by HTTP/wazuh.manager.version))>0
+        name: 'Wazuh Manager: Version has changed'
+        opdata: 'Current version: {ITEM.LASTVALUE1}'
+        priority: INFO
+        description: The Wazuh manager version has changed (upgrade or downgrade).
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: notice
+    - uuid: 277daecaabf9422c82d8c87d3d8209ce
+      name: 'Wazuh Manager: Configuration validation'
+      type: DEPENDENT
+      key: wazuh.manager.config.valid
+      history: 31d
+      trends: '0'
+      value_type: UNSIGNED
+      description: 'Result of the manager configuration validation. Possible values: 0 - OK, 1 - KO.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.validation.data.affected_items[0].status
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var v = String(value).replace(/"/g, '');
+          return v === 'OK' ? 0 : 1;
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: wazuh.api.validation.get
+      valuemap:
+        name: Wazuh configuration validation
+      tags: *id004
+      triggers:
+      - uuid: 96d71095c0504f7abb1490ac0003c670
+        expression: last(/Wazuh Manager by HTTP/wazuh.manager.config.valid)=1
+        name: 'Wazuh Manager: Configuration is invalid'
+        priority: AVERAGE
+        description: The manager reports an invalid configuration. A restart or reload would fail until it is fixed.
+        dependencies:
+        - name: 'Wazuh Manager: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: ccd2277baf434306bcb55feec552248a
+      name: 'Wazuh Manager: Cluster enabled'
+      type: DEPENDENT
+      key: wazuh.cluster.enabled
+      history: 31d
+      trends: '0'
+      value_type: UNSIGNED
+      description: Whether the Wazuh cluster is enabled on this node.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cluster.data.enabled
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          return String(value).replace(/"/g, '') === 'yes' ? 1 : 0;
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: wazuh.api.core.get
+      valuemap:
+        name: Wazuh yes/no
+      tags: &id005
+      - tag: component
+        value: application
+      - tag: service
+        value: cluster
+    - uuid: 317b3e9cf0fb4d17b3b3a0e18c492d17
+      name: 'Wazuh Manager: Cluster running'
+      type: DEPENDENT
+      key: wazuh.cluster.running
+      history: 31d
+      trends: '0'
+      value_type: UNSIGNED
+      description: Whether the Wazuh cluster daemon is running.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cluster.data.running
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          return String(value).replace(/"/g, '') === 'yes' ? 1 : 0;
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: wazuh.api.core.get
+      valuemap:
+        name: Wazuh yes/no
+      tags: *id005
+      triggers:
+      - uuid: 8abc663288744ddca3878c2ed84e004b
+        expression: last(/Wazuh Manager by HTTP/wazuh.cluster.enabled)=1 and last(/Wazuh Manager by HTTP/wazuh.cluster.running)=0
+        name: 'Wazuh Manager: Cluster daemon is not running'
+        priority: HIGH
+        description: The cluster is enabled but the cluster daemon is not running on this node.
+        dependencies:
+        - name: 'Wazuh Manager: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: e9e0d75c0ff24c44a3fee8fc804216a5
+      name: 'Wazuh Manager: Agents: Active'
+      type: DEPENDENT
+      key: wazuh.agents.active
+      history: 31d
+      value_type: UNSIGNED
+      description: 'Number of agents in connection state: active.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.connection.active
+      master_item:
+        key: wazuh.api.core.get
+      tags: &id006
+      - tag: component
+        value: application
+      - tag: service
+        value: agents
+    - uuid: fb0769ad7d5b47b0a890680470c88b94
+      name: 'Wazuh Manager: Agents: Disconnected'
+      type: DEPENDENT
+      key: wazuh.agents.disconnected
+      history: 31d
+      value_type: UNSIGNED
+      description: 'Number of agents in connection state: disconnected.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.connection.disconnected
+      master_item:
+        key: wazuh.api.core.get
+      tags: *id006
+      triggers:
+      - uuid: e734cba324b84cde85075a2d275208e2
+        expression: min(/Wazuh Manager by HTTP/wazuh.agents.disconnected,15m)>{$WAZUH.AGENTS.DISCONNECTED.MAX.WARN}
+        name: 'Wazuh Manager: Too many agents disconnected'
+        opdata: 'Disconnected agents: {ITEM.LASTVALUE1}'
+        priority: WARNING
+        description: The number of disconnected agents has been above the threshold for 15 minutes.
+        dependencies:
+        - name: 'Wazuh Manager: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: eaac1086d81448daaa85fa8c0ffa78bd
+      name: 'Wazuh Manager: Agents: Never connected'
+      type: DEPENDENT
+      key: wazuh.agents.never_connected
+      history: 31d
+      value_type: UNSIGNED
+      description: 'Number of agents in connection state: never connected.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.connection.never_connected
+      master_item:
+        key: wazuh.api.core.get
+      tags: *id006
+    - uuid: 9d9fbf58f6a74d22920334c311380925
+      name: 'Wazuh Manager: Agents: Pending'
+      type: DEPENDENT
+      key: wazuh.agents.pending
+      history: 31d
+      value_type: UNSIGNED
+      description: 'Number of agents in connection state: pending.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.connection.pending
+      master_item:
+        key: wazuh.api.core.get
+      tags: *id006
+    - uuid: 3a05c856d8f449099784c85530b189e8
+      name: 'Wazuh Manager: Agents: Total'
+      type: DEPENDENT
+      key: wazuh.agents.total
+      history: 31d
+      value_type: UNSIGNED
+      description: 'Number of agents in connection state: total.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.connection.total
+      master_item:
+        key: wazuh.api.core.get
+      tags: *id006
+    - uuid: 543601a148b84245ad21157d7291907b
+      name: 'Wazuh Manager: Agents: Configuration not synced'
+      type: DEPENDENT
+      key: wazuh.agents.config.not_synced
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of agents whose group configuration is not synchronized.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.data.configuration.not_synced
+      master_item:
+        key: wazuh.api.core.get
+      tags: *id006
+    discovery_rules:
+    - uuid: 0fd376e2b7734f1ab5f12ef0486f6e42
+      name: Wazuh daemons discovery
+      type: DEPENDENT
+      key: wazuh.manager.daemons.discovery
+      delay: '0'
+      lifetime: 7d
+      description: Discovers the daemons reported by GET /manager/status. By default only the daemons expected to run on every manager are kept (see {$WAZUH.DAEMON.NAME.MATCHES}).
+      master_item:
+        key: wazuh.api.core.get
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var d = JSON.parse(value).status.data.affected_items[0];
+          return JSON.stringify(Object.keys(d).map(function (k) {
+              return {'{#DAEMON}': k};
+          }));
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#DAEMON}'
+          value: '{$WAZUH.DAEMON.NAME.MATCHES}'
+          formulaid: A
+        - macro: '{#DAEMON}'
+          value: '{$WAZUH.DAEMON.NAME.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+      item_prototypes:
+      - uuid: 2f0f0ca2c39941a3987dc5e5c0a00de4
+        name: 'Wazuh Manager: Daemon [{#DAEMON}]: State'
+        type: DEPENDENT
+        key: wazuh.manager.daemon.state["{#DAEMON}"]
+        history: 31d
+        trends: '0'
+        value_type: UNSIGNED
+        description: 'State of the {#DAEMON} daemon. Possible values: 0 - Running, 1 - Stopped, 2 - Failed, 3 - Unknown.'
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.status.data.affected_items[0]['{#DAEMON}']
+        - type: JAVASCRIPT
+          parameters:
+          - |
+            var m = {'running': 0, 'stopped': 1, 'failed': 2};
+            var v = String(value).replace(/"/g, '');
+            return m.hasOwnProperty(v) ? m[v] : 3;
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: wazuh.api.core.get
+        valuemap:
+          name: Wazuh daemon state
+        tags:
+        - tag: component
+          value: application
+        - tag: service
+          value: manager
+        - tag: daemon
+          value: '{#DAEMON}'
+        trigger_prototypes:
+        - uuid: 2f8c13687cb54f4880d596a0d4ad26d8
+          expression: last(/Wazuh Manager by HTTP/wazuh.manager.daemon.state["{#DAEMON}"])>0
+          name: 'Wazuh Manager: Daemon [{#DAEMON}]: Not running'
+          priority: HIGH
+          description: The {#DAEMON} daemon is stopped or failed.
+          dependencies:
+          - name: 'Wazuh Manager: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: availability
+    - uuid: 3d266fc38aec40599dcea56a663f210a
+      name: Wazuh agents discovery
+      type: DEPENDENT
+      key: wazuh.agents.discovery
+      delay: '0'
+      lifetime: 7d
+      description: Discovers the registered agents. The manager itself (agent 000) is excluded by default.
+      master_item:
+        key: wazuh.api.agents.get
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          return JSON.stringify(JSON.parse(value).map(function (a) {
+              return {'{#AGENT.ID}': a.id, '{#AGENT.NAME}': a.name, '{#AGENT.IP}': a.ip};
+          }));
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#AGENT.NAME}'
+          value: '{$WAZUH.AGENT.NAME.MATCHES}'
+          formulaid: A
+        - macro: '{#AGENT.NAME}'
+          value: '{$WAZUH.AGENT.NAME.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+        - macro: '{#AGENT.ID}'
+          value: '{$WAZUH.AGENT.ID.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: C
+      item_prototypes:
+      - uuid: 2d4aeff40adf4e34b5e28894274bd53f
+        name: 'Wazuh Manager: Agent [{#AGENT.NAME}]: Status'
+        type: DEPENDENT
+        key: wazuh.agent.status["{#AGENT.ID}"]
+        history: 31d
+        trends: '0'
+        value_type: UNSIGNED
+        description: 'Connection status of agent {#AGENT.NAME} ({#AGENT.IP}). Possible values: 0 - Active, 1 - Disconnected, 2 - Never connected, 3 - Pending, 4 - Unknown.'
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $[?(@.id=='{#AGENT.ID}')].st.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: wazuh.api.agents.get
+        valuemap:
+          name: Wazuh agent status
+        tags:
+        - tag: component
+          value: application
+        - tag: service
+          value: agents
+        - tag: agent
+          value: '{#AGENT.NAME}'
+        trigger_prototypes:
+        - uuid: d0739fa87db14badb74ebf19affb15ac
+          expression: last(/Wazuh Manager by HTTP/wazuh.agent.status["{#AGENT.ID}"])=1
+          name: 'Wazuh Manager: Agent [{#AGENT.NAME}]: Disconnected'
+          priority: WARNING
+          description: Agent {#AGENT.NAME} ({#AGENT.IP}) is disconnected. The manager marks an agent as disconnected only after its own disconnection delay has elapsed.
+          dependencies:
+          - name: 'Wazuh Manager: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Manager by HTTP/wazuh.api.core.get,{$WAZUH.API.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: availability
+        - uuid: d08cde00c1664562b0e1733be81dcd78
+          expression: last(/Wazuh Manager by HTTP/wazuh.agent.status["{#AGENT.ID}"])=2
+          name: 'Wazuh Manager: Agent [{#AGENT.NAME}]: Never connected'
+          priority: INFO
+          description: Agent {#AGENT.NAME} ({#AGENT.IP}) is registered but has never connected.
+          manual_close: 'YES'
+          tags:
+          - tag: scope
+            value: notice
+      - uuid: 66da3bd2a3144fd3a18e1035dedcab01
+        name: 'Wazuh Manager: Agent [{#AGENT.NAME}]: Version'
+        type: DEPENDENT
+        key: wazuh.agent.version["{#AGENT.ID}"]
+        history: 31d
+        trends: '0'
+        value_type: CHAR
+        description: Wazuh agent version of {#AGENT.NAME}.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $[?(@.id=='{#AGENT.ID}')].version.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1d
+        master_item:
+          key: wazuh.api.agents.get
+        tags:
+        - tag: component
+          value: application
+        - tag: service
+          value: agents
+        - tag: agent
+          value: '{#AGENT.NAME}'
+    macros:
+    - macro: '{$WAZUH.API.SCHEME}'
+      value: https
+      description: Wazuh API scheme (http or https).
+    - macro: '{$WAZUH.API.PORT}'
+      value: '55000'
+      description: Wazuh API port.
+    - macro: '{$WAZUH.API.USER}'
+      value: zbx_monitor
+      description: Wazuh API user. Create a dedicated user with a read-only role.
+    - macro: '{$WAZUH.API.PASSWORD}'
+      type: SECRET_TEXT
+      description: Wazuh API user password.
+    - macro: '{$WAZUH.API.HTTP.PROXY}'
+      value: ''
+      description: HTTP proxy used to reach the Wazuh API, for example http://proxy.example.com:3128. Leave empty to connect directly.
+    - macro: '{$WAZUH.API.INTERVAL}'
+      value: 1m
+      description: Collection interval for the core API data.
+    - macro: '{$WAZUH.API.AGENTS.INTERVAL}'
+      value: 2m
+      description: Collection interval for the agents list.
+    - macro: '{$WAZUH.API.VALIDATION.INTERVAL}'
+      value: 1h
+      description: Collection interval for the configuration validation.
+    - macro: '{$WAZUH.API.NODATA.TIME}'
+      value: 5m
+      description: No-data period before the API is considered unavailable.
+    - macro: '{$WAZUH.DAEMON.NAME.MATCHES}'
+      value: ^wazuh-(analysisd|remoted|db|execd|modulesd|syscheckd|logcollector|monitord|authd|apid)$
+      description: Filter of discovered daemons by name (regex). Optional daemons such as wazuh-integratord or wazuh-clusterd are excluded by default.
+    - macro: '{$WAZUH.DAEMON.NAME.NOT_MATCHES}'
+      value: CHANGE_IF_NEEDED
+      description: Filter to exclude discovered daemons by name (regex).
+    - macro: '{$WAZUH.AGENT.NAME.MATCHES}'
+      value: .+
+      description: Filter of discovered agents by name (regex).
+    - macro: '{$WAZUH.AGENT.NAME.NOT_MATCHES}'
+      value: CHANGE_IF_NEEDED
+      description: Filter to exclude discovered agents by name (regex).
+    - macro: '{$WAZUH.AGENT.ID.NOT_MATCHES}'
+      value: ^000$
+      description: Filter to exclude discovered agents by id (regex). 000 is the manager itself.
+    - macro: '{$WAZUH.AGENTS.DISCONNECTED.MAX.WARN}'
+      value: '10'
+      description: Maximum number of disconnected agents before a warning is raised.
+    tags:
+    - tag: class
+      value: application
+    - tag: target
+      value: wazuh
+    - tag: target
+      value: wazuh-manager
+    valuemaps:
+    - uuid: e6e920b7e2f94ccaa91c3826104d563d
+      name: Wazuh daemon state
+      mappings:
+      - value: '0'
+        newvalue: Running
+      - value: '1'
+        newvalue: Stopped
+      - value: '2'
+        newvalue: Failed
+      - value: '3'
+        newvalue: Unknown
+    - uuid: f0dbe7e80e984bf5aa625a79ba04da12
+      name: Wazuh agent status
+      mappings:
+      - value: '0'
+        newvalue: Active
+      - value: '1'
+        newvalue: Disconnected
+      - value: '2'
+        newvalue: Never connected
+      - value: '3'
+        newvalue: Pending
+      - value: '4'
+        newvalue: Unknown
+    - uuid: 52011d9b142a40b095493e7014b46d13
+      name: Wazuh yes/no
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+    - uuid: c605c3ada8e042948dcb0a1be7d514ea
+      name: Wazuh configuration validation
+      mappings:
+      - value: '0'
+        newvalue: OK
+      - value: '1'
+        newvalue: KO
+    dashboards:
+    - uuid: 06f5ba893f17484db7540184bbebc59f
+      name: 'Wazuh Manager: overview'
+      pages:
+      - widgets:
+        - type: item
+          name: 'Agents: Active'
+          x: '0'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by HTTP
+              key: wazuh.agents.active
+        - type: item
+          name: 'Agents: Disconnected'
+          x: '18'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by HTTP
+              key: wazuh.agents.disconnected
+        - type: item
+          name: 'Agents: Never connected'
+          x: '36'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by HTTP
+              key: wazuh.agents.never_connected
+        - type: item
+          name: Wazuh version
+          x: '54'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by HTTP
+              key: wazuh.manager.version
+        - type: honeycomb
+          name: Manager daemons
+          x: '0'
+          y: '3'
+          width: '36'
+          height: '6'
+          fields:
+          - type: STRING
+            name: items.0
+            value: 'Wazuh Manager: Daemon [*]: State'
+          - type: STRING
+            name: thresholds.0.color
+            value: 00C48C
+          - type: STRING
+            name: thresholds.0.threshold
+            value: '0'
+          - type: STRING
+            name: thresholds.1.color
+            value: E45959
+          - type: STRING
+            name: thresholds.1.threshold
+            value: '1'
+          - type: STRING
+            name: thresholds.2.color
+            value: 97AAB3
+          - type: STRING
+            name: thresholds.2.threshold
+            value: '3'
+        - type: honeycomb
+          name: Agents by connection state
+          x: '36'
+          y: '3'
+          width: '36'
+          height: '6'
+          fields:
+          - type: STRING
+            name: items.0
+            value: 'Wazuh Manager: Agent [*]: Status'
+          - type: STRING
+            name: thresholds.0.color
+            value: 00C48C
+          - type: STRING
+            name: thresholds.0.threshold
+            value: '0'
+          - type: STRING
+            name: thresholds.1.color
+            value: E45959
+          - type: STRING
+            name: thresholds.1.threshold
+            value: '1'
+          - type: STRING
+            name: thresholds.2.color
+            value: 97AAB3
+          - type: STRING
+            name: thresholds.2.threshold
+            value: '2'
+          - type: STRING
+            name: thresholds.3.color
+            value: 7499FF
+          - type: STRING
+            name: thresholds.3.threshold
+            value: '3'
+          - type: STRING
+            name: thresholds.4.color
+            value: 97AAB3
+          - type: STRING
+            name: thresholds.4.threshold
+            value: '4'
+        - type: problemsbysv
+          name: Problems by severity
+          x: '0'
+          y: '9'
+          width: '24'
+          height: '6'
+        - type: problems
+          name: Current problems
+          x: '24'
+          y: '9'
+          width: '48'
+          height: '6'
+  - uuid: e5ebfd5ff96f42f4904b51b74b8d3636
+    template: Wazuh Indexer by HTTP
+    name: Wazuh Indexer by HTTP
+    description: |
+      Monitors a Wazuh indexer (OpenSearch) through its REST API (port 9200) without any agent or external script.
+
+      Requirements:
+      - A dedicated indexer user named zbx_monitor, allowed to call GET /_cluster/health and GET /_nodes/stats
+        (the cluster_monitor permission is enough).
+      - Set the macros {$WAZUH.INDEXER.USER} and {$WAZUH.INDEXER.PASSWORD} on the host.
+
+      TLS: SSL verify peer and SSL verify host are enabled on the HTTP agent items. The default Wazuh indexer
+      certificate only contains the address 127.0.0.1: either issue a certificate valid for the name or address
+      used by the host, or disable SSL verify host on the template items (this option cannot be set with a macro).
+
+      Author: Rémi Piazza
+    groups: *id001
+    items:
+    - uuid: 79579925260f48a6a3471248c48f8ed4
+      name: 'Wazuh Indexer: Get cluster health'
+      type: HTTP_AGENT
+      key: wazuh.indexer.cluster.health.get
+      delay: '{$WAZUH.INDEXER.INTERVAL}'
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      timeout: 15s
+      url: '{$WAZUH.INDEXER.SCHEME}://{HOST.CONN}:{$WAZUH.INDEXER.PORT}/_cluster/health'
+      http_proxy: '{$WAZUH.INDEXER.HTTP.PROXY}'
+      authtype: BASIC
+      username: '{$WAZUH.INDEXER.USER}'
+      password: '{$WAZUH.INDEXER.PASSWORD}'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      headers: &id007
+      - name: Accept
+        value: application/json
+      description: GET /_cluster/health on the Wazuh indexer.
+      tags: *id003
+      triggers:
+      - uuid: 3596b374fbef49ca8633cb1bf2ceb62e
+        expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+        name: 'Wazuh Indexer: API is unavailable or not returning data'
+        priority: HIGH
+        description: No data received from the Wazuh indexer. Check the service, the port, the credentials and the TLS trust.
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 88dfa89038194cecb7647808a1d534c5
+      name: 'Wazuh Indexer: Get nodes stats'
+      type: HTTP_AGENT
+      key: wazuh.indexer.nodes.stats.get
+      delay: '{$WAZUH.INDEXER.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      timeout: 15s
+      url: '{$WAZUH.INDEXER.SCHEME}://{HOST.CONN}:{$WAZUH.INDEXER.PORT}/_nodes/stats/jvm,fs,os?filter_path=nodes.*.name,nodes.*.jvm.mem.heap_used_percent,nodes.*.os.cpu.percent,nodes.*.fs.total.total_in_bytes,nodes.*.fs.total.available_in_bytes'
+      http_proxy: '{$WAZUH.INDEXER.HTTP.PROXY}'
+      authtype: BASIC
+      username: '{$WAZUH.INDEXER.USER}'
+      password: '{$WAZUH.INDEXER.PASSWORD}'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      headers: *id007
+      description: GET /_nodes/stats/jvm,fs,os on the Wazuh indexer, filtered to the fields used by this template.
+      tags: *id003
+    - uuid: 3c2ddbbfa86b4896bbd3073ce44d0bfc
+      name: 'Wazuh Indexer: Cluster status'
+      type: DEPENDENT
+      key: wazuh.indexer.cluster.status
+      history: 31d
+      trends: '0'
+      value_type: UNSIGNED
+      description: 'Cluster health status. Possible values: 0 - Green, 1 - Yellow, 2 - Red, 3 - Unknown.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.status
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var m = {'green': 0, 'yellow': 1, 'red': 2};
+          var v = String(value).replace(/"/g, '');
+          return m.hasOwnProperty(v) ? m[v] : 3;
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      valuemap:
+        name: Wazuh indexer cluster status
+      tags: &id008
+      - tag: component
+        value: application
+      - tag: service
+        value: indexer
+      triggers:
+      - uuid: 277db943d39c4103a0abce49a4610d7e
+        expression: last(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.status)=2
+        name: 'Wazuh Indexer: Cluster status is red'
+        priority: HIGH
+        description: 'At least one primary shard is not allocated: data may be unavailable.'
+        dependencies:
+        - name: 'Wazuh Indexer: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+      - uuid: 812438df716c45a697b9692ba883864d
+        expression: last(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.status)=1
+        name: 'Wazuh Indexer: Cluster status is yellow'
+        priority: WARNING
+        description: At least one replica shard is not allocated.
+        dependencies:
+        - name: 'Wazuh Indexer: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 389ef7ef019a414e9d2ca208e2248d99
+      name: 'Wazuh Indexer: Number of nodes'
+      type: DEPENDENT
+      key: wazuh.indexer.nodes
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of nodes in the cluster.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.number_of_nodes
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+      triggers:
+      - uuid: 62683b2963e94457b6608eb078ab8c6c
+        expression: change(/Wazuh Indexer by HTTP/wazuh.indexer.nodes)<0
+        name: 'Wazuh Indexer: Number of nodes has decreased'
+        priority: AVERAGE
+        description: A node left the indexer cluster.
+        manual_close: 'YES'
+        dependencies:
+        - name: 'Wazuh Indexer: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 28ddd398f162484e9480206304011e88
+      name: 'Wazuh Indexer: Active shards'
+      type: DEPENDENT
+      key: wazuh.indexer.shards.active
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of active shards.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.active_shards
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+    - uuid: a7b64e7753214007966a05d0e777bd7a
+      name: 'Wazuh Indexer: Unassigned shards'
+      type: DEPENDENT
+      key: wazuh.indexer.shards.unassigned
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of unassigned shards.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.unassigned_shards
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+      triggers:
+      - uuid: e1d90ee78815486dbf43a1b1f3c56480
+        expression: min(/Wazuh Indexer by HTTP/wazuh.indexer.shards.unassigned,{$WAZUH.INDEXER.UNASSIGNED.TIME})>0
+        name: 'Wazuh Indexer: Unassigned shards'
+        opdata: 'Unassigned shards: {ITEM.LASTVALUE1}'
+        priority: WARNING
+        description: There have been unassigned shards for more than {$WAZUH.INDEXER.UNASSIGNED.TIME}.
+        dependencies:
+        - name: 'Wazuh Indexer: API is unavailable or not returning data'
+          expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: dff7ed2decb3455bacde4eb8757d62ac
+      name: 'Wazuh Indexer: Relocating shards'
+      type: DEPENDENT
+      key: wazuh.indexer.shards.relocating
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of relocating shards.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.relocating_shards
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+    - uuid: 9750b0fc98ae46c5a428ad1c5501001a
+      name: 'Wazuh Indexer: Initializing shards'
+      type: DEPENDENT
+      key: wazuh.indexer.shards.initializing
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of initializing shards.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.initializing_shards
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+    - uuid: afe2a7c3c84e4feb8768ed30ea9ffe51
+      name: 'Wazuh Indexer: Pending tasks'
+      type: DEPENDENT
+      key: wazuh.indexer.tasks.pending
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of cluster-level pending tasks.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.number_of_pending_tasks
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+    - uuid: 043ee02a76fc46488b10bb117c433ae1
+      name: 'Wazuh Indexer: Active shards, in %'
+      type: DEPENDENT
+      key: wazuh.indexer.shards.active_pct
+      history: 31d
+      value_type: FLOAT
+      units: '%'
+      description: Percentage of active shards.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.active_shards_percent_as_number
+      master_item:
+        key: wazuh.indexer.cluster.health.get
+      tags: *id008
+    discovery_rules:
+    - uuid: 82e735d3335543b095388feac1e6bd3c
+      name: Wazuh indexer nodes discovery
+      type: DEPENDENT
+      key: wazuh.indexer.nodes.discovery
+      delay: '0'
+      lifetime: 7d
+      description: Discovers the indexer nodes from GET /_nodes/stats.
+      master_item:
+        key: wazuh.indexer.nodes.stats.get
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var n = JSON.parse(value).nodes;
+          return JSON.stringify(Object.keys(n).map(function (k) {
+              return {'{#NODE.ID}': k, '{#NODE.NAME}': n[k].name};
+          }));
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      item_prototypes:
+      - uuid: 8da7fb46f4af4e038a36bbabf9297052
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: JVM heap used, in %'
+        type: DEPENDENT
+        key: wazuh.indexer.node.heap["{#NODE.ID}"]
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        description: Percentage of JVM heap in use on node {#NODE.NAME}.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.nodes['{#NODE.ID}'].jvm.mem.heap_used_percent
+        master_item:
+          key: wazuh.indexer.nodes.stats.get
+        tags:
+        - tag: component
+          value: memory
+        - tag: service
+          value: indexer
+        - tag: node
+          value: '{#NODE.NAME}'
+        trigger_prototypes:
+        - uuid: 450e664c15ef454db66c27903f4cc36f
+          expression: min(/Wazuh Indexer by HTTP/wazuh.indexer.node.heap["{#NODE.ID}"],5m)>{$WAZUH.INDEXER.HEAP.MAX.CRIT}
+          name: 'Wazuh Indexer: Node [{#NODE.NAME}]: JVM heap usage is critical'
+          opdata: 'Heap used: {ITEM.LASTVALUE1}'
+          priority: HIGH
+          description: JVM heap usage has been above {$WAZUH.INDEXER.HEAP.MAX.CRIT}% for 5 minutes.
+          dependencies:
+          - name: 'Wazuh Indexer: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: performance
+        - uuid: d9b635c0ba7b47898a60448502adb984
+          expression: min(/Wazuh Indexer by HTTP/wazuh.indexer.node.heap["{#NODE.ID}"],5m)>{$WAZUH.INDEXER.HEAP.MAX.WARN}
+          name: 'Wazuh Indexer: Node [{#NODE.NAME}]: JVM heap usage is high'
+          opdata: 'Heap used: {ITEM.LASTVALUE1}'
+          priority: WARNING
+          description: JVM heap usage has been above {$WAZUH.INDEXER.HEAP.MAX.WARN}% for 5 minutes.
+          dependencies:
+          - name: 'Wazuh Indexer: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: performance
+      - uuid: 1c62af2f844e4121baec8967013534b7
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: CPU usage, in %'
+        type: DEPENDENT
+        key: wazuh.indexer.node.cpu["{#NODE.ID}"]
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        description: CPU usage reported by node {#NODE.NAME}.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.nodes['{#NODE.ID}'].os.cpu.percent
+        master_item:
+          key: wazuh.indexer.nodes.stats.get
+        tags:
+        - tag: component
+          value: cpu
+        - tag: service
+          value: indexer
+        - tag: node
+          value: '{#NODE.NAME}'
+        trigger_prototypes:
+        - uuid: 35bd327e85384fd4b9fc30c58e3f90cd
+          expression: min(/Wazuh Indexer by HTTP/wazuh.indexer.node.cpu["{#NODE.ID}"],15m)>{$WAZUH.INDEXER.CPU.MAX.WARN}
+          name: 'Wazuh Indexer: Node [{#NODE.NAME}]: CPU usage is high'
+          opdata: 'CPU usage: {ITEM.LASTVALUE1}'
+          priority: WARNING
+          description: CPU usage has been above {$WAZUH.INDEXER.CPU.MAX.WARN}% for 15 minutes.
+          dependencies:
+          - name: 'Wazuh Indexer: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: performance
+      - uuid: 8c8b965fdd3b4eb8ae0cb9ec691a488c
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Disk total space'
+        type: DEPENDENT
+        key: wazuh.indexer.node.fs.total["{#NODE.ID}"]
+        history: 31d
+        value_type: UNSIGNED
+        units: B
+        description: Total size of the data filesystem of node {#NODE.NAME}.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.nodes['{#NODE.ID}'].fs.total.total_in_bytes
+        master_item:
+          key: wazuh.indexer.nodes.stats.get
+        tags:
+        - tag: component
+          value: storage
+        - tag: service
+          value: indexer
+        - tag: node
+          value: '{#NODE.NAME}'
+      - uuid: 7cbfe0f1bd1a4c2ba243d8dfd0092a7b
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Disk available space'
+        type: DEPENDENT
+        key: wazuh.indexer.node.fs.available["{#NODE.ID}"]
+        history: 31d
+        value_type: UNSIGNED
+        units: B
+        description: Available space on the data filesystem of node {#NODE.NAME}.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.nodes['{#NODE.ID}'].fs.total.available_in_bytes
+        master_item:
+          key: wazuh.indexer.nodes.stats.get
+        tags:
+        - tag: component
+          value: storage
+        - tag: service
+          value: indexer
+        - tag: node
+          value: '{#NODE.NAME}'
+      - uuid: 2983bfb8eed84621bae91fc2a60cc91a
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Disk free space, in %'
+        type: CALCULATED
+        key: wazuh.indexer.node.fs.free_pct["{#NODE.ID}"]
+        delay: '{$WAZUH.INDEXER.INTERVAL}'
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        params: "100 * last(//wazuh.indexer.node.fs.available[\"{#NODE.ID}\"])\n    / last(//wazuh.indexer.node.fs.total[\"{#NODE.ID}\"])"
+        description: Free space on the data filesystem of node {#NODE.NAME}.
+        tags:
+        - tag: component
+          value: storage
+        - tag: service
+          value: indexer
+        - tag: node
+          value: '{#NODE.NAME}'
+        trigger_prototypes:
+        - uuid: 0c259cbc6e534f50a221f34aac2afdf0
+          expression: last(/Wazuh Indexer by HTTP/wazuh.indexer.node.fs.free_pct["{#NODE.ID}"])<{$WAZUH.INDEXER.DISK.FREE.MIN.CRIT}
+          name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Free disk space is critical'
+          opdata: 'Free space: {ITEM.LASTVALUE1}'
+          priority: HIGH
+          description: 'Free space is below {$WAZUH.INDEXER.DISK.FREE.MIN.CRIT}%. OpenSearch high disk watermark is 10% free by default: shards are moved away.'
+          dependencies:
+          - name: 'Wazuh Indexer: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: capacity
+        - uuid: 4e14806bcb5e4d31b82191b4f8eefa9c
+          expression: last(/Wazuh Indexer by HTTP/wazuh.indexer.node.fs.free_pct["{#NODE.ID}"])<{$WAZUH.INDEXER.DISK.FREE.MIN.WARN}
+          name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Free disk space is low'
+          opdata: 'Free space: {ITEM.LASTVALUE1}'
+          priority: WARNING
+          description: 'Free space is below {$WAZUH.INDEXER.DISK.FREE.MIN.WARN}%. OpenSearch low disk watermark is 15% free by default: no new shards are allocated.'
+          dependencies:
+          - name: 'Wazuh Indexer: API is unavailable or not returning data'
+            expression: nodata(/Wazuh Indexer by HTTP/wazuh.indexer.cluster.health.get,{$WAZUH.INDEXER.NODATA.TIME})=1
+          tags:
+          - tag: scope
+            value: capacity
+      graph_prototypes:
+      - uuid: bff5718cbf0440519147dd41a8171089
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: JVM heap used, in %'
+        graph_items:
+        - sortorder: '0'
+          color: FFA059
+          item:
+            host: Wazuh Indexer by HTTP
+            key: wazuh.indexer.node.heap["{#NODE.ID}"]
+      - uuid: c4ac12ee621f4848b55195511cb6f0e7
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: CPU usage, in %'
+        graph_items:
+        - sortorder: '0'
+          color: 7499FF
+          item:
+            host: Wazuh Indexer by HTTP
+            key: wazuh.indexer.node.cpu["{#NODE.ID}"]
+      - uuid: b0392a1bc74c41abb63120f5c2ac7f7d
+        name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Disk free space, in %'
+        graph_items:
+        - sortorder: '0'
+          color: 00C48C
+          item:
+            host: Wazuh Indexer by HTTP
+            key: wazuh.indexer.node.fs.free_pct["{#NODE.ID}"]
+    macros:
+    - macro: '{$WAZUH.INDEXER.SCHEME}'
+      value: https
+      description: Wazuh indexer scheme (http or https).
+    - macro: '{$WAZUH.INDEXER.PORT}'
+      value: '9200'
+      description: Wazuh indexer port.
+    - macro: '{$WAZUH.INDEXER.USER}'
+      value: zbx_monitor
+      description: Indexer user (basic authentication). Create a dedicated read-only user.
+    - macro: '{$WAZUH.INDEXER.PASSWORD}'
+      type: SECRET_TEXT
+      description: Indexer user password.
+    - macro: '{$WAZUH.INDEXER.HTTP.PROXY}'
+      value: ''
+      description: HTTP proxy used to reach the Wazuh indexer, for example http://proxy.example.com:3128. Leave empty to connect directly.
+    - macro: '{$WAZUH.INDEXER.INTERVAL}'
+      value: 1m
+      description: Collection interval.
+    - macro: '{$WAZUH.INDEXER.NODATA.TIME}'
+      value: 5m
+      description: No-data period before the indexer is considered unavailable.
+    - macro: '{$WAZUH.INDEXER.UNASSIGNED.TIME}'
+      value: 15m
+      description: Time unassigned shards must persist before the problem is raised.
+    - macro: '{$WAZUH.INDEXER.HEAP.MAX.WARN}'
+      value: '85'
+      description: JVM heap usage warning threshold, %.
+    - macro: '{$WAZUH.INDEXER.HEAP.MAX.CRIT}'
+      value: '95'
+      description: JVM heap usage critical threshold, %.
+    - macro: '{$WAZUH.INDEXER.CPU.MAX.WARN}'
+      value: '90'
+      description: CPU usage warning threshold, %.
+    - macro: '{$WAZUH.INDEXER.DISK.FREE.MIN.WARN}'
+      value: '15'
+      description: Free disk space warning threshold, %.
+    - macro: '{$WAZUH.INDEXER.DISK.FREE.MIN.CRIT}'
+      value: '10'
+      description: Free disk space critical threshold, %.
+    tags:
+    - tag: class
+      value: application
+    - tag: target
+      value: wazuh
+    - tag: target
+      value: wazuh-indexer
+    valuemaps:
+    - uuid: f44af8451d52484fa9977c89c0efa3ce
+      name: Wazuh indexer cluster status
+      mappings:
+      - value: '0'
+        newvalue: Green
+      - value: '1'
+        newvalue: Yellow
+      - value: '2'
+        newvalue: Red
+      - value: '3'
+        newvalue: Unknown
+    dashboards:
+    - uuid: 021c96dda0354707adf4e973ba151ec9
+      name: 'Wazuh Indexer: overview'
+      pages:
+      - widgets:
+        - type: item
+          name: Cluster status
+          x: '0'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              key: wazuh.indexer.cluster.status
+        - type: item
+          name: Number of nodes
+          x: '18'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              key: wazuh.indexer.nodes
+        - type: item
+          name: Unassigned shards
+          x: '36'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              key: wazuh.indexer.shards.unassigned
+        - type: item
+          name: Pending tasks
+          x: '54'
+          y: '0'
+          width: '18'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              key: wazuh.indexer.tasks.pending
+        - type: gauge
+          name: Active shards, in %
+          x: '0'
+          y: '3'
+          width: '18'
+          height: '6'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              key: wazuh.indexer.shards.active_pct
+          - type: STRING
+            name: min
+            value: '0'
+          - type: STRING
+            name: max
+            value: '100'
+        - type: graphprototype
+          name: JVM heap used, in %
+          x: '18'
+          y: '3'
+          width: '27'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              name: 'Wazuh Indexer: Node [{#NODE.NAME}]: JVM heap used, in %'
+          - type: STRING
+            name: reference
+            value: CTZCK
+        - type: graphprototype
+          name: CPU usage, in %
+          x: '45'
+          y: '3'
+          width: '27'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              name: 'Wazuh Indexer: Node [{#NODE.NAME}]: CPU usage, in %'
+          - type: STRING
+            name: reference
+            value: PBHVY
+        - type: graphprototype
+          name: Disk free space, in %
+          x: '0'
+          y: '9'
+          width: '36'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              name: 'Wazuh Indexer: Node [{#NODE.NAME}]: Disk free space, in %'
+          - type: STRING
+            name: reference
+            value: QKXFA
+        - type: graph
+          name: Shards
+          x: '36'
+          y: '9'
+          width: '36'
+          height: '6'
+          fields:
+          - type: GRAPH
+            name: graphid.0
+            value:
+              host: Wazuh Indexer by HTTP
+              name: 'Wazuh Indexer: Shards'
+          - type: STRING
+            name: reference
+            value: MKKHU
+        - type: problemsbysv
+          name: Problems by severity
+          x: '0'
+          y: '15'
+          width: '24'
+          height: '6'
+        - type: problems
+          name: Current problems
+          x: '24'
+          y: '15'
+          width: '48'
+          height: '6'
+  - uuid: a757c04e27b1480a924bda4ff0fd3fce
+    template: Wazuh Dashboard by HTTP
+    name: Wazuh Dashboard by HTTP
+    description: |
+      Checks the availability of the Wazuh dashboard with an HTTP request to its login page, without any agent
+      or external script.
+
+      TLS: SSL verify peer and SSL verify host are enabled on the HTTP agent item. The default Wazuh dashboard
+      certificate only contains the address 127.0.0.1: either issue a certificate valid for the name or address
+      used by the host, or disable SSL verify host on the template item (this option cannot be set with a macro).
+
+      Author: Rémi Piazza
+    groups: *id001
+    items:
+    - uuid: 792a8cb5e8334c218e2628dbd1c830f0
+      name: 'Wazuh Dashboard: HTTP status code'
+      type: HTTP_AGENT
+      key: wazuh.dashboard.http.status
+      delay: '{$WAZUH.DASHBOARD.INTERVAL}'
+      history: 31d
+      value_type: UNSIGNED
+      timeout: 15s
+      url: '{$WAZUH.DASHBOARD.SCHEME}://{HOST.CONN}:{$WAZUH.DASHBOARD.PORT}{$WAZUH.DASHBOARD.PATH}'
+      http_proxy: '{$WAZUH.DASHBOARD.HTTP.PROXY}'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      retrieve_mode: BOTH
+      follow_redirects: 'NO'
+      status_codes: 100-599
+      description: HTTP status code returned by the Wazuh dashboard login page.
+      preprocessing:
+      - type: REGEX
+        parameters:
+        - ^HTTP/\S+\s+(\d{3})
+        - \1
+      tags:
+      - tag: component
+        value: application
+      - tag: service
+        value: dashboard
+      triggers:
+      - uuid: 36002c2f110743a09e29199f48295783
+        expression: nodata(/Wazuh Dashboard by HTTP/wazuh.dashboard.http.status,{$WAZUH.DASHBOARD.NODATA.TIME})=1
+        name: 'Wazuh Dashboard: Unavailable'
+        priority: HIGH
+        description: No response from the dashboard (connection refused, timeout or TLS error). See the item error message.
+        tags:
+        - tag: scope
+          value: availability
+      - uuid: 7c8bc33b5b2249528896b64c2302f1cf
+        expression: min(/Wazuh Dashboard by HTTP/wazuh.dashboard.http.status,#3)>=400
+        name: 'Wazuh Dashboard: Unexpected HTTP status code'
+        opdata: 'HTTP status: {ITEM.LASTVALUE1}'
+        priority: HIGH
+        description: The dashboard returned an HTTP error for three consecutive checks.
+        dependencies:
+        - name: 'Wazuh Dashboard: Unavailable'
+          expression: nodata(/Wazuh Dashboard by HTTP/wazuh.dashboard.http.status,{$WAZUH.DASHBOARD.NODATA.TIME})=1
+        tags:
+        - tag: scope
+          value: availability
+    macros:
+    - macro: '{$WAZUH.DASHBOARD.SCHEME}'
+      value: https
+      description: Wazuh dashboard scheme (http or https).
+    - macro: '{$WAZUH.DASHBOARD.PORT}'
+      value: '443'
+      description: Wazuh dashboard port.
+    - macro: '{$WAZUH.DASHBOARD.PATH}'
+      value: /app/login
+      description: Path used for the availability check (must be reachable without authentication).
+    - macro: '{$WAZUH.DASHBOARD.HTTP.PROXY}'
+      value: ''
+      description: HTTP proxy used to reach the Wazuh dashboard, for example http://proxy.example.com:3128. Leave empty to connect directly.
+    - macro: '{$WAZUH.DASHBOARD.INTERVAL}'
+      value: 1m
+      description: Collection interval.
+    - macro: '{$WAZUH.DASHBOARD.NODATA.TIME}'
+      value: 5m
+      description: No-data period before the dashboard is considered unavailable.
+    tags:
+    - tag: class
+      value: application
+    - tag: target
+      value: wazuh
+    - tag: target
+      value: wazuh-dashboard
+    dashboards:
+    - uuid: dbb9f8e33ce54681ac56382936feb3a0
+      name: 'Wazuh Dashboard: overview'
+      pages:
+      - widgets:
+        - type: item
+          name: HTTP status code
+          x: '0'
+          y: '0'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Dashboard by HTTP
+              key: wazuh.dashboard.http.status
+        - type: problemsbysv
+          name: Problems by severity
+          x: '24'
+          y: '0'
+          width: '48'
+          height: '3'
+        - type: problems
+          name: Current problems
+          x: '0'
+          y: '3'
+          width: '72'
+          height: '6'
+  - uuid: 10549a618e904eccbcc8d276b57126f2
+    template: Wazuh Manager by Zabbix agent
+    name: Wazuh Manager by Zabbix agent
+    description: |
+      Complements "Wazuh Manager by HTTP" with checks that the Wazuh API cannot provide: processes, freshness of
+      alerts.json (detects a silent stall of the detection pipeline), ERROR and CRITICAL lines in ossec.log and the
+      Filebeat process. Link it to the host running the Wazuh manager, in addition to the HTTP templates.
+      It is not linked by the "Wazuh by HTTP" parent template because it needs a Zabbix agent.
+
+      Requirements:
+      - Zabbix agent or agent 2 on the manager host, with ServerActive configured (active check for the log item).
+      - Read access to the Wazuh logs for the zabbix user: usermod -aG wazuh zabbix, then restart the agent.
+      - Process names may differ by version: verify with ps that wazuh-analysisd, wazuh-remoted and filebeat exist.
+
+      Host CPU, memory and disk metrics are intentionally left to the standard Linux template.
+
+      Author: Rémi Piazza
+    groups: *id001
+    items:
+    - uuid: 666450d207b8408790fdd879f9c6892e
+      name: 'Wazuh Manager: analysisd process count'
+      type: ZABBIX_PASSIVE
+      key: proc.num[wazuh-analysisd]
+      delay: 1m
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of running wazuh-analysisd processes (event analysis engine). Independent of the Wazuh API.
+      tags: &id009
+      - tag: component
+        value: application
+      - tag: service
+        value: manager
+      triggers:
+      - uuid: 2af62ac457704544b74446b56d18691f
+        expression: last(/Wazuh Manager by Zabbix agent/proc.num[wazuh-analysisd])=0
+        name: 'Wazuh Manager: wazuh-analysisd is not running'
+        priority: HIGH
+        description: 'The event analysis engine has stopped: security events are no longer processed. Restart the wazuh-manager service and investigate the cause in ossec.log.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 3a960d660975424e9e91bdc7f1e1abb0
+      name: 'Wazuh Manager: remoted process count'
+      type: ZABBIX_PASSIVE
+      key: proc.num[wazuh-remoted]
+      delay: 1m
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of running wazuh-remoted processes (agent communication daemon).
+      tags: *id009
+      triggers:
+      - uuid: 9ad890a25e7a41a0bebf770467be4b2a
+        expression: last(/Wazuh Manager by Zabbix agent/proc.num[wazuh-remoted])=0
+        name: 'Wazuh Manager: wazuh-remoted is not running'
+        priority: HIGH
+        description: The daemon receiving events from agents has stopped.
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: b17692a84fb64e58a9687d626fcbbddb
+      name: 'Wazuh Manager: Filebeat process count'
+      type: ZABBIX_PASSIVE
+      key: proc.num[{$WAZUH.FILEBEAT.PROCESS}]
+      delay: 1m
+      history: 31d
+      value_type: UNSIGNED
+      description: Number of running Filebeat processes, which forward alerts to the Wazuh indexer.
+      tags: *id009
+      triggers:
+      - uuid: 0acb96d542f64695a0892ac5483d6e81
+        expression: last(/Wazuh Manager by Zabbix agent/proc.num[{$WAZUH.FILEBEAT.PROCESS}])=0
+        name: 'Wazuh Manager: Filebeat is not running'
+        priority: HIGH
+        description: 'Filebeat has stopped: alerts are no longer reaching the Wazuh indexer.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: c843bd34d28f48639fd1184623fafed2
+      name: 'Wazuh Manager: alerts.json last modification time'
+      type: ZABBIX_PASSIVE
+      key: vfs.file.time[{$WAZUH.ALERTS.LOG.PATH},modify]
+      delay: 1m
+      history: 31d
+      value_type: UNSIGNED
+      units: unixtime
+      description: Unix timestamp of the last write to alerts.json. It stops advancing when the detection pipeline stalls.
+      tags: *id009
+      triggers:
+      - uuid: 4477cf3375c145fd9df0a01ebe7ac15e
+        expression: '(now() - last(/Wazuh Manager by Zabbix agent/vfs.file.time[{$WAZUH.ALERTS.LOG.PATH},modify]))>{$WAZUH.ALERTS.AGE.MAX}
+
+          and last(/Wazuh Manager by Zabbix agent/proc.num[wazuh-analysisd])>0'
+        name: 'Wazuh Manager: No alerts generated for {$WAZUH.ALERTS.AGE.MAX}'
+        priority: HIGH
+        description: 'alerts.json has not been updated although wazuh-analysisd is running: the detection pipeline may be stalled. Check disk space, permissions and ossec.log. Raise {$WAZUH.ALERTS.AGE.MAX} on quiet installations.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+      - uuid: 63231e3ffe1f44219d26ffc0372a1d3d
+        expression: nodata(/Wazuh Manager by Zabbix agent/vfs.file.time[{$WAZUH.ALERTS.LOG.PATH},modify],10m)=1
+        name: 'Wazuh Manager: alerts.json cannot be read'
+        priority: AVERAGE
+        description: 'No value for the alerts.json modification time: the file is missing or not readable by the zabbix user (is it a member of the wazuh group?). See the item error message.'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: b717721015db4adbbc659c935230f1f3
+      name: 'Wazuh Manager: ERROR and CRITICAL entries in ossec.log'
+      type: ZABBIX_ACTIVE
+      key: log[{$WAZUH.OSSEC.LOG.PATH},"{$WAZUH.OSSEC.LOG.ERROR.REGEX}",,,skip]
+      delay: 1s
+      history: 31d
+      trends: '0'
+      value_type: LOG
+      description: Lines of ossec.log matching {$WAZUH.OSSEC.LOG.ERROR.REGEX}. Requires an active agent (ServerActive).
+      tags: *id009
+      triggers:
+      - uuid: 0298eac628fa4a9a81888ccc86c57f21
+        expression: count(/Wazuh Manager by Zabbix agent/log[{$WAZUH.OSSEC.LOG.PATH},"{$WAZUH.OSSEC.LOG.ERROR.REGEX}",,,skip],5m)>0
+        name: 'Wazuh Manager: ERROR or CRITICAL entries detected in ossec.log'
+        priority: WARNING
+        description: ERROR or CRITICAL messages appeared in ossec.log during the last 5 minutes. Review the latest values of the item.
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: notice
+    macros:
+    - macro: '{$WAZUH.ALERTS.LOG.PATH}'
+      value: /var/ossec/logs/alerts/alerts.json
+      description: Path of the Wazuh alerts file.
+    - macro: '{$WAZUH.ALERTS.AGE.MAX}'
+      value: 30m
+      description: Maximum time without a write to alerts.json before the pipeline is considered stalled. Lower it on busy installations with many agents; raise it on quiet labs.
+    - macro: '{$WAZUH.OSSEC.LOG.PATH}'
+      value: /var/ossec/logs/ossec.log
+      description: Path of the Wazuh manager log.
+    - macro: '{$WAZUH.OSSEC.LOG.ERROR.REGEX}'
+      value: ': (ERROR|CRITICAL):'
+      description: Regular expression of the ossec.log lines to collect.
+    - macro: '{$WAZUH.FILEBEAT.PROCESS}'
+      value: filebeat
+      description: Name of the process forwarding alerts to the indexer.
+    tags:
+    - tag: class
+      value: application
+    - tag: target
+      value: wazuh
+    - tag: target
+      value: wazuh-manager
+    dashboards:
+    - uuid: 1ee111644b0d4b0b8896b8741d283f3b
+      name: 'Wazuh Manager (agent): overview'
+      pages:
+      - widgets:
+        - type: item
+          name: analysisd process count
+          x: '0'
+          y: '0'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by Zabbix agent
+              key: proc.num[wazuh-analysisd]
+        - type: item
+          name: remoted process count
+          x: '24'
+          y: '0'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by Zabbix agent
+              key: proc.num[wazuh-remoted]
+        - type: item
+          name: Filebeat process count
+          x: '48'
+          y: '0'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by Zabbix agent
+              key: proc.num[{$WAZUH.FILEBEAT.PROCESS}]
+        - type: item
+          name: alerts.json last modification
+          x: '0'
+          y: '3'
+          width: '24'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: Wazuh Manager by Zabbix agent
+              key: vfs.file.time[{$WAZUH.ALERTS.LOG.PATH},modify]
+        - type: graph
+          name: Wazuh processes
+          x: '24'
+          y: '3'
+          width: '48'
+          height: '5'
+          fields:
+          - type: GRAPH
+            name: graphid.0
+            value:
+              host: Wazuh Manager by Zabbix agent
+              name: 'Wazuh Manager: Processes'
+          - type: STRING
+            name: reference
+            value: WOLXC
+        - type: problemsbysv
+          name: Problems by severity
+          x: '0'
+          y: '8'
+          width: '24'
+          height: '6'
+        - type: problems
+          name: Current problems
+          x: '24'
+          y: '8'
+          width: '48'
+          height: '6'
+  graphs:
+  - uuid: dae3480367d64150a284e86fd22f090e
+    name: 'Wazuh Indexer: Shards'
+    graph_items:
+    - sortorder: '0'
+      color: 00C48C
+      item:
+        host: Wazuh Indexer by HTTP
+        key: wazuh.indexer.shards.active
+    - sortorder: '1'
+      color: E45959
+      item:
+        host: Wazuh Indexer by HTTP
+        key: wazuh.indexer.shards.unassigned
+  - uuid: 48d3c6f04ba64433ba0604f2d375df2e
+    name: 'Wazuh Manager: Processes'
+    graph_items:
+    - sortorder: '0'
+      color: 00C48C
+      item:
+        host: Wazuh Manager by Zabbix agent
+        key: proc.num[wazuh-analysisd]
+    - sortorder: '1'
+      color: 7499FF
+      item:
+        host: Wazuh Manager by Zabbix agent
+        key: proc.num[wazuh-remoted]
+    - sortorder: '2'
+      color: FFA059
+      item:
+        host: Wazuh Manager by Zabbix agent
+        key: proc.num[{$WAZUH.FILEBEAT.PROCESS}]

@@ -14,14 +14,16 @@ zabbix_export:
         - Prometheus metrics are scraped from the LiteLLM `/metrics/` endpoint by an HTTP agent
           master item and parsed with dependent items (Prometheus -> JSON, then JSONPath).
         - Availability is taken from the unauthenticated `/health/liveliness` and `/health/readiness` endpoints.
-        - Per-deployment (model_id) metrics are discovered via low-level discovery on `litellm_deployment_state`.
+        - Deployments are discovered from `/model/info`, which lists every configured deployment
+          with or without traffic, one per model + api_base (model_id changes when a deployment's config changes).
 
         Requirements:
         - The LiteLLM Prometheus exporter must be enabled:
           `litellm_settings: { callbacks: ["prometheus"] }`.
-        - A LiteLLM virtual key allowed to call `/metrics` in `{$LITELLM.API.TOKEN}`
-          (sent in the `x-litellm-api-key` header). If `require_auth_for_metrics_endpoint`
-          is false, the key is not needed.
+        - A LiteLLM virtual key allowed to call `/metrics` and `/model/info` in `{$LITELLM.API.TOKEN}`
+          (sent in the `x-litellm-api-key` header). `/model/info` lists only the models the key and
+          its team may use, so leave the key's models unrestricted. `/model/info` always needs the key,
+          even with `require_auth_for_metrics_endpoint` false.
         - Add a host interface whose DNS/IP points at the LiteLLM proxy; the items use `{HOST.CONN}`.
 
         Notes:
@@ -29,11 +31,17 @@ zabbix_export:
         - If the metrics endpoint sits behind HTTP Basic auth at an ingress, set the master item's
           Authentication to "Basic" and fill `{$LITELLM.METRICS.USER}` / `{$LITELLM.METRICS.PASSWORD}`
           (the LiteLLM key still travels in the x-litellm-api-key header, so both layers coexist).
+        - TLS peer and host name are verified on all HTTP agent items. For a private CA, add its root
+          to `SSLCALocation` on the Zabbix server or proxy that polls the host.
 
-        Tested against Zabbix 7.4 and LiteLLM proxy with the Prometheus callback enabled.
+        Tested against Zabbix 7.4 and LiteLLM v1.106.4 with the Prometheus callback enabled
+        (openai-compatible deployments with an explicit api_base).
 
         Author: @nikosch86.
         Source, documentation and issues: https://github.com/nikosch86/zabbix-litellm
+      vendor:
+        name: Community
+        version: 7.4-1
       groups:
         - name: Templates/Applications
       items:
@@ -57,6 +65,26 @@ zabbix_export:
           headers:
             - name: x-litellm-api-key
               value: '{$LITELLM.API.TOKEN}'
+          verify_peer: 'YES'
+          verify_host: 'YES'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 493785fa1c8441099cfd9544e2c0287d
+          name: 'LiteLLM: Get model info'
+          type: HTTP_AGENT
+          key: litellm.model_info
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          description: 'Raw JSON from /model/info: every configured deployment, with or without traffic.'
+          timeout: '{$LITELLM.HTTP.TIMEOUT}'
+          url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}/model/info'
+          headers:
+            - name: x-litellm-api-key
+              value: '{$LITELLM.API.TOKEN}'
+          verify_peer: 'YES'
+          verify_host: 'YES'
           tags:
             - tag: component
               value: raw
@@ -77,11 +105,10 @@ zabbix_export:
                 - '1'
               error_handler: CUSTOM_VALUE
               error_handler_params: '0'
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 10m
           timeout: '{$LITELLM.HTTP.TIMEOUT}'
           url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}/health/liveliness'
+          verify_peer: 'YES'
+          verify_host: 'YES'
           tags:
             - tag: component
               value: availability
@@ -104,6 +131,8 @@ zabbix_export:
           description: 'Raw JSON from the /health/readiness endpoint.'
           timeout: '{$LITELLM.HTTP.TIMEOUT}'
           url: '{$LITELLM.SCHEME}://{HOST.CONN}:{$LITELLM.PORT}/health/readiness'
+          verify_peer: 'YES'
+          verify_host: 'YES'
           tags:
             - tag: component
               value: raw
@@ -607,23 +636,32 @@ zabbix_export:
           name: 'LiteLLM: Deployments discovery'
           type: DEPENDENT
           key: litellm.deployment.discovery
-          description: 'Discovers LLM deployments (model_id) from litellm_deployment_state.'
+          lifetime: 1d
+          description: 'Discovers configured LLM deployments from /model/info, one per model + api_base (aliases collapse into {#ALIASES}). A removed deployment is deleted after a day, which closes its problems.'
           preprocessing:
-            - type: JSONPATH
+            - type: JAVASCRIPT
               parameters:
-                - '$[?(@.name=="litellm_deployment_state")]'
-              error_handler: DISCARD_VALUE
+                - |
+                  // One row per backend (model + api_base); /model/info lists every alias model_name separately.
+                  // MODEL and API_BASE are normalised like the litellm_model_name and api_base metric labels.
+                  var rows = {}, out = [];
+                  (JSON.parse(value).data || []).forEach(function (m) {
+                      var p = m.litellm_params || {}, info = m.model_info || {}, model = p.model || "";
+                      var prov = p.custom_llm_provider;
+                      if (!prov) model = model.replace(/^[^\/]+\//, "");
+                      else if (model.indexOf(prov + "/") === 0) model = model.slice(prov.length + 1);
+                      var api_base = (p.api_base || "").replace(/\/+$/, ""), key = model + "|" + api_base;
+                      if (!rows[key]) {
+                          rows[key] = {model: model, api_base: api_base, provider: info.litellm_provider || prov || "", aliases: []};
+                          out.push(rows[key]);
+                      }
+                      if (rows[key].aliases.indexOf(m.model_name) < 0) rows[key].aliases.push(m.model_name);
+                  });
+                  return JSON.stringify(out.map(function (r) {
+                      return {"{#MODEL}": r.model, "{#API_BASE}": r.api_base, "{#PROVIDER}": r.provider, "{#ALIASES}": r.aliases.join(", ")};
+                  }));
           master_item:
-            key: litellm.metrics
-          lld_macro_paths:
-            - lld_macro: '{#MODEL_ID}'
-              path: "$.labels['model_id']"
-            - lld_macro: '{#MODEL}'
-              path: "$.labels['litellm_model_name']"
-            - lld_macro: '{#API_BASE}'
-              path: "$.labels['api_base']"
-            - lld_macro: '{#PROVIDER}'
-              path: "$.labels['api_provider']"
+            key: litellm.model_info
           filter:
             evaltype: AND
             conditions:
@@ -638,18 +676,18 @@ zabbix_export:
             - uuid: 3fd96005456d4b60a0a69ee39e9e598b
               name: 'LiteLLM: Deployment state [{#MODEL}]'
               type: DEPENDENT
-              key: 'litellm.deployment.state[{#MODEL_ID}]'
+              key: 'litellm.deployment.state["{#MODEL}","{#API_BASE}"]'
               history: 7d
               trends: 365d
-              description: 'Deployment health: 0 = healthy, 1 = partial outage, 2 = complete outage.'
+              description: 'Deployment health: 0 = healthy, 1 = partial outage, 2 = complete outage, 3 = not reported (no traffic since the last proxy restart). Worst state across the model names routed here: {#ALIASES}.'
               valuemap:
                 name: 'LiteLLM deployment state'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.name=="litellm_deployment_state" && @.labels.model_id=="{#MODEL_ID}")].value.first()'
+                    - '$[?(@.name=="litellm_deployment_state" && @.labels.litellm_model_name=="{#MODEL}" && @.labels.api_base=="{#API_BASE}")].value.max()'
                   error_handler: CUSTOM_VALUE
-                  error_handler_params: '0'
+                  error_handler_params: '3'
               master_item:
                 key: litellm.metrics
               tags:
@@ -659,7 +697,7 @@ zabbix_export:
                   value: '{#MODEL}'
               trigger_prototypes:
                 - uuid: 739700ade18a41f8852e8b90ad4644c2
-                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=2'
+                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state["{#MODEL}","{#API_BASE}"])=2'
                   name: 'LiteLLM: Deployment [{#MODEL}] is in complete outage'
                   opdata: 'api_base: {#API_BASE}'
                   priority: HIGH
@@ -671,7 +709,7 @@ zabbix_export:
                     - tag: scope
                       value: availability
                 - uuid: 1d6b0ec04e6645c6a9b8d333fccc30dc
-                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=1'
+                  expression: 'last(/LiteLLM by HTTP/litellm.deployment.state["{#MODEL}","{#API_BASE}"])=1'
                   name: 'LiteLLM: Deployment [{#MODEL}] is in partial outage'
                   opdata: 'api_base: {#API_BASE}'
                   priority: WARNING
@@ -680,14 +718,27 @@ zabbix_export:
                     - name: 'LiteLLM: Service is not responding'
                       expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
                     - name: 'LiteLLM: Deployment [{#MODEL}] is in complete outage'
-                      expression: 'last(/LiteLLM by HTTP/litellm.deployment.state[{#MODEL_ID}])=2'
+                      expression: 'last(/LiteLLM by HTTP/litellm.deployment.state["{#MODEL}","{#API_BASE}"])=2'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: 6893c18ec6014073ac13dda73d91835c
+                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.state["{#MODEL}","{#API_BASE}"],{$LITELLM.DEPLOYMENT.UNREPORTED.PERIOD})=3'
+                  name: 'LiteLLM: Deployment [{#MODEL}] state not reported'
+                  event_name: 'LiteLLM: Deployment [{#MODEL}] state not reported for {$LITELLM.DEPLOYMENT.UNREPORTED.PERIOD}'
+                  opdata: 'api_base: {#API_BASE}'
+                  priority: INFO
+                  description: 'The proxy has no state series for {#MODEL} ({#API_BASE}): it has served no request since the last proxy restart, so its health is unknown here.'
+                  dependencies:
+                    - name: 'LiteLLM: Service is not responding'
+                      expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
                   tags:
                     - tag: scope
                       value: availability
             - uuid: 625be7b95785441ebf2d8e0ff421e04b
               name: 'LiteLLM: Deployment successful responses per second [{#MODEL}]'
               type: DEPENDENT
-              key: 'litellm.deployment.success.rate[{#MODEL_ID}]'
+              key: 'litellm.deployment.success.rate["{#MODEL}","{#API_BASE}"]'
               history: 7d
               trends: 365d
               value_type: FLOAT
@@ -696,7 +747,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.name=="litellm_deployment_success_responses_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                    - '$[?(@.name=="litellm_deployment_success_responses_total" && @.labels.litellm_model_name=="{#MODEL}" && @.labels.api_base=="{#API_BASE}")].value.sum()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '0'
                 - type: CHANGE_PER_SECOND
@@ -710,7 +761,7 @@ zabbix_export:
             - uuid: b809e3d5c4e940218083cbf4db915a70
               name: 'LiteLLM: Deployment failed responses per second [{#MODEL}]'
               type: DEPENDENT
-              key: 'litellm.deployment.failure.rate[{#MODEL_ID}]'
+              key: 'litellm.deployment.failure.rate["{#MODEL}","{#API_BASE}"]'
               history: 7d
               trends: 365d
               value_type: FLOAT
@@ -719,7 +770,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.name=="litellm_deployment_failure_responses_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                    - '$[?(@.name=="litellm_deployment_failure_responses_total" && @.labels.litellm_model_name=="{#MODEL}" && @.labels.api_base=="{#API_BASE}")].value.sum()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '0'
                 - type: CHANGE_PER_SECOND
@@ -733,7 +784,7 @@ zabbix_export:
             - uuid: e69246be39e94e72b9b480e2c19124d6
               name: 'LiteLLM: Deployment total requests per second [{#MODEL}]'
               type: DEPENDENT
-              key: 'litellm.deployment.total.rate[{#MODEL_ID}]'
+              key: 'litellm.deployment.total.rate["{#MODEL}","{#API_BASE}"]'
               history: 7d
               trends: 365d
               value_type: FLOAT
@@ -742,7 +793,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.name=="litellm_deployment_total_requests_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                    - '$[?(@.name=="litellm_deployment_total_requests_total" && @.labels.litellm_model_name=="{#MODEL}" && @.labels.api_base=="{#API_BASE}")].value.sum()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '0'
                 - type: CHANGE_PER_SECOND
@@ -756,13 +807,13 @@ zabbix_export:
             - uuid: 66d131d5c44442a4bcca6d06c3676a9a
               name: 'LiteLLM: Deployment error rate [{#MODEL}]'
               type: CALCULATED
-              key: 'litellm.deployment.failure.ratio[{#MODEL_ID}]'
+              key: 'litellm.deployment.failure.ratio["{#MODEL}","{#API_BASE}"]'
               delay: 1m
               history: 7d
               trends: 365d
               value_type: FLOAT
               units: '%'
-              params: '100*last(//litellm.deployment.failure.rate[{#MODEL_ID}])/(last(//litellm.deployment.total.rate[{#MODEL_ID}])+(last(//litellm.deployment.total.rate[{#MODEL_ID}])=0))'
+              params: '100*last(//litellm.deployment.failure.rate["{#MODEL}","{#API_BASE}"])/(last(//litellm.deployment.total.rate["{#MODEL}","{#API_BASE}"])+(last(//litellm.deployment.total.rate["{#MODEL}","{#API_BASE}"])=0))'
               description: 'Failed responses as a percentage of total requests for this deployment.'
               tags:
                 - tag: component
@@ -771,7 +822,7 @@ zabbix_export:
                   value: '{#MODEL}'
               trigger_prototypes:
                 - uuid: 4bc082e750c6437c8566a8cc53cb5d04
-                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.failure.ratio[{#MODEL_ID}],5m)>{$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}'
+                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.failure.ratio["{#MODEL}","{#API_BASE}"],5m)>{$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}'
                   name: 'LiteLLM: Deployment [{#MODEL}] error rate is high'
                   event_name: 'LiteLLM: Deployment [{#MODEL}] error rate is high (over {$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}% for 5m)'
                   priority: AVERAGE
@@ -785,7 +836,7 @@ zabbix_export:
             - uuid: 7fe6fd4ec7b848f0968a2a84e6e279ab
               name: 'LiteLLM: Deployment cooldowns per second [{#MODEL}]'
               type: DEPENDENT
-              key: 'litellm.deployment.cooled_down.rate[{#MODEL_ID}]'
+              key: 'litellm.deployment.cooled_down.rate["{#MODEL}","{#API_BASE}"]'
               history: 7d
               trends: 365d
               value_type: FLOAT
@@ -793,7 +844,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.name=="litellm_deployment_cooled_down_total" && @.labels.model_id=="{#MODEL_ID}")].value.sum()'
+                    - '$[?(@.name=="litellm_deployment_cooled_down_total" && @.labels.litellm_model_name=="{#MODEL}" && @.labels.api_base=="{#API_BASE}")].value.sum()'
                   error_handler: CUSTOM_VALUE
                   error_handler_params: '0'
                 - type: CHANGE_PER_SECOND
@@ -806,7 +857,7 @@ zabbix_export:
                   value: '{#MODEL}'
               trigger_prototypes:
                 - uuid: 0800545b584e4e8eaef14296ac32fc55
-                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.cooled_down.rate[{#MODEL_ID}],5m)>0'
+                  expression: 'min(/LiteLLM by HTTP/litellm.deployment.cooled_down.rate["{#MODEL}","{#API_BASE}"],5m)>0'
                   name: 'LiteLLM: Deployment [{#MODEL}] is being cooled down'
                   opdata: 'api_base: {#API_BASE}'
                   priority: WARNING
@@ -819,23 +870,23 @@ zabbix_export:
                       value: availability
           graph_prototypes:
             - uuid: 2dc146a6acca4190b51c45c9a1bae53b
-              name: 'LiteLLM: Deployment throughput [{#MODEL}]'
+              name: 'LiteLLM: Deployment throughput [{#MODEL} @ {#API_BASE}]'
               graph_items:
                 - drawtype: BOLD_LINE
                   color: 1A7C11
                   item:
                     host: 'LiteLLM by HTTP'
-                    key: 'litellm.deployment.success.rate[{#MODEL_ID}]'
+                    key: 'litellm.deployment.success.rate["{#MODEL}","{#API_BASE}"]'
                 - sortorder: '1'
                   color: F63100
                   item:
                     host: 'LiteLLM by HTTP'
-                    key: 'litellm.deployment.failure.rate[{#MODEL_ID}]'
+                    key: 'litellm.deployment.failure.rate["{#MODEL}","{#API_BASE}"]'
                 - sortorder: '2'
                   color: 2774A4
                   item:
                     host: 'LiteLLM by HTTP'
-                    key: 'litellm.deployment.total.rate[{#MODEL_ID}]'
+                    key: 'litellm.deployment.total.rate["{#MODEL}","{#API_BASE}"]'
       tags:
         - tag: class
           value: software
@@ -844,7 +895,7 @@ zabbix_export:
       macros:
         - macro: '{$LITELLM.API.TOKEN}'
           type: SECRET_TEXT
-          description: 'LiteLLM virtual key allowed to call /metrics. Sent in the x-litellm-api-key header. Leave empty if metrics auth is disabled.'
+          description: 'LiteLLM virtual key allowed to call /metrics and /model/info, with no model restriction. Sent in the x-litellm-api-key header.'
         - macro: '{$LITELLM.SCHEME}'
           value: https
           description: 'Request scheme: http or https.'
@@ -864,7 +915,7 @@ zabbix_export:
           description: 'HTTP request timeout for the agent items.'
         - macro: '{$LITELLM.METRICS.NODATA}'
           value: 10m
-          description: 'Interval with no data after which availability/scrape triggers fire.'
+          description: 'Interval with no data after which availability/scrape triggers fire. Keep it well above the 1m item interval.'
         - macro: '{$LITELLM.ERROR.RATE.WARN}'
           value: '5'
           description: 'Proxy request error-rate warning threshold, in percent.'
@@ -877,6 +928,9 @@ zabbix_export:
         - macro: '{$LITELLM.DEPLOYMENT.ERROR.RATE.WARN}'
           value: '10'
           description: 'Per-deployment error-rate warning threshold, in percent.'
+        - macro: '{$LITELLM.DEPLOYMENT.UNREPORTED.PERIOD}'
+          value: 2h
+          description: 'How long a discovered deployment may have no state series before the "state not reported" trigger fires.'
         - macro: '{$LITELLM.LLD.MODEL.MATCHES}'
           value: '.*'
           description: 'Discovered deployments whose model name matches this regex are kept.'
@@ -900,6 +954,8 @@ zabbix_export:
               newvalue: 'Partial outage'
             - value: '2'
               newvalue: 'Complete outage'
+            - value: '3'
+              newvalue: 'Not reported'
       dashboards:
         - uuid: 50725e3134124ed9a27d5a2c60e5a940
           name: 'LiteLLM overview'
@@ -998,7 +1054,7 @@ zabbix_export:
                       name: graphid
                       value:
                         host: 'LiteLLM by HTTP'
-                        name: 'LiteLLM: Deployment throughput [{#MODEL}]'
+                        name: 'LiteLLM: Deployment throughput [{#MODEL} @ {#API_BASE}]'
                     - type: STRING
                       name: reference
                       value: AAAAE

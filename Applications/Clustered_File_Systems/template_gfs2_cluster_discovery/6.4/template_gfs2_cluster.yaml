@@ -1,0 +1,841 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    - uuid: c26d6909a48e4ca6be4bb36f0c94cb2d
+      name: 'Templates/Storage'
+  templates:
+    - uuid: f069d4b800f34b3e8bdc0c26e4b3f8b3
+      template: 'GFS2 Cluster'
+      name: 'GFS2 Cluster'
+      description: |
+        Monitoring for a GFS2 + Pacemaker + Corosync + DLM cluster on Ubuntu 22.04.
+
+        Coverage:
+          - Cluster services: pacemaker, corosync, dlm_controld
+          - Quorum, online/offline/unclean nodes, failed resources
+          - DLM lockspaces
+          - Per-filesystem (auto-discovered via LLD):
+              * mounted / read-write / write health check
+              * multipath active and total path counts
+              * SCSI-3 PR registered keys (fence_scsi sanity)
+
+        Requirements on each cluster node:
+          1. Copy userparameter_gfs2_cluster.conf to /etc/zabbix/zabbix_agent2.d/
+          2. Install sudoers_zabbix_gfs2_cluster as /etc/sudoers.d/zabbix-gfs2-cluster
+             (root:root, mode 0440 - validate with `visudo -cf`)
+          3. systemctl restart zabbix-agent2
+
+        Agent mode: active. The `Hostname=` value in zabbix_agent2.conf must
+        match the host name registered in the Zabbix frontend.
+
+        Host-level macros (override per host if needed):
+          {$CLUSTER_NODES_EXPECTED}   - expected number of Online nodes
+          {$MULTIPATH_PATHS_WARN}     - threshold for "paths degraded" warning
+          {$MULTIPATH_PATHS_HIGH}     - threshold for "paths critical"
+      groups:
+        - name: 'Templates/Storage'
+      macros:
+        - macro: '{$CLUSTER_NODES_EXPECTED}'
+          value: '2'
+          description: 'Expected number of Online cluster nodes'
+        - macro: '{$MULTIPATH_PATHS_WARN}'
+          value: '3'
+          description: 'Minimum active paths before raising a warning (cluster default: 4 paths)'
+        - macro: '{$MULTIPATH_PATHS_HIGH}'
+          value: '2'
+          description: 'Minimum active paths before raising high severity'
+      items:
+
+        # ----- Cluster services -----
+
+        - uuid: b9bc6b32b78f424d8fcbeb13407d1325
+          name: 'Pacemaker: service state'
+          type: ZABBIX_ACTIVE
+          key: 'pacemaker.service'
+          delay: 60s
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: 'systemd state of the pacemaker service: active | inactive | failed'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: pacemaker
+          triggers:
+            - uuid: ca6cf17bcb814d6bab00752217d7c623
+              expression: 'last(/GFS2 Cluster/pacemaker.service)<>"active"'
+              name: 'GFS2 - Pacemaker is not running on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                The pacemaker service is not active. Cluster resources are no longer
+                being supervised on this node.
+                Check: systemctl status pacemaker
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 14553280a4dc4ff5bda27564714738fc
+          name: 'Corosync: service state'
+          type: ZABBIX_ACTIVE
+          key: 'corosync.service'
+          delay: 60s
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: 'systemd state of the corosync service: active | inactive | failed'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: corosync
+          triggers:
+            - uuid: 67e21119c25444a8992bef35f187efc7
+              expression: 'last(/GFS2 Cluster/corosync.service)<>"active"'
+              name: 'GFS2 - Corosync is not running on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                The corosync service is not active. Without it the cluster has no
+                messaging layer and cannot establish quorum.
+                Check: systemctl status corosync
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: c8ced149770d488eaceb708a2372e6e3
+          name: 'DLM: daemon state'
+          type: ZABBIX_ACTIVE
+          key: 'dlm.service'
+          delay: 60s
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: |
+            State of the dlm_controld process. DLM is managed by Pacemaker as an
+            OCF clone resource, so the systemd dlm unit is intentionally disabled
+            and we monitor the daemon directly via pgrep.
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: dlm
+          triggers:
+            - uuid: 62a3cf9f3919426f99717bd2cfba7d16
+              expression: 'last(/GFS2 Cluster/dlm.service)<>"active"'
+              name: 'GFS2 - DLM daemon is not running on {HOST.NAME}'
+              priority: HIGH
+              description: |
+                The dlm_controld daemon is not running. GFS2 cannot acquire or
+                maintain distributed locks without it.
+                Check: pcs status resources | grep dlm
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        # ----- Cluster state -----
+
+        - uuid: fe55fd172c0c4ed48982e53671d77a00
+          name: 'Corosync: quorum'
+          type: ZABBIX_ACTIVE
+          key: 'corosync.quorum'
+          delay: 30s
+          history: 7d
+          value_type: UNSIGNED
+          description: '1 = cluster quorate | 0 = no quorum'
+          valuemap:
+            name: 'GFS2 OK/FAIL'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: corosync
+          triggers:
+            - uuid: 57738c6d6b7b48d294727fe3cf3ebb07
+              expression: 'last(/GFS2 Cluster/corosync.quorum)=0 and last(/GFS2 Cluster/corosync.service)="active"'
+              name: 'GFS2 - Cluster has lost quorum on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                The cluster has lost quorum. With no-quorum-policy=freeze, every
+                cluster resource is frozen - I/O is suspended and any guest VM
+                using the shared storage is impacted.
+                Check: corosync-quorumtool -s
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: d659630bc0384e20b91ca4a5f598d93c
+          name: 'Pacemaker: nodes online'
+          type: ZABBIX_ACTIVE
+          key: 'pacemaker.nodes.online'
+          delay: 60s
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Number of nodes currently reported as Online by Pacemaker'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: pacemaker
+          triggers:
+            - uuid: e2953f2fd01f40bebab4d223836aeb06
+              expression: 'last(/GFS2 Cluster/pacemaker.nodes.online)<{$CLUSTER_NODES_EXPECTED} and last(/GFS2 Cluster/pacemaker.service)="active"'
+              name: 'GFS2 - Cluster has fewer Online nodes than expected ({$CLUSTER_NODES_EXPECTED}); currently {ITEM.LASTVALUE}'
+              priority: HIGH
+              description: |
+                Some node has dropped from Online state. Possible causes: fenced
+                node, manual standby, or cluster comms failure.
+                Check: pcs status nodes
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 1455786c435f4f5e9e3922cbab18c90c
+          name: 'Pacemaker: nodes offline'
+          type: ZABBIX_ACTIVE
+          key: 'pacemaker.nodes.offline'
+          delay: 60s
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Number of nodes listed as Offline by Pacemaker'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: pacemaker
+          triggers:
+            - uuid: 3efebd7a728b41caa99f8c7871f93109
+              expression: 'last(/GFS2 Cluster/pacemaker.nodes.offline)>0'
+              name: 'GFS2 - {ITEM.LASTVALUE} node(s) listed as Offline on the cluster'
+              priority: WARNING
+              description: |
+                One or more nodes are explicitly Offline in the Pacemaker view.
+                This usually means the node was stopped cleanly or fenced and not
+                yet rejoined. With fence_scsi the affected node must be rebooted
+                manually after fencing.
+                Check: pcs status nodes
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: aa5d048dc4f9440f9e4369e09a416c95
+          name: 'Pacemaker: nodes UNCLEAN'
+          type: ZABBIX_ACTIVE
+          key: 'pacemaker.nodes.unclean'
+          delay: 30s
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Nodes in UNCLEAN state (being fenced or in critical failure)'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: pacemaker
+          triggers:
+            - uuid: 9fbf48a43bc6446aa6e5803782c67031
+              expression: 'last(/GFS2 Cluster/pacemaker.nodes.unclean)>0'
+              name: 'GFS2 - {ITEM.LASTVALUE} node(s) in UNCLEAN state on the cluster'
+              priority: HIGH
+              description: |
+                One or more nodes are UNCLEAN - Pacemaker is fencing them via
+                fence_scsi. After SCSI-3 PR fencing, the affected node must be
+                rebooted manually to rejoin the cluster.
+                Check: pcs status && sg_persist --in -k -d <device>
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 69d8b13b358f4a7f85d0c14d189d3ce2
+          name: 'Pacemaker: failed resources'
+          type: ZABBIX_ACTIVE
+          key: 'pacemaker.resources.failed'
+          delay: 60s
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Number of cluster resources in FAILED state'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: pacemaker
+          triggers:
+            - uuid: d4d9a26c1e2a4f14b80acc45a07afb21
+              expression: 'last(/GFS2 Cluster/pacemaker.resources.failed)>0'
+              name: 'GFS2 - {ITEM.LASTVALUE} cluster resource(s) in FAILED state on {HOST.NAME}'
+              priority: HIGH
+              description: |
+                Pacemaker resources are in FAILED state. Could be DLM, the GFS2
+                filesystem or the stonith agent.
+                Check:   pcs status resources
+                Recover: pcs resource cleanup
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 902f222533c547c1a3565e2641c88dfe
+          name: 'Stonith: enabled'
+          type: ZABBIX_ACTIVE
+          key: 'stonith.enabled'
+          delay: 5m
+          history: 7d
+          value_type: UNSIGNED
+          description: '1 = stonith-enabled=true (fencing armed) | 0 = stonith-enabled=false (no fencing)'
+          valuemap:
+            name: 'GFS2 OK/FAIL'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: fencing
+          triggers:
+            - uuid: ac8d0aaccc20470c825169b23c7c6979
+              expression: 'last(/GFS2 Cluster/stonith.enabled)=0'
+              name: 'GFS2 - Stonith fencing is disabled on the cluster'
+              priority: HIGH
+              description: |
+                Stonith is disabled in the cluster configuration. The cluster
+                cannot protect itself from split-brain scenarios. Re-enable as
+                soon as the maintenance window allows.
+                Check:  pcs property show stonith-enabled
+                Enable: pcs property set stonith-enabled=true
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 33492975ef4e43c698f8db0ccbecf845
+          name: 'Cluster: fencing event count'
+          type: ZABBIX_ACTIVE
+          key: 'cluster.fencing.count'
+          delay: 60s
+          history: 7d
+          value_type: UNSIGNED
+          description: |
+            Count of completed real fencing events (reboot/off) seen in the
+            stonith history. unfencing entries are excluded - they occur at
+            every node startup and are not actionable.
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: fencing
+          triggers:
+            - uuid: 67161aef11db4c2a8708fadd6b3c76a2
+              expression: 'change(/GFS2 Cluster/cluster.fencing.count)>0'
+              name: 'GFS2 - New fencing event recorded on the cluster'
+              priority: AVERAGE
+              description: |
+                Pacemaker has just fenced a node. With fence_scsi the fenced
+                node must be rebooted manually to rejoin the cluster, and any
+                stale SCSI-3 PR keys may need to be cleared.
+                Check: pcs stonith history && sg_persist --in -k -d <device>
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+        - uuid: 5738d1bddabc47e8849e04e2a8cc2aeb
+          name: 'DLM: active lockspaces'
+          type: ZABBIX_ACTIVE
+          key: 'dlm.lockspaces'
+          delay: 60s
+          history: 7d
+          value_type: UNSIGNED
+          description: 'Active DLM lockspaces. Expected: one per mounted GFS2 filesystem.'
+          tags:
+            - tag: Application
+              value: GFS2
+            - tag: component
+              value: dlm
+          triggers:
+            - uuid: 2e43d06bbb634ac9bb5e7abc4a2a9228
+              expression: 'last(/GFS2 Cluster/dlm.lockspaces)=0 and last(/GFS2 Cluster/dlm.service)="active"'
+              name: 'GFS2 - DLM has no active lockspaces on {HOST.NAME}'
+              priority: HIGH
+              description: |
+                The DLM daemon is up but no lockspaces are registered. GFS2 is
+                not operating with distributed locking on this node.
+                Check: dlm_tool ls
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+
+      discovery_rules:
+        - uuid: bb9d108fd223480cb7fa8bd6158f1979
+          name: 'GFS2 filesystems discovery'
+          type: ZABBIX_ACTIVE
+          key: 'gfs2.discovery'
+          delay: 1h
+          lifetime: 7d
+          description: |
+            Discovers every currently mounted GFS2 filesystem on the host and
+            generates monitoring items for it. Items belonging to a filesystem
+            that gets unmounted are removed after the lifetime expires.
+
+            Macros exposed to prototypes:
+              {#GFS2_MOUNT}  - mount point (e.g. /mnt/vol01)
+              {#GFS2_DEVICE} - device path (e.g. /dev/mapper/mpath0)
+              {#GFS2_NAME}   - last path component (e.g. vol01)
+              {#MPATH}       - multipath device name (e.g. mpath0)
+          item_prototypes:
+
+            - uuid: 17f1ca15953145ecaddf81544ac82074
+              name: 'GFS2 [{#GFS2_NAME}]: mounted'
+              type: ZABBIX_ACTIVE
+              key: 'gfs2.mount[{#GFS2_MOUNT}]'
+              delay: 30s
+              history: 7d
+              value_type: UNSIGNED
+              description: '1 = filesystem is mounted at the discovered mount point'
+              valuemap:
+                name: 'GFS2 OK/FAIL'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: gfs2
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: a15a415092724f9faa7339177cb8521f
+              name: 'GFS2 [{#GFS2_NAME}]: read-write mode'
+              type: ZABBIX_ACTIVE
+              key: 'gfs2.rw[{#GFS2_MOUNT}]'
+              delay: 60s
+              history: 7d
+              value_type: UNSIGNED
+              description: '1 = mounted read-write | 0 = read-only or unmounted (possible GFS2 withdraw)'
+              valuemap:
+                name: 'GFS2 OK/FAIL'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: gfs2
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 30a592e193dd421795a3e3e2ce435ebf
+              name: 'GFS2 [{#GFS2_NAME}]: write health check'
+              type: ZABBIX_ACTIVE
+              key: 'gfs2.write[{#GFS2_MOUNT}]'
+              delay: 60s
+              history: 7d
+              value_type: UNSIGNED
+              description: '1 = write succeeded | 0 = write failed (filesystem accepts no I/O)'
+              valuemap:
+                name: 'GFS2 OK/FAIL'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: gfs2
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 43d2c70a1bc24f99b869c30abe7f1ab8
+              name: 'Multipath [{#MPATH}]: active paths'
+              type: ZABBIX_ACTIVE
+              key: 'multipath.paths.active[{#MPATH}]'
+              delay: 60s
+              history: 7d
+              value_type: UNSIGNED
+              description: 'Paths in "active ready" state for the multipath device backing this GFS2'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: multipath
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 45a4a1de1d4f4626bb547a039a8d8e67
+              name: 'Multipath [{#MPATH}]: total paths'
+              type: ZABBIX_ACTIVE
+              key: 'multipath.paths.total[{#MPATH}]'
+              delay: 60s
+              history: 7d
+              value_type: UNSIGNED
+              description: 'Total paths configured for the multipath device (active + inactive)'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: multipath
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 962c9214e58d47f384aacf1a20078af1
+              name: 'GFS2 [{#GFS2_NAME}]: used space'
+              type: ZABBIX_ACTIVE
+              key: 'vfs.fs.size[{#GFS2_MOUNT},pused]'
+              delay: 60s
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: '%'
+              description: 'Used space on the GFS2 filesystem (percentage of total). Built-in Zabbix agent key.'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: gfs2
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 7e5b7d6376314da5a8e8711e1f30dc02
+              name: 'SCSI-3 PR [{#MPATH}]: registered keys'
+              type: ZABBIX_ACTIVE
+              key: 'scsi.keys.count[{#GFS2_DEVICE}]'
+              delay: 120s
+              history: 7d
+              value_type: UNSIGNED
+              description: |
+                SCSI-3 Persistent Reservation keys registered on the LUN.
+                Expected count: cluster_nodes x paths_per_node. A zero count means
+                fence_scsi will not be able to fence a misbehaving node.
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: fencing
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            # I/O counters from /proc/diskstats. Raw values are monotonically
+            # increasing counters; the "Change per second" preprocessing step
+            # below converts them to per-second rates (IOPS or B/s).
+
+            - uuid: 35efc69da9254a20bb89ce36d2a0e092
+              name: 'I/O [{#MPATH}]: read IOPS'
+              type: ZABBIX_ACTIVE
+              key: 'diskstats.reads[{#MPATH}]'
+              delay: 30s
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: '!iops'
+              description: 'Read operations per second on the multipath device backing this GFS2'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: io
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 1a6efad7c093487bb066a4a82979aa0f
+              name: 'I/O [{#MPATH}]: write IOPS'
+              type: ZABBIX_ACTIVE
+              key: 'diskstats.writes[{#MPATH}]'
+              delay: 30s
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: '!iops'
+              description: 'Write operations per second on the multipath device backing this GFS2'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: io
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 513731718f3e4828bd4cec3a539a6f3b
+              name: 'I/O [{#MPATH}]: read throughput'
+              type: ZABBIX_ACTIVE
+              key: 'diskstats.read_bytes[{#MPATH}]'
+              delay: 30s
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Read throughput in bytes/sec on the multipath device backing this GFS2'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: io
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: b899957eea374bd3bb8ae882472a0ae6
+              name: 'I/O [{#MPATH}]: write throughput'
+              type: ZABBIX_ACTIVE
+              key: 'diskstats.write_bytes[{#MPATH}]'
+              delay: 30s
+              history: 7d
+              trends: 365d
+              value_type: FLOAT
+              units: 'Bps'
+              description: 'Write throughput in bytes/sec on the multipath device backing this GFS2'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: component
+                  value: io
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+          trigger_prototypes:
+
+            - uuid: eff332e9cf034f23b440eccf588f9cfe
+              expression: 'last(/GFS2 Cluster/gfs2.mount[{#GFS2_MOUNT}])=0'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] is not mounted on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                The GFS2 filesystem is not mounted on this node. Guest VMs that
+                rely on this storage will have suspended I/O.
+                Check: pcs status resources && journalctl -u pacemaker -n 50
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: fcf3cbce75644ec3a1691ee8c064135a
+              expression: 'last(/GFS2 Cluster/gfs2.rw[{#GFS2_MOUNT}])=0 and last(/GFS2 Cluster/gfs2.mount[{#GFS2_MOUNT}])=1'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] read-only / withdraw on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                The filesystem is mounted but read-only - typically indicates a
+                GFS2 withdraw (corruption detected or lost DLM communication).
+                Check: dmesg | grep -i gfs2
+                Recover: pcs resource disable <fs>-clone && pcs resource enable <fs>-clone
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 6b8416c14005427eb72887a2db3c6033
+              expression: 'last(/GFS2 Cluster/gfs2.write[{#GFS2_MOUNT}])=0 and last(/GFS2 Cluster/gfs2.mount[{#GFS2_MOUNT}])=1'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] write check failed on {HOST.NAME}'
+              priority: HIGH
+              description: |
+                The filesystem is mounted but does not accept writes.
+                Check: dlm_tool ls && dmesg | grep -i gfs2
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 31647e4bf78a4811a9b2fcacdf96ef8b
+              expression: 'last(/GFS2 Cluster/multipath.paths.active[{#MPATH}])<{$MULTIPATH_PATHS_WARN} and last(/GFS2 Cluster/multipath.paths.active[{#MPATH}])>={$MULTIPATH_PATHS_HIGH}'
+              name: 'GFS2 - Multipath [{#MPATH}] paths degraded on {HOST.NAME}: {ITEM.LASTVALUE} active'
+              priority: WARNING
+              description: |
+                Some multipath paths are inactive but redundancy still exists.
+                Check FC zoning and storage array connectivity.
+                Check: multipath -ll {#MPATH}
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 863e46fff68443748daf016017eaa8f2
+              expression: 'last(/GFS2 Cluster/multipath.paths.active[{#MPATH}])<{$MULTIPATH_PATHS_HIGH}'
+              name: 'GFS2 - Multipath [{#MPATH}] paths critical on {HOST.NAME}: {ITEM.LASTVALUE} active'
+              priority: HIGH
+              description: |
+                Very few active paths - storage access redundancy is at risk.
+                With zero active paths GFS2 will lose I/O and be unmounted by
+                the cluster.
+                Check: multipath -ll {#MPATH} && systemctl status multipathd
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 5488bfe99cff40d4b080e9019cd6cacd
+              expression: 'last(/GFS2 Cluster/multipath.paths.active[{#MPATH}])=0'
+              name: 'GFS2 - Multipath [{#MPATH}] has NO active paths on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                All multipath paths to the storage are down. The GFS2 filesystem
+                will lose I/O and will be unmounted by the cluster, impacting
+                every VM that uses it.
+                Check: multipath -ll {#MPATH} && systemctl status multipathd
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 0f6354854a6545149deb46e5c6675f87
+              expression: 'last(/GFS2 Cluster/vfs.fs.size[{#GFS2_MOUNT},pused])>=80 and last(/GFS2 Cluster/vfs.fs.size[{#GFS2_MOUNT},pused])<90'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] usage above 80% on {HOST.NAME}'
+              priority: WARNING
+              description: |
+                Filesystem usage is high. Plan capacity addition - GFS2 can be
+                grown online with `gfs2_grow` after expanding the LUN on the
+                storage array.
+                Check: df -h {#GFS2_MOUNT}
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: capacity
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 35c445f7a7cf47aa9d214bd3ef15d467
+              expression: 'last(/GFS2 Cluster/vfs.fs.size[{#GFS2_MOUNT},pused])>=90 and last(/GFS2 Cluster/vfs.fs.size[{#GFS2_MOUNT},pused])<95'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] usage above 90% on {HOST.NAME}'
+              priority: HIGH
+              description: |
+                Filesystem usage is very high. New VMs / volumes will start
+                failing soon. Expand the LUN and run gfs2_grow as soon as
+                possible.
+                Check: df -h {#GFS2_MOUNT}
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: capacity
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 76b51cf4aa944572ab3e7929098b1653
+              expression: 'last(/GFS2 Cluster/vfs.fs.size[{#GFS2_MOUNT},pused])>=95'
+              name: 'GFS2 - Filesystem [{#GFS2_NAME}] usage above 95% on {HOST.NAME}'
+              priority: DISASTER
+              description: |
+                Filesystem is almost full. VMs will start failing writes; risk
+                of guest filesystem corruption.
+                Check: df -h {#GFS2_MOUNT}
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: capacity
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+            - uuid: 778511ebebee4fb8bf58e20728a60a75
+              expression: 'last(/GFS2 Cluster/scsi.keys.count[{#GFS2_DEVICE}])=0 and last(/GFS2 Cluster/gfs2.mount[{#GFS2_MOUNT}])=1'
+              name: 'GFS2 - SCSI-3 PR has no registered keys on {HOST.NAME} for [{#GFS2_NAME}]'
+              priority: WARNING
+              description: |
+                No SCSI-3 PR keys are registered while the filesystem is mounted.
+                fence_scsi will be unable to fence a misbehaving node - split-brain
+                risk.
+                Check: sg_persist --in -k -d {#GFS2_DEVICE}
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: GFS2
+                - tag: scope
+                  value: availability
+                - tag: filesystem
+                  value: '{#GFS2_NAME}'
+
+          graph_prototypes:
+
+            - uuid: 71f3c9c6cd0c4e31832691abf12d8396
+              name: 'GFS2 [{#GFS2_NAME}]: IOPS'
+              graph_items:
+                - sortorder: '0'
+                  color: '1A7C11'
+                  item:
+                    host: 'GFS2 Cluster'
+                    key: 'diskstats.reads[{#MPATH}]'
+                - sortorder: '1'
+                  color: 'F63100'
+                  item:
+                    host: 'GFS2 Cluster'
+                    key: 'diskstats.writes[{#MPATH}]'
+
+            - uuid: ba403ac933b84f2b991d94e3367e6cd4
+              name: 'GFS2 [{#GFS2_NAME}]: throughput'
+              graph_items:
+                - sortorder: '0'
+                  color: '1A7C11'
+                  item:
+                    host: 'GFS2 Cluster'
+                    key: 'diskstats.read_bytes[{#MPATH}]'
+                - sortorder: '1'
+                  color: 'F63100'
+                  item:
+                    host: 'GFS2 Cluster'
+                    key: 'diskstats.write_bytes[{#MPATH}]'
+
+      valuemaps:
+        - uuid: 59ca5cfb8301487389a5611535bc0351
+          name: 'GFS2 OK/FAIL'
+          mappings:
+            - value: '0'
+              newvalue: FAIL
+            - value: '1'
+              newvalue: OK
