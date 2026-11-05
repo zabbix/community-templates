@@ -1,0 +1,198 @@
+zabbix_export:
+  version: '7.0'
+  date: '2026-04-13T11:14:01Z'
+  media_types:
+    -
+      name: 'Yandex Messenger'
+      type: WEBHOOK
+      parameters:
+        -
+          name: Event
+          value: '{EVENT.ID}'
+        -
+          name: Message
+          value: '{ALERT.MESSAGE}'
+        -
+          name: ParseMode
+        -
+          name: Severity
+          value: '{EVENT.SEVERITY}'
+        -
+          name: Subject
+          value: '{ALERT.SUBJECT}'
+        -
+          name: To
+          value: '{ALERT.SENDTO}'
+        -
+          name: Token
+          value: '{$YM.TOKEN}'
+      script: |
+        var Yandex = {
+            token: null,
+            to: null,
+            message: null,
+            proxy: null,
+            parse_mode: null,
+            event: null,
+            severity: null,
+        
+            escapeMarkup: function (str, mode) {
+                switch (mode) {
+                    case 'markdown':
+                        return str.replace(/([_*\[`])/g, '\\$&');
+        
+                    case 'markdownv2':
+                        return str.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$&');
+        
+                    default:
+                        return str;
+                }
+            },
+        
+            sendMessage: function () {
+                var params = {
+                        login: Yandex.to,
+                        text: Yandex.message,
+                        disable_web_page_preview: true,
+                        //payload_id: Yandex.event,
+                        //important: true,
+                        //disable_notification: true
+                        important: Yandex.severity
+                    },
+                    data,
+                    response,
+                    request = new HttpRequest(),
+                    url = 'https://botapi.messenger.yandex.net/bot/v1/messages/sendText/';
+        
+                if (Yandex.parse_mode !== null) {
+                    params['parse_mode'] = Yandex.parse_mode;
+                }
+        
+                if (Yandex.proxy) {
+                    request.setProxy(Yandex.proxy);
+                }
+                request.addHeader('Content-Type: application/json');
+                request.addHeader('Authorization: OAuth ' + Yandex.token);
+                data = JSON.stringify(params);
+        
+                // Remove replace() function if you want to see the exposed token in the log file.
+                Zabbix.log(4, '[Yandex Webhook] URL: ' + url.replace(Yandex.token, '<TOKEN>'));
+                Zabbix.log(4, '[Yandex Webhook] params: ' + data);
+                response = request.post(url, data);
+                Zabbix.log(4, '[Yandex Webhook] HTTP code: ' + request.getStatus());
+        
+                try {
+                    response = JSON.parse(response);
+                }
+                catch (error) {
+                    response = null;
+                }
+        
+                if (request.getStatus() !== 200 || typeof response.ok !== 'boolean' || response.ok !== true) {
+                    if (typeof response.description === 'string') {
+                        throw response.description;
+                    }
+                    else {
+                        throw 'Unknown error. Check debug log for more information.';
+                    }
+                }
+            }
+        };
+        
+        try {
+            var params = JSON.parse(value);
+        
+            if (params.Severity === 'Disaster' || params.Severity === 'High') {
+                Yandex.severity = true;
+            }
+            else {
+                Yandex.severity = false;
+            }
+        
+            if (typeof params.Token === 'undefined') {
+                throw 'Incorrect value is given for parameter "Token": parameter is missing';
+            }
+        
+            Yandex.token = params.Token;
+        
+            if (params.HTTPProxy) {
+                Yandex.proxy = params.HTTPProxy;
+            }
+        
+            params.ParseMode = params.ParseMode.toLowerCase();
+        
+            if (['markdown', 'html', 'markdownv2'].indexOf(params.ParseMode) !== -1) {
+                Yandex.parse_mode = params.ParseMode;
+            }
+        
+            Yandex.to = params.To.toLowerCase();
+            Yandex.event = params.Event;
+        
+            Yandex.message = params.Subject + '\n' + params.Message + '\n' + 'ID: ' + params.Event;
+        
+            if (['markdown', 'markdownv2'].indexOf(params.ParseMode) !== -1) {
+                Yandex.message = Yandex.escapeMarkup(Yandex.message, params.ParseMode);
+            }
+        
+            Yandex.sendMessage();
+        
+            return 'OK';
+        }
+        catch (error) {
+            Zabbix.log(4, '[Yandex Webhook] notification failed: ' + error);
+            throw 'Sending failed: ' + error + '.';
+        }
+      timeout: 10s
+      description: |
+        ## Yandex Messenger
+        The homepage of this template: https://github.com/VAGurko/zabbix-community-templates.git
+        User guide: https://github.com/VAGurko/zabbix-community-templates.git
+        
+        1. Register bot: https://yandex.ru/support/business/bot-platform.html#bot-create
+        2. Import template to zabbix server (Administration - Media types - Import)
+        3. Create new macros: Administration-General-Macros: {$YM.TOKEN} set type "Secret text" and paste the obtained token.
+        4. Setup notifications in your profile Zabbix UI.
+      message_templates:
+        -
+          event_source: TRIGGERS
+          operation_mode: PROBLEM
+          subject: 'Problem on {HOST.DESCRIPTION} - {HOST.NAME} - {EVENT.NAME}'
+          message: 'Problem started at {EVENT.TIME} on {EVENT.DATE}'
+        -
+          event_source: TRIGGERS
+          operation_mode: RECOVERY
+          subject: 'Resolved on {HOST.DESCRIPTION} - {HOST.NAME} - {EVENT.NAME}'
+          message: 'Problem has been resolved in {EVENT.DURATION} at {EVENT.RECOVERY.TIME} on {EVENT.RECOVERY.DATE}'
+        -
+          event_source: TRIGGERS
+          operation_mode: UPDATE
+          subject: 'Updated problem on {HOST.DESCRIPTION} - {HOST.NAME} - {EVENT.NAME}'
+          message: |
+            {USER.FULLNAME} {EVENT.UPDATE.ACTION} problem at {EVENT.UPDATE.DATE} {EVENT.UPDATE.TIME}.
+            {EVENT.UPDATE.MESSAGE}
+            
+            Current problem status is {EVENT.STATUS}, acknowledged: {EVENT.ACK.STATUS}.
+        -
+          event_source: DISCOVERY
+          operation_mode: PROBLEM
+          subject: 'Discovery: {DISCOVERY.DEVICE.STATUS} {DISCOVERY.DEVICE.IPADDRESS}'
+          message: |
+            Discovery rule: {DISCOVERY.RULE.NAME}
+            
+            Device IP: {DISCOVERY.DEVICE.IPADDRESS}
+            Device DNS: {DISCOVERY.DEVICE.DNS}
+            Device status: {DISCOVERY.DEVICE.STATUS}
+            Device uptime: {DISCOVERY.DEVICE.UPTIME}
+            
+            Device service name: {DISCOVERY.SERVICE.NAME}
+            Device service port: {DISCOVERY.SERVICE.PORT}
+            Device service status: {DISCOVERY.SERVICE.STATUS}
+            Device service uptime: {DISCOVERY.SERVICE.UPTIME}
+        -
+          event_source: AUTOREGISTRATION
+          operation_mode: PROBLEM
+          subject: 'Autoregistration: {HOST.HOST}'
+          message: |
+            Host name: {HOST.HOST}
+            Host IP: {HOST.IP}
+            Agent port: {HOST.PORT}
