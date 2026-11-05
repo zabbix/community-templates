@@ -31,6 +31,8 @@ zabbix_export:
         - If the metrics endpoint sits behind HTTP Basic auth at an ingress, set the master item's
           Authentication to "Basic" and fill `{$LITELLM.METRICS.USER}` / `{$LITELLM.METRICS.PASSWORD}`
           (the LiteLLM key still travels in the x-litellm-api-key header, so both layers coexist).
+        - Requests rejected with `{$LITELLM.ERROR.IGNORE.STATUS}` (429 rate limits by default) are left out of
+          the error rate and counted in "Rate-limited requests per second" instead.
         - TLS peer and host name are verified on all HTTP agent items. For a private CA, add its root
           to `SSLCALocation` on the Zabbix server or proxy that polls the host.
 
@@ -41,7 +43,7 @@ zabbix_export:
         Source, documentation and issues: https://github.com/nikosch86/zabbix-litellm
       vendor:
         name: Community
-        version: 7.4-1
+        version: 7.4-2
       groups:
         - name: Templates/Applications
       items:
@@ -243,11 +245,32 @@ zabbix_export:
           trends: 365d
           value_type: FLOAT
           units: rps
-          description: 'Proxy-side failed responses per second.'
+          description: 'Proxy-side failed responses per second, excluding the status in {$LITELLM.ERROR.IGNORE.STATUS} (rate-limit rejections by default).'
           preprocessing:
             - type: JSONPATH
               parameters:
-                - '$[?(@.name=="litellm_proxy_failed_requests_metric_total")].value.sum()'
+                - '$[?(@.name=="litellm_proxy_failed_requests_metric_total" && @.labels.exception_status!="{$LITELLM.ERROR.IGNORE.STATUS}")].value.sum()'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: CHANGE_PER_SECOND
+          master_item:
+            key: litellm.metrics
+          tags:
+            - tag: component
+              value: requests
+        - uuid: ee972af33a2245c9a3cc444dda29900e
+          name: 'LiteLLM: Rate-limited requests per second'
+          type: DEPENDENT
+          key: litellm.requests.ratelimited.rate
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: rps
+          description: 'Proxy requests rejected with the status in {$LITELLM.ERROR.IGNORE.STATUS} (429 rate limits by default), per second. Excluded from the error rate.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="litellm_proxy_failed_requests_metric_total" && @.labels.exception_status=="{$LITELLM.ERROR.IGNORE.STATUS}")].value.sum()'
               error_handler: CUSTOM_VALUE
               error_handler_params: '0'
             - type: CHANGE_PER_SECOND
@@ -264,7 +287,7 @@ zabbix_export:
           trends: 365d
           value_type: FLOAT
           units: rps
-          description: 'Failed calls from the proxy to the upstream LLM APIs, per second.'
+          description: 'Failed LLM API calls per second as counted by LiteLLM, which includes requests rejected by its own rate limits.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -286,8 +309,8 @@ zabbix_export:
           trends: 365d
           value_type: FLOAT
           units: '%'
-          params: '100*last(//litellm.requests.failed.rate)/(last(//litellm.requests.rate)+(last(//litellm.requests.rate)=0))'
-          description: 'Failed requests as a percentage of total proxy requests.'
+          params: '100*last(//litellm.requests.failed.rate)/((last(//litellm.requests.rate)-last(//litellm.requests.ratelimited.rate))+((last(//litellm.requests.rate)-last(//litellm.requests.ratelimited.rate))=0))'
+          description: 'Failed requests as a percentage of proxy requests, both excluding the status in {$LITELLM.ERROR.IGNORE.STATUS}.'
           tags:
             - tag: component
               value: requests
@@ -297,7 +320,7 @@ zabbix_export:
               name: 'LiteLLM: Request error rate is high'
               event_name: 'LiteLLM: Request error rate is high (over {$LITELLM.ERROR.RATE.WARN}% for 5m)'
               priority: WARNING
-              description: 'The proxy failed-request ratio has stayed above the threshold for 5 minutes.'
+              description: 'The proxy failed-request ratio, excluding the status in {$LITELLM.ERROR.IGNORE.STATUS}, has stayed above the threshold for 5 minutes.'
               dependencies:
                 - name: 'LiteLLM: Service is not responding'
                   expression: 'last(/LiteLLM by HTTP/litellm.liveness)=0 or nodata(/LiteLLM by HTTP/litellm.liveness,{$LITELLM.METRICS.NODATA})=1'
@@ -916,6 +939,9 @@ zabbix_export:
         - macro: '{$LITELLM.METRICS.NODATA}'
           value: 10m
           description: 'Interval with no data after which availability/scrape triggers fire. Keep it well above the 1m item interval.'
+        - macro: '{$LITELLM.ERROR.IGNORE.STATUS}'
+          value: '429'
+          description: 'Proxy response status excluded from the error rate and counted as rate-limited instead.'
         - macro: '{$LITELLM.ERROR.RATE.WARN}'
           value: '5'
           description: 'Proxy request error-rate warning threshold, in percent.'
@@ -1091,6 +1117,11 @@ zabbix_export:
           item:
             host: 'LiteLLM by HTTP'
             key: litellm.llm.failed.rate
+        - sortorder: '3'
+          color: FFAB00
+          item:
+            host: 'LiteLLM by HTTP'
+            key: litellm.requests.ratelimited.rate
     - uuid: 9494fc6d919b4198ac27c8a3fc7653df
       name: 'LiteLLM: Token throughput'
       graph_items:
