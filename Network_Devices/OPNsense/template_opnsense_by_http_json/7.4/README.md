@@ -83,6 +83,26 @@ on the firewall.
 > **Note:** The Zabbix server/proxy must trust the OPNsense TLS certificate, or Zabbix must be
 > configured to skip certificate verification for HTTP agent items.
 
+## WireGuard monitoring on CARP nodes (optional)
+
+The default value of `{$OPNS.WG.CARP.VIP}` is empty, preserving existing WireGuard
+alerting when no VIP is assigned. To suppress expected WireGuard failures on a CARP
+backup, configure host context macros for the WireGuard interfaces (`{#WG.IF}`):
+
+- `{$OPNS.WG.CARP.VIP:"wg0"} = 192.0.2.250`
+- `{$OPNS.WG.CARP.VIP:"wg1"} = 2001:db8::250`
+
+Use the VIP address exactly as reported in `rows[].subnet` by the existing
+`opns.raw.interfaces.carp` item. Both instance and peer triggers look up that VIP's
+`rows[].status` separately for each WireGuard interface; no fixed host role is used.
+
+Only a matching VIP with status `BACKUP` and fresh CARP raw data suppresses the
+WireGuard alarm. `MASTER`, `INIT`, `UNKNOWN`, or a missing VIP match retains the
+original five-minute WireGuard alarm condition. After three minutes without CARP
+raw data, BACKUP suppression is lifted. This freshness check does not create a
+separate missing-monitoring-data alarm. Interfaces without a mapping retain their
+previous behavior, and healthy WireGuard connections do not raise these alarms.
+
 ## Macros Used
 
 | Macro | Default Value | Description |
@@ -111,6 +131,7 @@ on the firewall.
 | `{$OPNS.NUT.BAT.LOW}` | `30` | Battery charge (%) below which a warning is triggered. |
 | `{$OPNS.NUT.BAT.RUNTIME}` | `600` | Remaining battery runtime (seconds) below which an alert is triggered. |
 | `{$OPNS.NUT.HIGH.LOAD}` | `80` | UPS load (%) above which a warning is triggered. |
+| `{$OPNS.WG.CARP.VIP}` | *(empty)* | Optional CARP VIP mapping per WireGuard interface using host context macros. Without a mapping, existing alerting is preserved. |
 | `{$OPNS.WG.INSTANCE.MATCHES}` | `.+` | Regex filter for WireGuard instances to discover. |
 | `{$OPNS.WG.INSTANCE.NOT_MATCHES}` | `^$` | Regex filter for WireGuard instances to exclude from discovery. |
 | `{$OPNS.WG.PEER.MATCHES}` | `.+` | Regex filter for WireGuard peers to discover. |
@@ -485,7 +506,7 @@ currently retained states may not appear even when pfsync transport itself is fu
 
 | Name                                      | Severity | Description                                      |
 | ----------------------------------------- | -------- | ------------------------------------------------ |
-| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes. |
+| WireGuard instance {#WG.INSTANCE} is down | **High** | Instance status has not been `up` for 5 minutes; suppressed only for a mapped CARP VIP reporting `BACKUP` with raw data received within 3 minutes. |
 
 ---
 
@@ -516,7 +537,7 @@ currently retained states may not appear even when pfsync transport itself is fu
 
 | Name                                    | Severity | Description                                      |
 | --------------------------------------- | -------- | ------------------------------------------------ |
-| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes. |
+| WireGuard peer {#WG.NAME} is not online | **High** | Peer status has not been `online` for 5 minutes; suppressed only for a mapped CARP VIP reporting `BACKUP` with raw data received within 3 minutes. |
 
 ---
 
