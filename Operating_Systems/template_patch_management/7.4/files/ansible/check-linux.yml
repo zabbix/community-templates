@@ -1,0 +1,122 @@
+---
+# ----------------------------------------------------------------------------
+# Check only (no updates are installed) - Linux
+#
+# Installs the check script zbx-patch-linux.sh on Linux hosts, schedules it and runs it,
+# so Zabbix (template 'APP Patch management all OS') gets the update status of the hosts:
+#   1. downloads the script from this repository (on the controller, the hosts don't need internet)
+#   2. installs it to /usr/local/bin and runs it by cron (/etc/cron.d/zbx-patch-linux)
+#      every 12 hours (+/- 30 min per host, so the hosts don't run at the same time)
+#   3. runs the check now and shows its output (pending updates, reboot, zabbix_sender result)
+#
+# Use it when you only want the reporting (updates are installed by another tool or by hand),
+# or to run the check more often than the install job. To install the updates as well,
+# use patch-and-report.yml.
+#
+# Supported: apt (Debian / Ubuntu), dnf / yum (RHEL / Rocky / Alma / Oracle / CentOS / Fedora).
+# Other package managers are skipped.
+#
+#   ansible-playbook -i inventory.ini ansible/check-linux.yml
+#   ansible-playbook -i inventory.ini ansible/check-linux.yml -e zabbix_check_interval_hours=4
+#
+# Optional extra-vars:
+#   target=linux_web                  (inventory group / host, default: linux)
+#   zabbix_check_interval_hours=6     (interval in hours, a divisor of 24, default: 12)
+#   zabbix_check_run=false            (install only, don't run the check now)
+#   zabbix_sender_install=false       (don't install the package zabbix-sender when it's missing)
+#
+# Requirements on the hosts: Zabbix agent config (Hostname / ServerActive); zabbix_sender is
+# installed from the package zabbix-sender when missing (Zabbix repository needed)
+#
+# Author : Dusan Priechodsky
+# Source : https://github.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux
+# Contact: info@duprtech.sk
+# License: MIT
+# ----------------------------------------------------------------------------
+- name: Install Zabbix patch check (Linux)
+  hosts: "{{ target | default('linux') }}"
+  become: true
+  gather_facts: true
+
+  vars:
+    zabbix_check_script: /usr/local/bin/zbx-patch-linux.sh
+    zabbix_check_script_url: https://raw.githubusercontent.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux/main/scripts/zbx-patch-linux.sh
+    zabbix_check_interval_hours: 12
+    # Per-host offset -30..+30 min around the planned time (stable for a host, spreads the load)
+    zabbix_check_offset: "{{ (61 | random(seed=inventory_hostname)) - 30 }}"
+    zabbix_check_run: true
+    # Install the package zabbix-sender when zabbix_sender is missing (needs the Zabbix repository,
+    # usually present when the Zabbix agent was installed from it)
+    zabbix_sender_install: true
+    supported_pkg_mgrs: [apt, dnf, dnf5, yum]
+
+  tasks:
+    - name: Skip unsupported package managers
+      when: ansible_pkg_mgr not in supported_pkg_mgrs
+      block:
+        - name: Warning - unsupported package manager
+          ansible.builtin.debug:
+            msg: "SKIPPED: {{ inventory_hostname }} uses '{{ ansible_pkg_mgr }}', the check script supports apt, dnf and yum"
+
+        - name: End the host
+          ansible.builtin.meta: end_host
+
+    # A url lookup runs inside Ansible on the controller and needs no connection to the host
+    - name: Download the check script (on the controller)
+      ansible.builtin.set_fact:
+        zbx_check_script_content: "{{ lookup('ansible.builtin.url', zabbix_check_script_url, split_lines=false) }}"
+
+    - name: Check zabbix_sender
+      ansible.builtin.shell: command -v zabbix_sender
+      register: zbx_sender_path
+      changed_when: false
+      failed_when: false
+
+    - name: Install zabbix_sender (package zabbix-sender)
+      ansible.builtin.package:
+        name: zabbix-sender
+        state: present
+      register: zbx_sender_install
+      failed_when: false
+      when:
+        - zbx_sender_path.rc != 0
+        - zabbix_sender_install | bool
+
+    - name: Warning - zabbix_sender not found
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: zabbix_sender is not installed on {{ inventory_hostname }} - the check can't send data.
+          {{ ('Package installation failed: ' ~ zbx_sender_install.msg) if zbx_sender_install.msg is defined
+             else 'Install the package zabbix-sender (Zabbix repository) or run with zabbix_sender_install=true' }}
+      when:
+        - zbx_sender_path.rc != 0
+        - zbx_sender_install is not changed
+
+    - name: Install the check script
+      ansible.builtin.copy:
+        content: "{{ zbx_check_script_content }}"
+        dest: "{{ zabbix_check_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Cron - run the check script every {{ zabbix_check_interval_hours }} h
+      ansible.builtin.cron:
+        name: Zabbix patch check
+        cron_file: zbx-patch-linux
+        user: root
+        minute: "{{ (zabbix_check_offset | int) % 60 }}"
+        hour: "{% for h in range(0, 24, zabbix_check_interval_hours | int) %}{{ (h + (zabbix_check_offset | int) // 60) % 24 }}{{ ',' if not loop.last else '' }}{% endfor %}"
+        job: "{{ zabbix_check_script }} >/dev/null 2>&1"
+
+    - name: Run the check script
+      ansible.builtin.command: "{{ zabbix_check_script }}"
+      register: zbx_check_run
+      changed_when: false
+      failed_when: false
+      when: zabbix_check_run | bool
+
+    - name: Check script result
+      ansible.builtin.debug:
+        msg: "{{ zbx_check_run.stdout_lines | default([]) + zbx_check_run.stderr_lines | default([]) }}"
+      when: zabbix_check_run | bool

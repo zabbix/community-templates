@@ -1,0 +1,2046 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 846977d1dfed4968bc5f8bdb363285bc
+      name: 'Templates/Operating systems'
+  templates:
+    - uuid: 5063f5f454c64dbd9a3f7fe7f79ca809
+      template: 'APP Patch management all OS'
+      name: 'APP Patch management all OS'
+      description: |
+        OS independent patch management monitoring for Windows and Linux: one template, the same keys (patch.*) on all hosts,
+        so dashboards, triggers and reports work the same for every OS.
+        - Pending updates: all, security, critical, bugfix, enhancement, kernel, held / hidden, severity (critical / important / moderate / low)
+        - OS specific categories: definition, service packs, update rollups, drivers, upgrades (Windows), kernel (Linux); 0 on the other OS
+        - Pending updates list and recent update history (log of installed / upgraded / removed updates)
+        - Reboot required and its reason, last reboot time, uptime
+        - Last update installed (detected on the host) and its patch day, last install run (sent by the install job / Ansible)
+        - OS name and version / kernel, update source and its availability, automatic updates, Windows Update service
+        - Last check time, age, duration and result
+        - Host dashboard 'Patch management': overview, categories and severity, installs and history
+
+        Data are sent with zabbix_sender (trapper items) by the check scripts zbx-patch-windows.ps1 and zbx-patch-linux.sh,
+        started by Task Scheduler / cron or by the Zabbix agent. Values that can't be determined on an OS are not sent
+        (for example severity on Debian / Ubuntu), so the item stays empty.
+        Requirements: Zabbix 7.4+, zabbix_sender on the hosts.
+        Source: https://github.com/DuprTECH/Zabbix-Patch-Management-Windows-Linux
+        Contact / custom work: info@duprtech.sk
+      groups:
+        - name: 'Templates/Operating systems'
+      items:
+        - uuid: 3c322b45aa3f40058adb08151780e173
+          name: 'Patch - Run update check'
+          key: 'system.run[{$PATCH.CHECK.CMD},nowait]'
+          delay: '12h;3h/1-5,07:00-17:00'
+          history: 1d
+          trends: '0'
+          status: DISABLED
+          description: |
+            Starts the check script through the Zabbix agent (needs AllowKey=system.run[*] in the agent config).
+            Disabled by default: running the script from cron (as root) / Task Scheduler (as SYSTEM) is recommended.
+            The command is in the macro {$PATCH.CHECK.CMD} (default: Linux). On Windows hosts set the host macro to:
+            start /low powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Zabbix Agent 2\scripts\zbx-patch-windows.ps1"
+          tags:
+            - tag: component
+              value: check
+        - uuid: 0bac5250c8254561bae4dd00d6c0a7af
+          name: 'Patch - Last check time'
+          type: TRAP
+          key: patch.check.timestamp
+          history: 90d
+          trends: '0'
+          units: unixtime
+          description: 'Time of the last update check'
+          tags:
+            - tag: component
+              value: check
+          triggers:
+            - uuid: 2c28f0b2746643c696ab6a3a66b52c3b
+              expression: 'nodata(/APP Patch management all OS/patch.check.timestamp,{$PATCH.NODATA})=1'
+              name: 'No update check data for {$PATCH.NODATA}'
+              priority: WARNING
+              description: 'The update check script has not sent any data. Check that it runs (cron / Task Scheduler / agent item) and that zabbix_sender can reach the Zabbix server / proxy.'
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: availability
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: a0eb93727ce24bfaaa7b00afedbbb607
+          name: 'Patch - Last check age'
+          type: CALCULATED
+          key: patch.check.age
+          delay: 5m
+          history: 30d
+          trends: '0'
+          units: uptime
+          params: 'now()-last(//patch.check.timestamp)'
+          description: 'Time since the last update check'
+          tags:
+            - tag: component
+              value: check
+        - uuid: eee9758039be426d8873849cc9406ba6
+          name: 'Patch - Check duration'
+          type: TRAP
+          key: patch.check.duration
+          history: 30d
+          trends: 90d
+          units: s
+          description: 'How long the last update check took'
+          tags:
+            - tag: component
+              value: check
+        - uuid: 2bcba909a04d4553b3852925cb82bf25
+          name: 'Patch - Check result'
+          type: TRAP
+          key: patch.check.result
+          history: 30d
+          value_type: CHAR
+          trends: '0'
+          description: 'Result of the last update check: OK or ERROR: <reason>. The update counts are not sent when the check fails.'
+          tags:
+            - tag: component
+              value: check
+          triggers:
+            - uuid: 7b8d1cbf82404350a83dabe0adff5cd5
+              expression: 'find(/APP Patch management all OS/patch.check.result,,"regexp","^ERROR")=1'
+              name: 'Update check failed'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: availability
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 95178a1f069c419bb196960c80e99458
+          name: 'Patch - OS family'
+          type: TRAP
+          key: patch.os
+          history: 30d
+          value_type: CHAR
+          trends: '0'
+          description: 'Windows or Linux'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 3d29f30e0c4b4cbf9bb1fdcf5d702447
+          name: 'Patch - OS name'
+          type: TRAP
+          key: patch.os.name
+          history: 90d
+          value_type: CHAR
+          trends: '0'
+          description: 'For example Windows Server 2022 Standard, Ubuntu 24.04.1 LTS, Rocky Linux 9.4 (Blue Onyx)'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 86ed0dc195d5444d9996df2acc79fb17
+          name: 'Patch - OS version / kernel'
+          type: TRAP
+          key: patch.os.version
+          history: 365d
+          value_type: CHAR
+          trends: '0'
+          description: 'Windows: build with the update revision (UBR), for example 10.0.20348.2700 (21H2). Linux: running kernel (uname -r). Shows the real patch level.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 5522af96d6a14d0f8f27590e7ffa7fc3
+          name: 'Patch - Update source'
+          type: TRAP
+          key: patch.source
+          history: 30d
+          value_type: CHAR
+          trends: '0'
+          description: 'Windows: Windows Update. Linux: package manager (apt, dnf, yum).'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 9e1541a27a26400e892f8bbec2ba84ab
+          name: 'Patch - Update source availability'
+          type: TRAP
+          key: patch.source.available
+          history: 90d
+          trends: 365d
+          description: |
+            Windows: the update search succeeded (1) or not (0).
+            Linux: package lists could be refreshed from the repositories (1) or not (0). On apt sent only when the script runs as root.
+          valuemap:
+            name: Availability
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: ad7440cf6ec9465ab7d18c7d50e95431
+              expression: 'last(/APP Patch management all OS/patch.source.available)=0'
+              name: 'Update source is unavailable'
+              priority: WARNING
+              description: 'Windows: Windows Update search failed. Linux: a repository or proxy is unavailable.'
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: availability
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 6e5c974912164d03b4d549dc6c72b4b9
+          name: 'Patch - Automatic updates'
+          type: TRAP
+          key: patch.autoupdate
+          history: 90d
+          trends: 365d
+          description: |
+            Updates are installed automatically (1) or not (0).
+            Windows: automatic updates policy (not configured or "auto download and schedule the install") and the service is not disabled.
+            Linux: unattended-upgrades (apt), dnf-automatic with apply_updates, yum-cron with apply_updates.
+          valuemap:
+            name: Enabled
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 40e18b5e96bb46d69c9891a3e74dcb98
+              expression: 'last(/APP Patch management all OS/patch.autoupdate)=0'
+              name: 'Automatic updates are disabled'
+              status: DISABLED
+              priority: INFO
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: notice
+        - uuid: f389c08f0dee49bf88123d245dac5397
+          name: 'Patch - Windows Update service startup type'
+          type: TRAP
+          key: patch.service.startup
+          history: 90d
+          trends: 365d
+          description: |
+            Windows only: startup type of the Windows Update service (wuauserv), same values as service.info[wuauserv,startup]:
+            0 - auto, 1 - auto (delayed), 2 - manual, 3 - disabled, 4 - unknown.
+            Manual is the default on Windows 10 / 11 / Server 2016+ (the service is started on demand). Not sent on Linux.
+          valuemap:
+            name: 'Service startup'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 210438bacf314ce0a7b782b1d57c037c
+              expression: 'last(/APP Patch management all OS/patch.service.startup)=3'
+              name: 'Windows Update service is disabled'
+              priority: WARNING
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 1742139b4f344a5ca63d2c990a171c27
+          name: 'Patch - Updates: All'
+          type: TRAP
+          key: patch.updates.all
+          history: 90d
+          trends: 365d
+          description: 'All pending updates (Windows: updates and drivers, not hidden; Linux: packages to upgrade / install).'
+          tags:
+            - tag: component
+              value: updates
+          triggers:
+            - uuid: cd1757599ab246c6b0ad060cc2a11f75
+              expression: 'last(/APP Patch management all OS/patch.updates.all)>0'
+              name: 'Updates are available'
+              opdata: 'Pending: {ITEM.LASTVALUE1}'
+              status: DISABLED
+              priority: INFO
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: notice
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: a7745bb29381434ab2ceef3fcbcfbc16
+          name: 'Patch - Updates: Security'
+          type: TRAP
+          key: patch.updates.security
+          history: 90d
+          trends: 365d
+          description: |
+            Windows: classification Security Updates.
+            Linux: packages with a security advisory (dnf / yum updateinfo), on Debian / Ubuntu packages from a *-security suite.
+          tags:
+            - tag: component
+              value: updates
+          triggers:
+            - uuid: 6124493653dc437fae65c1de79c36373
+              expression: 'last(/APP Patch management all OS/patch.updates.security)>0'
+              name: 'Security updates are available'
+              opdata: 'Pending: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'Critical updates are available'
+                  expression: 'last(/APP Patch management all OS/patch.updates.critical)>0'
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 16a51e761e874e09a5f7a690348329ec
+          name: 'Patch - Updates: Critical'
+          type: TRAP
+          key: patch.updates.critical
+          history: 90d
+          trends: 365d
+          description: |
+            Windows: classification Critical Updates.
+            Linux (dnf / yum): packages with a security advisory of severity Critical.
+            Not sent on Debian / Ubuntu (apt has no severity).
+          tags:
+            - tag: component
+              value: updates
+          triggers:
+            - uuid: 98db03a7811d43cd936f554688d5c7fd
+              expression: 'last(/APP Patch management all OS/patch.updates.critical)>0'
+              name: 'Critical updates are available'
+              opdata: 'Pending: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 4045701added435380f29a1816ab993d
+          name: 'Patch - Updates: Bugfix'
+          type: TRAP
+          key: patch.updates.bugfix
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Updates. Linux (dnf / yum): packages with a bugfix advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 3b0246679f6644b8b83c361b34c0e161
+          name: 'Patch - Updates: Enhancement'
+          type: TRAP
+          key: patch.updates.enhancement
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Feature Packs. Linux (dnf / yum): packages with an enhancement advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 398dbaf16e8f453d96e455c3f959de11
+          name: 'Patch - Updates: Kernel'
+          type: TRAP
+          key: patch.updates.kernel
+          history: 90d
+          trends: 365d
+          description: 'Linux: pending kernel packages (linux-image-*, kernel, kernel-core, ...). Windows: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 0fb10354ab234cf0920669b297e4641f
+          name: 'Patch - Updates: Held / hidden'
+          type: TRAP
+          key: patch.updates.held
+          history: 90d
+          trends: 365d
+          description: 'Updates excluded from patching. Windows: hidden updates. Linux: packages on hold (apt-mark hold) or version locked (dnf / yum versionlock).'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: ec5a5cef74e44f819087582968254768
+          name: 'Patch - Updates: Definition'
+          type: TRAP
+          key: patch.updates.definition
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Definition Updates (Microsoft Defender). Linux: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: a10634db4a5f464e9919b2075afef47e
+          name: 'Patch - Updates: Service packs'
+          type: TRAP
+          key: patch.updates.servicepacks
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Service Packs. Linux: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: ec7fe0da76a045cb8f417497afe9679b
+          name: 'Patch - Updates: Update rollups'
+          type: TRAP
+          key: patch.updates.updaterollups
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Update Rollups. Linux: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 19003639efde4e5385975c329367ef8a
+          name: 'Patch - Updates: Drivers'
+          type: TRAP
+          key: patch.updates.drivers
+          history: 90d
+          trends: 365d
+          description: 'Windows: driver updates. Linux: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 331da9e79f584213b4b5a31609185a30
+          name: 'Patch - Updates: Upgrades'
+          type: TRAP
+          key: patch.updates.upgrades
+          history: 90d
+          trends: 365d
+          description: 'Windows: classification Upgrades (feature update to a new Windows version). Linux: 0.'
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 6bb52eecfc4a43d1b50a6320851d387e
+          name: 'Patch - Severity: Critical'
+          type: TRAP
+          key: patch.updates.severity.critical
+          history: 90d
+          trends: 365d
+          description: 'Pending updates with severity Critical. Windows: MSRC severity. Linux (dnf / yum): severity of the security advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: severity
+        - uuid: b7d309b5a2ea40a5a2e28837a5f0810c
+          name: 'Patch - Severity: Important'
+          type: TRAP
+          key: patch.updates.severity.important
+          history: 90d
+          trends: 365d
+          description: 'Pending updates with severity Important. Windows: MSRC severity. Linux (dnf / yum): severity of the security advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: severity
+        - uuid: 356dfea92f964d43bf04b62e767e9fdd
+          name: 'Patch - Severity: Moderate'
+          type: TRAP
+          key: patch.updates.severity.moderate
+          history: 90d
+          trends: 365d
+          description: 'Pending updates with severity Moderate. Windows: MSRC severity. Linux (dnf / yum): severity of the security advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: severity
+        - uuid: 42e421a55d0d49e196d6b8dee70b986c
+          name: 'Patch - Severity: Low'
+          type: TRAP
+          key: patch.updates.severity.low
+          history: 90d
+          trends: 365d
+          description: 'Pending updates with severity Low. Windows: MSRC severity. Linux (dnf / yum): severity of the security advisory. Not sent on Debian / Ubuntu.'
+          tags:
+            - tag: component
+              value: severity
+        - uuid: e4db62012fa34d7780eb6c46c3ca1670
+          name: 'Patch - Pending updates list'
+          type: TRAP
+          key: patch.updates.list
+          history: 90d
+          value_type: TEXT
+          trends: '0'
+          description: |
+            Pending updates, one per line: [category] [severity] name version
+            Windows: [security] [Critical] KB5044281 - 2024-10 Cumulative Update for ...
+            Linux:   [security] [Important] openssl-libs 1:3.0.7-28.el9_4
+                     [security] openssl 3.0.13-0ubuntu3.3 -> 3.0.13-0ubuntu3.4
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: updates
+        - uuid: 2bb1bed0cd174cdfbe81f457a4bf9a16
+          name: 'Patch - Update history'
+          type: TRAP
+          key: patch.history
+          history: 365d
+          value_type: TEXT
+          trends: '0'
+          description: |
+            Recent update history like a log, newest first (default 50 lines):
+            Windows: 2026-10-01 06:12  Install  Succeeded  2026-10 Cumulative Update for ... (KB5044281)
+                     (Windows Update history, without definition updates; Get-HotFix when there is no history)
+            Debian / Ubuntu: 2026-10-01 06:12  Upgrade  openssl:amd64 3.0.13-0ubuntu3.3 -> 3.0.13-0ubuntu3.4
+                     (/var/log/apt/history.log: Install, Upgrade, Downgrade, Remove, Purge)
+            RHEL family: 2026-10-01 06:12  Installed  openssl-libs 3.0.7-28.el9_4.x86_64 (rpm install time)
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: history
+        - uuid: d3352b4de65d4938acb416c9ae8becbb
+          name: 'Patch - Reboot required'
+          type: TRAP
+          key: patch.reboot.required
+          history: 90d
+          trends: 365d
+          description: |
+            Windows: Windows Update or Component Based Servicing waits for a reboot.
+            Linux: /var/run/reboot-required (Debian / Ubuntu), needs-restarting -r (RHEL), or the running kernel is not the newest installed one.
+          valuemap:
+            name: Reboot
+          tags:
+            - tag: component
+              value: reboot
+          triggers:
+            - uuid: ac78cd7e8b6f4d15b673fb379f9ed7c0
+              expression: 'last(/APP Patch management all OS/patch.reboot.required)<>0'
+              name: 'Reboot required to finish installing updates'
+              priority: INFO
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: notice
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+            - uuid: c1fcf97ecbdb4377aedd4efa4964d167
+              expression: 'min(/APP Patch management all OS/patch.reboot.required,{$PATCH.REBOOT.MAXAGE})=1'
+              name: 'Reboot pending for more than {$PATCH.REBOOT.MAXAGE}'
+              priority: WARNING
+              description: 'Installed updates are not active until the host is rebooted.'
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 02cb1ac615de4dd7a08432bed243d414
+          name: 'Patch - Reboot reason'
+          type: TRAP
+          key: patch.reboot.reason
+          history: 90d
+          value_type: TEXT
+          trends: '0'
+          description: 'Why a reboot is required (Windows: Windows Update / Component Based Servicing; Linux: packages or kernel). "-" when no reboot is required.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: reboot
+        - uuid: e845746a3fb9401fa17c1aa248760e37
+          name: 'Patch - Last reboot time'
+          type: TRAP
+          key: patch.lastboot
+          history: 365d
+          trends: '0'
+          units: unixtime
+          description: 'Time of the last boot of the host'
+          tags:
+            - tag: component
+              value: reboot
+        - uuid: e3ea356db0a74c65a8ccc0c4b02bd242
+          name: 'Patch - Time since last reboot'
+          type: CALCULATED
+          key: patch.lastboot.age
+          delay: 5m
+          history: 30d
+          trends: 365d
+          units: uptime
+          params: 'now()-last(//patch.lastboot)'
+          description: 'Uptime calculated from the last reboot time'
+          tags:
+            - tag: component
+              value: reboot
+        - uuid: c19630fb55b8487db358683086297b0a
+          name: 'Patch - Last update installed'
+          type: TRAP
+          key: patch.lastupdate.timestamp
+          history: 365d
+          trends: '0'
+          units: unixtime
+          description: |
+            Time of the last installed update, detected by the check script (works with any install method).
+            Windows: last successful install in the Windows Update history (without definition updates).
+            Linux: last entry in /var/log/apt/history.log, or the newest rpm install time.
+          tags:
+            - tag: component
+              value: lastupdate
+        - uuid: e69a2fac57dc41bca7353009136e79be
+          name: 'Patch - Last update age'
+          type: CALCULATED
+          key: patch.lastupdate.age
+          delay: 1h
+          history: 30d
+          trends: 365d
+          units: uptime
+          params: 'now()-last(//patch.lastupdate.timestamp)'
+          description: 'Time since the last installed update'
+          tags:
+            - tag: component
+              value: lastupdate
+          triggers:
+            - uuid: 76c5fd446a684d5598c1de96640e5a58
+              expression: 'last(/APP Patch management all OS/patch.lastupdate.age)>{$PATCH.LASTUPDATE.MAXAGE} and last(/APP Patch management all OS/patch.updates.all)>0'
+              name: 'No updates installed for more than {$PATCH.LASTUPDATE.MAXAGE}'
+              opdata: 'Last update: {ITEM.LASTVALUE1} ago, pending: {ITEM.LASTVALUE2}'
+              status: DISABLED
+              priority: WARNING
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 19839983cd974d9b8294100dce646850
+          name: 'Patch - Patch day'
+          type: TRAP
+          key: patch.lastupdate.patchday
+          history: 365d
+          value_type: CHAR
+          trends: '0'
+          description: 'Day of the month of the last installed update in the local time of the host, for example 2.Tue (2nd Tuesday). Stored in host inventory (Type (Full details)) and used in the trigger tag UpdatePlan.'
+          inventory_link: TYPE_FULL
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: lastupdate
+        - uuid: f692437524f94e0ca60d1f31a08cb25e
+          name: 'Patch install - Last run time'
+          type: TRAP
+          key: patch.install.timestamp
+          history: 365d
+          trends: '0'
+          units: unixtime
+          description: 'Time of the last install run, sent by the install job (Ansible playbook, your update script, ...)'
+          tags:
+            - tag: component
+              value: install
+        - uuid: e036910b38104fef9d9c9352c687402b
+          name: 'Patch install - Last run age'
+          type: CALCULATED
+          key: patch.install.age
+          delay: 1h
+          history: 30d
+          trends: '0'
+          units: uptime
+          params: 'now()-last(//patch.install.timestamp)'
+          description: 'Time since the last install run'
+          tags:
+            - tag: component
+              value: install
+        - uuid: ba0c64a15b994452820ea4fb71c3abef
+          name: 'Patch install - Status'
+          type: TRAP
+          key: patch.install.status
+          history: 365d
+          trends: 365d
+          description: 'Result of the last install run: 0 - OK, 1 - failed'
+          valuemap:
+            name: 'Install status'
+          tags:
+            - tag: component
+              value: install
+          triggers:
+            - uuid: a656888b4c4741619d1ade51bc6008e3
+              expression: 'last(/APP Patch management all OS/patch.install.status)=1'
+              name: 'Last update install run failed'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: service
+                  value: patch-management
+                - tag: scope
+                  value: security
+                - tag: UpdatePlan
+                  value: '{INVENTORY.TYPE.FULL}'
+        - uuid: 3321b0e657a94da7b01876c236c6c3e1
+          name: 'Patch install - Result'
+          type: TRAP
+          key: patch.install.result
+          history: 365d
+          value_type: TEXT
+          trends: '0'
+          description: 'Result of the last install run, for example OK, installed 12, failed 0 / FAILED: <error>'
+          tags:
+            - tag: component
+              value: install
+        - uuid: ee2a6dbbf54a45329d59565416028ae9
+          name: 'Patch install - Installed count'
+          type: TRAP
+          key: patch.install.count
+          history: 365d
+          trends: 365d
+          description: 'Number of updates installed in the last install run'
+          tags:
+            - tag: component
+              value: install
+        - uuid: 1b8fab60dc8e4c0eb8c82f91361156a9
+          name: 'Patch install - Failed count'
+          type: TRAP
+          key: patch.install.failed
+          history: 365d
+          trends: 365d
+          description: 'Number of updates that failed to install in the last install run'
+          tags:
+            - tag: component
+              value: install
+        - uuid: f5acef6425214978b9453de24839ecd1
+          name: 'Patch install - Installed updates'
+          type: TRAP
+          key: patch.install.list
+          history: 365d
+          value_type: TEXT
+          trends: '0'
+          description: 'Updates installed in the last install run, one per line'
+          tags:
+            - tag: component
+              value: install
+      dashboards:
+        - uuid: 9a18e36191fa474480805734737206a8
+          name: 'Patch management'
+          display_period: '60'
+          auto_start: 'NO'
+          pages:
+            - name: 'Overview'
+              widgets:
+                - type: item
+                  name: 'Pending updates'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.all
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'F57C00'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Security'
+                  x: '9'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.security
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'F57C00'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Critical'
+                  x: '18'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.critical
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'C62828'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Kernel'
+                  x: '27'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.kernel
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 'F9A825'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                - type: item
+                  name: 'Held / hidden'
+                  x: '36'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.held
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                - type: item
+                  name: 'Reboot required'
+                  x: '45'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.reboot.required
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'F9A825'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Last update installed'
+                  x: '54'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastupdate.age
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 'F57C00'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '2592000'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'C62828'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '3888000'
+                - type: item
+                  name: 'Time since reboot'
+                  x: '63'
+                  width: '9'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastboot.age
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 'F57C00'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '7776000'
+                - type: item
+                  name: 'OS'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.os.name
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'OS version / kernel'
+                  x: '12'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.os.version
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'Patch day'
+                  x: '24'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastupdate.patchday
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'Automatic updates'
+                  x: '36'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.autoupdate
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'Last check'
+                  x: '48'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.check.age
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 'C62828'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '172800'
+                - type: item
+                  name: 'Check result'
+                  x: '60'
+                  'y': '3'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.check.result
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: itemhistory
+                  name: 'Pending updates'
+                  'y': '6'
+                  width: '36'
+                  height: '9'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMPUL'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '1'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Pending updates'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.list
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                - type: itemhistory
+                  name: 'Update history (recent installs)'
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '9'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMUHL'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '1'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Update history'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.history
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                - type: svggraph
+                  name: 'Pending updates (30 days)'
+                  'y': '15'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMPUG'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-30d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.all
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: '1E88E5'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.security
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'FB8C00'
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.critical
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: 'E53935'
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.kernel
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: '8E24AA'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '2'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                - type: svggraph
+                  name: 'Reboot required / time since reboot (30 days)'
+                  x: '36'
+                  'y': '15'
+                  width: '36'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMRBG'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-30d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.reboot.required
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'FBC02D'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '2'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '5'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: ds.1.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.1.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastboot.age
+                    - type: STRING
+                      name: ds.1.color.0
+                      value: '00ACC1'
+                    - type: INTEGER
+                      name: ds.1.axisy
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.1.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.1.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: righty
+                      value: '1'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                - type: problems
+                  name: 'Patch management problems'
+                  'y': '20'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMPRB'
+                    - type: INTEGER
+                      name: show_tags
+                      value: '3'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '10'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: 'service'
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '1'
+                    - type: STRING
+                      name: tags.0.value
+                      value: 'patch-management'
+            - name: 'Categories and severity'
+              widgets:
+                - type: piechart
+                  name: 'Pending updates by category'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.security
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'E64A19'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.critical
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'C62828'
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.bugfix
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: '1E88E5'
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.enhancement
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: '43A047'
+                    - type: ITEM
+                      name: ds.0.itemids.4
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.definition
+                    - type: STRING
+                      name: ds.0.color.4
+                      value: '00ACC1'
+                    - type: ITEM
+                      name: ds.0.itemids.5
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.servicepacks
+                    - type: STRING
+                      name: ds.0.color.5
+                      value: '5E35B1'
+                    - type: ITEM
+                      name: ds.0.itemids.6
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.updaterollups
+                    - type: STRING
+                      name: ds.0.color.6
+                      value: '8E24AA'
+                    - type: ITEM
+                      name: ds.0.itemids.7
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.drivers
+                    - type: STRING
+                      name: ds.0.color.7
+                      value: '6D4C41'
+                    - type: ITEM
+                      name: ds.0.itemids.8
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.upgrades
+                    - type: STRING
+                      name: ds.0.color.8
+                      value: 'FDD835'
+                    - type: INTEGER
+                      name: draw_type
+                      value: '1'
+                    - type: INTEGER
+                      name: width
+                      value: '30'
+                    - type: INTEGER
+                      name: total_show
+                      value: '1'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-1d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_columns
+                      value: '2'
+                - type: piechart
+                  name: 'Pending updates by severity'
+                  x: '36'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.critical
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'C62828'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.important
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'F57C00'
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.moderate
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: 'FBC02D'
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.low
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: '7CB342'
+                    - type: INTEGER
+                      name: draw_type
+                      value: '1'
+                    - type: INTEGER
+                      name: width
+                      value: '30'
+                    - type: INTEGER
+                      name: total_show
+                      value: '1'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-1d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_columns
+                      value: '2'
+                - type: svggraph
+                  name: 'Pending updates by category (90 days)'
+                  'y': '8'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMCAG'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-90d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.security
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'E64A19'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.critical
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'C62828'
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.bugfix
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: '1E88E5'
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.enhancement
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: '43A047'
+                    - type: ITEM
+                      name: ds.0.itemids.4
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.definition
+                    - type: STRING
+                      name: ds.0.color.4
+                      value: '00ACC1'
+                    - type: ITEM
+                      name: ds.0.itemids.5
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.servicepacks
+                    - type: STRING
+                      name: ds.0.color.5
+                      value: '5E35B1'
+                    - type: ITEM
+                      name: ds.0.itemids.6
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.updaterollups
+                    - type: STRING
+                      name: ds.0.color.6
+                      value: '8E24AA'
+                    - type: ITEM
+                      name: ds.0.itemids.7
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.drivers
+                    - type: STRING
+                      name: ds.0.color.7
+                      value: '6D4C41'
+                    - type: ITEM
+                      name: ds.0.itemids.8
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.upgrades
+                    - type: STRING
+                      name: ds.0.color.8
+                      value: 'FDD835'
+                    - type: INTEGER
+                      name: ds.0.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '5'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                - type: svggraph
+                  name: 'Pending updates by severity (90 days)'
+                  'y': '14'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMSEG'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-90d'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.critical
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'C62828'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.important
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'F57C00'
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.moderate
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: 'FBC02D'
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.updates.severity.low
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: '7CB342'
+                    - type: INTEGER
+                      name: ds.0.stacked
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '5'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+            - name: 'Installs and history'
+              widgets:
+                - type: item
+                  name: 'Last install run'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.timestamp
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'Install status'
+                  x: '12'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.status
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'C62828'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Installed (last run)'
+                  x: '24'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.count
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                - type: item
+                  name: 'Failed (last run)'
+                  x: '36'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.failed
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: '388E3C'
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 'C62828'
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: item
+                  name: 'Last update installed'
+                  x: '48'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastupdate.timestamp
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'Last reboot'
+                  x: '60'
+                  width: '12'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastboot
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: svggraph
+                  name: 'Installed / failed updates per run (1 year)'
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMING'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-1y'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.count
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: '43A047'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.failed
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 'E53935'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                - type: svggraph
+                  name: 'Time since last update / reboot (1 year)'
+                  x: '36'
+                  'y': '3'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMAGG'
+                    - type: STRING
+                      name: time_period.from
+                      value: 'now-1y'
+                    - type: STRING
+                      name: time_period.to
+                      value: 'now'
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastupdate.age
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 'FB8C00'
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.lastboot.age
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: '00ACC1'
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.approximation
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                - type: itemhistory
+                  name: 'Install runs'
+                  'y': '9'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMIRH'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '20'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Result'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.result
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                - type: itemhistory
+                  name: 'Installed updates per run'
+                  x: '36'
+                  'y': '9'
+                  width: '36'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMILH'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '10'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Installed updates'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.install.list
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                - type: itemhistory
+                  name: 'OS version / kernel history'
+                  'y': '17'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMOVH'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '20'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'OS version / kernel'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.os.version
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                - type: itemhistory
+                  name: 'Check results'
+                  x: '36'
+                  'y': '17'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: 'PMCRH'
+                    - type: INTEGER
+                      name: show_lines
+                      value: '20'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'Result'
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.check.result
+                    - type: INTEGER
+                      name: columns.0.max_length
+                      value: '500'
+                    - type: INTEGER
+                      name: columns.0.monospace_font
+                      value: '1'
+                    - type: STRING
+                      name: columns.1.name
+                      value: 'Duration'
+                    - type: ITEM
+                      name: columns.1.itemid
+                      value:
+                        host: 'APP Patch management all OS'
+                        key: patch.check.duration
+      macros:
+        - macro: '{$PATCH.CHECK.CMD}'
+          value: /usr/local/bin/zbx-patch-linux.sh
+          description: 'Command of the item "Patch - Run update check". Override on Windows hosts (see the item description).'
+        - macro: '{$PATCH.LASTUPDATE.MAXAGE}'
+          value: 45d
+          description: 'Alert when no updates were installed for this time and updates are pending (trigger disabled by default)'
+        - macro: '{$PATCH.NODATA}'
+          value: 2d
+          description: 'Alert when the check script sends no data for this time'
+        - macro: '{$PATCH.REBOOT.MAXAGE}'
+          value: 7d
+          description: 'Alert when a reboot is pending for this time'
+      valuemaps:
+        - uuid: edf4ad98a0354869a98a9ce9b7b133a9
+          name: Availability
+          mappings:
+            - value: '0'
+              newvalue: DOWN
+            - value: '1'
+              newvalue: UP
+        - uuid: 5ceeb593f99549b9914a2d633f4383d9
+          name: Enabled
+          mappings:
+            - value: '0'
+              newvalue: Disabled
+            - value: '1'
+              newvalue: Enabled
+        - uuid: fd8d715885f640e79cdc607aefbe021a
+          name: 'Install status'
+          mappings:
+            - value: '0'
+              newvalue: OK
+            - value: '1'
+              newvalue: FAILED
+        - uuid: 33f39a8113a24c0694ed3da95b3b2bfa
+          name: Reboot
+          mappings:
+            - value: '0'
+              newvalue: 'NO'
+            - value: '1'
+              newvalue: NEED
+        - uuid: 2bb341da8cdc41e895f3dd4864c0914c
+          name: 'Service startup'
+          mappings:
+            - value: '0'
+              newvalue: Automatic
+            - value: '1'
+              newvalue: 'Automatic (delayed)'
+            - value: '2'
+              newvalue: Manual
+            - value: '3'
+              newvalue: Disabled
+            - value: '4'
+              newvalue: Unknown
