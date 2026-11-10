@@ -12,6 +12,7 @@ zabbix_export:
         Items are keyed by service name, so redeploys and updates do not create new items.
         Links Docker by Zabbix agent 2 for the Docker engine metrics and excludes swarm task containers from its container discovery.
         Swarm-wide metrics (replicas, update state, failed tasks) are collected on manager nodes only.
+        Open files of task processes are compared with their nofile ulimit; counting them requires CAP_DAC_READ_SEARCH for Zabbix agent 2.
 
         Requires files/swarm.sh and files/swarm.conf on every swarm node, see README.md.
 
@@ -19,7 +20,7 @@ zabbix_export:
         https://github.com/noakky/zabbix-template-docker-swarm
       vendor:
         name: noakky
-        version: 7.0-3
+        version: 7.0-4
       templates:
         - name: 'Docker by Zabbix agent 2'
       groups:
@@ -32,7 +33,7 @@ zabbix_export:
           value_type: TEXT
           trends: '0'
           timeout: 20s
-          description: 'Output of swarm.sh: task containers of this node with their stats, services, update states and failed tasks.'
+          description: 'Output of swarm.sh: task containers of this node with their stats and open files, services, update states and failed tasks.'
           tags:
             - tag: app
               value: swarm
@@ -180,6 +181,30 @@ zabbix_export:
                       });
                   });
 
+                  // Open files of running tasks and their nofile ulimit.
+                  // fds is -1 if swarm.sh may not read /proc/<pid>/fd of the task processes.
+                  var nofile = null;
+                  (d.limits || []).forEach(function (x) {
+                      var s = byId[x.id];
+                      if (!s) {
+                          return;
+                      }
+                      var soft = num(x.nofile);
+                      if (soft > 0) {
+                          s.nofile_limit = s.nofile_limit > 0 ? Math.min(s.nofile_limit, soft) : soft;
+                      }
+                      if (num(x.fds) < 0) {
+                          nofile = false;
+                          s.nofile_denied = true;
+                          return;
+                      }
+                      if (nofile === null) {
+                          nofile = true;
+                      }
+                      s.nofile_open = (s.nofile_open || 0) + num(x.fds);
+                      s.nofile_pct = Math.max(s.nofile_pct || 0, num(x.nofile_pct) / 100);
+                  });
+
                   // Swarm-wide state (managers only).
                   (d.services || []).forEach(function (x) {
                       var s = get(x.name), r = String(x.replicas).split('/');
@@ -221,11 +246,23 @@ zabbix_export:
                       s.cpu_limit = round(s.cpu_limit);
                       s.cpu_util = round(s.cpu_util);
                       s.mem_pct = round(s.mem_pct);
+                      // Open files are reported only when all task processes of the service were readable;
+                      // services without tasks on this node get 0 once open files are readable at all.
+                      if (s.nofile_denied || (s.nofile_open === undefined && nofile !== true)) {
+                          delete s.nofile_open;
+                          delete s.nofile_pct;
+                      }
+                      else {
+                          s.nofile_open = s.nofile_open || 0;
+                          s.nofile_pct = round(s.nofile_pct || 0);
+                      }
+                      delete s.nofile_denied;
                   });
 
                   return JSON.stringify({
                       manager: d.manager === true,
                       count: Object.keys(services).length,
+                      nofile: nofile === null ? undefined : (nofile ? 1 : 0),
                       services: services
                   });
           master_item:
@@ -262,6 +299,29 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: availability
+        - uuid: 85526caf061b4315857fe0443a615ee3
+          name: 'Swarm open files readable'
+          type: DEPENDENT
+          key: swarm.services.nofile
+          delay: '0'
+          description: '1 if swarm.sh can count open files of the task processes, 0 if access to /proc/<pid>/fd is denied: Zabbix agent 2 needs CAP_DAC_READ_SEARCH, see README.md. No value while no tasks run on this node.'
+          valuemap:
+            name: 'Swarm open files access'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.nofile'
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: swarm.services.aggr
+          tags:
+            - tag: app
+              value: swarm
+            - tag: component
+              value: system
       discovery_rules:
         - uuid: 265bf5ba15c349b490b1c9ab1b6a582e
           name: 'Swarm services discovery'
@@ -788,16 +848,6 @@ zabbix_export:
                   value: '{#SERVICE}'
                 - tag: stack
                   value: '{#STACK}'
-              trigger_prototypes:
-                - uuid: 207ae81adf94457a80e58a704da067a3
-                  expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.cpu.util[{#SERVICE}],{$SWARM.SERVICE.CPU.UTIL.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.CPU.UTIL.MAX:"{#SERVICE}"}'
-                  name: 'Swarm: Service {#SERVICE}: High CPU utilization'
-                  opdata: 'CPU: {ITEM.LASTVALUE1}'
-                  priority: WARNING
-                  description: 'CPU utilization of a service task is over {$SWARM.SERVICE.CPU.UTIL.MAX} of its CPU limit for {$SWARM.SERVICE.CPU.UTIL.TIME}.'
-                  tags:
-                    - tag: scope
-                      value: performance
             - uuid: cc09d545d40848f59348cd04895835d0
               name: 'Service {#SERVICE}: CPU kernelmode usage'
               type: DEPENDENT
@@ -871,6 +921,16 @@ zabbix_export:
                   value: '{#SERVICE}'
                 - tag: stack
                   value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 1f0c5a4e9b7d4c2e8a3f6d1b0e9c7a52
+                  expression: 'avg(/Docker Swarm by Zabbix agent 2/swarm.service.cpu.throttled[{#SERVICE}],{$SWARM.SERVICE.CPU.THROTTLED.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.CPU.THROTTLED.MAX:"{#SERVICE}"}'
+                  name: 'Swarm: Service {#SERVICE}: CPU throttled by limit'
+                  opdata: 'Throttled: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'A service task was throttled by its CPU limit in over {$SWARM.SERVICE.CPU.THROTTLED.MAX}% of CPU scheduler periods on average for {$SWARM.SERVICE.CPU.THROTTLED.TIME}: it needs more CPU than the limit gives and slows down. Usage close to the limit without throttling is not a problem. Raise the CPU limit of the service or find what loads it.'
+                  tags:
+                    - tag: scope
+                      value: performance
             - uuid: 8075400c54954e38a026c8a532b727a1
               name: 'Service {#SERVICE}: Online CPUs'
               type: DEPENDENT
@@ -1052,6 +1112,87 @@ zabbix_export:
                   value: '{#SERVICE}'
                 - tag: stack
                   value: '{#STACK}'
+            - uuid: 466ffced27b04b12b3f590ba67dffb59
+              name: 'Service {#SERVICE}: Open files'
+              type: DEPENDENT
+              key: 'swarm.service.nofile.open[{#SERVICE}]'
+              delay: '0'
+              description: 'Open file descriptors of all processes of the service tasks on this node. Requires CAP_DAC_READ_SEARCH for Zabbix agent 2, see README.md.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].nofile_open'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: ulimits
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 7a285d8ead9c42f1938cd19f70ba2985
+              name: 'Service {#SERVICE}: Open files limit'
+              type: DEPENDENT
+              key: 'swarm.service.nofile.limit[{#SERVICE}]'
+              delay: '0'
+              description: 'Lowest soft nofile ulimit (RLIMIT_NOFILE) among processes of the service tasks on this node: the ulimits of the service or the defaults of the Docker daemon.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].nofile_limit'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: ulimits
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+            - uuid: 77707e3c72a94885ae220222f2bff548
+              name: 'Service {#SERVICE}: Open files utilization'
+              type: DEPENDENT
+              key: 'swarm.service.nofile.pct[{#SERVICE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: '%'
+              description: 'Highest share of its soft nofile ulimit used by one process of the service tasks on this node. The limit applies to each process separately. Requires CAP_DAC_READ_SEARCH for Zabbix agent 2, see README.md.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.services[''{#SERVICE}''].nofile_pct'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: swarm.services.aggr
+              tags:
+                - tag: app
+                  value: swarm
+                - tag: component
+                  value: ulimits
+                - tag: service
+                  value: '{#SERVICE}'
+                - tag: stack
+                  value: '{#STACK}'
+              trigger_prototypes:
+                - uuid: 641f4cf2a5dd471a9cb06fbe9d03cec0
+                  expression: 'min(/Docker Swarm by Zabbix agent 2/swarm.service.nofile.pct[{#SERVICE}],{$SWARM.SERVICE.NOFILE.UTIL.TIME:"{#SERVICE}"})>{$SWARM.SERVICE.NOFILE.UTIL.MAX:"{#SERVICE}"}'
+                  name: 'Swarm: Service {#SERVICE}: Running out of open files'
+                  opdata: 'Used: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'A process of the service uses over {$SWARM.SERVICE.NOFILE.UTIL.MAX}% of its nofile ulimit for {$SWARM.SERVICE.NOFILE.UTIL.TIME}. At the limit new files and connections fail with "Too many open files". Raise ulimits.nofile of the service or find the descriptor leak.'
+                  tags:
+                    - tag: scope
+                      value: capacity
             - uuid: 4a1616afda0c43e1822cb9bc979bdb9c
               name: 'Service {#SERVICE}: Network bytes received per second'
               type: DEPENDENT
@@ -1500,18 +1641,24 @@ zabbix_export:
         - macro: '{$SWARM.NODATA.TIMEOUT}'
           value: '10m'
           description: 'Period without data after which the "Failed to fetch swarm data" trigger fires.'
-        - macro: '{$SWARM.SERVICE.CPU.UTIL.MAX}'
-          value: '90'
-          description: 'Threshold of the service task CPU utilization, % of the task CPU limit (node CPUs for tasks without a limit). Supports context: {$SWARM.SERVICE.CPU.UTIL.MAX:"stack_service"}.'
-        - macro: '{$SWARM.SERVICE.CPU.UTIL.TIME}'
+        - macro: '{$SWARM.SERVICE.CPU.THROTTLED.MAX}'
+          value: '25'
+          description: 'Threshold of the CPU throttling of a service task, % of CPU scheduler periods. Supports context: {$SWARM.SERVICE.CPU.THROTTLED.MAX:"stack_service"}.'
+        - macro: '{$SWARM.SERVICE.CPU.THROTTLED.TIME}'
           value: '15m'
-          description: 'Period of the high CPU utilization trigger.'
+          description: 'Period of the CPU throttling trigger. Supports context.'
         - macro: '{$SWARM.SERVICE.MEM.UTIL.MAX}'
           value: '100'
           description: 'Threshold of the service task memory utilization, %. The default 100 never fires; set it per service to enable the trigger: {$SWARM.SERVICE.MEM.UTIL.MAX:"stack_service"}=90.'
         - macro: '{$SWARM.SERVICE.MEM.UTIL.TIME}'
           value: '15m'
           description: 'Period of the high memory utilization trigger.'
+        - macro: '{$SWARM.SERVICE.NOFILE.UTIL.MAX}'
+          value: '80'
+          description: 'Threshold of the open files utilization of a service task process, % of its soft nofile ulimit. Supports context.'
+        - macro: '{$SWARM.SERVICE.NOFILE.UTIL.TIME}'
+          value: '5m'
+          description: 'Period of the open files utilization trigger. Supports context.'
         - macro: '{$SWARM.SERVICE.REPLICAS.TIMEOUT}'
           value: '5m'
           description: 'How long a service may run below desired replicas before the triggers fire. Supports context.'
@@ -1527,3 +1674,11 @@ zabbix_export:
         - macro: '{$DOCKER.LLD.FILTER.CONTAINER.NOT_MATCHES}'
           value: '\.([0-9]+|[a-z0-9]{25})\.[a-z0-9]{25}$'
           description: 'Overrides the macro of Docker by Zabbix agent 2: excludes swarm task containers from its container discovery, they are monitored per service.'
+      valuemaps:
+        - uuid: 0ab4f49b02fd41ffa27a0c7807bbc40f
+          name: 'Swarm open files access'
+          mappings:
+            - value: '0'
+              newvalue: Denied
+            - value: '1'
+              newvalue: OK
