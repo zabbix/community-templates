@@ -1,0 +1,486 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: c8bb4f1f277b4330a54335f08ff04865
+      name: Templates/Printers
+  templates:
+    - uuid: 1aad77f10ccb49d9a824d8fb18e9d5d7
+      template: 'Canon PIXMA TS5300 by SNMP'
+      name: 'Canon PIXMA TS5300 by SNMP'
+      description: |-
+        Canon PIXMA TS5300 series inkjet printer by SNMP v1 (Printer-MIB, HOST-RESOURCES-MIB, MIB-2).
+        Ink tank levels and free space of waste ink absorbers (low-level discovery), page counters, device and printer status, decoded error state, console display text, Wi-Fi link, IP/TCP/UDP/ICMP statistics.
+        Triggers: low ink ({$INK.PCT.MIN}) and almost full waste ink absorber ({$WASTE.PCT.MIN}).
+        Host: SNMPv1 interface, community {$SNMP_COMMUNITY}.
+        Tested with Zabbix 8.0, exported in 7.0 format.
+        Author: lesiulodz (GitHub)
+      groups:
+        - name: Templates/Printers
+      items:
+        - uuid: 0c07a851a3fd4e98ab004dc882d933f1
+          name: 'Model and firmware'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.3.2.1.3.1
+          key: canon.model
+          delay: 1h
+          trends: '0'
+          value_type: CHAR
+          tags:
+            - tag: component
+              value: system
+        - uuid: 1dcaa216b86b4c5ba927cc2738fe1ff7
+          name: 'Serial number'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.43.5.1.1.17.1
+          key: canon.serial
+          delay: 1h
+          trends: '0'
+          value_type: CHAR
+          tags:
+            - tag: component
+              value: system
+        - uuid: b8af3ac039464d70b7f668560348ba28
+          name: 'Uptime (SNMP agent)'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.3.0
+          key: canon.uptime
+          delay: 5m
+          value_type: FLOAT
+          units: uptime
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+        - uuid: dee97161fa064efa8839b221c33a386f
+          name: 'Device status'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.3.2.1.5.1
+          key: canon.device.status
+          delay: 5m
+          description: 'hrDeviceStatus: running = OK, warning = e.g. low ink, down = error.'
+          valuemap:
+            name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+          tags:
+            - tag: component
+              value: printer
+        - uuid: 68c95e71c6ce48bb9c0f8a98f44951fe
+          name: 'Printer status'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.3.5.1.1.1
+          key: canon.printer.status
+          delay: 5m
+          valuemap:
+            name: 'HOST-RESOURCES-MIB::hrPrinterStatus'
+          tags:
+            - tag: component
+              value: printer
+        - uuid: cb76652a59b54cc086408d9e74ef87ba
+          name: 'Detected errors'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.3.5.1.2.1
+          key: canon.printer.errors
+          delay: 5m
+          trends: '0'
+          value_type: CHAR
+          description: 'hrPrinterDetectedErrorState decoded into bit names; "none" = no errors.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |-
+                  var names = ['low paper', 'no paper', 'low ink', 'no ink', 'door open',
+                    'paper jam', 'offline', 'service requested', 'input tray missing', 'output tray missing',
+                    'marker supply missing', 'output tray near full', 'output tray full', 'input tray empty',
+                    'overdue preventive maintenance'];
+                  var s = value.trim(), bytes = [];
+                  if (/^([0-9A-Fa-f]{2}\s*)+$/.test(s)) {
+                    s.replace(/\s+/g, '').match(/../g).forEach(function (h) { bytes.push(parseInt(h, 16)); });
+                  } else {
+                    for (var i = 0; i < value.length; i++) bytes.push(value.charCodeAt(i) & 0xff);
+                  }
+                  var out = [];
+                  for (var b = 0; b < names.length; b++) {
+                    var byte = bytes[Math.floor(b / 8)] || 0;
+                    if (byte & (0x80 >> (b % 8))) out.push(names[b]);
+                  }
+                  return out.length ? out.join(', ') : 'none';
+          tags:
+            - tag: component
+              value: printer
+        - uuid: 9e7ed4715c694d7e9cac5ddd94c55cb0
+          name: 'Console display'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.43.16.5.1.2.1.1
+          key: canon.display
+          delay: 5m
+          trends: '0'
+          value_type: CHAR
+          description: 'prtConsoleDisplayBufferText, e.g. "Sleeping."'
+          tags:
+            - tag: component
+              value: printer
+        - uuid: 27eeeb3231a9479a80963a4ae5b60af7
+          name: 'Pages: total'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.43.10.2.1.4.1.1
+          key: canon.pages.total
+          delay: 5m
+          units: '!pages'
+          description: 'prtMarkerLifeCount (impressions) over the lifetime of the printer.'
+          tags:
+            - tag: component
+              value: printer
+        - uuid: 9b3d033252ba40ce91c073ab8988a536
+          name: 'Pages: since power-on'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.43.10.2.1.5.1.1
+          key: canon.pages.poweron
+          delay: 5m
+          units: '!pages'
+          tags:
+            - tag: component
+              value: printer
+        - uuid: 86d81103874b4406baf84e86afc24b2e
+          name: 'Wi-Fi: operational status'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.2.2.1.8.1
+          key: canon.wifi.status
+          delay: 5m
+          valuemap:
+            name: 'IF-MIB::ifOperStatus'
+          tags:
+            - tag: component
+              value: network
+        - uuid: ea76c009844e46fc89fa1f4a1b980831
+          name: 'Wi-Fi: link speed'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.2.2.1.5.1
+          key: canon.wifi.speed
+          delay: 5m
+          units: bps
+          tags:
+            - tag: component
+              value: network
+        - uuid: a8c1cf175cca447ab47f3ecfb6526e23
+          name: 'TCP: segments received'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.6.10.0
+          key: canon.tcp.in_segs
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: tcp
+        - uuid: 84885c32fc6c4a988338e284b7ab5ae7
+          name: 'TCP: segments sent'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.6.11.0
+          key: canon.tcp.out_segs
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: tcp
+        - uuid: 4cfbfbf3d1974e31b7ff138fecd7f424
+          name: 'UDP: datagrams received'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.7.1.0
+          key: canon.udp.in_datagrams
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: udp
+        - uuid: 679397eb8d974dffb9f958ef274955b7
+          name: 'UDP: datagrams sent'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.7.4.0
+          key: canon.udp.out_datagrams
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: udp
+        - uuid: f606e4cf49e74f458fbc63793fb28724
+          name: 'IP: datagrams received'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.4.3.0
+          key: canon.ip.in_receives
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: ip
+        - uuid: 8bfa3813e1dd4018a1d0ce9d023a934d
+          name: 'IP: datagrams sent'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.4.10.0
+          key: canon.ip.out_requests
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: ip
+        - uuid: 24b2a000578b4a34aabd46002fa6edad
+          name: 'ICMP: messages received'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.5.1.0
+          key: canon.icmp.in_msgs
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: icmp
+        - uuid: 105d1ab839f44fd4acaff529b4711ae1
+          name: 'SNMP: packets received'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.11.1.0
+          key: canon.snmp.in_pkts
+          delay: 5m
+          value_type: FLOAT
+          units: 1/s
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+          tags:
+            - tag: component
+              value: network
+            - tag: netstat
+              value: snmp
+      discovery_rules:
+        - uuid: f5bee70697094e02a1c4c3350bbdcd07
+          name: 'Supplies: ink tanks'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP.NAME},.1.3.6.1.2.1.43.11.1.1.6,{#SUP.CLASS},.1.3.6.1.2.1.43.11.1.1.4]'
+          key: canon.ink.discovery
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP.CLASS}'
+                value: ^3$
+                formulaid: A
+          lifetime: 7d
+          description: 'prtMarkerSuppliesClass 3 (supplyThatIsConsumed).'
+          item_prototypes:
+            - uuid: f0b02e9a25a34f17b44ca2e73cd6412d
+              name: 'Ink: {#SUP.NAME}: level (raw)'
+              type: SNMP_AGENT
+              snmp_oid: '.1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'canon.ink.level[{#SNMPINDEX}]'
+              delay: 5m
+              preprocessing:
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - ''
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'Level unknown (-2) or only "some remaining" (-3)'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+            - uuid: 630c1cd6f17748fdaa805a2e0a1ff6b9
+              name: 'Ink: {#SUP.NAME}: capacity (raw)'
+              type: SNMP_AGENT
+              snmp_oid: '.1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'canon.ink.max[{#SNMPINDEX}]'
+              delay: 1h
+              preprocessing:
+                - type: IN_RANGE
+                  parameters:
+                    - '1'
+                    - ''
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'Capacity unknown (-2) or unrestricted (-1)'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+            - uuid: 8a98fd606c004561b2454e32af7829a6
+              name: 'Ink: {#SUP.NAME}: level, %'
+              type: CALCULATED
+              key: 'canon.ink.pct[{#SNMPINDEX}]'
+              delay: 5m
+              value_type: FLOAT
+              units: '%'
+              params: 'last(//canon.ink.level[{#SNMPINDEX}])/last(//canon.ink.max[{#SNMPINDEX}])*100'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+              trigger_prototypes:
+                - uuid: 8113c3ce4e2544e38ab57a8b33b6b627
+                  expression: 'last(/Canon PIXMA TS5300 by SNMP/canon.ink.pct[{#SNMPINDEX}])<{$INK.PCT.MIN}'
+                  name: 'Ink: {#SUP.NAME} is low'
+                  priority: WARNING
+                  description: 'The ink level is below {$INK.PCT.MIN}%. Prepare a new ink tank.'
+                  tags:
+                    - tag: scope
+                      value: notice
+        - uuid: a167165eefc8478ea665ed06b6845c09
+          name: 'Supplies: waste ink absorbers'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP.NAME},.1.3.6.1.2.1.43.11.1.1.6,{#SUP.CLASS},.1.3.6.1.2.1.43.11.1.1.4]'
+          key: canon.waste.discovery
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP.CLASS}'
+                value: ^4$
+                formulaid: A
+          lifetime: 7d
+          description: 'prtMarkerSuppliesClass 4 (receptacleThatIsFilled): the level is the remaining FREE space. A full absorber blocks the printer and has to be replaced by service.'
+          item_prototypes:
+            - uuid: abc00a3abde742ae8cee0e91b1e464e2
+              name: 'Waste ink absorber: {#SUP.NAME}: free space (raw)'
+              type: SNMP_AGENT
+              snmp_oid: '.1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'canon.waste.level[{#SNMPINDEX}]'
+              delay: 5m
+              preprocessing:
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - ''
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'Level unknown (-2) or only "some remaining" (-3)'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+            - uuid: 57a449a792004c54b51278e0001754b9
+              name: 'Waste ink absorber: {#SUP.NAME}: capacity (raw)'
+              type: SNMP_AGENT
+              snmp_oid: '.1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'canon.waste.max[{#SNMPINDEX}]'
+              delay: 1h
+              preprocessing:
+                - type: IN_RANGE
+                  parameters:
+                    - '1'
+                    - ''
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'Capacity unknown (-2) or unrestricted (-1)'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+            - uuid: 08829e7556b941d79ff073e9349dd5a4
+              name: 'Waste ink absorber: {#SUP.NAME}: free space, %'
+              type: CALCULATED
+              key: 'canon.waste.pct[{#SNMPINDEX}]'
+              delay: 5m
+              value_type: FLOAT
+              units: '%'
+              params: 'last(//canon.waste.level[{#SNMPINDEX}])/last(//canon.waste.max[{#SNMPINDEX}])*100'
+              tags:
+                - tag: component
+                  value: supply
+                - tag: supply
+                  value: '{#SUP.NAME}'
+              trigger_prototypes:
+                - uuid: b3ab8bf5772c4cc782c26de8d024b585
+                  expression: 'last(/Canon PIXMA TS5300 by SNMP/canon.waste.pct[{#SNMPINDEX}])<{$WASTE.PCT.MIN}'
+                  name: 'Waste ink absorber: {#SUP.NAME} is almost full'
+                  priority: HIGH
+                  description: 'The free space of the waste ink absorber is below {$WASTE.PCT.MIN}%. A full absorber blocks the printer and has to be replaced by service.'
+                  tags:
+                    - tag: scope
+                      value: availability
+      tags:
+        - tag: class
+          value: hardware
+        - tag: target
+          value: canon
+      macros:
+        - macro: '{$INK.PCT.MIN}'
+          value: '10'
+          description: 'Ink level threshold of the low ink trigger, in %.'
+        - macro: '{$WASTE.PCT.MIN}'
+          value: '10'
+          description: 'Free space threshold of the waste ink absorber trigger, in %.'
+      valuemaps:
+        - uuid: 59450e425c984d02838ec2f67b36d466
+          name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+          mappings:
+            - value: '1'
+              newvalue: unknown
+            - value: '2'
+              newvalue: running
+            - value: '3'
+              newvalue: warning
+            - value: '4'
+              newvalue: testing
+            - value: '5'
+              newvalue: down
+        - uuid: acb6d96f027b44289cf37aadbd6e7117
+          name: 'HOST-RESOURCES-MIB::hrPrinterStatus'
+          mappings:
+            - value: '1'
+              newvalue: other
+            - value: '2'
+              newvalue: unknown
+            - value: '3'
+              newvalue: idle
+            - value: '4'
+              newvalue: printing
+            - value: '5'
+              newvalue: warmup
+        - uuid: cf6f91240e8c4752acd665d3cb9c8350
+          name: 'IF-MIB::ifOperStatus'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
