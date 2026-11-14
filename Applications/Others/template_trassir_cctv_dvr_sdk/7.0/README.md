@@ -12,7 +12,7 @@ It is an updated version of the [6.0 template](../6.0) by vanomel. Changes compa
 - connection scheme is configurable (`{$TRASSIR_SCHEME}`), `{HOST.CONN}` is used instead of `{HOST.IP}`, so hosts with DNS names work;
 - SDK status check reworked: a response with `error_code` (e.g. wrong password) is reported as an SDK error;
 - SDK password is a secret macro;
-- CPU threshold moved to a macro, new "channels offline" item, graphs for channels and archive depth;
+- CPU threshold moved to a macro, new "channels offline" item, graphs for channels and archive depth, host dashboard;
 - all descriptions are in English.
 
 Template, item, trigger and graph UUIDs are kept, so the template can be imported over the 6.0 version.
@@ -20,7 +20,7 @@ Template, item, trigger and graph UUIDs are kept, so the template can be importe
 ## Requirements
 
 - TRASSIR server with the web server and TRASSIR SDK enabled.
-- Zabbix 7.0 LTS or newer. Tested on Zabbix 7.4.11.
+- Zabbix 7.0 LTS or newer. Tested on Zabbix 7.4.
 - Network access from Zabbix server / proxy to the TRASSIR web server port.
 
 ## Setup
@@ -72,7 +72,7 @@ There are no discovery rules in this template.
 | Trassir server cpu load | CPU load, % | Dependent item | `trassircpuload` |
 | Trassir server uptime | Time since the server was started | Dependent item | `trassiruptime` |
 
-Status items use the value map `Trassir status`: `0` - errors detected, `1` - no errors detected.
+Status items use the value map `Trassir status`: `0` - Errors, `1` - OK.
 
 ## Triggers
 
@@ -94,6 +94,10 @@ Status items use the value map `Trassir status`: `0` - errors detected, `1` - no
 - Trassir server cpu load
 - Trassir channels
 - Trassir archive depth
+
+## Dashboards
+
+- Trassir server overview: SDK status, channels online / offline, uptime and all three graphs. Available on the host under **Dashboards**.
 
 ## Feedback
 
