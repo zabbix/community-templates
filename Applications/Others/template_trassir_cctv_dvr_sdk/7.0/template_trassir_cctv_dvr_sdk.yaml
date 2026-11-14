@@ -1,5 +1,5 @@
 zabbix_export:
-  version: '7.4'
+  version: '7.0'
   template_groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -7,48 +7,26 @@ zabbix_export:
     - uuid: 42a2facaca644e54a34dba8a9c5b6581
       template: Trassir-server
       name: Trassir-server
-      description: 'Мониторинг сервера TRASSIR через Web SDK API для Zabbix 7.4.'
+      description: |
+        Monitoring of a TRASSIR CCTV server (DVR/NVR/VMS) via the TRASSIR SDK web API.
+        A single HTTP agent item requests "/health"; everything else is a dependent item.
+
+        Setup: enable the web server and SDK on the TRASSIR server, set an SDK password
+        and put it into the {$TRASSIR_SDK_PASS} macro on the host.
+
+        Exported in Zabbix 7.0 format, tested on Zabbix 7.4.
       groups:
         - name: 'Templates/Video surveillance'
       items:
-        - uuid: bd1f452b9788434bb0e9766860bbf361
-          name: 'Trassir server health string'
-          type: HTTP_AGENT
-          key: trassirhealthjson
-          delay: 60s
-          history: 7d
-          trends: '0'
-          value_type: TEXT
-          preprocessing:
-            - type: REGEX
-              parameters:
-                - '\{(\n|.)*\}'
-                - \0
-          url: '{$TRASSIR_SCHEME}://{HOST.CONN}:{$TRASSIR_SDK_PORT}/health'
-          query_fields:
-            - name: password
-              value: '{$TRASSIR_SDK_PASS}'
-          follow_redirects: 'NO'
-          verify_peer: 'NO'
-          verify_host: 'NO'
-          tags:
-            - tag: component
-              value: health
-          triggers:
-            - uuid: 0398afbad41543c39b79e31183f7959b
-              expression: 'nodata(/Trassir-server/trassirhealthjson,5m)=1'
-              name: 'No new data from trassir server'
-              priority: HIGH
-              description: 'Невозможно получить новые данные о сервере trassir'
         - uuid: 8fdfb98d71544b7ba9b432d4fdfe47bd
           name: 'Trassir automation status'
           type: DEPENDENT
           key: trassirautomation
           delay: '0'
           history: 7d
-          description: 'Наличие ошибок при выполнении скриптов на данном сервере'
+          description: 'Whether errors occurred while executing scripts (automation) on the server.'
           valuemap:
-            name: 'trassir disks/database/network/automation status'
+            name: 'Trassir status'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -62,8 +40,9 @@ zabbix_export:
             - uuid: 444892c4fd774cacb16c66386f26d294
               expression: 'max(/Trassir-server/trassirautomation,#2)=0'
               name: 'Trassir server automation problem'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'Наличие ошибок при выполнении скриптов на данном сервере'
+              description: 'Whether errors occurred while executing scripts (automation) on the server.'
               manual_close: 'YES'
         - uuid: da4af92c5d6b424ea1780c9125dee63a
           name: 'Trassir channels online'
@@ -71,11 +50,34 @@ zabbix_export:
           key: trassirchannelsonline
           delay: '0'
           history: 7d
-          description: 'Количество камер, работающих без ошибок'
+          description: 'Number of channels (cameras) working without errors.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.channels_online
+          master_item:
+            key: trassirhealthjson
+          tags:
+            - tag: component
+              value: channels
+        - uuid: b8ef5164e72c4ede82dfc88de8c3a3d9
+          name: 'Trassir channels offline'
+          type: DEPENDENT
+          key: trassirchannelsoffline
+          delay: '0'
+          history: 7d
+          description: 'Number of channels (cameras) that are not working: total minus online.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var total = parseInt(data.channels_total, 10);
+                  var online = parseInt(data.channels_online, 10);
+                  if (isNaN(total) || isNaN(online)) {
+                      throw 'channels_total or channels_online is missing in the response';
+                  }
+                  return Math.max(total - online, 0);
           master_item:
             key: trassirhealthjson
           tags:
@@ -87,7 +89,7 @@ zabbix_export:
           key: trassirchannelstotal
           delay: '0'
           history: 7d
-          description: 'Общее количество подключенных камер'
+          description: 'Total number of channels (cameras) connected to the server.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -105,7 +107,7 @@ zabbix_export:
           history: 7d
           value_type: FLOAT
           units: '%'
-          description: 'Текущая загрузка центрального процессора сервера, в %'
+          description: 'Current CPU load of the server, in %.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -117,18 +119,20 @@ zabbix_export:
               value: cpu
           triggers:
             - uuid: db8c0ee9d85a41d0aa582ae3bfdeee10
-              expression: 'avg(/Trassir-server/trassircpuload,#5)>85'
+              expression: 'avg(/Trassir-server/trassircpuload,#5)>{$TRASSIR_CPU_LOAD_MAX}'
               name: 'Trassir server cpu load too high'
+              opdata: 'Current load: {ITEM.LASTVALUE1}'
               priority: HIGH
+              description: 'Average CPU load over the last 5 checks is above {$TRASSIR_CPU_LOAD_MAX}%.'
         - uuid: ea42107e33614ad5b11f951b5d4b2ea4
           name: 'Trassir database status'
           type: DEPENDENT
           key: trassirdatabase
           delay: '0'
           history: 7d
-          description: 'Наличие ошибок при подключении к базе данных сервера'
+          description: 'Whether there are errors in the connection to the server database.'
           valuemap:
-            name: 'trassir disks/database/network/automation status'
+            name: 'Trassir status'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -142,8 +146,9 @@ zabbix_export:
             - uuid: 44e151c9578049a79c9aaf6cf238e6e9
               expression: 'max(/Trassir-server/trassirdatabase,#2)=0'
               name: 'Trassir server database problem'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'Наличие ошибок при подключении к базе данных сервера'
+              description: 'Whether there are errors in the connection to the server database.'
               manual_close: 'YES'
         - uuid: b3d7de55a71f49d8903569b51a1a9cd8
           name: 'Trassir disks status'
@@ -151,9 +156,9 @@ zabbix_export:
           key: trassirdisks
           delay: '0'
           history: 7d
-          description: 'Наличие ошибок при работе дисков сервера'
+          description: 'Whether there are errors in the operation of the server archive disks.'
           valuemap:
-            name: 'trassir disks/database/network/automation status'
+            name: 'Trassir status'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -167,8 +172,9 @@ zabbix_export:
             - uuid: 12d86dbd79e649ff9c414ae233d4729c
               expression: 'max(/Trassir-server/trassirdisks,#2)=0'
               name: 'Trassir server disks problem'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'Наличие ошибок при работе дисков сервера'
+              description: 'Whether there are errors in the operation of the server archive disks.'
               manual_close: 'YES'
         - uuid: 9d26182fe0a34f6aae270ce7f96b77e0
           name: 'Trassir archive main days depth'
@@ -177,8 +183,8 @@ zabbix_export:
           delay: '0'
           history: 7d
           value_type: FLOAT
-          units: day
-          description: 'Текущая глубина архива основного потока, в днях'
+          units: '!days'
+          description: 'Current archive depth of the main stream, in days.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -192,8 +198,37 @@ zabbix_export:
             - uuid: 1a5e907d7f89400b86bce9be439d90e8
               expression: 'max(/Trassir-server/trassirdisksstatmaindays,#5)<{$TRASSIR_ARCHIVE_DEPTH}'
               name: 'Archive depth on main channels is too low'
+              opdata: 'Current depth: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'Глубина архива по основным каналам меньше заданного лимита.'
+              description: 'Archive depth of the main stream is below {$TRASSIR_ARCHIVE_DEPTH} days. Note: this also fires on a freshly installed server until the archive fills up.'
+        - uuid: bd1f452b9788434bb0e9766860bbf361
+          name: 'Trassir server health string'
+          type: HTTP_AGENT
+          key: trassirhealthjson
+          delay: 60s
+          history: 1d
+          trends: '0'
+          value_type: TEXT
+          description: 'Raw JSON returned by the TRASSIR SDK "/health" endpoint. Master item for all other items of the template.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '\{(\n|.)*\}'
+                - \0
+          url: '{$TRASSIR_SCHEME}://{HOST.CONN}:{$TRASSIR_SDK_PORT}/health'
+          query_fields:
+            - name: password
+              value: '{$TRASSIR_SDK_PASS}'
+          follow_redirects: 'NO'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 0398afbad41543c39b79e31183f7959b
+              expression: 'nodata(/Trassir-server/trassirhealthjson,5m)=1'
+              name: 'No new data from trassir server'
+              priority: HIGH
+              description: 'No data has been received from the TRASSIR SDK for 5 minutes. Check that the server is running, the web server/SDK is enabled and the scheme and port macros are correct.'
         - uuid: 8874b34efd4e483784793e5be4c1166f
           name: 'Trassir archive privilege days depth'
           type: DEPENDENT
@@ -201,8 +236,8 @@ zabbix_export:
           delay: '0'
           history: 7d
           value_type: FLOAT
-          units: day
-          description: 'Текущая глубина архива привилегированных каналов, в днях'
+          units: '!days'
+          description: 'Current archive depth of the privileged channels, in days.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -219,8 +254,8 @@ zabbix_export:
           delay: '0'
           history: 7d
           value_type: FLOAT
-          units: day
-          description: 'Текущая глубина архива дополнительного потока, в днях'
+          units: '!days'
+          description: 'Current archive depth of the sub stream, in days.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -236,9 +271,9 @@ zabbix_export:
           key: trassirnetwork
           delay: '0'
           history: 7d
-          description: 'Наличие ошибок в сетевых подключениях к другим серверам'
+          description: 'Whether there are errors in network connections to other servers.'
           valuemap:
-            name: 'trassir disks/database/network/automation status'
+            name: 'Trassir status'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -252,8 +287,9 @@ zabbix_export:
             - uuid: 920f239fea494c648604b5b58a4b1f80
               expression: 'max(/Trassir-server/trassirnetwork,#2)=0'
               name: 'Trassir server network problem'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: AVERAGE
-              description: 'Наличие ошибок в сетевых подключениях к другим серверам'
+              description: 'Whether there are errors in network connections to other servers.'
               manual_close: 'YES'
         - uuid: 6a1316a24d0d403eb826c5cc06895e47
           name: 'Trassir SDK connection status'
@@ -261,13 +297,14 @@ zabbix_export:
           key: trassirsdkstatus
           delay: '0'
           history: 7d
-          description: 'Статус подключения к trassir SDK'
+          description: 'Whether the SDK answered with valid health data (1) or with an error such as a wrong password (0).'
           valuemap:
-            name: 'trassir disks/database/network/automation status'
+            name: 'Trassir status'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
-                - 'return JSON.parse(value).error_code ? 0 : 1;'
+                - |
+                  return JSON.parse(value).error_code ? 0 : 1;
           master_item:
             key: trassirhealthjson
           tags:
@@ -280,7 +317,7 @@ zabbix_export:
                 nodata(/Trassir-server/trassirsdkstatus,5m)=0
               name: 'Wrong data from trassir server'
               priority: HIGH
-              description: 'Получены неверные данные от сервера. Проверьте пароль.'
+              description: 'The server answered with an error instead of health data. Check the SDK password macro.'
               dependencies:
                 - name: 'No new data from trassir server'
                   expression: 'nodata(/Trassir-server/trassirhealthjson,5m)=1'
@@ -290,10 +327,8 @@ zabbix_export:
           key: trassiruptime
           delay: '0'
           history: 7d
-          units: s
-          description: 'Время работы сервера, в сек'
-          valuemap:
-            name: 'trassir disks/database/network/automation status'
+          units: uptime
+          description: 'Time since the TRASSIR server was started.'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -307,24 +342,29 @@ zabbix_export:
             - uuid: 6e046ecf56b540f09b18890fd43da52d
               expression: 'last(/Trassir-server/trassiruptime)<300'
               name: 'Trassir server was restarted'
+              opdata: 'Uptime: {ITEM.LASTVALUE1}'
               priority: WARNING
+              description: 'Server uptime is less than 5 minutes.'
               manual_close: 'YES'
       macros:
-        - macro: '{$TRASSIR_SCHEME}'
-          value: https
-          description: 'Схема подключения: https или http'
-        - macro: '{$TRASSIR_SDK_PORT}'
-          value: '8080'
-          description: 'Порт Trassir Web/SDK'
-        - macro: '{$TRASSIR_SDK_PASS}'
-          value: ''
-          description: 'Пароль доступа к Trassir SDK'
         - macro: '{$TRASSIR_ARCHIVE_DEPTH}'
           value: '7'
-          description: 'Минимально допустимая глубина архива (в днях)'
+          description: 'Minimal acceptable archive depth of the main stream, in days.'
+        - macro: '{$TRASSIR_CPU_LOAD_MAX}'
+          value: '85'
+          description: 'CPU load threshold for the high CPU load trigger, in %.'
+        - macro: '{$TRASSIR_SCHEME}'
+          value: https
+          description: 'Request scheme of the TRASSIR web server: https or http.'
+        - macro: '{$TRASSIR_SDK_PASS}'
+          type: SECRET_TEXT
+          description: 'TRASSIR SDK password. Required.'
+        - macro: '{$TRASSIR_SDK_PORT}'
+          value: '8080'
+          description: 'Port of the TRASSIR web server / SDK.'
       valuemaps:
         - uuid: 0e05e6c3829e44abb8588264fbacc276
-          name: 'trassir disks/database/network/automation status'
+          name: 'Trassir status'
           mappings:
             - value: '0'
               newvalue: 'errors detected'
@@ -334,8 +374,44 @@ zabbix_export:
     - uuid: dc5de920278b463a99239e83b7de8451
       expression: 'last(/Trassir-server/trassirchannelstotal)>max(/Trassir-server/trassirchannelsonline,#5)'
       name: 'Not all cams online on trassir server'
+      opdata: 'Online: {ITEM.LASTVALUE2} of {ITEM.LASTVALUE1}'
       priority: AVERAGE
+      description: 'For the last 5 checks the number of online channels has been lower than the total number of channels.'
   graphs:
+    - uuid: 37238e3ed233486d9ab6286a57157ee9
+      name: 'Trassir archive depth'
+      graph_items:
+        - color: 199C0D
+          item:
+            host: Trassir-server
+            key: trassirdisksstatmaindays
+        - sortorder: '1'
+          color: F63100
+          item:
+            host: Trassir-server
+            key: trassirdisksstatsubsdays
+        - sortorder: '2'
+          color: 2774A4
+          item:
+            host: Trassir-server
+            key: trassirdisksstatprivdays
+    - uuid: 3991c8fbd74d4db682a193c37bd9b7bb
+      name: 'Trassir channels'
+      graph_items:
+        - color: 2774A4
+          item:
+            host: Trassir-server
+            key: trassirchannelstotal
+        - sortorder: '1'
+          color: 199C0D
+          item:
+            host: Trassir-server
+            key: trassirchannelsonline
+        - sortorder: '2'
+          color: F63100
+          item:
+            host: Trassir-server
+            key: trassirchannelsoffline
     - uuid: 3b29c57326dd45f599e0ddf8266091e4
       name: 'Trassir server cpu load'
       show_work_period: 'NO'
