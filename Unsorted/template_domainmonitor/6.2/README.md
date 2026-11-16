@@ -45,8 +45,8 @@ Check results can be sent to Zabbix server updating items.
 ### Latest Data
 ![](files/doc/img/latest_data.png)
 ### Host Config after LLD
-![](files/doc/img/host_config.png)  
-  
+![](files/doc/img/host_config.png)
+
 <br/>
 <br/>
 
@@ -111,7 +111,7 @@ Script can also run without Zabbix. Only JSON output is generated in log file th
 - On agent, python script with venv and dependencies needs to be installed
 - .sh wrapper script with Zabbix input parameters is used for executing python script
 - Script Parameters can be configured by following Zabbix Macros
-  
+
 |Macro|Description|
 |------|-----|
 |{\$DM_DOMAIN_FILE}|URL where to download domain json file|
@@ -127,7 +127,7 @@ Script can also run without Zabbix. Only JSON output is generated in log file th
 
 ## Prerequisites
 - Agent needs to be able to connect to Internet: DNS `udp/53`, HTTPS `tcp/443`
-- Agent: python > 3.6 installed
+- Agent: python > 3.11 installed
 
 <br/>
 
@@ -177,8 +177,8 @@ sudo chmod 755 $DMPATH/dm.py
 sudo chmod 755 $DMPATH/dm.sh
 ```
 
-> Install Zabbix User Parameter so server is able to execute script with "key". 
-Note: 
+> Install Zabbix User Parameter so server is able to execute script with "key".
+Note:
 > * Make sure you enabled the Statement `Include=/etc/zabbix/zabbix_agentd.conf.d/*.conf` in your `zabbix_agentd.conf`
 > * Adapt path when using agent2 accordingly
 ```console
@@ -202,7 +202,7 @@ zabbix@agent# /opt/ZabbixDomainMonitor/dm.sh <URL with domains.json>
 If you receive a `DM executed successfully` agent is ready :thumbsup:
 
 Additionally you can check the log file `log/dm.log`
-</details> 
+</details>
 
 <br/><br/>
 
