@@ -2,8 +2,8 @@
 
 Zabbix template that watches the software stack you define and alerts before —
 and after — any of it goes end-of-life, using the
-[endoflife.ai API](https://endoflife.ai/api) (700+ products, verified daily
-against vendor lifecycle pages).
+[endoflife.ai API](https://endoflife.ai/api) (700+ products, refreshed daily;
+each date labelled with its source, the vendor lifecycle page or endoflife.date).
 
 Works on Zabbix 6.0 LTS and later. Agentless: one HTTP call from the Zabbix
 server/proxy per hour, no scripts to install.
@@ -33,20 +33,20 @@ server/proxy per hour, no scripts to install.
 {"products":[{"slug":"windows-server","version":"2016"},{"slug":"postgresql","version":"12"},{"slug":"openjdk","version":"11"}]}
 ```
 
-Product slugs: `https://api.endoflife.ai/v1/products`. Omit `"version"` to
+Product slugs: `https://endoflife.ai/products`. Omit `"version"` to
 score a product's riskiest tracked cycle.
 
 ## Rate limits and batch size
 
 | Tier | Requests/day | Batch size | How |
 |---|---|---|---|
-| Anonymous | 100 per IP | 5 products | nothing needed |
-| Free key | 500 | 5 | `POST /v1/keys/free` with your email — instant, no card |
-| Starter / Pro | 10,000 / unlimited | 25 / 50 | <https://endoflife.ai/api> |
+| Free key | 150 (no expiry) | 5 | `POST /v1/keys/free` with your email — instant, no card |
+| Starter / Pro | 10,000 / 100,000 (fair use) | 25 / 50 | <https://endoflife.ai/api#get-key> |
 
 The hourly poll uses 24 requests/day per linked host. Set `{$EOL.API.KEY}`
-to send a key; leave it empty for anonymous use. To monitor more than 5
-components on one host anonymously, clone the master item with a second
+to your key. It is required: the API answers HTTP 401 without one (keyless
+access ended November 16, 2026). To monitor more than 5
+components on one host with a free key, clone the master item with a second
 stack body, or link the template to multiple hosts with per-host macros.
 
 ## Links
