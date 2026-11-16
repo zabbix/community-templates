@@ -40,14 +40,13 @@ score a product's riskiest tracked cycle.
 
 | Tier | Requests/day | Batch size | How |
 |---|---|---|---|
-| Anonymous (ends November 16, 2026) | 50 per IP | 3 products | nothing needed until 2026-11-16 00:00 UTC; from then a key is required |
 | Free key | 150 (no expiry) | 5 | `POST /v1/keys/free` with your email — instant, no card |
-| Starter / Pro | 10,000 / unlimited | 25 / 50 | <https://endoflife.ai/api> |
+| Starter / Pro | 10,000 / 100,000 (fair use) | 25 / 50 | <https://endoflife.ai/api#get-key> |
 
 The hourly poll uses 24 requests/day per linked host. Set `{$EOL.API.KEY}`
-to send a key (required from November 16, 2026, when keyless access ends;
-until then you can leave it empty for anonymous use). To monitor more than 3
-components on one host anonymously (5 with a free key), clone the master item with a second
+to your key. It is required: the API answers HTTP 401 without one (keyless
+access ended November 16, 2026). To monitor more than 5
+components on one host with a free key, clone the master item with a second
 stack body, or link the template to multiple hosts with per-host macros.
 
 ## Links
