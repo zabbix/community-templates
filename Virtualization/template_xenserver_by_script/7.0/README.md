@@ -20,6 +20,7 @@ Marshall Wu
 This template has been tested on:
 - Zabbix 7.0.32 (Docker, Zabbix server and web frontend)
 - A two-host XenServer pool with three running VMs and eight SRs
+- Zabbix 8.0.0 (Docker, Zabbix server and web frontend), against a two-host XenServer pool with 10 VMs and 12 SRs
 
 ## Configuration
 
