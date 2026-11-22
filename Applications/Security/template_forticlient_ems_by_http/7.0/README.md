@@ -6,6 +6,29 @@ Zabbix 7.0 template for FortiClient EMS 7.4.8 monitoring over HTTPS. Import [tem
 
 Template vendor is **Nilleftw** (maintainer), with version **7.0-0** for the first numbered revision on the Zabbix 7.0 branch. This is a template revision, not an EMS version or a required Zabbix patch level. Template tags are `class: software`, `target: forticlient-ems`, and `target: fortinet`.
 
+## Screenshots
+
+Example data from a FortiClient EMS 7.4.8 lab monitored with Zabbix 7.0.32.
+
+![FortiClient EMS host dashboard](files/dashboard.png)
+
+<details>
+<summary>More screenshots: latest data, items, and triggers</summary>
+
+### Latest data
+
+![FortiClient EMS latest data](files/latest-data.png)
+
+### Template items
+
+![FortiClient EMS template items](files/items.png)
+
+### Template triggers
+
+![FortiClient EMS template triggers](files/triggers.png)
+
+</details>
+
 ## Setup
 
 Create one Zabbix host per EMS site and set these host macros:
