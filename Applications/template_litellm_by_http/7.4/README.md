@@ -93,6 +93,7 @@ High alert instead of a dozen.
 |{$LITELLM.METRICS.PASSWORD}|<p>Optional password for HTTP Basic auth on the metrics endpoint. (Secret)</p>|``|
 |{$LITELLM.HTTP.TIMEOUT}|<p>HTTP request timeout for the agent items.</p>|`10s`|
 |{$LITELLM.METRICS.NODATA}|<p>Interval with no data after which availability/scrape triggers fire. Keep it well above the 1m item interval.</p>|`10m`|
+|{$LITELLM.ERROR.IGNORE.STATUS}|<p>Proxy response status excluded from the error rate and counted as rate-limited instead.</p>|`429`|
 |{$LITELLM.ERROR.RATE.WARN}|<p>Proxy request error-rate warning threshold, in percent.</p>|`5`|
 |{$LITELLM.LATENCY.WARN}|<p>Average request latency warning threshold, in seconds.</p>|`10`|
 |{$LITELLM.LATENCY.CRIT}|<p>Average request latency critical threshold, in seconds.</p>|`30`|
@@ -112,9 +113,10 @@ High alert instead of a dozen.
 |LiteLLM: Readiness status|<p>Overall readiness status reported by /health/readiness.</p>|Dependent item|litellm.readiness.status<p>**Master item**: LiteLLM: Get readiness</p>|
 |LiteLLM: Database connection|<p>Database connection state from /health/readiness.</p>|Dependent item|litellm.readiness.db<p>**Master item**: LiteLLM: Get readiness</p>|
 |LiteLLM: Requests per second|<p>Client-side requests to the proxy, per second (all routes and keys).</p>|Dependent item|litellm.requests.rate<p>**Master item**: LiteLLM: Get metrics</p>|
-|LiteLLM: Failed requests per second|<p>Proxy-side failed responses per second.</p>|Dependent item|litellm.requests.failed.rate<p>**Master item**: LiteLLM: Get metrics</p>|
-|LiteLLM: LLM API failures per second|<p>Failed calls from the proxy to the upstream LLM APIs, per second.</p>|Dependent item|litellm.llm.failed.rate<p>**Master item**: LiteLLM: Get metrics</p>|
-|LiteLLM: Error rate|<p>Failed requests as a percentage of total proxy requests.</p>|Calculated|litellm.error.ratio|
+|LiteLLM: Failed requests per second|<p>Proxy-side failed responses per second, excluding the status in {$LITELLM.ERROR.IGNORE.STATUS} (rate-limit rejections by default).</p>|Dependent item|litellm.requests.failed.rate<p>**Master item**: LiteLLM: Get metrics</p>|
+|LiteLLM: Rate-limited requests per second|<p>Proxy requests rejected with the status in {$LITELLM.ERROR.IGNORE.STATUS} (429 rate limits by default), per second. Excluded from the error rate.</p>|Dependent item|litellm.requests.ratelimited.rate<p>**Master item**: LiteLLM: Get metrics</p>|
+|LiteLLM: LLM API failures per second|<p>Failed LLM API calls per second as counted by LiteLLM, which includes requests rejected by its own rate limits.</p>|Dependent item|litellm.llm.failed.rate<p>**Master item**: LiteLLM: Get metrics</p>|
+|LiteLLM: Error rate|<p>Failed requests as a percentage of proxy requests, both excluding the status in {$LITELLM.ERROR.IGNORE.STATUS}.</p>|Calculated|litellm.error.ratio|
 |LiteLLM: In-flight requests|<p>HTTP requests currently being processed across workers.</p>|Dependent item|litellm.in_flight<p>**Master item**: LiteLLM: Get metrics</p>|
 |LiteLLM: Total tokens per second|<p>Total tokens (input + output) processed per second.</p>|Dependent item|litellm.tokens.total.rate<p>**Master item**: LiteLLM: Get metrics</p>|
 |LiteLLM: Input tokens per second|<p>Prompt/input tokens processed per second.</p>|Dependent item|litellm.tokens.input.rate<p>**Master item**: LiteLLM: Get metrics</p>|
@@ -140,7 +142,7 @@ High alert instead of a dozen.
 |LiteLLM: Readiness status is not healthy|<p>The proxy reports a readiness status other than "healthy".</p>|`last(/LiteLLM by HTTP/litellm.readiness.status)<>"healthy" and length(last(/LiteLLM by HTTP/litellm.readiness.status))>0`|Average|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p><p>- LiteLLM: Database is not connected</p>|
 |LiteLLM: Database is not connected|<p>The proxy reports that its database is not connected.</p>|`last(/LiteLLM by HTTP/litellm.readiness.db)<>"connected" and length(last(/LiteLLM by HTTP/litellm.readiness.db))>0`|High|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p>|
 |LiteLLM: Prometheus metrics are not being collected|<p>No data from the /metrics scrape. Check the endpoint, the API key, and that the prometheus callback is enabled.</p>|`nodata(/LiteLLM by HTTP/litellm.requests.rate,{$LITELLM.METRICS.NODATA})=1`|Warning|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p>|
-|LiteLLM: Request error rate is high|<p>The proxy failed-request ratio has stayed above the threshold for 5 minutes.</p>|`min(/LiteLLM by HTTP/litellm.error.ratio,5m)>{$LITELLM.ERROR.RATE.WARN}`|Warning|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p><p>- LiteLLM: Prometheus metrics are not being collected</p>|
+|LiteLLM: Request error rate is high|<p>The proxy failed-request ratio, excluding the status in {$LITELLM.ERROR.IGNORE.STATUS}, has stayed above the threshold for 5 minutes.</p>|`min(/LiteLLM by HTTP/litellm.error.ratio,5m)>{$LITELLM.ERROR.RATE.WARN}`|Warning|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p><p>- LiteLLM: Prometheus metrics are not being collected</p>|
 |LiteLLM: Request latency is critically high|<p>Average request latency has stayed above the critical threshold for 5 minutes.</p>|`min(/LiteLLM by HTTP/litellm.request.latency.avg,5m)>{$LITELLM.LATENCY.CRIT}`|High|<p>**Depends on**:</p><p>- LiteLLM: Service is not responding</p>|
 |LiteLLM: Request latency is high|<p>Average request latency has stayed above the warning threshold for 5 minutes.</p>|`min(/LiteLLM by HTTP/litellm.request.latency.avg,5m)>{$LITELLM.LATENCY.WARN}`|Warning|<p>**Depends on**:</p><p>- LiteLLM: Request latency is critically high</p>|
 
@@ -201,6 +203,10 @@ also usable standalone:
 - Some gauges only populate with certain features: `litellm_remaining_requests/tokens_metric`
   need upstream `x-ratelimit-*` headers; `litellm_total_users` / `litellm_teams_count` need
   DB-backed user/team tracking. They report `0` until then.
+- Requests rejected by LiteLLM's own rate limits (status 429) are client-side policy, so the
+  error rate leaves out `{$LITELLM.ERROR.IGNORE.STATUS}` and *Rate-limited requests per second*
+  counts them. *LLM API failures per second* still includes them, because LiteLLM's metric
+  carries no status label. They never reach a discovered deployment's items.
 - Model names routed to the same backend (model + api_base) collapse into one discovered
   deployment; their series are summed and the state is the worst across them.
 - Per-deployment items match the `litellm_model_name` and `api_base` metric labels against
