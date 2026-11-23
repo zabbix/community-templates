@@ -1,0 +1,878 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 0100976408384d32bd40bee3d6561a35
+      name: Templates/Printers
+  templates:
+    - uuid: 527478124bf949cc8e107aa116bbb0f0
+      template: 'Printer by SNMP'
+      name: 'Printer by SNMP'
+      description: |
+        Vendor-independent template for network printers and MFPs.
+        Uses only standard MIBs: Printer-MIB (RFC 3805) and HOST-RESOURCES-MIB (RFC 2790). No vendor-specific OIDs.
+        The printer device, marker supplies, input trays and covers are discovered automatically via LLD,
+        so no device indexes are hardcoded.
+        SNMP version (v1/v2c/v3) and credentials are configured on the host interface.
+
+        Some devices report supply levels only as -2 (unknown) or -3 (some remaining). In that case the
+        percentage item returns -1, and toner problems are reported by the hrPrinterDetectedErrorState
+        triggers (lowToner/noToner) and by the Printer-MIB alert table.
+
+        Requires Zabbix 7.0+ (walk[] items, SNMP walk to JSON preprocessing).
+
+        Author: HugoFiermein
+      groups:
+        - name: Templates/Printers
+      items:
+        - uuid: 93e5bdd0d9b042daa57c326d42c91ec7
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          history: 7d
+          value_type: UNSIGNED
+          description: 'SNMP availability: 0 - unavailable, 1 - available, 2 - unknown.'
+          valuemap:
+            name: 'zabbix.host.available'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 2b8ab6c85ef0411f9f34c0a6e80e7eca
+              expression: 'max(/Printer by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              name: 'Printer: No SNMP data collection for {$SNMP.TIMEOUT}'
+              priority: AVERAGE
+              description: 'The printer is powered off, unreachable, or SNMP settings are wrong (version, community, v3 credentials, port).'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 481a83d4569f4954aabc0f3f09caef52
+          name: 'System description'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.1.0]'
+          key: printer.sysdescr
+          delay: 1h
+          history: 7d
+          value_type: CHAR
+          trends: '0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: e93cf15068814d298415d0e4e5796a5e
+          name: 'Uptime'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.1.3.0]'
+          key: printer.uptime
+          delay: 5m
+          history: 7d
+          units: uptime
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 9a8281ca6b2a4cda85a24728d254bb69
+              expression: 'last(/Printer by SNMP/printer.uptime)<10m'
+              name: 'Printer: Has been restarted (uptime < 10m)'
+              priority: INFO
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 15411aca0744496c9531c8955d77b32c
+          name: 'Supplies: Get data'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.11.1.1.8,1.3.6.1.2.1.43.11.1.1.9]'
+          key: printer.supply.walk
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'prtMarkerSuppliesMaxCapacity + prtMarkerSuppliesLevel. Master item for the supplies LLD.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: c073561a41cd4ff8bfa5a3a052c31c6d
+          name: 'Input trays: Get data'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.8.2.1.9,1.3.6.1.2.1.43.8.2.1.10]'
+          key: printer.tray.walk
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'prtInputMaxCapacity + prtInputCurrentLevel. Master item for the input trays LLD.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: bfe6144293794f129eac1d758d50410b
+          name: 'Covers: Get data'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.6.1.1.3]'
+          key: printer.cover.walk
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'prtCoverStatus. Master item for the covers LLD.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 60b68d1ef1a54b9ca714b38563a59499
+          name: 'Alerts: Get data'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.18.1.1.2,1.3.6.1.2.1.43.18.1.1.7]'
+          key: printer.alerts.walk
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'prtAlertTable (severity + code). Master item for dependent items.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 6a575f4b38bf43a3b6155001c6b43ec2
+          name: 'Alerts: Critical'
+          type: DEPENDENT
+          key: printer.alerts.critical
+          value_type: CHAR
+          trends: '0'
+          history: 7d
+          description: 'Active prtAlertTable entries with severity = critical(3), or "none".'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var codes = {
+                      3: 'cover open', 5: 'interlock open', 8: 'paper jam', 9: 'subunit missing',
+                      11: 'subunit life over', 13: 'subunit empty', 15: 'subunit full', 17: 'subunit at limit',
+                      22: 'subunit offline', 29: 'subunit recoverable failure', 30: 'subunit unrecoverable failure',
+                      32: 'storage error', 33: 'motor failure', 34: 'memory exhausted', 36: 'over temperature',
+                      501: 'door open', 801: 'input tray missing', 803: 'input media empty',
+                      806: 'input tray position failure', 807: 'input tray elevation failure', 901: 'output tray missing',
+                      903: 'output tray full', 1002: 'fuser over temperature', 1003: 'fuser timing failure',
+                      1004: 'fuser thermistor failure', 1101: 'toner empty', 1102: 'ink empty',
+                      1109: 'waste toner receptacle full', 1110: 'waste ink receptacle full',
+                      1112: 'OPC life over', 1114: 'developer empty',
+                      1115: 'toner cartridge missing', 1303: 'media path full'
+                  };
+                  var sev = {}, code = {};
+                  String(value).split('\n').forEach(function (l) {
+                      var m = l.replace(/^\./, '').match(/^1\.3\.6\.1\.2\.1\.43\.18\.1\.1\.(\d+)\.(\d+\.\d+)\s*=.*?(-?\d+)\)?\s*$/);
+                      if (!m) { return; }
+                      if (m[1] === '2') { sev[m[2]] = parseInt(m[3], 10); }
+                      if (m[1] === '7') { code[m[2]] = parseInt(m[3], 10); }
+                  });
+                  var out = [];
+                  for (var k in sev) {
+                      if (sev[k] === 3) {
+                          var c = code[k];
+                          var t = codes[c] ? codes[c] : 'code ' + c;
+                          if (out.indexOf(t) < 0) { out.push(t); }
+                      }
+                  }
+                  return out.length ? out.join('; ') : 'none';
+          master_item:
+            key: printer.alerts.walk
+          tags:
+            - tag: component
+              value: alerts
+          triggers:
+            - uuid: c12c518bf735462ea8fe5f051c1fd14b
+              expression: 'last(/Printer by SNMP/printer.alerts.critical)<>"none"'
+              name: 'Printer: Critical alert: {ITEM.LASTVALUE}'
+              event_name: 'Printer: Critical alert: {ITEM.LASTVALUE}'
+              priority: HIGH
+              description: 'Active critical entry in prtAlertTable (Printer-MIB). Partially overlaps with the hrPrinterDetectedErrorState triggers but covers more cases (fuser, trays, motor).'
+              tags:
+                - tag: scope
+                  value: hardware
+      discovery_rules:
+        - uuid: 6a57d12c203a4fe084904b43bb32d8e0
+          name: 'Printer device discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.25.3.5.1.1]'
+          key: printer.device.discovery
+          delay: 1h
+          description: 'Finds printer devices via hrPrinterTable (1.3.6.1.2.1.25.3.5.1): by RFC 2790 it has rows only for devices of type printer. Some devices (e.g. HP LaserJet Pro) do not report hrDeviceType, so it is not used. The printer device index differs between vendors and is not hardcoded.'
+          item_prototypes:
+            - uuid: 91553709fd194db9939a49a0a666f087
+              name: 'Printer: Model'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.3.2.1.3.{#SNMPINDEX}]'
+              key: 'printer.model[{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: system
+            - uuid: 1b23253bc16849dab4f2dddf58b2aae3
+              name: 'Printer: Serial number'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.43.5.1.1.17.{#SNMPINDEX}]'
+              key: 'printer.serial[{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: system
+              trigger_prototypes:
+                - uuid: ba91db6aaf26471b959867fff6908895
+                  expression: 'last(/Printer by SNMP/printer.serial[{#SNMPINDEX}],#1)<>last(/Printer by SNMP/printer.serial[{#SNMPINDEX}],#2) and length(last(/Printer by SNMP/printer.serial[{#SNMPINDEX}]))>0'
+                  name: 'Printer: Serial number has changed (device replaced?)'
+                  priority: INFO
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 6af9d99a8fab4622b8a70dd92e203b2b
+              name: 'Printer: Total page count'
+              type: SNMP_AGENT
+              snmp_oid: 'walk[1.3.6.1.2.1.43.10.2.1.4.{#SNMPINDEX}]'
+              key: 'printer.pages.total[{#SNMPINDEX}]'
+              delay: 1h
+              history: 90d
+              units: '!pages'
+              description: 'Sum of prtMarkerLifeCount over all markers of the device. What is counted (sheets, impressions, clicks) depends on the vendor.'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: DISCARD_VALUE
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var sum = 0, found = false;
+                      String(value).split('\n').forEach(function (l) {
+                          var m = l.match(/=.*?(\d+)\s*$/);
+                          if (m) { sum += parseInt(m[1], 10); found = true; }
+                      });
+                      if (!found) { throw 'prtMarkerLifeCount not found'; }
+                      return sum;
+                  error_handler: DISCARD_VALUE
+              tags:
+                - tag: component
+                  value: counters
+            - uuid: b8b71940343c4160a9814466836fcf8d
+              name: 'Printer: Pages per hour'
+              type: DEPENDENT
+              key: 'printer.pages.rate[{#SNMPINDEX}]'
+              history: 90d
+              value_type: FLOAT
+              units: '!pages/h'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+                - type: MULTIPLIER
+                  parameters:
+                    - '3600'
+              master_item:
+                key: 'printer.pages.total[{#SNMPINDEX}]'
+              tags:
+                - tag: component
+                  value: counters
+            - uuid: 0acba55b4c354c20b8a7dfa7557b7605
+              name: 'Printer: Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.3.5.1.1.{#SNMPINDEX}]'
+              key: 'printer.status[{#SNMPINDEX}]'
+              delay: 1m
+              history: 7d
+              value_type: UNSIGNED
+              valuemap:
+                name: 'HOST-RESOURCES-MIB::hrPrinterStatus'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: status
+            - uuid: 24290acfe3074dada28f675a6f57189e
+              name: 'Printer: Device status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.2.1.25.3.2.1.5.{#SNMPINDEX}]'
+              key: 'printer.device.status[{#SNMPINDEX}]'
+              delay: 1m
+              history: 7d
+              value_type: UNSIGNED
+              valuemap:
+                name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: status
+              trigger_prototypes:
+                - uuid: fbb572d7870344cb81d13f88ffaddff7
+                  expression: 'last(/Printer by SNMP/printer.device.status[{#SNMPINDEX}])=5'
+                  name: 'Printer: Device is down (hrDeviceStatus)'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: c6cdef013b294ea3b287455a46c3f0e3
+              name: 'Printer: Console display text'
+              type: SNMP_AGENT
+              snmp_oid: 'walk[1.3.6.1.2.1.43.16.5.1.2.{#SNMPINDEX}]'
+              key: 'printer.display[{#SNMPINDEX}]'
+              delay: 1m
+              history: 7d
+              value_type: CHAR
+              trends: '0'
+              description: 'First line of the control panel display (prtConsoleDisplayBufferText). UTF-8 Hex-STRING values are decoded automatically.'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: DISCARD_VALUE
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.43.16.5.1.2.{#SNMPINDEX}.1'
+                    - '1'
+                  error_handler: DISCARD_VALUE
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value.replace(/\s+/g, '' '').trim();'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: status
+            - uuid: 9520a7b2cb4243afa99af108f29279cb
+              name: 'Printer: Detected error state'
+              type: SNMP_AGENT
+              snmp_oid: 'walk[1.3.6.1.2.1.25.3.5.1.2.{#SNMPINDEX}]'
+              key: 'printer.errorstate[{#SNMPINDEX}]'
+              delay: 1m
+              history: 7d
+              value_type: CHAR
+              trends: '0'
+              description: |
+                HOST-RESOURCES-MIB error bitmask decoded into a comma-separated list of flags, or OK.
+                Flags: lowPaper, noPaper, lowToner, noToner, doorOpen, jammed, offline, serviceRequested,
+                inputTrayMissing, outputTrayMissing, markerSupplyMissing, outputNearFull, outputFull,
+                inputTrayEmpty, overduePreventMaint.
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.25.3.5.1.2.{#SNMPINDEX}'
+                    - '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var v = String(value).replace(/^"|"$/g, '').trim();
+                      var bytes = [];
+                      if (/^([0-9A-Fa-f]{2}[\s:]*)+$/.test(v)) {
+                          v.replace(/[\s:]/g, '').match(/.{2}/g).forEach(function (h) { bytes.push(parseInt(h, 16)); });
+                      } else {
+                          for (var i = 0; i < v.length; i++) { bytes.push(v.charCodeAt(i) & 0xFF); }
+                      }
+                      var names = [
+                          ['lowPaper', 'noPaper', 'lowToner', 'noToner', 'doorOpen', 'jammed', 'offline', 'serviceRequested'],
+                          ['inputTrayMissing', 'outputTrayMissing', 'markerSupplyMissing', 'outputNearFull', 'outputFull', 'inputTrayEmpty', 'overduePreventMaint', '']
+                      ];
+                      var out = [];
+                      for (var b = 0; b < 2 && b < bytes.length; b++) {
+                          for (var bit = 0; bit < 8; bit++) {
+                              if ((bytes[b] & (0x80 >> bit)) && names[b][bit]) { out.push(names[b][bit]); }
+                          }
+                      }
+                      return out.length ? out.join(',') : 'OK';
+              tags:
+                - tag: component
+                  value: status
+              trigger_prototypes:
+                - uuid: 7728906171684ee980666ce7e1974afb
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","noToner")=1'
+                  name: 'Printer: Toner is empty'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: supplies
+                - uuid: cab0f614f2a840e3bfca50a4c6611c21
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","lowToner")=1'
+                  name: 'Printer: Toner is low'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Printer: Toner is empty'
+                      expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","noToner")=1'
+                  tags:
+                    - tag: scope
+                      value: supplies
+                - uuid: 63a5a8849d2248e29393baba7a281891
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","jammed")=1'
+                  name: 'Printer: Paper jam'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: paper
+                - uuid: 6c9efaaad035429584a4acc65eaba8cd
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","doorOpen")=1'
+                  name: 'Printer: Door is open'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: hardware
+                - uuid: 3c699b41a0ef45fb8df63794097acd25
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","noPaper")=1'
+                  name: 'Printer: Out of paper'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: paper
+                - uuid: 9a3c4eb2f22b44d98468629080909392
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","markerSupplyMissing")=1'
+                  name: 'Printer: Marker supply is missing'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: supplies
+                - uuid: ce144c72757a4db984245e4ad1882249
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","outputFull")=1'
+                  name: 'Printer: Output tray is full'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: paper
+                - uuid: 4288df5514774940b4e011ad016debca
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","serviceRequested")=1'
+                  name: 'Printer: Service requested'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: hardware
+                - uuid: aba94accfc3249579f50f0f1400c510c
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","offline")=1'
+                  name: 'Printer: Offline'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: dcda779dfff5470a9ecdfe0ade6e1752
+                  expression: 'find(/Printer by SNMP/printer.errorstate[{#SNMPINDEX}],,"like","overduePreventMaint")=1'
+                  name: 'Printer: Preventive maintenance is overdue'
+                  priority: INFO
+                  tags:
+                    - tag: scope
+                      value: hardware
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#PRINTER.STATUS}'
+                - 1.3.6.1.2.1.25.3.5.1.1
+                - '0'
+        - uuid: ab40603e33bb4e8eb63aa0188e1621a3
+          name: 'Marker supplies discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.11.1.1.4,1.3.6.1.2.1.43.11.1.1.5,1.3.6.1.2.1.43.11.1.1.6]'
+          key: printer.supply.discovery
+          delay: 1h
+          description: 'prtMarkerSuppliesTable: toner, waste toner box, drum, fuser, etc.'
+          item_prototypes:
+            - uuid: 21c134426ba64a2ca4945dda28319177
+              name: '{#SUPPLY.DESC}: Level'
+              type: DEPENDENT
+              key: 'printer.supply.level[{#SNMPINDEX}]'
+              history: 30d
+              value_type: FLOAT
+              description: 'prtMarkerSuppliesLevel. -1 other, -2 unknown, -3 some remaining (level not reported). For receptacles (e.g. waste toner box) this is the remaining free space.'
+              valuemap:
+                name: 'Printer-MIB::prtMarkerSuppliesLevel'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: printer.supply.walk
+              tags:
+                - tag: component
+                  value: supplies
+                - tag: supply
+                  value: '{#SUPPLY.DESC}'
+              trigger_prototypes:
+                - uuid: 3844f4a276ea41578f2a7f63650cc392
+                  expression: 'last(/Printer by SNMP/printer.supply.level[{#SNMPINDEX}])=0'
+                  name: '{#SUPPLY.DESC}: {#SUPPLY.ZEROTEXT}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: supplies
+            - uuid: b83baaf6259e49d5bdc2fb8e48c584f1
+              name: '{#SUPPLY.DESC}: Max capacity'
+              type: DEPENDENT
+              key: 'printer.supply.max[{#SNMPINDEX}]'
+              history: 30d
+              value_type: FLOAT
+              valuemap:
+                name: 'Printer-MIB::prtMarkerSuppliesLevel'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+                    - '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: printer.supply.walk
+              tags:
+                - tag: component
+                  value: supplies
+                - tag: supply
+                  value: '{#SUPPLY.DESC}'
+            - uuid: 6a7b0a6b9ea34e76a3f998904be8a553
+              name: '{#SUPPLY.DESC}: Remaining, %'
+              type: DEPENDENT
+              key: 'printer.supply.pct[{#SNMPINDEX}]'
+              history: 90d
+              value_type: FLOAT
+              units: '%'
+              description: 'Remaining level in percent (free space for receptacles). -1 = the device does not report the level.'
+              valuemap:
+                name: 'Printer percent'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var base = '1.3.6.1.2.1.43.11.1.1.', idx = '{#SNMPINDEX}';
+                      function col(c) {
+                          var p = base + c + '.' + idx, lines = String(value).split('\n');
+                          for (var i = 0; i < lines.length; i++) {
+                              var l = lines[i].replace(/^\./, '');
+                              if (l.indexOf(p + ' ') === 0 || l.indexOf(p + '=') === 0) {
+                                  var m = l.match(/(-?\d+)\)?\s*$/);
+                                  if (m) { return parseInt(m[1], 10); }
+                              }
+                          }
+                          return null;
+                      }
+                      var max = col(8), lvl = col(9);
+                      if (max === null || lvl === null || max <= 0 || lvl < 0) { return -1; }
+                      return Math.min(100, Math.round(lvl * 1000 / max) / 10);
+              master_item:
+                key: printer.supply.walk
+              tags:
+                - tag: component
+                  value: supplies
+                - tag: supply
+                  value: '{#SUPPLY.DESC}'
+              trigger_prototypes:
+                - uuid: 4cc16a364cfa406bb8db46e7c73f61c5
+                  expression: 'last(/Printer by SNMP/printer.supply.pct[{#SNMPINDEX}])>0 and last(/Printer by SNMP/printer.supply.pct[{#SNMPINDEX}])<={$PRINTER.SUPPLY.CRIT:"{#SUPPLY.DESC}"}'
+                  name: '{#SUPPLY.DESC}: Critically low ({ITEM.LASTVALUE} left)'
+                  event_name: '{#SUPPLY.DESC}: Critically low ({ITEM.LASTVALUE} left)'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: supplies
+                - uuid: 60b60804b0644ad8b7b39c293cc7c344
+                  expression: 'last(/Printer by SNMP/printer.supply.pct[{#SNMPINDEX}])>{$PRINTER.SUPPLY.CRIT:"{#SUPPLY.DESC}"} and last(/Printer by SNMP/printer.supply.pct[{#SNMPINDEX}])<={$PRINTER.SUPPLY.LOW:"{#SUPPLY.DESC}"}'
+                  name: '{#SUPPLY.DESC}: Low ({ITEM.LASTVALUE} left)'
+                  event_name: '{#SUPPLY.DESC}: Low ({ITEM.LASTVALUE} left)'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: supplies
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SUPPLY.CLASS}'
+                - 1.3.6.1.2.1.43.11.1.1.4
+                - '0'
+                - '{#SUPPLY.TYPE}'
+                - 1.3.6.1.2.1.43.11.1.1.5
+                - '0'
+                - '{#SUPPLY.DESC}'
+                - 1.3.6.1.2.1.43.11.1.1.6
+                - '1'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var types = {
+                      3: 'Toner', 4: 'Waste toner', 5: 'Ink', 6: 'Ink cartridge',
+                      8: 'Waste ink', 9: 'OPC drum', 10: 'Developer', 15: 'Fuser',
+                      18: 'Cleaner unit', 20: 'Transfer unit', 21: 'Toner cartridge', 32: 'Staples'
+                  };
+                  var rows = JSON.parse(value);
+                  rows.forEach(function (r) {
+                      var d = String(r['{#SUPPLY.DESC}'] || '').replace(/\s+/g, ' ').trim();
+                      var t = parseInt(r['{#SUPPLY.TYPE}'], 10);
+                      if (!d) { d = types[t] ? types[t] : 'Supply ' + r['{#SNMPINDEX}']; }
+                      r['{#SUPPLY.DESC}'] = d;
+                      r['{#SUPPLY.ZEROTEXT}'] = String(r['{#SUPPLY.CLASS}']) === '4' ? 'Is full' : 'Is empty';
+                  });
+                  return JSON.stringify(rows);
+        - uuid: d5ca90f51107418cb97888179915984f
+          name: 'Input trays discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.8.2.1.2,1.3.6.1.2.1.43.8.2.1.13,1.3.6.1.2.1.43.8.2.1.18]'
+          key: printer.tray.discovery
+          delay: 1h
+          description: 'prtInputTable. Manual feed / bypass trays (prtInputType = 5, sheetFeedManual) are skipped by default because they are usually empty. Filters: {$PRINTER.TRAY.TYPE.EXCLUDE} by type and {$PRINTER.TRAY.EXCLUDE} by name.'
+          filter:
+            conditions:
+              - macro: '{#TRAY.TYPE}'
+                value: '{$PRINTER.TRAY.TYPE.EXCLUDE}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+              - macro: '{#TRAY}'
+                value: '{$PRINTER.TRAY.EXCLUDE}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: 4ba7e70f827045538cbce327b475da9f
+              name: 'Tray "{#TRAY}": Current level'
+              type: DEPENDENT
+              key: 'printer.tray.level[{#SNMPINDEX}]'
+              history: 30d
+              value_type: FLOAT
+              units: '!sheets'
+              description: 'prtInputCurrentLevel. -2 unknown, -3 some paper (amount not reported), 0 empty.'
+              valuemap:
+                name: 'Printer-MIB::prtMarkerSuppliesLevel'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.43.8.2.1.10.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: printer.tray.walk
+              tags:
+                - tag: component
+                  value: paper
+                - tag: tray
+                  value: '{#TRAY}'
+              trigger_prototypes:
+                - uuid: c427a772853a4c7ea60c028686379c10
+                  expression: 'last(/Printer by SNMP/printer.tray.level[{#SNMPINDEX}])=0'
+                  name: 'Tray "{#TRAY}": Out of paper'
+                  priority: WARNING
+                  tags:
+                    - tag: scope
+                      value: paper
+            - uuid: f9f3ff316e634a34a54389580272399c
+              name: 'Tray "{#TRAY}": Level, %'
+              type: DEPENDENT
+              key: 'printer.tray.pct[{#SNMPINDEX}]'
+              history: 30d
+              value_type: FLOAT
+              units: '%'
+              valuemap:
+                name: 'Printer percent'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var base = '1.3.6.1.2.1.43.8.2.1.', idx = '{#SNMPINDEX}';
+                      function col(c) {
+                          var p = base + c + '.' + idx, lines = String(value).split('\n');
+                          for (var i = 0; i < lines.length; i++) {
+                              var l = lines[i].replace(/^\./, '');
+                              if (l.indexOf(p + ' ') === 0 || l.indexOf(p + '=') === 0) {
+                                  var m = l.match(/(-?\d+)\)?\s*$/);
+                                  if (m) { return parseInt(m[1], 10); }
+                              }
+                          }
+                          return null;
+                      }
+                      var max = col(9), lvl = col(10);
+                      if (max === null || lvl === null || max <= 0 || lvl < 0) { return -1; }
+                      return Math.min(100, Math.round(lvl * 1000 / max) / 10);
+              master_item:
+                key: printer.tray.walk
+              tags:
+                - tag: component
+                  value: paper
+                - tag: tray
+                  value: '{#TRAY}'
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#TRAY.TYPE}'
+                - 1.3.6.1.2.1.43.8.2.1.2
+                - '0'
+                - '{#TRAY.NAME}'
+                - 1.3.6.1.2.1.43.8.2.1.13
+                - '1'
+                - '{#TRAY.DESC}'
+                - 1.3.6.1.2.1.43.8.2.1.18
+                - '1'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  rows.forEach(function (r) {
+                      var n = String(r['{#TRAY.NAME}'] || '').replace(/\s+/g, ' ').trim();
+                      var d = String(r['{#TRAY.DESC}'] || '').replace(/\s+/g, ' ').trim();
+                      r['{#TRAY}'] = n || d || ('Tray ' + r['{#SNMPINDEX}']);
+                  });
+                  return JSON.stringify(rows);
+        - uuid: 483afb7ede6845c88afef35915fd2b2d
+          name: 'Covers discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.43.6.1.1.2]'
+          key: printer.cover.discovery
+          delay: 1h
+          description: 'prtCoverTable: front/side covers, document feeder cover, etc.'
+          item_prototypes:
+            - uuid: 25ca732c90134019813036698d3bc27b
+              name: 'Cover "{#COVER}": Status'
+              type: DEPENDENT
+              key: 'printer.cover.status[{#SNMPINDEX}]'
+              history: 7d
+              value_type: UNSIGNED
+              valuemap:
+                name: 'Printer-MIB::prtCoverStatus'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.43.6.1.1.3.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: printer.cover.walk
+              tags:
+                - tag: component
+                  value: hardware
+                - tag: cover
+                  value: '{#COVER}'
+              trigger_prototypes:
+                - uuid: 83cd5bba25fc4d7e848249971bc7ce92
+                  expression: 'last(/Printer by SNMP/printer.cover.status[{#SNMPINDEX}])=3 or last(/Printer by SNMP/printer.cover.status[{#SNMPINDEX}])=5'
+                  name: 'Cover "{#COVER}" is open'
+                  priority: AVERAGE
+                  tags:
+                    - tag: scope
+                      value: hardware
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#COVER}'
+                - 1.3.6.1.2.1.43.6.1.1.2
+                - '1'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  rows.forEach(function (r) {
+                      r['{#COVER}'] = String(r['{#COVER}'] || '').replace(/\s+/g, ' ').trim() || ('Cover ' + r['{#SNMPINDEX}']);
+                  });
+                  return JSON.stringify(rows);
+      tags:
+        - tag: class
+          value: hardware
+        - tag: target
+          value: printer
+      macros:
+        - macro: '{$PRINTER.SUPPLY.CRIT}'
+          value: '5'
+          description: 'Critically low supply threshold, %. Can be overridden per supply with context, e.g. {$PRINTER.SUPPLY.CRIT:"Black Toner"}.'
+        - macro: '{$PRINTER.SUPPLY.LOW}'
+          value: '15'
+          description: 'Low supply threshold, %. Can be overridden per supply with context, e.g. {$PRINTER.SUPPLY.LOW:"Black Toner"}.'
+        - macro: '{$PRINTER.TRAY.EXCLUDE}'
+          value: '^$'
+          description: 'Regex of input tray names to skip. Nothing is excluded by name by default. Example: ^(Tray 3|Tray 4)$'
+        - macro: '{$PRINTER.TRAY.TYPE.EXCLUDE}'
+          value: '^5$'
+          description: 'Regex of input tray types (prtInputType) to skip. 5 = sheetFeedManual (MP / bypass tray). Set to ^$ to monitor all trays.'
+        - macro: '{$SNMP.TIMEOUT}'
+          value: 5m
+          description: 'Time to wait before the "No SNMP data collection" trigger fires.'
+      valuemaps:
+        - uuid: 02115d92f9eb4677aa1ccaa37629f239
+          name: 'HOST-RESOURCES-MIB::hrDeviceStatus'
+          mappings:
+            - value: '1'
+              newvalue: unknown
+            - value: '2'
+              newvalue: running
+            - value: '3'
+              newvalue: warning
+            - value: '4'
+              newvalue: testing
+            - value: '5'
+              newvalue: down
+        - uuid: 90b371794c7d476b8c8564c3b6dfcfa9
+          name: 'HOST-RESOURCES-MIB::hrPrinterStatus'
+          mappings:
+            - value: '1'
+              newvalue: other
+            - value: '2'
+              newvalue: unknown
+            - value: '3'
+              newvalue: idle
+            - value: '4'
+              newvalue: printing
+            - value: '5'
+              newvalue: warmup
+        - uuid: aec350e52b824e2ab6ba5b728bf318fd
+          name: 'Printer percent'
+          mappings:
+            - value: '-1'
+              newvalue: 'n/a (not reported)'
+        - uuid: 28c505a42bec454e8a7c35c49b86514d
+          name: 'Printer-MIB::prtCoverStatus'
+          mappings:
+            - value: '0'
+              newvalue: 'not reported'
+            - value: '1'
+              newvalue: other
+            - value: '3'
+              newvalue: open
+            - value: '4'
+              newvalue: closed
+            - value: '5'
+              newvalue: 'interlock open'
+            - value: '6'
+              newvalue: 'interlock closed'
+        - uuid: 46ff3e85713c4df5976677ef81e66ef0
+          name: 'Printer-MIB::prtMarkerSuppliesLevel'
+          mappings:
+            - value: '-3'
+              newvalue: 'some remaining'
+            - value: '-2'
+              newvalue: unknown
+            - value: '-1'
+              newvalue: other
+        - uuid: 44af4e8edbcf48339be31cdff142d2d2
+          name: 'zabbix.host.available'
+          mappings:
+            - value: '0'
+              newvalue: not available
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
