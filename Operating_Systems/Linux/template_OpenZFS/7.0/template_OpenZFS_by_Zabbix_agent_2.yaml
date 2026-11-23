@@ -13,7 +13,7 @@ zabbix_export:
         OpenZFS 2.3 on Linux with Zabbix Agent 2, native zpool/zfs commands and /proc/spl/kstat/zfs.
       vendor:
         name: 'community-templates'
-        version: '7.0-1'
+        version: '7.0-2'
       groups:
         - name: 'Templates/Operating systems'
       items:
@@ -879,14 +879,6 @@ zabbix_export:
                   value: pool
                 - tag: system
                   value: zfs
-              trigger_prototypes:
-                - uuid: f06a92dc035f45dd8b297233fc06300f
-                  expression: 'last(/OpenZFS by Zabbix agent 2/zfs.pool.errors[{#POOL}])>0'
-                  name: 'Pool {#POOL}: ZFS data errors present'
-                  priority: HIGH
-                  tags:
-                    - tag: system
-                      value: zfs
             - uuid: ddd65f7a78d14e86867ebca439d80190
               name: 'Pool {#POOL}: Fragmentation'
               type: DEPENDENT
@@ -1181,7 +1173,9 @@ zabbix_export:
                 - uuid: e91ae6afd9c24d80adf01fb81eaf2e71
                   expression: 'last(/OpenZFS by Zabbix agent 2/zfs.pool.scan.errors[{#POOL}])>0'
                   name: 'Pool {#POOL}: scan reported errors'
+                  status: DISABLED
                   priority: HIGH
+                  description: 'Legacy scan-only alert disabled in v5.0.9. Scan errors are included in the consolidated Pool {#POOL}: ZFS errors reported trigger. Kept with the original UUID so that imports with Delete missing OFF disable the existing trigger instead of leaving it active.'
                   tags:
                     - tag: system
                       value: zfs
@@ -1272,16 +1266,17 @@ zabbix_export:
                 - tag: system
                   value: zfs
             - uuid: 050989f7bec1427f9d03d47d83c8a5e1
-              name: 'Pool {#POOL}: scan progress (estimated)'
+              name: 'Pool {#POOL}: scan progress (issued bytes)'
               type: DEPENDENT
               key: 'zfs.pool.scan.progress[{#POOL}]'
               history: 7d
               value_type: FLOAT
               units: '%'
+              description: 'Percentage of total scan work issued to storage (issued/to_examine), matching zpool status during active scrub/resilver. A finished scan reports 100% even when skipped blocks make issued smaller than to_examine.'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
-                    - 'var p=JSON.parse(value).pools["{#POOL}"];if(!p)throw "Pool missing";var s=p.scan_stats||{};if(!s.function)return 0;var a=Number(s.examined),b=Number(s.to_examine);if(!isFinite(a)||!isFinite(b)||a<0||b<0)throw "Invalid scan bytes";return b>0?Math.min(100,Math.max(0,100*a/b)):0;'
+                    - 'var p=JSON.parse(value).pools["{#POOL}"];if(!p)throw "Pool missing";var s=p.scan_stats||{};if(!s.function)return 0;if(s.state==="FINISHED")return 100;var a=Number(s.issued),b=Number(s.to_examine);if(!isFinite(a)||!isFinite(b)||a<0||b<0)throw "Invalid scan bytes";return b>0?Math.min(100,Math.max(0,100*a/b)):0;'
                 - type: IN_RANGE
                   parameters:
                     - '0'
@@ -1594,6 +1589,14 @@ zabbix_export:
                   value: notice
                 - tag: system
                   value: zfs
+            - uuid: f06a92dc035f45dd8b297233fc06300f
+              expression: 'last(/OpenZFS by Zabbix agent 2/zfs.pool.errors[{#POOL}])>0 or last(/OpenZFS by Zabbix agent 2/zfs.pool.scan.errors[{#POOL}])>0'
+              name: 'Pool {#POOL}: ZFS errors reported'
+              priority: HIGH
+              description: 'One consolidated pool alert: either ZFS permanent data errors (error_count) or scrub/resilver scan errors (scan_stats.errors) are non-zero. Both counters remain available as separate items for diagnosis. Resolves when both counters are zero.'
+              tags:
+                - tag: system
+                  value: zfs
           master_item:
             key: zfs.native.pool.list
           lld_macro_paths:
@@ -1742,10 +1745,10 @@ zabbix_export:
                   value: zfs
               trigger_prototypes:
                 - uuid: bdd0aba9829b44689881f3f10c9a57ed
-                  expression: 'last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"ONLINE" and last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"INUSE"'
-                  name: 'VDEV {#POOL}/{#VDEV}: state not ONLINE'
+                  expression: 'last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"ONLINE" and last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"INUSE" and last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"AVAIL" and last(/OpenZFS by Zabbix agent 2/zfs.vdev.state[{#POOL},{#VDEV}])<>"AVAILABLE"'
+                  name: 'VDEV {#POOL}/{#VDEV}: unhealthy state'
                   priority: HIGH
-                  description: 'INUSE hot spare is normal; OFFLINE/DEGRADED/FAULTED etc. are flagged.'
+                  description: 'Allowed states are ONLINE, INUSE (active hot spare), AVAIL (idle available hot spare) and AVAILABLE (compatibility spelling). Other values, including DEGRADED, FAULTED, OFFLINE, UNAVAIL and UNKNOWN, are flagged.'
                   tags:
                     - tag: system
                       value: zfs
@@ -1778,12 +1781,102 @@ zabbix_export:
                   tags:
                     - tag: system
                       value: zfs
+          trigger_prototypes:
+            - uuid: 20e1b306ac7b4eb18dd43c06d54de0a7
+              expression: 'last(/OpenZFS by Zabbix agent 2/zfs.vdev.read_errors[{#POOL},{#VDEV}])>0 or last(/OpenZFS by Zabbix agent 2/zfs.vdev.write_errors[{#POOL},{#VDEV}])>0 or last(/OpenZFS by Zabbix agent 2/zfs.vdev.checksum_errors[{#POOL},{#VDEV}])>0'
+              name: 'VDEV {#POOL}/{#VDEV}: existing read/write/checksum errors'
+              priority: AVERAGE
+              description: 'Persistent alert when any VDEV READ, WRITE or CKSUM counter is greater than zero, including errors recorded before monitoring started. The alert remains until all three counters are zero (typically after investigating and explicitly clearing ZFS errors). This does not require the counter to increase.'
+              tags:
+                - tag: component
+                  value: vdev
+                - tag: system
+                  value: zfs
           master_item:
             key: zfs.native.pool.status
           preprocessing:
             - type: JAVASCRIPT
               parameters:
-                - 'var pools=JSON.parse(value).pools||{},out=[];Object.keys(pools).forEach(function(p){var v=pools[p].vdevs||{};Object.keys(v).forEach(function(k){var d=v[k];if(d.vdev_type==="root")return;out.push({"{#POOL}":p,"{#VDEV}":k,"{#CLASS}":d["class"]||"normal","{#VTYPE}":d.vdev_type||"unknown","{#PARENT}":d.parent||""});});});return JSON.stringify(out);'
+                - |
+                  // Use only the top-level flat vdev index. Nested 'vdevs' repeat the same devices.
+                  var pools = JSON.parse(value).pools || {};
+                  var out = [];
+                  Object.keys(pools).forEach(function(pool) {
+                    var vdevs = pools[pool].vdevs || {};
+                    Object.keys(vdevs).forEach(function(name) {
+                      var d = vdevs[name];
+                      if (d.vdev_type === "root") return;
+                      function has(k) { return d[k] !== undefined && d[k] !== null; }
+                      out.push({
+                        "{#POOL}": pool,
+                        "{#VDEV}": name,
+                        "{#CLASS}": d["class"] || "normal",
+                        "{#VTYPE}": d.vdev_type || "unknown",
+                        "{#PARENT}": d.parent || "",
+                        "{#HAS_ERRORS}": has("read_errors") && has("write_errors") && has("checksum_errors") ? "1" : "0",
+                        "{#HAS_SLOW_IOS}": has("slow_ios") ? "1" : "0",
+                        "{#HAS_SCAN_PROCESSED}": has("scan_processed") ? "1" : "0"
+                      });
+                    });
+                  });
+                  return JSON.stringify(out);
+          overrides:
+            - name: 'Do not discover missing VDEV error counters'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#HAS_ERRORS}'
+                    value: ^0$
+              operations:
+                - operator: LIKE
+                  value: ': checksum_errors'
+                  discover: NO_DISCOVER
+                - operator: LIKE
+                  value: ': read_errors'
+                  discover: NO_DISCOVER
+                - operator: LIKE
+                  value: ': write_errors'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: ': checksum_errors increased'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: ': existing read/write/checksum errors'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: ': read_errors increased'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: ': write_errors increased'
+                  discover: NO_DISCOVER
+            - name: 'Do not discover unavailable VDEV slow I/O counters'
+              step: '2'
+              filter:
+                conditions:
+                  - macro: '{#HAS_SLOW_IOS}'
+                    value: ^0$
+              operations:
+                - operator: LIKE
+                  value: ': slow_ios'
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: ': slow I/O counter increased'
+                  discover: NO_DISCOVER
+            - name: 'Do not discover unavailable VDEV scan processed counters'
+              step: '3'
+              filter:
+                conditions:
+                  - macro: '{#HAS_SCAN_PROCESSED}'
+                    value: ^0$
+              operations:
+                - operator: LIKE
+                  value: ': scan_processed'
+                  discover: NO_DISCOVER
       tags:
         - tag: class
           value: storage
@@ -1823,10 +1916,55 @@ zabbix_export:
                   name: 'Active ZFS problems'
                   width: '72'
                   height: '6'
-                - type: honeycomb
-                  name: 'Pool capacity'
+                  fields:
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: system
+                    - type: STRING
+                      name: tags.0.value
+                      value: zfs
+                - type: item
+                  name: 'ARC hit ratio'
                   'y': '6'
                   width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'OpenZFS by Zabbix agent 2'
+                        key: zfs.arc.hit_ratio
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                - type: svggraph
+                  name: 'ARC hit ratio (interval)'
+                  'y': '9'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 42A67D
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'ARC hit ratio (interval)'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'ARC hit ratio (interval)'
+                    - type: STRING
+                      name: reference
+                      value: G0007
+                - type: honeycomb
+                  name: 'Pool capacity'
+                  'y': '16'
+                  width: '36'
                   height: '5'
                   fields:
                     - type: STRING
@@ -1856,41 +1994,6 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.2.threshold
                       value: '90'
-                - type: item
-                  name: 'ARC hit ratio'
-                  'y': '11'
-                  width: '18'
-                  height: '3'
-                  fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: 'OpenZFS by Zabbix agent 2'
-                        key: zfs.arc.hit_ratio
-                    - type: INTEGER
-                      name: show.0
-                      value: '1'
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                - type: svggraph
-                  name: 'ARC hit ratio (interval)'
-                  'y': '14'
-                  width: '36'
-                  height: '7'
-                  fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: 42A67D
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: 'ARC hit ratio (interval)'
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'ARC hit ratio (interval)'
-                    - type: STRING
-                      name: reference
-                      value: G0007
                 - type: honeycomb
                   name: 'Hot spares in use'
                   'y': '21'
@@ -1924,23 +2027,10 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.2.threshold
                       value: '90'
-                - type: honeycomb
-                  name: 'Pool health'
-                  x: '18'
-                  'y': '6'
-                  width: '18'
-                  height: '5'
-                  fields:
-                    - type: STRING
-                      name: items.0
-                      value: 'Pool *: health'
-                    - type: STRING
-                      name: reference
-                      value: RYDME
                 - type: item
                   name: 'ARC memory'
                   x: '18'
-                  'y': '11'
+                  'y': '6'
                   width: '18'
                   height: '3'
                   fields:
@@ -1955,10 +2045,56 @@ zabbix_export:
                     - type: INTEGER
                       name: show.1
                       value: '2'
+                - type: item
+                  name: 'ZIL commit errors'
+                  x: '36'
+                  'y': '6'
+                  width: '18'
+                  height: '3'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'OpenZFS by Zabbix agent 2'
+                        key: zfs.zil.zil_commit_error_count
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                - type: svggraph
+                  name: 'ARC and L2ARC cache efficiency'
+                  x: '36'
+                  'y': '9'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 3C90E8
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'ARC hit ratio (interval)'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'ARC hit ratio (interval)'
+                    - type: STRING
+                      name: ds.1.color
+                      value: E38239
+                    - type: STRING
+                      name: ds.1.data_set_label
+                      value: 'L2ARC hit ratio (interval)'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'L2ARC hit ratio (interval)'
+                    - type: STRING
+                      name: reference
+                      value: G0008
                 - type: honeycomb
                   name: 'Dataset quota use'
                   x: '36'
-                  'y': '6'
+                  'y': '16'
                   width: '36'
                   height: '5'
                   fields:
@@ -1989,52 +2125,6 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.2.threshold
                       value: '98'
-                - type: item
-                  name: 'ZIL commit errors'
-                  x: '36'
-                  'y': '11'
-                  width: '18'
-                  height: '3'
-                  fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: 'OpenZFS by Zabbix agent 2'
-                        key: zfs.zil.zil_commit_error_count
-                    - type: INTEGER
-                      name: show.0
-                      value: '1'
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                - type: svggraph
-                  name: 'ARC and L2ARC cache efficiency'
-                  x: '36'
-                  'y': '14'
-                  width: '36'
-                  height: '7'
-                  fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: 3C90E8
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: 'ARC hit ratio (interval)'
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'ARC hit ratio (interval)'
-                    - type: STRING
-                      name: ds.1.color
-                      value: E38239
-                    - type: STRING
-                      name: ds.1.data_set_label
-                      value: 'L2ARC hit ratio (interval)'
-                    - type: STRING
-                      name: ds.1.items.0
-                      value: 'L2ARC hit ratio (interval)'
-                    - type: STRING
-                      name: reference
-                      value: G0008
                 - type: honeycomb
                   name: 'Spare replacement groups'
                   x: '36'
@@ -2072,7 +2162,7 @@ zabbix_export:
                 - type: item
                   name: 'ZIL commits'
                   x: '54'
-                  'y': '11'
+                  'y': '6'
                   width: '18'
                   height: '3'
                   fields:
@@ -2090,13 +2180,62 @@ zabbix_export:
             - name: 'Scrub and resilver'
               widgets:
                 - type: problems
-                  name: 'Scrub and resilver alerts'
+                  name: 'ZFS Problems'
                   width: '72'
                   height: '5'
-                - type: honeycomb
-                  name: 'Last scrub age (days)'
+                  fields:
+                    - type: INTEGER
+                      name: tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: tags.0.tag
+                      value: system
+                    - type: STRING
+                      name: tags.0.value
+                      value: zfs
+                - type: svggraph
+                  name: 'Scan progress by pool'
                   'y': '5'
                   width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 3C90E8
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'scan progress (estimated)'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Pool * scan progress (issued bytes)'
+                    - type: STRING
+                      name: reference
+                      value: G0001
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: svggraph
+                  name: 'Scan bytes issued'
+                  'y': '11'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 3C90E8
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'scan issued bytes (counter)'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Pool *: scan issued bytes (counter)'
+                    - type: STRING
+                      name: reference
+                      value: G0009
+                - type: honeycomb
+                  name: 'Last scrub age (days)'
+                  'y': '17'
+                  width: '18'
                   height: '6'
                   fields:
                     - type: STRING
@@ -2126,46 +2265,76 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.2.threshold
                       value: '30'
+                - type: honeycomb
+                  name: 'Scrab active'
+                  x: '18'
+                  'y': '17'
+                  width: '18'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Pool * scrub active'
+                    - type: STRING
+                      name: reference
+                      value: UVCUG
+                    - type: INTEGER
+                      name: secondary_label_decimal_places
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 00FF00
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FFBF00
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
                 - type: svggraph
-                  name: 'Scan progress by pool'
+                  name: 'Scrub age by pool (days)'
+                  x: '36'
+                  'y': '5'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E38239
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'scrub age (days)'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Pool *: scrub age (days)'
+                    - type: STRING
+                      name: reference
+                      value: G0002
+                - type: svggraph
+                  name: 'Resilver duration (seconds)'
+                  x: '36'
                   'y': '11'
                   width: '36'
                   height: '6'
                   fields:
                     - type: STRING
                       name: ds.0.color
-                      value: 3C90E8
+                      value: E38239
                     - type: STRING
                       name: ds.0.data_set_label
-                      value: 'scan progress (estimated)'
+                      value: 'active scan duration (seconds)'
                     - type: STRING
                       name: ds.0.items.0
-                      value: 'Pool *: scan progress (estimated)'
+                      value: 'Pool *: active scan duration (seconds)'
                     - type: STRING
                       name: reference
-                      value: G0001
-                - type: svggraph
-                  name: 'Scan bytes issued'
-                  'y': '17'
-                  width: '36'
-                  height: '6'
-                  fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: 3C90E8
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: 'scan issued bytes (counter)'
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'Pool *: scan issued bytes (counter)'
-                    - type: STRING
-                      name: reference
-                      value: G0009
+                      value: G0010
                 - type: honeycomb
                   name: 'Active resilver'
                   x: '36'
-                  'y': '5'
+                  'y': '17'
                   width: '36'
                   height: '6'
                   fields:
@@ -2190,72 +2359,27 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.1.threshold
                       value: '1'
-                - type: svggraph
-                  name: 'Scrub age by pool (days)'
-                  x: '36'
-                  'y': '11'
-                  width: '36'
-                  height: '6'
-                  fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: E38239
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: 'scrub age (days)'
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'Pool *: scrub age (days)'
-                    - type: STRING
-                      name: reference
-                      value: G0002
-                - type: svggraph
-                  name: 'Resilver duration (seconds)'
-                  x: '36'
-                  'y': '17'
-                  width: '36'
-                  height: '6'
-                  fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: E38239
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: 'active scan duration (seconds)'
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'Pool *: active scan duration (seconds)'
-                    - type: STRING
-                      name: reference
-                      value: G0010
             - name: 'Capacity and IO'
               widgets:
-                - type: svggraph
-                  name: 'Pool read/write throughput'
-                  width: '72'
-                  height: '7'
+                - type: item
+                  name: 'ARC hit ratio'
+                  width: '18'
+                  height: '3'
                   fields:
-                    - type: STRING
-                      name: ds.0.color
-                      value: 3C90E8
-                    - type: STRING
-                      name: ds.0.data_set_label
-                      value: read.bytes
-                    - type: STRING
-                      name: ds.0.items.0
-                      value: 'Pool *: read.bytes'
-                    - type: STRING
-                      name: ds.0.items.1
-                      value: 'Pool *: write.bytes'
-                    - type: STRING
-                      name: reference
-                      value: G0005
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'OpenZFS by Zabbix agent 2'
+                        key: zfs.arc.hit_ratio
                     - type: INTEGER
-                      name: righty
-                      value: '0'
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
                 - type: svggraph
                   name: 'Pool IOPS'
-                  'y': '7'
+                  'y': '3'
                   width: '72'
                   height: '7'
                   fields:
@@ -2280,23 +2404,24 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: G0011
-                - type: item
-                  name: 'ARC hit ratio'
-                  'y': '14'
-                  width: '18'
-                  height: '3'
+                - type: svggraph
+                  name: 'Pool read throughput'
+                  'y': '10'
+                  width: '36'
+                  height: '7'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: 'OpenZFS by Zabbix agent 2'
-                        key: zfs.arc.hit_ratio
-                    - type: INTEGER
-                      name: show.0
-                      value: '1'
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
+                    - type: STRING
+                      name: ds.0.color
+                      value: 3C90E8
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: read.bytes
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Pool *: read.bytes'
+                    - type: STRING
+                      name: reference
+                      value: G0005
                 - type: svggraph
                   name: 'Pool capacity trends'
                   'y': '17'
@@ -2318,7 +2443,6 @@ zabbix_export:
                 - type: item
                   name: 'L2ARC memory'
                   x: '18'
-                  'y': '14'
                   width: '18'
                   height: '3'
                   fields:
@@ -2336,7 +2460,6 @@ zabbix_export:
                 - type: item
                   name: 'ARC target'
                   x: '36'
-                  'y': '14'
                   width: '18'
                   height: '3'
                   fields:
@@ -2351,6 +2474,25 @@ zabbix_export:
                     - type: INTEGER
                       name: show.1
                       value: '2'
+                - type: svggraph
+                  name: 'Pool write throughput'
+                  x: '36'
+                  'y': '10'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: E38239
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: write.bytes
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Pool *: write.bytes'
+                    - type: STRING
+                      name: reference
+                      value: G0006
                 - type: svggraph
                   name: 'Dataset quota utilization trends'
                   x: '36'
@@ -2373,7 +2515,6 @@ zabbix_export:
                 - type: item
                   name: 'ARC max'
                   x: '54'
-                  'y': '14'
                   width: '18'
                   height: '3'
                   fields:
