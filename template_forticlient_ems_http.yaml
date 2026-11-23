@@ -1,0 +1,4055 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+    name: Templates/Applications
+  templates:
+  - uuid: 094aee7a85fe43229b977daaa31d748c
+    template: FortiClient EMS by HTTP
+    name: FortiClient EMS by HTTP
+    description: FortiClient EMS 7.4.8 site-scoped HTTPS monitoring with optional API collection groups. One Zabbix host per site; no SNMP dependency. Internal endpoints may change between EMS releases. Maintained by Nilleftw.
+    vendor:
+      name: Nilleftw
+      version: 7.0-0
+    groups:
+    - name: Templates/Applications
+    tags:
+    - tag: class
+      value: software
+    - tag: target
+      value: forticlient-ems
+    - tag: target
+      value: fortinet
+    items:
+    - uuid: 685979695d344f30877527025b5ca584
+      name: 'Site {$EMS.API.SITE}: API license data'
+      type: SCRIPT
+      key: ems.api.license.raw
+      delay: '{$EMS.API.LICENSE.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var site = p.site;
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base)) throw 'Invalid EMS API URL';
+        if (!site || !p.username || !p.password) throw 'EMS API credentials or site missing';
+
+        var req = new HttpRequest();
+        req.addHeader('Accept: application/json');
+        req.addHeader('Content-Type: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API signin HTTP ' + req.getStatus() + ' for site ' + site;
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API signin rejected for site ' + site;
+
+        var headers = req.getHeaders(true);
+        var cookies = [];
+        var csrf = '';
+        Object.keys(headers).forEach(function (name) {
+            if (name.toLowerCase() !== 'set-cookie') return;
+            var values = headers[name];
+            if (!Array.isArray(values)) values = [values];
+            values.forEach(function (header) {
+                var pair = String(header).split(';', 1)[0];
+                var equals = pair.indexOf('=');
+                if (equals <= 0) return;
+                cookies.push(pair);
+                if (pair.slice(0, equals).toLowerCase() === 'csrftoken') csrf = pair.slice(equals + 1);
+            });
+        });
+        if (!cookies.length) throw 'EMS API signin returned no session cookie for site ' + site;
+
+        req.clearHeader();
+        req.addHeader('Accept: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        req.addHeader('Cookie: ' + cookies.join('; '));
+        req.addHeader('Referer: ' + base + '/');
+        if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+        var body = req.get(base + '/api/v1/license/get');
+        if (req.getStatus() !== 200) throw 'EMS API license/get HTTP ' + req.getStatus() + ' for site ' + site;
+
+        var response = JSON.parse(body);
+        if (!response.result || Number(response.result.retval) !== 1 || !response.data)
+            throw 'EMS API license/get returned an unsuccessful result for site ' + site;
+        var data = response.data;
+        if (!data.used || !data.vdom_seats || !Array.isArray(data.licenses))
+            throw 'EMS API license/get schema changed for site ' + site;
+
+        function count(value, field) {
+            var n = Number(value);
+            if (value === null || value === undefined || value === '' ||
+                !isFinite(n) || n < 0 || Math.floor(n) !== n)
+                throw 'Invalid EMS license count: ' + field;
+            return n;
+        }
+            function optionalCount(section, kind) {
+                return section && section[kind] !== undefined && section[kind] !== null ?
+                    count(section[kind], kind) : 0;
+            }
+            function license(kind, strict) {
+                if (strict && (data.used[kind] === undefined || data.vdom_seats[kind] === undefined))
+                    throw 'EMS API license/get omitted ' + kind;
+                var used = optionalCount(data.used, kind);
+                var allocated = optionalCount(data.vdom_seats, kind);
+                var total = optionalCount(data.seats, kind);
+                var future = optionalCount(data.future_seats, kind);
+                var expired = optionalCount(data.expired_seats, kind);
+                var expiration = null;
+                data.licenses.forEach(function (entry) {
+                    if (entry && entry.type === kind && typeof entry.expiry_date === 'string' &&
+                        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(entry.expiry_date) &&
+                        (expiration === null || entry.expiry_date < expiration))
+                        expiration = entry.expiry_date;
+                });
+                var pct = allocated > 0 ? 100 * used / allocated : null;
+                var expiryEpoch = expiration === null ? 0 : Math.floor(Date.parse(expiration + 'Z') / 1000);
+                if (!isFinite(expiryEpoch) || expiryEpoch < 0)
+                    throw 'Invalid EMS license expiry date: ' + kind;
+                return {
+                    used: used,
+                    allocated: allocated,
+                    total: total,
+                    future: future,
+                    expired: expired,
+                    available: Math.max(0, allocated - used),
+                    utilization: pct,
+                    expiry_date: expiration,
+                    expiry_epoch: expiryEpoch,
+                    summary: used + ' / ' + allocated + ' (' + (pct === null ? 'n/a' : pct.toFixed(2) + '%') + ')'
+                };
+            }
+            var names = {};
+            [data.seats, data.vdom_seats, data.used, data.future_seats,
+                data.expired_seats].forEach(function (section) {
+                Object.keys(section || {}).forEach(function (kind) { names[kind] = true; });
+            });
+            data.licenses.forEach(function (entry) {
+                if (entry && typeof entry.type === 'string') names[entry.type] = true;
+            });
+            var types = {}, discovery = [];
+            Object.keys(names).sort().forEach(function (kind) {
+                if (!/^[a-z][a-z0-9_]*$/.test(kind)) return;
+                var item = license(kind, false);
+                types[kind] = item;
+                if (kind !== 'epp' && kind !== 'ztna' &&
+                    (item.used || item.allocated || item.future || item.expired))
+                    discovery.push({'{#LICENSE_TYPE}': kind});
+            });
+            return JSON.stringify({epp: license('epp', true), ztna: license('ztna', true),
+                is_trial: data.is_trial ? 1 : 0, types: types, discovery: discovery});
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      description: Site-scoped session query. Stores normalized license counts for all EMS license types, trial status, and discovery data; never stores serial numbers or credentials.
+      tags:
+      - tag: component
+        value: raw-api
+      triggers:
+      - uuid: bd8bbd2dedf04429a408d5726f21eea8
+        expression: nodata(/FortiClient EMS by HTTP/ems.api.license.raw,20m)=1
+        name: 'Site {$EMS.API.SITE}: EMS license API has no data'
+        priority: HIGH
+        description: License API polling has returned no value for 20 minutes.
+        tags:
+        - tag: component
+          value: license-api
+    - uuid: 5242c57e21f14c1980048fbd68af559c
+      name: 'EPP used'
+      type: DEPENDENT
+      key: ems.api.license.epp.used
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.used;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+    - uuid: 81f3bcb0be0a4de58ebb245e36776dca
+      name: 'EPP capacity'
+      type: DEPENDENT
+      key: ems.api.license.epp.allocated
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.allocated;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+    - uuid: 36f42acc84dc4e0db09dc2971622ea5f
+      name: 'Site {$EMS.API.SITE}: EPP Available'
+      type: DEPENDENT
+      key: ems.api.license.epp.available
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.available;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+    - uuid: d42e328464284b5d87cc107f4cb8e0f5
+      name: 'EPP utilization'
+      type: DEPENDENT
+      key: ems.api.license.epp.utilization
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.utilization;
+          return n === null ? 0 : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+      units: '%'
+      description: Reports 0 when no seats are allocated so the numeric item remains supported. Check Allocated or Summary to distinguish unlicensed from unused seats.
+      triggers:
+      - uuid: 89e145da73da42c48fceb92be760190e
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.epp.utilization)>={$EMS.API.LICENSE.WARN}
+        name: 'Site {$EMS.API.SITE}: EPP license utilization is high'
+        priority: WARNING
+        description: Active site allocation has reached the configured utilization threshold.
+        tags:
+        - tag: component
+          value: license-api
+    - uuid: 5e97e958772f4b93bbae3a0164058427
+      name: 'Site {$EMS.API.SITE}: EPP Earliest expiry date'
+      type: DEPENDENT
+      key: ems.api.license.epp.expiry_date
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.expiry_date;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+      description: Earliest expiry_date for this license type; EMS returns a local timestamp without timezone. No expiry trigger until semantics are validated.
+    - uuid: 63d99ed15cc64e0bbb3c6349a898240f
+      name: 'Site {$EMS.API.SITE}: EPP Summary'
+      type: DEPENDENT
+      key: ems.api.license.epp.summary
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).epp.summary;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: EPP
+    - uuid: d0fd47792649476098860a7bd712e141
+      name: 'Site {$EMS.API.SITE}: ZTNA Used'
+      type: DEPENDENT
+      key: ems.api.license.ztna.used
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.used;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+    - uuid: 3ec549ea525e4b2e9b2022f654ef6184
+      name: 'Site {$EMS.API.SITE}: ZTNA Allocated'
+      type: DEPENDENT
+      key: ems.api.license.ztna.allocated
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.allocated;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+    - uuid: 97f4efa784de4745b174abc22f9daf4f
+      name: 'Site {$EMS.API.SITE}: ZTNA Available'
+      type: DEPENDENT
+      key: ems.api.license.ztna.available
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.available;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+    - uuid: a94befbcbf99430681f7c1a5741d1457
+      name: 'Site {$EMS.API.SITE}: ZTNA Utilization'
+      type: DEPENDENT
+      key: ems.api.license.ztna.utilization
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.utilization;
+          return n === null ? 0 : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+      units: '%'
+      description: Reports 0 when no seats are allocated so the numeric item remains supported. Check Allocated or Summary to distinguish unlicensed from unused seats.
+      triggers:
+      - uuid: 41e72d05a2124bf2aa16e39b7fb45e01
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.ztna.allocated)>0 and last(/FortiClient EMS by HTTP/ems.api.license.ztna.utilization)>={$EMS.API.LICENSE.WARN}
+        name: 'Site {$EMS.API.SITE}: ZTNA license utilization is high'
+        priority: WARNING
+        description: Active site allocation has reached the configured utilization threshold.
+        tags:
+        - tag: component
+          value: license-api
+    - uuid: a011f810500a4706b58e9bb930dd4caa
+      name: 'Site {$EMS.API.SITE}: ZTNA Earliest expiry date'
+      type: DEPENDENT
+      key: ems.api.license.ztna.expiry_date
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.expiry_date;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+      description: Earliest expiry_date for this license type; EMS returns a local timestamp without timezone. No expiry trigger until semantics are validated.
+    - uuid: e2f6abbf53ac452ebbfabd31cf3d5eb1
+      name: 'Site {$EMS.API.SITE}: ZTNA Summary'
+      type: DEPENDENT
+      key: ems.api.license.ztna.summary
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ztna.summary;
+          return n === null ? null : n;
+      tags:
+      - tag: component
+        value: license-api
+      - tag: license_type
+        value: ZTNA
+    - uuid: 36e410957e30446aa79e7bb9392bac26
+      name: 'Site {$EMS.API.SITE}: Performance data'
+      type: SCRIPT
+      key: ems.api.perfmon.raw
+      delay: '{$EMS.API.PERFMON.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.username || !p.password)
+            throw 'Invalid EMS perfmon parameters';
+
+        var req;
+        var cookies = {};
+        var csrf = '';
+        function captureCookies() {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = headers[name];
+                if (!Array.isArray(values)) values = [values];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function headers(grafana, json) {
+            var r = new HttpRequest();
+            r.addHeader('Accept: application/json');
+            if (json) r.addHeader('Content-Type: application/json');
+            if (!grafana) {
+                r.addHeader('EMS-Call-Type: 2');
+                if (csrf) r.addHeader('X-CSRFToken: ' + csrf);
+            } else {
+                r.addHeader('X-Grafana-Org-Id: ' + org);
+            }
+            r.addHeader('Origin: ' + base);
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) r.addHeader('Cookie: ' + pairs.join('; '));
+            r.addHeader('Referer: ' + base + '/');
+            return r;
+        }
+        function checked(status, operation) {
+            if (req.getStatus() !== status) throw 'EMS perfmon ' + operation + ' HTTP ' + req.getStatus();
+        }
+        function parsed(body, operation) {
+            try { return JSON.parse(body); }
+            catch (e) { throw 'EMS perfmon ' + operation + ' returned invalid JSON'; }
+        }
+        function reason(body) {
+            var detail = String(body || '');
+            try {
+                var errorResponse = JSON.parse(detail);
+                detail = String((errorResponse.result && errorResponse.result.message) ||
+                    errorResponse.message || errorResponse.error || '');
+            } catch (ignored) {}
+            if (/csrf|cross.site|origin|referer/i.test(detail)) return 'CSRF or origin rejected';
+            if (/permission|privilege|forbidden|access.denied/i.test(detail)) return 'permission denied';
+            if (/session|authenticat|login|credential/i.test(detail)) return 'session rejected';
+            return 'unclassified';
+        }
+        var org = '1';
+        req = headers(false, true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password
+        }));
+        checked(200, 'signin');
+        var signin = parsed(signinBody, 'signin');
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS perfmon signin rejected (' + reason(signinBody) + ')';
+        captureCookies();
+        if (!Object.keys(cookies).length) throw 'EMS perfmon signin returned no session cookie';
+
+        req = headers(false, false);
+        var sessionCheckBody = req.get(base + '/api/v1/session/check');
+        checked(200, 'session check');
+        var sessionCheck = parsed(sessionCheckBody, 'session check');
+        if (!sessionCheck.result || Number(sessionCheck.result.retval) !== 1)
+            throw 'EMS perfmon session check rejected (' + reason(sessionCheckBody) + ')';
+        captureCookies();
+
+        req = headers(false, true);
+        var sessionUpdateBody = req.post(base + '/api/v1/session/update',
+            JSON.stringify({site: null}));
+        if (req.getStatus() === 403)
+            throw 'EMS perfmon global session selection HTTP 403 (' +
+                reason(sessionUpdateBody) + '; session cookie ' +
+                (Object.keys(cookies).length ? 'present' : 'missing') + '; CSRF cookie ' +
+                (csrf ? 'present' : 'missing') + ')';
+        checked(200, 'global session selection');
+        var sessionUpdate = parsed(sessionUpdateBody, 'global session selection');
+        if (!sessionUpdate.result || Number(sessionUpdate.result.retval) !== 1)
+            throw 'EMS perfmon could not select global session';
+        captureCookies();
+
+        req = headers(false, false);
+        var grafanaLoginBody = req.post(base + '/api/v1/performance_dashboard/login', '');
+        if (req.getStatus() === 403) {
+            throw 'EMS perfmon Grafana login HTTP 403 (' + reason(grafanaLoginBody) +
+                '; CSRF cookie ' + (csrf ? 'present' : 'missing') + ')';
+        }
+        checked(200, 'Grafana login');
+        captureCookies();
+
+        req = headers(false, false);
+        var search = parsed(req.get(base + '/api/v1/performance_dashboard/dashboard_search?from=now-5m&to=now'), 'dashboard search');
+        checked(200, 'dashboard search');
+        if (!search.data || !Array.isArray(search.data) || !search.data.length)
+            throw 'EMS perfmon dashboard search returned no panels';
+        var panels = search.data;
+        var host = panels[0].var_host;
+        org = String(panels[0].org_id || 1);
+        if (!/^[A-Za-z0-9_.-]+$/.test(host)) throw 'EMS perfmon returned invalid host name';
+        var uid = panels[0].uid;
+        if (!/^[A-Za-z0-9_-]+$/.test(uid)) throw 'EMS perfmon returned invalid dashboard UID';
+
+        req = headers(true, false);
+        var dto = parsed(req.get(base + '/grafana/apis/dashboard.grafana.app/v1beta1/namespaces/default/dashboards/' + uid + '/dto'), 'dashboard definition');
+        checked(200, 'dashboard definition');
+        if (!dto.spec || !Array.isArray(dto.spec.panels)) throw 'EMS perfmon dashboard definition changed';
+
+        var wanted = {
+            'System Overall CPU Usage (%)': 'cpu_pct',
+            'RAM System Usage (%)': 'ram_pct',
+            'Disk Space Usage (%)': 'disk_max_pct',
+            'EMS nodes online': 'ems_nodes_online',
+            'DB nodes latency (ms)': 'db_latency_max_ms'
+        };
+        if (String(p.extended) === '1') {
+            wanted['DB Connections (totals)'] = 'db_connections';
+            wanted['Real Time Network Traffic Rate'] = 'network';
+            wanted['Network Connections'] = 'network_connections';
+            wanted['Keep Alive Processing (ms)'] = 'keep_alive_ms';
+            wanted['Keep Alive Processing (records)'] = 'keep_alive_records';
+            wanted['EMS processes CPU usage'] = 'ems_process_cpu_max';
+            wanted['EMS process RAM Usage (%)'] = 'ems_process_ram_max_pct';
+        }
+        var queries = [], byRef = {};
+        dto.spec.panels.forEach(function (panel) {
+            var metric = wanted[panel.title];
+            if (!metric || !panel.targets || !panel.targets.length) return;
+            var target = panel.targets[0];
+            if (!target.query || !target.datasource || !target.datasource.uid) return;
+            var ref = 'M' + queries.length;
+            var query = target.query.replace(/\$\{host\}/g, host);
+            query = query.replace(/\$\{cpus\}/g, String(panels[0].var_cpus || 1));
+            queries.push({
+                datasource: target.datasource, query: query, refId: ref,
+                intervalMs: 5000, maxDataPoints: 100
+            });
+            byRef[ref] = metric;
+        });
+        if (!queries.length) throw 'EMS perfmon dashboard has no usable queries';
+        req = headers(true, true);
+        var result = parsed(req.post(base + '/grafana/api/ds/query',
+            JSON.stringify({queries: queries, from: 'now-5m', to: 'now'})), 'data query');
+        checked(200, 'data query');
+        if (!result.results) throw 'EMS perfmon data query returned no results';
+
+        function latest(frame) {
+            var fields = frame.schema && frame.schema.fields || [];
+            var values = frame.data && frame.data.values || [];
+            for (var i = 0; i < fields.length; i++) {
+                if (fields[i].name === 'Time' || fields[i].name === '_time') continue;
+                var series = values[i] || [];
+                for (var j = series.length - 1; j >= 0; j--) {
+                    if (series[j] !== null && series[j] !== undefined && isFinite(Number(series[j])))
+                        return {name: fields[i].name, value: Number(series[j])};
+                }
+            }
+            return null;
+        }
+        var output = {
+            cpu_pct: null, ram_pct: null, disk_max_pct: null,
+            db_connections: null, ems_nodes_online: null,
+            db_latency_max_ms: null, net_recv_bps: null, net_sent_bps: null,
+            network_connections: null, keep_alive_ms: null, keep_alive_records: null,
+            ems_process_cpu_max: null, ems_process_ram_max_pct: null,
+            cpu_cores: Number(panels[0].var_cpus) || null
+        };
+        Object.keys(byRef).forEach(function (ref) {
+            var metric = byRef[ref], response = result.results[ref];
+            if (!response || response.status !== 200) return;
+            var frames = response.frames || [];
+            var numbers = [];
+            frames.forEach(function (frame) {
+                var point = latest(frame);
+                if (!point) return;
+                if (metric === 'network') {
+                    if (point.name.indexOf('bytes_recv') >= 0)
+                        output.net_recv_bps = (output.net_recv_bps || 0) + point.value;
+                    if (point.name.indexOf('bytes_sent') >= 0)
+                        output.net_sent_bps = (output.net_sent_bps || 0) + point.value;
+                } else if (metric === 'network_connections') {
+                    if (point.name === 'tcp_currestab')
+                        output.network_connections = point.value;
+                } else numbers.push(point.value);
+            });
+            if (!numbers.length) return;
+            if (metric === 'disk_max_pct' || metric === 'db_latency_max_ms' ||
+                metric === 'ems_process_cpu_max' || metric === 'ems_process_ram_max_pct')
+                output[metric] = Math.max.apply(null, numbers);
+            else if (metric === 'db_connections' || metric === 'ems_nodes_online')
+                output[metric] = numbers.reduce(function (a, b) { return a + b; }, 0);
+            else output[metric] = numbers[0];
+        });
+        return JSON.stringify(output);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: extended
+        value: '{$EMS.API.PERFMON.EXTENDED}'
+      description: Experimental EMS 7.4.8 performance collection through the internal Grafana dashboard API.
+      tags:
+      - tag: component
+        value: perfmon-api
+      triggers:
+      - uuid: 4d0da9a3e0c8442d9393fd687633da24
+        expression: nodata(/FortiClient EMS by HTTP/ems.api.perfmon.raw,20m)=1
+        name: 'EMS: Performance API has no data'
+        priority: HIGH
+        description: Performance polling has returned no value for 20 minutes. Disable this trigger if the Performance master item is intentionally disabled.
+        tags:
+        - tag: component
+          value: perfmon-api
+    - uuid: eabb0d33d95043b092d3fe6590e62260
+      name: 'CPU usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.cpu_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).cpu_pct;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      triggers:
+      - uuid: d3534974287f41fa99b0dafb3f8bf9bf
+        expression: avg(/FortiClient EMS by HTTP/ems.api.perfmon.cpu_pct,15m)>{$EMS.API.PERFMON.CPU_WARN}
+        name: 'EMS: CPU utilization is high'
+        priority: WARNING
+        description: Disabled by default; enable after confirming thresholds for this EMS host.
+        tags:
+        - tag: component
+          value: perfmon-api
+    - uuid: 29be48228dd54bc4a85fffc813f01149
+      name: 'RAM usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.ram_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ram_pct;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      triggers:
+      - uuid: 59745aab7c874b4eb28e58f109ae711d
+        expression: avg(/FortiClient EMS by HTTP/ems.api.perfmon.ram_pct,15m)>{$EMS.API.PERFMON.RAM_WARN}
+        name: 'EMS: RAM utilization is high'
+        priority: WARNING
+        description: Disabled by default; enable after confirming thresholds for this EMS host.
+        tags:
+        - tag: component
+          value: perfmon-api
+    - uuid: 4a40b59bbf694b3fb04a51237bd4547b
+      name: 'Site {$EMS.API.SITE}: Swap usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.swap_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).swap_pct;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      status: DISABLED
+    - uuid: 0f4f24decae44f038274ec1c6e199085
+      name: 'Disk usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.disk_max_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).disk_max_pct;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      triggers:
+      - uuid: 0d748bd392774859919cdef10f4949a9
+        expression: avg(/FortiClient EMS by HTTP/ems.api.perfmon.disk_max_pct,15m)>{$EMS.API.PERFMON.DISK_WARN}
+        name: 'EMS: disk utilization is high'
+        priority: WARNING
+        description: Disabled by default; enable after confirming thresholds for this EMS host.
+        tags:
+        - tag: component
+          value: perfmon-api
+    - uuid: 52afb9020b2d4098875ef50ad61eb7b6
+      name: 'Site {$EMS.API.SITE}: Online endpoints'
+      type: DEPENDENT
+      key: ems.api.perfmon.online_endpoints
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).online_endpoints;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      status: DISABLED
+    - uuid: 118cea459fac425da202e9a72b842d79
+      name: 'Site {$EMS.API.SITE}: Database connections'
+      type: DEPENDENT
+      key: ems.api.perfmon.db_connections
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).db_connections;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      status: DISABLED
+    - uuid: 6e9747fe53f94e0483566c346ca2fa90
+      name: 'Site {$EMS.API.SITE}: EMS nodes online'
+      type: DEPENDENT
+      key: ems.api.perfmon.ems_nodes_online
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ems_nodes_online;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+    - uuid: 69b1c4004ecb44e7973ba922b566f89b
+      name: 'Site {$EMS.API.SITE}: Highest DB node latency'
+      type: DEPENDENT
+      key: ems.api.perfmon.db_latency_max_ms
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).db_latency_max_ms;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: ms
+    - uuid: d1feaa1b6b3e4e118709efb2310c3fae
+      name: 'Site {$EMS.API.SITE}: Network receive rate'
+      type: DEPENDENT
+      key: ems.api.perfmon.net_recv_bps
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).net_recv_bps;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: Bps
+      status: DISABLED
+    - uuid: 95f7011a15f94261ac6e1f974788bfa6
+      name: 'Site {$EMS.API.SITE}: Network send rate'
+      type: DEPENDENT
+      key: ems.api.perfmon.net_sent_bps
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).net_sent_bps;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: Bps
+      status: DISABLED
+    - uuid: 9f26dfe2f2344ad3ab1a3d3102c35e43
+      name: 'Site {$EMS.API.SITE}: CPU cores'
+      type: DEPENDENT
+      key: ems.api.perfmon.cpu_cores
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).cpu_cores;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      status: DISABLED
+    - uuid: bf1bd92c4bfe4a7fb50c22c62c5d084e
+      name: 'Site {$EMS.API.SITE}: Established network connections'
+      type: DEPENDENT
+      key: ems.api.perfmon.network_connections
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).network_connections;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      status: DISABLED
+    - uuid: 5192350c772a4fd8974b8a260cc9a80c
+      name: 'Site {$EMS.API.SITE}: Keep alive processing time'
+      type: DEPENDENT
+      key: ems.api.perfmon.keep_alive_ms
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).keep_alive_ms;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: ms
+      status: DISABLED
+    - uuid: d684df2bea854e0fb24f46181051a809
+      name: 'Site {$EMS.API.SITE}: Keep alive records'
+      type: DEPENDENT
+      key: ems.api.perfmon.keep_alive_records
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).keep_alive_records;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      status: DISABLED
+    - uuid: 6ea9204e51274dcc89e3a31650254424
+      name: 'Site {$EMS.API.SITE}: Highest EMS process CPU usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.ems_process_cpu_max
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ems_process_cpu_max;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      status: DISABLED
+    - uuid: c93d0a0bac504e37aa8eb83fdab23144
+      name: 'Site {$EMS.API.SITE}: Highest EMS process RAM usage'
+      type: DEPENDENT
+      key: ems.api.perfmon.ems_process_ram_max_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.perfmon.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var n = JSON.parse(value).ems_process_ram_max_pct;
+          return n === null || n === undefined ? null : n;
+      tags:
+      - tag: component
+        value: perfmon-api
+      units: '%'
+      status: DISABLED
+    - uuid: 201f25b1230248da8303cb603e75e748
+      name: 'Site {$EMS.API.SITE}: Trial license'
+      type: DEPENDENT
+      key: ems.api.license.is_trial
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).is_trial; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: 86b078a104e9480b860ed913e5d85a28
+      name: 'Site {$EMS.API.SITE}: EPP Total'
+      type: DEPENDENT
+      key: ems.api.license.epp.total
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).epp.total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: 0be609273221495a966ba2b857ff2e70
+      name: 'Site {$EMS.API.SITE}: EPP Future'
+      type: DEPENDENT
+      key: ems.api.license.epp.future
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).epp.future; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: 17df1a56ca0f4eef9854f8ee5218d4e4
+      name: 'Site {$EMS.API.SITE}: EPP Expired'
+      type: DEPENDENT
+      key: ems.api.license.epp.expired
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).epp.expired; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: a1a531368b1d4f308b0728c358e780c5
+      name: 'Site {$EMS.API.SITE}: ZTNA Total'
+      type: DEPENDENT
+      key: ems.api.license.ztna.total
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ztna.total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: f6c593c5723446719f02c8077400871f
+      name: 'Site {$EMS.API.SITE}: ZTNA Future'
+      type: DEPENDENT
+      key: ems.api.license.ztna.future
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ztna.future; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: 25e12a2f11b54a19902bb0053dfebc41
+      name: 'Site {$EMS.API.SITE}: ZTNA Expired'
+      type: DEPENDENT
+      key: ems.api.license.ztna.expired
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ztna.expired; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+    - uuid: 983f2da5cec94d00a08d14755952382f
+      name: 'EMS identity API data'
+      type: SCRIPT
+      key: ems.api.identity.raw
+      delay: '{$EMS.API.IDENTITY.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS identity API parameters';
+        var req = new HttpRequest();
+        req.addHeader('Accept: application/json');
+        req.addHeader('Content-Type: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        var body = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS identity signin HTTP ' + req.getStatus();
+        var signin = JSON.parse(body);
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS identity signin rejected';
+        var cookies = [], csrf = '';
+        var headers = req.getHeaders(true);
+        Object.keys(headers).forEach(function (name) {
+            if (name.toLowerCase() !== 'set-cookie') return;
+            var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+            values.forEach(function (header) {
+                var pair = String(header).split(';', 1)[0];
+                var pos = pair.indexOf('=');
+                if (pos < 1) return;
+                cookies.push(pair);
+                if (pair.slice(0, pos).toLowerCase() === 'csrftoken') csrf = pair.slice(pos + 1);
+            });
+        });
+        if (!cookies.length) throw 'EMS identity signin returned no session cookie';
+        req.clearHeader();
+        req.addHeader('Accept: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        req.addHeader('Cookie: ' + cookies.join('; '));
+        req.addHeader('Origin: ' + base);
+        req.addHeader('Referer: ' + base + '/');
+        if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+        body = req.get(base + '/api/v1/init_consts');
+        if (req.getStatus() !== 200) throw 'EMS init_consts HTTP ' + req.getStatus();
+        var response = JSON.parse(body);
+        if (!response.result || Number(response.result.retval) !== 1 ||
+            !response.data || !response.data.consts || !response.data.consts.System)
+            throw 'EMS init_consts schema changed';
+        var system = response.data.consts.System;
+        var version = String(system.VERSION_FULL || system.VERSION || '');
+        var started = Date.parse(system.START_TIME || '');
+        if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version) || !isFinite(started))
+            throw 'EMS identity version or start time missing';
+        return JSON.stringify({version: version,
+            mode: system.HA_ENABLED ? 'HA' : 'Standalone',
+            start_epoch: Math.floor(started / 1000)});
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      description: Extracts installed EMS version, HA mode, and start time from init_consts. The large API response is never stored.
+      tags:
+      - tag: component
+        value: raw-identity-api
+      - tag: scope
+        value: global
+    - uuid: 4f2df8fb4d79488b98a20bfbb7c2c50d
+      name: 'EMS installed version and build'
+      type: DEPENDENT
+      key: ems.api.identity.version
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.identity.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.version
+      tags:
+      - tag: component
+        value: identity-api
+    - uuid: 014215881e82447f83ab662fc9356c04
+      name: 'EMS mode'
+      type: DEPENDENT
+      key: ems.api.identity.mode
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.identity.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.mode
+      tags:
+      - tag: component
+        value: identity-api
+    - uuid: 772262f0faf14034baf6784a570611d4
+      name: 'EMS start time'
+      type: DEPENDENT
+      key: ems.api.identity.start_epoch
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.identity.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.start_epoch
+      units: unixtime
+      tags:
+      - tag: component
+        value: identity-api
+    - uuid: b827fe2079c7468183b4feb5e838d0bf
+      name: 'EMS uptime'
+      type: CALCULATED
+      key: ems.api.identity.uptime
+      delay: 5m
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      params: now()-last(//ems.api.identity.start_epoch)
+      units: uptime
+      tags:
+      - tag: component
+        value: identity-api
+    - uuid: ce3bc066993c4dfb8da93fcaf966db5c
+      name: 'Site {$EMS.API.SITE}: Client dashboard API data'
+      type: SCRIPT
+      key: ems.api.client_dashboard.raw
+      delay: '{$EMS.API.CLIENT_DASHBOARD.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS client dashboard API parameters';
+        var req = new HttpRequest();
+        req.addHeader('Accept: application/json');
+        req.addHeader('Content-Type: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        var body = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS client dashboard signin HTTP ' + req.getStatus();
+        var signin = JSON.parse(body);
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS client dashboard signin rejected';
+        var cookies = [], csrf = '';
+        var headers = req.getHeaders(true);
+        Object.keys(headers).forEach(function (name) {
+            if (name.toLowerCase() !== 'set-cookie') return;
+            var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+            values.forEach(function (header) {
+                var pair = String(header).split(';', 1)[0];
+                var pos = pair.indexOf('=');
+                if (pos < 1) return;
+                cookies.push(pair);
+                if (pair.slice(0, pos).toLowerCase() === 'csrftoken') csrf = pair.slice(pos + 1);
+            });
+        });
+        if (!cookies.length) throw 'EMS client dashboard signin returned no session cookie';
+        req.clearHeader();
+        req.addHeader('Accept: application/json');
+        req.addHeader('EMS-Call-Type: 2');
+        req.addHeader('Cookie: ' + cookies.join('; '));
+        req.addHeader('Origin: ' + base);
+        req.addHeader('Referer: ' + base + '/');
+        if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+        function get(path) {
+            var body = req.get(base + '/api/v1/' + path);
+            if (req.getStatus() !== 200)
+                throw 'EMS client dashboard ' + path + ' HTTP ' + req.getStatus();
+            var response = JSON.parse(body);
+            if (!response.result || Number(response.result.retval) !== 1 || !Array.isArray(response.data))
+                throw 'EMS client dashboard ' + path + ' schema changed';
+            return response.data;
+        }
+        var versions = {windows: {}, macos: {}, linux: {}}, discovery = [];
+        [['windows', 'fctversionwindows'], ['macos', 'fctversionmac'],
+            ['linux', 'fctversionlinux']].forEach(function (pair) {
+            get('endpoints/' + pair[1] + '/donut').forEach(function (entry) {
+                var version = String(entry.name || '');
+                var count = Number(entry.value);
+                if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version) ||
+                    !isFinite(count) || count < 0 || Math.floor(count) !== count)
+                    throw 'Invalid EMS FortiClient version data';
+                if (count === 0) return;
+                versions[pair[0]][version] = count;
+                discovery.push({'{#FCT_OS}': pair[0], '{#FCT_VERSION}': version});
+            });
+        });
+        var activity = {on_fabric: 0, off_fabric: 0, not_applicable: 0};
+        get('endpoints/activity/donut').forEach(function (entry) {
+            var count = Number(entry.value);
+            if (!isFinite(count) || count < 0 || Math.floor(count) !== count)
+                throw 'Invalid EMS endpoint activity count';
+            if (entry.token === 'emsOnnet') activity.on_fabric += count;
+            else if (entry.token === 'emsOffnet') activity.off_fabric += count;
+            else if (entry.token === 'emsNotApplicable') activity.not_applicable += count;
+        });
+        return JSON.stringify({versions: versions, discovery: discovery, activity: activity});
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      description: Site-scoped FortiClient version distribution and endpoint fabric activity. Stores aggregate counts only.
+      tags:
+      - tag: component
+        value: raw-client-dashboard-api
+      - tag: scope
+        value: site
+    - uuid: 9de0e00668c24a0f8bec810e70b122a5
+      name: 'Endpoints on-fabric'
+      type: DEPENDENT
+      key: ems.api.activity.on_fabric
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.client_dashboard.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.activity.on_fabric
+      tags:
+      - tag: component
+        value: client-dashboard-api
+    - uuid: 91d223ec471f4f3e8772ed846cade78a
+      name: 'Endpoints off-fabric'
+      type: DEPENDENT
+      key: ems.api.activity.off_fabric
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.client_dashboard.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.activity.off_fabric
+      tags:
+      - tag: component
+        value: client-dashboard-api
+    - uuid: 86aaffaebe4846409da0d7a93da020d7
+      name: 'Endpoints fabric status unknown'
+      type: DEPENDENT
+      key: ems.api.activity.not_applicable
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.client_dashboard.raw
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.activity.not_applicable
+      tags:
+      - tag: component
+        value: client-dashboard-api
+    - uuid: 4f50fd3361aa4e2d847e8f86c381b643
+      name: 'Site {$EMS.API.SITE}: Endpoints API data'
+      type: SCRIPT
+      key: ems.api.endpoints.raw
+      delay: '{$EMS.API.ENDPOINTS.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            var repackager = get('system/cloud/repackager/status');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none',
+                repackager_available: repackager.is_server_available ? 1 : 0};
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            var client = get('client_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length, client_total: count(client.total, 'client certificates'),
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: endpoints
+      description: Collects only normalized endpoints metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 747f398508a649e18e9411d25db12a74
+      name: 'Site {$EMS.API.SITE}: Total endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.total
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 8e50a2bd3b57409287f3a954f265ccc1
+      name: 'Site {$EMS.API.SITE}: Online endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.online
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).online; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: dc12a09e3eb946668a4c79c8f10347aa
+      name: 'Site {$EMS.API.SITE}: Online endpoints utilization'
+      type: DEPENDENT
+      key: ems.api.endpoints.online_pct
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).online_pct; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+      units: '%'
+      triggers:
+      - uuid: 48328e40a61e4e52b98ec7804fc64cb7
+        expression: last(/FortiClient EMS by HTTP/ems.api.endpoints.total)>0 and last(/FortiClient EMS by HTTP/ems.api.endpoints.online_pct)<{$EMS.API.ENDPOINTS.ONLINE_WARN}
+        name: 'Site {$EMS.API.SITE}: online endpoint percentage is low'
+        priority: WARNING
+        description: Disabled by default because endpoint availability depends on deployment policy.
+        tags:
+        - tag: component
+          value: endpoints-api
+        status: DISABLED
+    - uuid: ec6ee9375fc042dfb8093e0b840abdda
+      name: 'Site {$EMS.API.SITE}: Offline endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.offline
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).offline; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 8a5fd3bc1f874058ab0021586355e414
+      name: 'Endpoints online / total'
+      type: DEPENDENT
+      key: ems.api.endpoints.summary
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var d = JSON.parse(value); return String(d.online) + " / " + String(d.total);'
+      description: Compact online and total endpoint counts for the host dashboard.
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: a312be2b88e94597a338bd1666ca49e3
+      name: 'Site {$EMS.API.SITE}: Recently offline endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.offline_recent
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).offline_recent; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 4e6e3b1d280c4288aa28f6959622494f
+      name: 'Site {$EMS.API.SITE}: Nominally offline endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.offline_nominal
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).offline_nominal; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 2222be42dba04f8ba73ceb97208f034e
+      name: 'Site {$EMS.API.SITE}: Long-term offline endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.offline_long
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).offline_long; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: fbd0110470084435aa7b70c216c72c4d
+      name: 'Site {$EMS.API.SITE}: Managed endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.managed
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).managed; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: 756722b7d60c41b3813c3501e3462cac
+      name: 'Site {$EMS.API.SITE}: Unmanaged endpoints'
+      type: DEPENDENT
+      key: ems.api.endpoints.unmanaged
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.endpoints.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).unmanaged; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: endpoints-api
+      - tag: scope
+        value: site
+    - uuid: eb1aba03a6c741ab8da4e95d9493ea90
+      name: 'Site {$EMS.API.SITE}: Security API data'
+      type: SCRIPT
+      key: ems.api.security.raw
+      delay: '{$EMS.API.SECURITY.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            var repackager = get('system/cloud/repackager/status');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none',
+                repackager_available: repackager.is_server_available ? 1 : 0};
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            var client = get('client_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length, client_total: count(client.total, 'client certificates'),
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: security
+      description: Collects only normalized security metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-security-api
+      - tag: scope
+        value: site
+    - uuid: 2a74f996497b4991b8ec2737dcc6bf03
+      name: 'Site {$EMS.API.SITE}: Vulnerabilities'
+      type: DEPENDENT
+      key: ems.api.security.vulnerabilities
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).vulnerabilities; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+    - uuid: 84d51e2564104429a74cfe27d1b800bb
+      name: 'Site {$EMS.API.SITE}: High vulnerabilities'
+      type: DEPENDENT
+      key: ems.api.security.high_vulnerabilities
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).high_vulnerabilities; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+    - uuid: 27f3cc4c9c614332b48c4dae5f0c0b43
+      name: 'Site {$EMS.API.SITE}: Critical vulnerabilities'
+      type: DEPENDENT
+      key: ems.api.security.critical_vulnerabilities
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).critical_vulnerabilities; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+      triggers:
+      - uuid: 0c0dff83ffeb49729d038d0f38121d47
+        expression: last(/FortiClient EMS by HTTP/ems.api.security.critical_vulnerabilities)>0
+        name: 'Site {$EMS.API.SITE}: critical vulnerabilities detected'
+        priority: HIGH
+        description: Disabled by default to avoid alert floods in environments with existing findings.
+        tags:
+        - tag: component
+          value: security-api
+        status: DISABLED
+    - uuid: 6ef1d0645f8d4ab693e08b87d7e9631d
+      name: 'Site {$EMS.API.SITE}: Endpoints with vulnerabilities'
+      type: DEPENDENT
+      key: ems.api.security.affected_endpoints
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).affected_endpoints; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+    - uuid: a9ef25f9307f48c3b3a60d502132032a
+      name: 'Site {$EMS.API.SITE}: Profile errors'
+      type: DEPENDENT
+      key: ems.api.security.profile_errors
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).profile_errors; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+      triggers:
+      - uuid: f36510c11d0643fc94767c78ee31f4f8
+        expression: last(/FortiClient EMS by HTTP/ems.api.security.profile_errors)>0
+        name: 'Site {$EMS.API.SITE}: EMS profile errors detected'
+        priority: WARNING
+        description: EMS reports at least one profile configuration error.
+        tags:
+        - tag: component
+          value: security-api
+    - uuid: 343c33d3913f43bdaf33e7ff858c3cd2
+      name: 'Site {$EMS.API.SITE}: Zero Trust tag errors'
+      type: DEPENDENT
+      key: ems.api.security.zero_trust_tag_errors
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).zero_trust_tag_errors; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+      triggers:
+      - uuid: 0592d2998b2d4a57a571576ba938eacb
+        expression: last(/FortiClient EMS by HTTP/ems.api.security.zero_trust_tag_errors)>0
+        name: 'Site {$EMS.API.SITE}: Zero Trust tag errors detected'
+        priority: WARNING
+        description: EMS reports at least one Zero Trust tag error.
+        tags:
+        - tag: component
+          value: security-api
+    - uuid: e56ca120316b42ad9106bffee995d77c
+      name: 'Site {$EMS.API.SITE}: Active forensic tasks'
+      type: DEPENDENT
+      key: ems.api.security.active_forensics
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.security.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).active_forensics; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: security-api
+      - tag: scope
+        value: site
+    - uuid: 89c6390a526b4d90ad4cda98c7d05312
+      name: 'Site {$EMS.API.SITE}: System API data'
+      type: SCRIPT
+      key: ems.api.system.raw
+      delay: '{$EMS.API.SYSTEM.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none'};
+            if (String(p.repackager_enabled) === '1') {
+                var repackager = get('system/cloud/repackager/status');
+                out.repackager_available = repackager.is_server_available ? 1 : 0;
+            }
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            var client = get('client_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length, client_total: count(client.total, 'client certificates'),
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: system
+      - name: repackager_enabled
+        value: '{$EMS.API.SYSTEM.REPACKAGER.ENABLED}'
+      description: Collects only normalized system metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-system-api
+      - tag: scope
+        value: global
+    - uuid: 9c45a7ef47094a6eaeec4dcb31de5fd0
+      name: 'Site {$EMS.API.SITE}: HA members'
+      type: DEPENDENT
+      key: ems.api.system.ha_members
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ha_members; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: 1f4412d1764843e68c00ce368721604e
+      name: 'Site {$EMS.API.SITE}: Alive HA members'
+      type: DEPENDENT
+      key: ems.api.system.ha_alive
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ha_alive; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+      triggers:
+      - uuid: d064c3f54bb54546964223085670ee5a
+        expression: last(/FortiClient EMS by HTTP/ems.api.system.ha_members)>0 and last(/FortiClient EMS by HTTP/ems.api.system.ha_alive)<last(/FortiClient EMS by HTTP/ems.api.system.ha_members)
+        name: 'EMS: HA member unavailable'
+        priority: HIGH
+        description: EMS reports fewer live HA members than configured members.
+        tags:
+        - tag: component
+          value: system-api
+    - uuid: be362a35d4544e0e9c04370574c51ca2
+      name: 'Site {$EMS.API.SITE}: Alive primary HA members'
+      type: DEPENDENT
+      key: ems.api.system.ha_primary_alive
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ha_primary_alive; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: 679051bc98664a1e8d321d0f6829038d
+      name: 'Site {$EMS.API.SITE}: Signatures updating'
+      type: DEPENDENT
+      key: ems.api.system.signatures_updating
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).signatures_updating; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: beba8b25048b4187b16812277e98f591
+      name: 'Site {$EMS.API.SITE}: Upgrade available'
+      type: DEPENDENT
+      key: ems.api.system.upgrade_available
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).upgrade_available; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: 534b0f67544942b3a158610aa87750a5
+      name: 'Site {$EMS.API.SITE}: Available upgrade version'
+      type: DEPENDENT
+      key: ems.api.system.upgrade_version
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: TEXT
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).upgrade_version; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: 9f8659d0552942e886248486993f7a8b
+      name: 'Site {$EMS.API.SITE}: Repackager available'
+      type: DEPENDENT
+      key: ems.api.system.repackager_available
+      status: DISABLED
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.system.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).repackager_available; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: system-api
+      - tag: scope
+        value: global
+    - uuid: 8846d80b3eab4a46bc911db96e151a78
+      name: 'Site {$EMS.API.SITE}: Alerts API data'
+      type: SCRIPT
+      key: ems.api.alerts.raw
+      delay: '{$EMS.API.ALERTS.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            var repackager = get('system/cloud/repackager/status');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none',
+                repackager_available: repackager.is_server_available ? 1 : 0};
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            var client = get('client_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length, client_total: count(client.total, 'client certificates'),
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: alerts
+      description: Collects only normalized alerts metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-alerts-api
+      - tag: scope
+        value: site
+      status: DISABLED
+    - uuid: 2a7e7675e15c42fca3921127f5295705
+      name: 'Site {$EMS.API.SITE}: Alerts'
+      type: DEPENDENT
+      key: ems.api.alerts.total
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.alerts.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: alerts-api
+      - tag: scope
+        value: site
+      status: DISABLED
+    - uuid: 27c69866195e41e7bf9ec66d181ded49
+      name: 'Site {$EMS.API.SITE}: Unread alerts for API account'
+      type: DEPENDENT
+      key: ems.api.alerts.unread_for_api_account
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.alerts.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).unread_for_api_account; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: alerts-api
+      - tag: scope
+        value: site
+      status: DISABLED
+    - uuid: 5db3eb8625a54bdf948c4dc11279c78e
+      name: 'Site {$EMS.API.SITE}: Certificates API data'
+      type: SCRIPT
+      key: ems.api.certificates.raw
+      delay: '{$EMS.API.CERTIFICATES.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            var repackager = get('system/cloud/repackager/status');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none',
+                repackager_available: repackager.is_server_available ? 1 : 0};
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length,
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+            if (String(p.client_enabled) === '1') {
+                var client = get('client_certificates/index');
+                out.client_total = count(client.total, 'client certificates');
+            }
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: certificates
+      - name: client_enabled
+        value: '{$EMS.API.CERTIFICATES.CLIENT.ENABLED}'
+      description: Collects only normalized certificates metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-certificates-api
+      - tag: scope
+        value: global
+      triggers:
+      - uuid: f0a8824234df4fc780212f43b496ad3b
+        expression: nodata(/FortiClient EMS by HTTP/ems.api.certificates.raw,3h)=1
+        name: 'EMS: Certificate API has no data'
+        priority: HIGH
+        description: Certificate polling has returned no value for three hours. Disable this trigger if the Certificates master item is intentionally disabled.
+        tags:
+        - tag: component
+          value: certificates-api
+    - uuid: 3b78e0f3ecac49f29d24350f2d15e26e
+      name: 'Site {$EMS.API.SITE}: Server certificates'
+      type: DEPENDENT
+      key: ems.api.certificates.server_total
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.certificates.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).server_total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: certificates-api
+      - tag: scope
+        value: global
+    - uuid: 8655afb38cb34f39b245318514d6f7b8
+      name: 'Site {$EMS.API.SITE}: Client certificates'
+      type: DEPENDENT
+      key: ems.api.certificates.client_total
+      status: DISABLED
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.certificates.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).client_total; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: certificates-api
+      - tag: scope
+        value: global
+    - uuid: 8ad2fe56390d4235bdbe3d59bb9aa7a4
+      name: 'Site {$EMS.API.SITE}: Expired server certificates'
+      type: DEPENDENT
+      key: ems.api.certificates.server_expired
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.certificates.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).server_expired; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: certificates-api
+      - tag: scope
+        value: global
+      triggers:
+      - uuid: deef1ba7e73d4ec2971449c610ff04ed
+        expression: last(/FortiClient EMS by HTTP/ems.api.certificates.server_expired)>0
+        name: 'EMS: server certificate expired'
+        priority: HIGH
+        description: At least one server certificate expiry date has passed.
+        tags:
+        - tag: component
+          value: certificates-api
+    - uuid: fe0076620ade49189e1664265de0f4e5
+      name: 'Site {$EMS.API.SITE}: Server certificates expiring within 30 days'
+      type: DEPENDENT
+      key: ems.api.certificates.server_expiring_30d
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.certificates.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).server_expiring_30d; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: certificates-api
+      - tag: scope
+        value: global
+      triggers:
+      - uuid: 9bac7da350ea466689f21b8229940f88
+        expression: last(/FortiClient EMS by HTTP/ems.api.certificates.server_expiring_30d)>0
+        name: 'EMS: server certificate expires within 30 days'
+        priority: WARNING
+        description: At least one server certificate expires in the next 30 calendar days.
+        tags:
+        - tag: component
+          value: certificates-api
+    - uuid: 57cb830c5bec4863baa0a55e8023801a
+      name: 'Site {$EMS.API.SITE}: Earliest server certificate expiry'
+      type: DEPENDENT
+      key: ems.api.certificates.earliest_server_expiry
+      delay: '0'
+      history: 30d
+      trends: '0'
+      value_type: TEXT
+      master_item:
+        key: ems.api.certificates.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).earliest_server_expiry; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: certificates-api
+      - tag: scope
+        value: global
+    - uuid: 7607452908604d07bea70513848f8fae
+      name: 'Site {$EMS.API.SITE}: Inventory API data'
+      type: SCRIPT
+      key: ems.api.inventory.raw
+      delay: '{$EMS.API.INVENTORY.INTERVAL}'
+      history: 1d
+      trends: '0'
+      value_type: TEXT
+      params: |
+        var p = JSON.parse(value);
+        var base = p.base_url.replace(/\/$/, '').replace(/:443$/, '');
+        if (!/^https:\/\/[^/]+$/.test(base) || !p.site || !p.username || !p.password)
+            throw 'Invalid EMS API group parameters';
+        var group = p.group;
+        if (['endpoints', 'security', 'system', 'alerts', 'certificates', 'inventory'].indexOf(group) < 0)
+            throw 'Invalid EMS API group';
+
+        var cookies = {}, csrf = '';
+        function capture(req) {
+            var headers = req.getHeaders(true);
+            Object.keys(headers).forEach(function (name) {
+                if (name.toLowerCase() !== 'set-cookie') return;
+                var values = Array.isArray(headers[name]) ? headers[name] : [headers[name]];
+                values.forEach(function (header) {
+                    var pair = String(header).split(';', 1)[0];
+                    var pos = pair.indexOf('=');
+                    if (pos < 1) return;
+                    var key = pair.slice(0, pos), val = pair.slice(pos + 1);
+                    cookies[key] = val;
+                    if (key.toLowerCase() === 'csrftoken') csrf = val;
+                });
+            });
+        }
+        function request(json) {
+            var req = new HttpRequest();
+            req.addHeader('Accept: application/json');
+            if (json) req.addHeader('Content-Type: application/json');
+            req.addHeader('EMS-Call-Type: 2');
+            if (csrf) req.addHeader('X-CSRFToken: ' + csrf);
+            req.addHeader('Origin: ' + base);
+            req.addHeader('Referer: ' + base + '/');
+            var pairs = [];
+            Object.keys(cookies).forEach(function (key) { pairs.push(key + '=' + cookies[key]); });
+            if (pairs.length) req.addHeader('Cookie: ' + pairs.join('; '));
+            return req;
+        }
+        function checked(req, body, path) {
+            if (req.getStatus() !== 200) throw 'EMS API ' + path + ' HTTP ' + req.getStatus();
+            var response;
+            try { response = JSON.parse(body); }
+            catch (ignored) { throw 'EMS API ' + path + ' returned invalid JSON'; }
+            if (!response.result || Number(response.result.retval) !== 1 ||
+                response.data === undefined || response.data === null)
+                throw 'EMS API ' + path + ' returned an unsuccessful result';
+            capture(req);
+            return response.data;
+        }
+        var req = request(true);
+        var signinBody = req.post(base + '/api/v1/auth/signin', JSON.stringify({
+            name: p.username, password: p.password, site: p.site
+        }));
+        if (req.getStatus() !== 200) throw 'EMS API group signin HTTP ' + req.getStatus();
+        var signin;
+        try { signin = JSON.parse(signinBody); }
+        catch (ignored) { throw 'EMS API group signin returned invalid JSON'; }
+        if (!signin.result || Number(signin.result.retval) !== 1)
+            throw 'EMS API group signin rejected';
+        capture(req);
+        if (!Object.keys(cookies).length) throw 'EMS API group signin returned no session cookie';
+        function get(path) {
+            var req = request(false);
+            return checked(req, req.get(base + '/api/v1/' + path), path);
+        }
+        function count(n, field) {
+            if (typeof n !== 'number' || !isFinite(n) || n < 0)
+                throw 'Invalid EMS count: ' + field;
+            return n;
+        }
+        function sumValues(obj, field) {
+            var total = 0;
+            Object.keys(obj || {}).forEach(function (key) {
+                var entry = obj[key];
+                total += count(typeof entry === 'object' && entry !== null ? entry.count : entry, field);
+            });
+            return total;
+        }
+        var out;
+        if (group === 'endpoints') {
+            var total = count(get('endpoints/count'), 'endpoints');
+            var connection = get('endpoints/connection/donut');
+            var management = get('endpoints/management/donut');
+            if (!Array.isArray(connection) || !Array.isArray(management))
+                throw 'EMS endpoint donut schema changed';
+            var states = {}, modes = {};
+            connection.forEach(function (entry) { states[entry.token] = count(entry.value, 'connection'); });
+            management.forEach(function (entry) { modes[entry.token] = count(entry.value, 'management'); });
+            var offline = 0;
+            Object.keys(states).forEach(function (key) {
+                if (key.indexOf('offline') === 0) offline += states[key];
+            });
+            out = {total: total, online: states.online || 0,
+                online_pct: total ? 100 * (states.online || 0) / total : 0,
+                offline: offline,
+                offline_recent: states.offlineRecent || 0,
+                offline_nominal: states.offlineNominal || 0,
+                offline_long: states.offlineLong || 0,
+                managed: modes.managed || 0,
+                unmanaged: modes.unmanaged === undefined ? Math.max(0, total - (modes.managed || 0)) : modes.unmanaged};
+        } else if (group === 'security') {
+            var vulns = get('vulnerabilities/summary');
+            var profileErrors = get('profiles/error_count');
+            var tagErrors = get('tags/zero_trust/error_count');
+            var forensics = get('forensics/active/count');
+            var all = vulns['0'] || {};
+            function vuln(severity, field) {
+                var row = all[severity] || {};
+                return count(row[field] === undefined ? 0 : row[field], 'vulnerabilities');
+            }
+            out = {vulnerabilities: vuln('0', 'vuln_count'),
+                high_vulnerabilities: vuln('4', 'vuln_count'),
+                critical_vulnerabilities: vuln('5', 'vuln_count'),
+                affected_endpoints: vuln('0', 'endpoint_count'),
+                profile_errors: sumValues(profileErrors, 'profiles'),
+                zero_trust_tag_errors: sumValues(tagErrors, 'tags'),
+                active_forensics: count(forensics.count, 'forensics')};
+        } else if (group === 'system') {
+            var ha = get('system/ha/info');
+            var signatures = get('system/signatures/poll');
+            var upgrade = get('system/check_upgrade');
+            var repackager = get('system/cloud/repackager/status');
+            if (!Array.isArray(ha.members)) throw 'EMS HA schema changed';
+            var alive = 0, primaryAlive = 0;
+            ha.members.forEach(function (member) {
+                if (member.alive) alive++;
+                if (member.alive && member.is_primary) primaryAlive++;
+            });
+            out = {ha_members: ha.members.length, ha_alive: alive,
+                ha_primary_alive: primaryAlive,
+                signatures_updating: signatures.is_updating ? 1 : 0,
+                upgrade_available: upgrade.is_available ? 1 : 0,
+                upgrade_version: upgrade.version || 'none',
+                repackager_available: repackager.is_server_available ? 1 : 0};
+        } else if (group === 'alerts') {
+            var alerts = get('alerts/count');
+            var unread = get('alerts/count_unread');
+            out = {total: count(alerts.count, 'alerts'),
+                unread_for_api_account: count(unread.count, 'unread alerts')};
+        } else if (group === 'certificates') {
+            var server = get('server_certificates/index');
+            var client = get('client_certificates/index');
+            if (!Array.isArray(server)) throw 'EMS server certificate schema changed';
+            var now = new Date();
+            var today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var earliest = null, expired = 0, soon = 0;
+            server.forEach(function (cert) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(cert.expiry_date || '');
+                if (!match) return;
+                var day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                if (earliest === null || day < earliest) earliest = day;
+                if (day < today) expired++;
+                else if (day <= today + 30 * 86400000) soon++;
+            });
+            out = {server_total: server.length, client_total: count(client.total, 'client certificates'),
+                server_expired: expired, server_expiring_30d: soon,
+                earliest_server_expiry: earliest === null ? 'none' : new Date(earliest).toISOString().slice(0, 10)};
+        } else if (group === 'inventory') {
+            var sites = get('sites/names/index');
+            var workgroups = get('workgroups/index?tree=false&custom=false');
+            if (!Array.isArray(sites) || !Array.isArray(workgroups))
+                throw 'EMS site or workgroup schema changed';
+            out = {sites: sites.length, workgroups: workgroups.length};
+        }
+        return JSON.stringify(out);
+      timeout: 30s
+      parameters:
+      - name: base_url
+        value: '{$EMS.API.URL}'
+      - name: site
+        value: '{$EMS.API.SITE}'
+      - name: username
+        value: '{$EMS.API.USERNAME}'
+      - name: password
+        value: '{$EMS.API.PASSWORD}'
+      - name: group
+        value: inventory
+      description: Collects only normalized inventory metrics. Disable this master item to stop its API requests.
+      tags:
+      - tag: component
+        value: raw-inventory-api
+      - tag: scope
+        value: global
+      status: DISABLED
+    - uuid: 8d17125c0e884fd182c2f4f0928acf1e
+      name: 'Site {$EMS.API.SITE}: EMS sites'
+      type: DEPENDENT
+      key: ems.api.inventory.sites
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.inventory.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).sites; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: inventory-api
+      - tag: scope
+        value: global
+      status: DISABLED
+    - uuid: c987d380c42543e2b16de636de33621e
+      name: 'Site {$EMS.API.SITE}: Workgroups'
+      type: DEPENDENT
+      key: ems.api.inventory.workgroups
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.inventory.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).workgroups; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: inventory-api
+      - tag: scope
+        value: global
+      status: DISABLED
+    - uuid: a706982275f842a9a4185ba228aadb42
+      name: 'Site {$EMS.API.SITE}: EPP expiry timestamp'
+      type: DEPENDENT
+      key: ems.api.license.epp.expiry_epoch
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).epp.expiry_epoch; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+      units: unixtime
+      triggers:
+      - uuid: 3ae250343baf44148564913cf9c7ef83
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.epp.allocated)>0 and last(/FortiClient EMS by HTTP/ems.api.license.epp.expiry_epoch)>now() and last(/FortiClient EMS by HTTP/ems.api.license.epp.expiry_epoch)<=now()+{$EMS.API.LICENSE.EXPIRY_WARN_DAYS}*86400
+        name: 'Site {$EMS.API.SITE}: EPP license expires soon'
+        priority: WARNING
+        description: The earliest active license expiry is within the configured warning horizon.
+        tags:
+        - tag: component
+          value: license-api
+      - uuid: c3824630ed364837890829557cdc01ac
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.epp.allocated)>0 and last(/FortiClient EMS by HTTP/ems.api.license.epp.expiry_epoch)>0 and last(/FortiClient EMS by HTTP/ems.api.license.epp.expiry_epoch)<=now()
+        name: 'Site {$EMS.API.SITE}: EPP license has expired'
+        priority: HIGH
+        description: The earliest active license expiry is in the past.
+        tags:
+        - tag: component
+          value: license-api
+    - uuid: 254d8682c6cf411781aa2c47c09b8b4d
+      name: 'Site {$EMS.API.SITE}: ZTNA expiry timestamp'
+      type: DEPENDENT
+      key: ems.api.license.ztna.expiry_epoch
+      delay: '0'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var n = JSON.parse(value).ztna.expiry_epoch; return n === null || n === undefined ? null : n;'
+      tags:
+      - tag: component
+        value: license-api
+      - tag: scope
+        value: site
+      units: unixtime
+      triggers:
+      - uuid: fb49688d31574109911037d9fb5c19c7
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.ztna.allocated)>0 and last(/FortiClient EMS by HTTP/ems.api.license.ztna.expiry_epoch)>now() and last(/FortiClient EMS by HTTP/ems.api.license.ztna.expiry_epoch)<=now()+{$EMS.API.LICENSE.EXPIRY_WARN_DAYS}*86400
+        name: 'Site {$EMS.API.SITE}: ZTNA license expires soon'
+        priority: WARNING
+        description: The earliest active license expiry is within the configured warning horizon.
+        tags:
+        - tag: component
+          value: license-api
+      - uuid: b885edd2ee9e400595b520c2535ee9ab
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.ztna.allocated)>0 and last(/FortiClient EMS by HTTP/ems.api.license.ztna.expiry_epoch)>0 and last(/FortiClient EMS by HTTP/ems.api.license.ztna.expiry_epoch)<=now()
+        name: 'Site {$EMS.API.SITE}: ZTNA license has expired'
+        priority: HIGH
+        description: The earliest active license expiry is in the past.
+        tags:
+        - tag: component
+          value: license-api
+    discovery_rules:
+    - uuid: f4a667238aa1457281f717b44977508a
+      name: 'Site {$EMS.API.SITE}: FortiClient version discovery'
+      type: DEPENDENT
+      key: ems.api.client_versions.discovery
+      delay: '0'
+      master_item:
+        key: ems.api.client_dashboard.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - return JSON.stringify(JSON.parse(value).discovery);
+      item_prototypes:
+      - uuid: b56ac7aee52a406c837ccb49952bd365
+        name: 'FortiClient version {#FCT_OS} {#FCT_VERSION}'
+        type: DEPENDENT
+        key: ems.api.client_versions.count[{#FCT_OS},{#FCT_VERSION}]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.client_dashboard.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'return JSON.parse(value).versions["{#FCT_OS}"]["{#FCT_VERSION}"];'
+        tags:
+        - tag: component
+          value: client-versions-api
+        - tag: os
+          value: '{#FCT_OS}'
+        - tag: version
+          value: '{#FCT_VERSION}'
+      description: Discovers nonzero Windows, macOS, and Linux FortiClient version counts for the site.
+    - uuid: 91ce9af7d18144e88b571a8edbbef288
+      name: 'Site {$EMS.API.SITE}: Other license type discovery'
+      type: DEPENDENT
+      key: ems.api.license.discovery
+      delay: '0'
+      master_item:
+        key: ems.api.license.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - return JSON.stringify(JSON.parse(value).discovery);
+      item_prototypes:
+      - uuid: fbee4f4ce31441789dc82325b2f21a19
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} used'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},used]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].used; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 0e77c83e644e429eb112585e2a5fb7ce
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} allocated'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},allocated]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].allocated; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 2ba314081bec4100bbe00d9c11bac666
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} available'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},available]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].available; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 8256fea006804d14acb958c42f07092e
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} utilization'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},utilization]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: FLOAT
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].utilization; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+        units: '%'
+      - uuid: 2bf5fdc175ab430d95798e03c7711cc8
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} global total'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},total]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].total; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 8dc4e00c506840b286c18afba3d2dd5d
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} future seats'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},future]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].future; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: b730b91dc48b49cb8ecde310a2aa8255
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} expired seats'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},expired]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].expired; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 77c4cedde1114a20a7de781867891400
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} earliest expiry'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},expiry_date]
+        delay: '0'
+        history: 30d
+        trends: '0'
+        value_type: TEXT
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - var n = JSON.parse(value).types["{#LICENSE_TYPE}"].expiry_date; return n || 'none';
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+      - uuid: 323840cbfbed412484bf6197c5455a15
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} earliest expiry timestamp'
+        type: DEPENDENT
+        key: ems.api.license.type[{#LICENSE_TYPE},expiry_epoch]
+        delay: '0'
+        history: 30d
+        trends: 365d
+        value_type: UNSIGNED
+        master_item:
+          key: ems.api.license.raw
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var n = JSON.parse(value).types["{#LICENSE_TYPE}"].expiry_epoch; return n === null || n === undefined ? 0 : n;'
+        tags:
+        - tag: component
+          value: license-api
+        - tag: license_type
+          value: '{#LICENSE_TYPE}'
+        units: unixtime
+      description: Discovers active license types other than EPP and ZTNA; zero-only types are omitted.
+      trigger_prototypes:
+      - uuid: 0ff9313b66b344daaf1b78496bbea3a6
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},allocated])>0 and last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},utilization])>={$EMS.API.LICENSE.WARN}
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} license utilization is high'
+        priority: WARNING
+        description: Discovered active license type has reached the configured utilization threshold.
+        tags:
+        - tag: component
+          value: license-api
+      - uuid: df847cdbea0d40d99a5a7bce02c5353f
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},allocated])>0 and last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},expiry_epoch])>now() and last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},expiry_epoch])<=now()+{$EMS.API.LICENSE.EXPIRY_WARN_DAYS}*86400
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} license expires soon'
+        priority: WARNING
+        description: Discovered active license type expires within the warning horizon.
+        tags:
+        - tag: component
+          value: license-api
+      - uuid: efe223efc52d49daa943df1fada2b9a5
+        expression: last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},allocated])>0 and last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},expiry_epoch])>0 and last(/FortiClient EMS by HTTP/ems.api.license.type[{#LICENSE_TYPE},expiry_epoch])<=now()
+        name: 'Site {$EMS.API.SITE}: {#LICENSE_TYPE} license has expired'
+        priority: HIGH
+        description: Discovered active license type has passed its expiry date.
+        tags:
+        - tag: component
+          value: license-api
+    macros:
+    - macro: '{$EMS.API.URL}'
+      value: ''
+      description: Base HTTPS URL of EMS, for example https://ems.example.com. Set on host.
+    - macro: '{$EMS.API.SITE}'
+      value: default
+      description: EMS site name for this Zabbix host.
+    - macro: '{$EMS.API.USERNAME}'
+      value: ''
+      description: EMS API username; set on host.
+    - macro: '{$EMS.API.PASSWORD}'
+      type: SECRET_TEXT
+      description: EMS API password; set on host as secret text.
+    - macro: '{$EMS.API.LICENSE.INTERVAL}'
+      value: 5m
+      description: Polling interval for license API master item.
+    - macro: '{$EMS.API.PERFMON.INTERVAL}'
+      value: 5m
+      description: Polling interval for perfmon API master item.
+    - macro: '{$EMS.API.PERFMON.EXTENDED}'
+      value: '0'
+      description: Set to 1 to query optional database, network, keep-alive and process diagnostic metrics.
+    - macro: '{$EMS.API.ENDPOINTS.INTERVAL}'
+      value: 10m
+      description: Polling interval for endpoints API master item.
+    - macro: '{$EMS.API.IDENTITY.INTERVAL}'
+      value: 1h
+      description: Polling interval for the global EMS identity API master item.
+    - macro: '{$EMS.API.CLIENT_DASHBOARD.INTERVAL}'
+      value: 1h
+      description: Polling interval for site-scoped FortiClient version and fabric-activity data.
+    - macro: '{$EMS.API.SECURITY.INTERVAL}'
+      value: 30m
+      description: Polling interval for security API master item.
+    - macro: '{$EMS.API.SYSTEM.INTERVAL}'
+      value: 15m
+      description: Polling interval for system API master item.
+    - macro: '{$EMS.API.SYSTEM.REPACKAGER.ENABLED}'
+      value: '0'
+      description: Set to 1 to query optional cloud repackager status; enable its dependent item separately.
+    - macro: '{$EMS.API.ALERTS.INTERVAL}'
+      value: 10m
+      description: Polling interval for alerts API master item.
+    - macro: '{$EMS.API.CERTIFICATES.INTERVAL}'
+      value: 1h
+      description: Polling interval for certificates API master item.
+    - macro: '{$EMS.API.CERTIFICATES.CLIENT.ENABLED}'
+      value: '0'
+      description: Set to 1 to query client certificate count; enable its dependent item separately.
+    - macro: '{$EMS.API.INVENTORY.INTERVAL}'
+      value: 1h
+      description: Polling interval for inventory API master item.
+    - macro: '{$EMS.API.LICENSE.WARN}'
+      value: '90'
+      description: License utilization warning threshold in percent.
+    - macro: '{$EMS.API.LICENSE.EXPIRY_WARN_DAYS}'
+      value: '30'
+      description: License expiry warning horizon in days.
+    - macro: '{$EMS.API.ENDPOINTS.ONLINE_WARN}'
+      value: '90'
+      description: Optional online endpoint percentage warning threshold.
+    - macro: '{$EMS.API.PERFMON.CPU_WARN}'
+      value: '85'
+      description: Optional overall CPU warning threshold in percent.
+    - macro: '{$EMS.API.PERFMON.RAM_WARN}'
+      value: '90'
+      description: Optional RAM warning threshold in percent.
+    - macro: '{$EMS.API.PERFMON.DISK_WARN}'
+      value: '90'
+      description: Optional maximum disk usage warning threshold in percent.
+    dashboards:
+    - uuid: 5bede4bb4050448db04e4e06b087a844
+      name: 'EMS: Overview'
+      pages:
+      - name: Overview
+        widgets:
+        - type: item
+          name: ZTNA licenses used / allocated
+          y: '0'
+          x: '24'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.license.ztna.summary
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: value_size
+            value: '28'
+        - type: item
+          name: Endpoints online / total
+          x: '36'
+          y: '0'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.endpoints.summary
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: value_size
+            value: '30'
+        - type: svggraph
+          name: CPU utilization
+          x: '0'
+          y: '7'
+          width: '24'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: ds.0.dataset_type
+            value: '0'
+          - type: STRING
+            name: ds.0.color.0
+            value: 1976D2
+          - type: ITEM
+            name: ds.0.itemids.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.perfmon.cpu_pct
+          - type: STRING
+            name: reference
+            value: EMCPU
+          - type: STRING
+            name: time_period._reference
+            value: DASHBOARD._timeperiod
+          - type: INTEGER
+            name: simple_triggers
+            value: '1'
+          - type: STRING
+            name: lefty_min
+            value: '0'
+          - type: STRING
+            name: lefty_max
+            value: '100'
+          - type: INTEGER
+            name: legend_lines
+            value: '2'
+          - type: INTEGER
+            name: legend_statistic
+            value: '1'
+        - type: svggraph
+          name: RAM utilization
+          x: '24'
+          y: '7'
+          width: '24'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: ds.0.dataset_type
+            value: '0'
+          - type: STRING
+            name: ds.0.color.0
+            value: 43A047
+          - type: ITEM
+            name: ds.0.itemids.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.perfmon.ram_pct
+          - type: STRING
+            name: reference
+            value: EMRAM
+          - type: STRING
+            name: time_period._reference
+            value: DASHBOARD._timeperiod
+          - type: INTEGER
+            name: simple_triggers
+            value: '1'
+          - type: STRING
+            name: lefty_min
+            value: '0'
+          - type: STRING
+            name: lefty_max
+            value: '100'
+          - type: INTEGER
+            name: legend_lines
+            value: '2'
+          - type: INTEGER
+            name: legend_statistic
+            value: '1'
+        - type: svggraph
+          name: Highest disk utilization
+          x: '48'
+          y: '7'
+          width: '24'
+          height: '6'
+          fields:
+          - type: INTEGER
+            name: ds.0.dataset_type
+            value: '0'
+          - type: STRING
+            name: ds.0.color.0
+            value: F9A825
+          - type: ITEM
+            name: ds.0.itemids.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.perfmon.disk_max_pct
+          - type: STRING
+            name: reference
+            value: EMDSK
+          - type: STRING
+            name: time_period._reference
+            value: DASHBOARD._timeperiod
+          - type: INTEGER
+            name: simple_triggers
+            value: '1'
+          - type: STRING
+            name: lefty_min
+            value: '0'
+          - type: STRING
+            name: lefty_max
+            value: '100'
+          - type: INTEGER
+            name: legend_lines
+            value: '2'
+          - type: INTEGER
+            name: legend_statistic
+            value: '1'
+        - type: item
+          name: EPP licenses used / capacity
+          x: '0'
+          y: '0'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.license.epp.summary
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: units_bold
+            value: '0'
+          - type: INTEGER
+            name: units_show
+            value: '0'
+          - type: INTEGER
+            name: value_size
+            value: '16'
+        - type: item
+          name: EPP licenses available
+          x: '12'
+          y: '0'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.license.epp.available
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: show.1
+            value: '4'
+          - type: INTEGER
+            name: value_size
+            value: '26'
+          - type: INTEGER
+            name: decimal_places
+            value: '0'
+        - type: problems
+          name: Problems
+          x: '48'
+          y: '3'
+          width: '24'
+          height: '4'
+          fields:
+          - type: STRING
+            name: reference
+            value: EMPRB
+          - type: INTEGER
+            name: show
+            value: '3'
+          - type: INTEGER
+            name: show_tags
+            value: '1'
+        - type: item
+          name: EMS version
+          x: '48'
+          y: '0'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.identity.version
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: value_size
+            value: '20'
+        - type: item
+          name: EMS uptime
+          x: '60'
+          y: '0'
+          width: '12'
+          height: '3'
+          fields:
+          - type: ITEM
+            name: itemid.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.identity.uptime
+          - type: INTEGER
+            name: show.0
+            value: '2'
+          - type: INTEGER
+            name: value_size
+            value: '20'
+        - type: piechart
+          name: FortiClient versions by OS
+          x: '0'
+          y: '3'
+          width: '24'
+          height: '4'
+          fields:
+          - type: INTEGER
+            name: ds.0.dataset_type
+            value: '1'
+          - type: STRING
+            name: ds.0.items.0
+            value: 'FortiClient version *'
+          - type: STRING
+            name: ds.0.color
+            value: 66BB6A
+          - type: INTEGER
+            name: draw_type
+            value: '1'
+          - type: INTEGER
+            name: total_show
+            value: '1'
+          - type: INTEGER
+            name: decimal_places
+            value: '0'
+          - type: INTEGER
+            name: legend_value
+            value: '1'
+          - type: INTEGER
+            name: legend_lines_mode
+            value: '1'
+          - type: INTEGER
+            name: legend_lines
+            value: '8'
+        - type: piechart
+          name: Endpoint fabric activity
+          x: '24'
+          y: '3'
+          width: '24'
+          height: '4'
+          fields:
+          - type: INTEGER
+            name: ds.0.dataset_type
+            value: '0'
+          - type: ITEM
+            name: ds.0.itemids.0
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.activity.on_fabric
+          - type: STRING
+            name: ds.0.color.0
+            value: 76D3A1
+          - type: ITEM
+            name: ds.0.itemids.1
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.activity.off_fabric
+          - type: STRING
+            name: ds.0.color.1
+            value: BFF4D6
+          - type: ITEM
+            name: ds.0.itemids.2
+            value:
+              host: FortiClient EMS by HTTP
+              key: ems.api.activity.not_applicable
+          - type: STRING
+            name: ds.0.color.2
+            value: B2B8BD
+          - type: INTEGER
+            name: draw_type
+            value: '1'
+          - type: INTEGER
+            name: total_show
+            value: '1'
+          - type: INTEGER
+            name: decimal_places
+            value: '0'
+          - type: INTEGER
+            name: legend_value
+            value: '1'
+          - type: INTEGER
+            name: legend_lines_mode
+            value: '1'
+          - type: INTEGER
+            name: legend_lines
+            value: '3'
