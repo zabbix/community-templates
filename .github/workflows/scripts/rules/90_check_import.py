@@ -44,6 +44,10 @@ def run_check(skip: bool = False) -> dict:
         {
             'port': '8074',
             'ver': '7.4'
+        },
+        {
+            'port': '8080',
+            'ver': '8.0'
         }
     ]
 
@@ -137,287 +141,346 @@ def run_check(skip: bool = False) -> dict:
 
             if file_type == 'template' or file_type == 'mediatype':
                 json_data = {
+                    '8.0': """
+                        {
+                            "rules": {
+                                "hosts": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "host_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "template_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templates": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateLinkage": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "discoveryRules": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "items": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "triggers": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "graphs": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "maps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "images": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "valueMaps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateDashboards": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "mediaTypes": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                }
+                            },
+                            "source": ""
+                        }
+                    """,
                     '7.4': """
-                {
-                "rules": {
-                    "hosts": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "host_groups":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "template_groups":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templates": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateLinkage": {
-                    "createMissing": true,
-                    "deleteMissing": true
-                    },
-                    "discoveryRules": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "items": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "triggers": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "graphs": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "maps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "images": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "valueMaps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateDashboards":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "template_groups": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "mediaTypes": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    }
-                },
-                "source": ""
-                }
-                """,
+                        {
+                            "rules": {
+                                "hosts": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "host_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "template_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templates": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateLinkage": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "discoveryRules": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "items": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "triggers": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "graphs": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "maps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "images": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "valueMaps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateDashboards": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "mediaTypes": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                }
+                            },
+                            "source": ""
+                        }
+                    """,
                     '7.0': """
-                {
-                "rules": {
-                    "hosts": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "host_groups":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "template_groups":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templates": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateLinkage": {
-                    "createMissing": true,
-                    "deleteMissing": true
-                    },
-                    "discoveryRules": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "items": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "triggers": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "graphs": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "maps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "images": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "valueMaps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateDashboards":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "template_groups": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "mediaTypes": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    }
-                },
-                "source": ""
-                }
-                """,
+                        {
+                            "rules": {
+                                "hosts": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "host_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "template_groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templates": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateLinkage": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "discoveryRules": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "items": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "triggers": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "graphs": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "maps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "images": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "valueMaps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateDashboards": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "mediaTypes": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                }
+                            },
+                            "source": ""
+                        }
+                    """,
                     '6.0': """
-                {
-                "rules": {
-                    "hosts": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "groups":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templates": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateLinkage": {
-                    "createMissing": true,
-                    "deleteMissing": true
-                    },
-                    "discoveryRules": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "items": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "triggers": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "graphs": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "maps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "images": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "valueMaps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateDashboards":{
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "mediaTypes": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    }
-                },
-                "source": ""
-                }
-                """,
+                        {
+                            "rules": {
+                                "hosts": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "groups": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templates": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateLinkage": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "discoveryRules": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "items": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "triggers": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "graphs": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "maps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "images": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "valueMaps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateDashboards": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "mediaTypes": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                }
+                            },
+                            "source": ""
+                        }
+                    """,
                     '5.0': """
-                {
-                "rules": {
-                    "templateScreens": {
-                        "createMissing": true,
-                        "updateExisting": true,
-                        "deleteMissing": true
-                    },
-                    "screens": {
-                        "createMissing": true,
-                        "updateExisting": true
-                    },
-                    "httptests": {
-                        "createMissing": true,
-                        "updateExisting": true,
-                        "deleteMissing": true
-                    },
-                    "groups":{
-                        "createMissing": true
-                    },
-                    "applications":{
-                        "createMissing": true,
-                        "deleteMissing": true
-                    },
-                    "hosts": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templates": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "templateLinkage": {
-                    "createMissing": true,
-                    "deleteMissing": true
-                    },
-                    "discoveryRules": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "items": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "triggers": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "graphs": {
-                    "createMissing": true,
-                    "updateExisting": true,
-                    "deleteMissing": true
-                    },
-                    "maps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "images": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "valueMaps": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    },
-                    "mediaTypes": {
-                    "createMissing": true,
-                    "updateExisting": true
-                    }
-                },
-                "source": ""
-                }
-                """
+                        {
+                            "rules": {
+                                "templateScreens": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "screens": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "httptests": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "groups": {
+                                    "createMissing": true
+                                },
+                                "applications": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "hosts": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templates": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "templateLinkage": {
+                                    "createMissing": true,
+                                    "deleteMissing": true
+                                },
+                                "discoveryRules": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "items": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "triggers": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "graphs": {
+                                    "createMissing": true,
+                                    "updateExisting": true,
+                                    "deleteMissing": true
+                                },
+                                "maps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "images": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "valueMaps": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                },
+                                "mediaTypes": {
+                                    "createMissing": true,
+                                    "updateExisting": true
+                                }
+                            },
+                            "source": ""
+                        }
+                    """
                 }
 
                 # path_list = Path(file).parts
