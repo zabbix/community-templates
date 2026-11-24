@@ -541,6 +541,7 @@ This repository is dedicated to templates that are created and maintained by Zab
         * [smart-ups](Power_(UPS)/APC/template_nobreak-apc-smart-ups-3000bi-br)
         * [APC_Monitor_RackPDU](Power_(UPS)/APC/template_rack_pdu)
     * [Cyberpower](Power_(UPS)/Cyberpower)
+        * [Cyberpower ATS-PDU](Power_(UPS)/Cyberpower/template_cyber_power_ats_pdu)
         * [Module Cyberpower RMCARD305](Power_(UPS)/Cyberpower/template_cyberpower_rmcard305(205))
     * [Eaton](Power_(UPS)/Eaton)
         * [EATON Mistral](Power_(UPS)/Eaton/template_eaton_9px_6000i_ups)
