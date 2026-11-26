@@ -1,0 +1,688 @@
+zabbix_export:
+  version: '8.0'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: c62fcecf3add4282b8fe20eaf467aa71
+      template: 'Starlink dish by Browser'
+      name: 'Starlink dish by Browser'
+      description: |
+        Template for monitoring a Starlink dish through the Starlink web application (https://webapp.starlink.com/) using a Zabbix Browser item.
+        The web application queries the dish from inside the browser, so the WebDriver (browser) host must be on the same network as the dish (the dish must be reachable at 192.168.100.1).
+
+        Setup:
+        1. Configure Zabbix server or proxy for Browser items: set the WebDriverURL and StartBrowserPollers parameters and run a WebDriver (e.g. Selenium with Chrome).
+        2. Create a host, link this template and, if needed, adjust the {$STARLINK.URL} macro.
+        3. No host interface is required.
+
+        Author: Aleksandrs Petrovs-Gavrilovs (AlexPG)
+
+        Generated for Zabbix 8.0. See README.md for details.
+      wizard_ready: 'YES'
+      readme: |
+        ## Overview
+
+        Monitors a Starlink dish through the Starlink web application by using a Zabbix Browser item. The page is opened in a WebDriver-controlled browser, the "Diagnostics" button is clicked, the diagnostics JSON shown by the web application is extracted, and dependent items parse it.
+
+        ## Requirements
+
+        - Zabbix server or proxy with Browser items enabled (`WebDriverURL` and `StartBrowserPollers` configured).
+        - A WebDriver (e.g. Selenium with Chrome) that is on the same network as the dish (the dish must be reachable at `192.168.100.1`).
+
+        ## Setup
+
+        1. Create a host and link this template. No host interface is required.
+        2. Adjust `{$STARLINK.URL}` if needed.
+        3. If the web application layout changes, update `{$STARLINK.DISH.DIAG.BUTTON.XPATH}` and `{$STARLINK.DISH.DATA.XPATH}`.
+      vendor:
+        name: AlexPG
+        version: 8.0-0
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 6c2a9d8555af407b94576b827aafcffa
+          name: 'Dish: Get data'
+          type: BROWSER
+          key: starlink.dish.get
+          delay: 3m
+          history: 1h
+          value_type: TEXT
+          trends: '0'
+          params: |
+            var params = JSON.parse(value),
+                opts = Browser.chromeOptions(),
+                chrome = opts.capabilities.alwaysMatch['goog:chromeOptions'],
+                browser,
+                button,
+                data,
+                lastError,
+                wait = parseInt(params.wait, 10),
+                deadline;
+
+            if (isNaN(wait) || wait < 0) {
+                wait = 15;
+            }
+
+            // The Starlink web application is served over plain HTTP. Chrome automatically enables
+            // HTTPS-First mode for it and shows the "This site doesn't support a secure connection"
+            // warning instead of the page. WebDriver cannot see or click that warning (the page is empty
+            // for it), so HTTPS-First mode is disabled here instead.
+            // Default Chrome arguments (headless mode) are not used, as the web application
+            // does not render the dish data in headless mode.
+            chrome.args = ['--disable-features=HttpsFirstBalancedModeAutoEnable'];
+            chrome.prefs = {
+                'https_only_mode_enabled': false,
+                'https_only_mode_auto_enabled': false,
+                'https_first_balanced_mode_enabled': false
+            };
+
+            browser = new Browser(opts);
+
+            // Clicks the button. If the mouse click is intercepted by another element drawn over the button
+            // (WebDriver never clicks the other element, it returns an error instead), the button is focused
+            // and activated with the Enter key, which does not depend on the page layout.
+            function pressButton(element) {
+                try {
+                    element.click();
+                }
+                catch (e) {
+                    if (!/intercepted|not clickable|not interactable/i.test(e.message)) {
+                        throw e;
+                    }
+
+                    browser.discardError();
+                    element.sendKeys('\uE007');
+                }
+            }
+
+            // Returns the first diagnostics element that contains a JSON object, or undefined.
+            function readDiagnostics() {
+                var elements = browser.findElements('xpath', params.data_xpath),
+                    parsed;
+
+                for (var i = 0; i < elements.length; i++) {
+                    try {
+                        parsed = JSON.parse(elements[i].getText());
+
+                        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                            return parsed;
+                        }
+                        lastError = 'diagnostics element does not contain a JSON object';
+                    }
+                    catch (e) {
+                        lastError = 'cannot parse diagnostics JSON: ' + e.message;
+                    }
+                }
+            }
+
+            try {
+                browser.setScreenSize(1920, 1080);
+                browser.navigate(params.url);
+
+                deadline = Date.now() + wait * 1000;
+
+                // 1. Wait until the web application has loaded and shows the "Diagnostics" button, then click it.
+                while (true) {
+                    button = browser.findElements('xpath', params.button_xpath);
+
+                    if (button.length > 0) {
+                        pressButton(button[0]);
+                        break;
+                    }
+
+                    if (Date.now() >= deadline) {
+                        if (/<body>\s*<\/body>/.test(browser.getPageSource())) {
+                            lastError = 'the browser shows an empty page for ' + browser.getUrl() +
+                                ' (blocked by a browser warning or the web application cannot be loaded)';
+                        }
+                        else {
+                            lastError = 'the "Diagnostics" button was not found (is the dish reachable from the browser?)';
+                        }
+
+                        throw {message: lastError};
+                    }
+
+                    Zabbix.sleep(1000);
+                }
+
+                // 2. Wait until the diagnostics window renders the JSON and parse it.
+                lastError = 'diagnostics data was not found after clicking the "Diagnostics" button';
+
+                while (true) {
+                    data = readDiagnostics();
+
+                    if (typeof data !== 'undefined' || Date.now() >= deadline) {
+                        break;
+                    }
+
+                    Zabbix.sleep(1000);
+                }
+            }
+            catch (err) {
+                throw 'Failed to get Starlink dish data: ' + err.message;
+            }
+
+            if (typeof data === 'undefined') {
+                throw 'Failed to get Starlink dish data: ' + lastError + '.';
+            }
+
+            return JSON.stringify(data);
+          description: 'Opens the Starlink web application in the browser (with Chrome HTTPS-First mode disabled), clicks the "Diagnostics" button and extracts the dish diagnostics JSON. Master item for all other dish metrics.'
+          timeout: 60s
+          parameters:
+            - name: url
+              value: '{$STARLINK.URL}'
+            - name: wait
+              value: '{$STARLINK.DISH.DATA.WAIT}'
+            - name: button_xpath
+              value: '{$STARLINK.DISH.DIAG.BUTTON.XPATH}'
+            - name: data_xpath
+              value: '{$STARLINK.DISH.DATA.XPATH}'
+          tags:
+            - tag: component
+              value: raw
+          triggers:
+            - uuid: 0bbb0ee3ca9d4a9194e418b6c6152b75
+              expression: 'nodata(/Starlink dish by Browser/starlink.dish.get,{$STARLINK.DISH.NODATA.TIMEOUT})=1'
+              name: 'Dish: Failed to get data'
+              event_name: 'Dish: Failed to get data (no data for {$STARLINK.DISH.NODATA.TIMEOUT})'
+              priority: WARNING
+              description: 'No data has been received from the Starlink web application for {$STARLINK.DISH.NODATA.TIMEOUT}. Check the item error, the WebDriver availability, and whether the browser can reach the dish.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 95d0b6018a384ad7b45897b2a443ff69
+          name: 'Dish: Disablement code'
+          type: DEPENDENT
+          key: starlink.dish.disablement_code
+          delay: '0'
+          trends: '0'
+          description: |
+            The reason why the dish service is disabled, if any. Possible values:
+            0 - Unknown; 1 - OK; 2 - No active account; 3 - Too far from service address; 4 - In ocean; 6 - Blocked country; 7 - Data overage sandbox policy; 8 - Cell is disabled; 10 - Roam restricted; 11 - Unknown location; 12 - Account disabled; 13 - Unsupported version; 14 - Moving too fast for policy; 15 - Under aviation flyover limits; 16 - Blocked area.
+          valuemap:
+            name: 'Starlink disablement code'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.disablementCode
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var code = String(value).trim().toUpperCase()
+                      .replace(/^.*[.:]/, '')
+                      .replace(/DISHGETDIAGNOSTICSRESPONSE/g, '')
+                      .replace(/DISABLEMENTCODE/g, '')
+                      .replace(/_/g, '');
+
+                  var map = {
+                      'UNKNOWN': 0,
+                      'OKAY': 1,
+                      'NOACTIVEACCOUNT': 2,
+                      'TOOFARFROMSERVICEADDRESS': 3,
+                      'INOCEAN': 4,
+                      'BLOCKEDCOUNTRY': 6,
+                      'DATAOVERAGESANDBOXPOLICY': 7,
+                      'CELLISDISABLED': 8,
+                      'ROAMRESTRICTED': 10,
+                      'UNKNOWNLOCATION': 11,
+                      'ACCOUNTDISABLED': 12,
+                      'UNSUPPORTEDVERSION': 13,
+                      'MOVINGTOOFASTFORPOLICY': 14,
+                      'UNDERAVIATIONFLYOVERLIMITS': 15,
+                      'BLOCKEDAREA': 16
+                  };
+
+                  if (/^[0-9]+$/.test(code)) {
+                      return code;
+                  }
+
+                  return map.hasOwnProperty(code) ? map[code] : 0;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: bb8502f18d774fd2a1957a3014208235
+              expression: |
+                last(/Starlink dish by Browser/starlink.dish.disablement_code)<>0 and
+                last(/Starlink dish by Browser/starlink.dish.disablement_code)<>1
+              name: 'Dish: Service is disabled'
+              opdata: 'Reason: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'The dish reports that the Starlink service is disabled. Check the reason in the operational data and the Starlink account or location.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: ad8d6a5343c2461982cb97a516f4cdb2
+          name: 'Dish: Hardware version'
+          type: DEPENDENT
+          key: starlink.dish.hardware.version
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Dish hardware revision.'
+          inventory_link: HARDWARE
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hardwareVersion
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 2c3b5c1e54774ef59323b7b9efc00254
+          name: 'Dish: Hardware self-test status'
+          type: DEPENDENT
+          key: starlink.dish.self_test.status
+          delay: '0'
+          trends: '0'
+          description: |
+            Result of the dish hardware self-test, which checks the internal components for errors. Possible values:
+            0 - No result; 1 - Passed; 2 - Failed.
+          valuemap:
+            name: 'Starlink self-test status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.hardwareSelfTest
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var result = String(value).trim().toUpperCase()
+                      .replace(/^.*[.:]/, '')
+                      .replace(/SELFTESTRESULT/g, '')
+                      .replace(/_/g, '');
+
+                  var map = {
+                      'NORESULT': 0,
+                      'PASSED': 1,
+                      'FAILED': 2
+                  };
+
+                  return map.hasOwnProperty(result) ? map[result] : 0;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 9817e482ec154b25a9d0219a038646a4
+              expression: 'last(/Starlink dish by Browser/starlink.dish.self_test.status)=2'
+              name: 'Dish: Hardware self-test failed'
+              priority: AVERAGE
+              description: 'The dish hardware self-test failed. See the "Dish: Hardware self-test codes" item for the reported codes.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 86fbee26569e4b1d9c3127637aa15a7c
+          name: 'Dish: Hardware self-test codes'
+          type: DEPENDENT
+          key: starlink.dish.self_test.codes
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Codes reported by the dish hardware self-test, separated by commas. "None" if no codes are reported.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value),
+                      codes = data.hardwareSelfTestCodes || data.hardwareSelfTestCodesList;
+
+                  if (!Array.isArray(codes) || codes.length === 0) {
+                      return 'None';
+                  }
+
+                  return codes.join(', ');
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: 0b64d29d5b47476c9290f719901959e4
+          name: 'Dish: ID'
+          type: DEPENDENT
+          key: starlink.dish.id
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Unique identifier of the dish.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.id
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+        - uuid: e556d8fb02234363822aceaa0bfed363
+          name: 'Dish: Overage rate limited'
+          type: DEPENDENT
+          key: starlink.dish.overage_rate_limited
+          delay: '0'
+          trends: '0'
+          description: |
+            Whether the dish data rate is limited because the data allowance of the service plan is exceeded. Possible values:
+            0 - No; 1 - Yes.
+          valuemap:
+            name: 'Starlink yes/no'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.overageRateLimited
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'false'
+            - type: BOOL_TO_DECIMAL
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 308df814cc444d018b9f0284056ba966
+              expression: 'last(/Starlink dish by Browser/starlink.dish.overage_rate_limited)=1'
+              name: 'Dish: Data rate is limited due to overage'
+              priority: WARNING
+              description: 'The data allowance of the Starlink service plan is exceeded and the data rate is limited. Check the plan in the Starlink account.'
+              tags:
+                - tag: scope
+                  value: capacity
+        - uuid: 70a59c70f0d341ecb439e9f41613ee5b
+          name: 'Dish: Software version'
+          type: DEPENDENT
+          key: starlink.dish.software.version
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Dish firmware version.'
+          inventory_link: SOFTWARE
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.softwareVersion
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 3ea73e5ef7ee4c7887e40e54f1ed2aeb
+              expression: |
+                last(/Starlink dish by Browser/starlink.dish.software.version,#1)<>last(/Starlink dish by Browser/starlink.dish.software.version,#2) and
+                length(last(/Starlink dish by Browser/starlink.dish.software.version))>0
+              name: 'Dish: Software version has changed'
+              event_name: 'Dish: Software version has changed (new version: {ITEM.VALUE})'
+              priority: INFO
+              description: 'The dish firmware version has changed. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 775b251445784ce7b9f7f550b427ac9a
+          name: 'Dish: Stowed'
+          type: DEPENDENT
+          key: starlink.dish.stowed
+          delay: '0'
+          trends: '0'
+          description: |
+            Whether the dish is stowed. A stowed dish does not provide service. Possible values:
+            0 - No; 1 - Yes.
+          valuemap:
+            name: 'Starlink yes/no'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.stowed
+            - type: BOOL_TO_DECIMAL
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 11aeb3596b6646009dc4d86ce0c530d1
+              expression: 'last(/Starlink dish by Browser/starlink.dish.stowed)=1'
+              name: 'Dish: Is stowed'
+              priority: WARNING
+              description: 'The dish is stowed and does not provide service. Unstow the dish in the Starlink application if this is not intended.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 645cb5a4cb3b41a4aa09cd1c1eab8c5c
+          name: 'Dish: UTC offset'
+          type: DEPENDENT
+          key: starlink.dish.utc_offset
+          delay: '0'
+          value_type: FLOAT
+          trends: '0'
+          units: s
+          description: 'Difference between the dish local time zone and UTC.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.utcOffsetS
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: starlink.dish.get
+          tags:
+            - tag: component
+              value: system
+      discovery_rules:
+        - uuid: dd5ac65fde494b54b96ce7bad3001b0c
+          name: 'Alert discovery'
+          type: DEPENDENT
+          key: starlink.dish.alert.discovery
+          delay: '0'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#ALERT}'
+                value: '{$STARLINK.DISH.ALERT.MATCHES}'
+                formulaid: A
+              - macro: '{#ALERT}'
+                value: '{$STARLINK.DISH.ALERT.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          description: 'Discovers the alerts reported by the dish (e.g. thermal throttling, motors stuck, obstruction). Use the {$STARLINK.DISH.ALERT.*} macros to filter them.'
+          item_prototypes:
+            - uuid: a541d4c74433478f8bbb23f81e881536
+              name: 'Alert [{#ALERT}]: Status'
+              type: DEPENDENT
+              key: 'starlink.dish.alert.status["{#ALERT}"]'
+              delay: '0'
+              trends: '0'
+              description: |
+                Status of the "{#ALERT}" dish alert. Possible values:
+                0 - Inactive; 1 - Active.
+              valuemap:
+                name: 'Starlink alert status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var alerts = JSON.parse(value).alerts || {},
+                          state = alerts['{#ALERT}'];
+
+                      return (state === true || state === 'true' || state === 1) ? 1 : 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: starlink.dish.get
+              tags:
+                - tag: alert
+                  value: '{#ALERT}'
+                - tag: component
+                  value: alert
+              trigger_prototypes:
+                - uuid: 7755bd25bfcc4c9cb858e39c5e271325
+                  expression: 'last(/Starlink dish by Browser/starlink.dish.alert.status["{#ALERT}"])=1'
+                  name: 'Alert [{#ALERT}]: Alert is active'
+                  priority: WARNING
+                  description: 'The dish reports the "{#ALERT}" alert. The problem is resolved automatically when the dish clears the alert.'
+                  tags:
+                    - tag: scope
+                      value: notice
+          master_item:
+            key: starlink.dish.get
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var alerts = JSON.parse(value).alerts,
+                      lld = [];
+
+                  if (alerts !== null && typeof alerts === 'object') {
+                      for (var key in alerts) {
+                          if (alerts.hasOwnProperty(key)) {
+                              lld.push({'{#ALERT}': key});
+                          }
+                      }
+                  }
+
+                  return JSON.stringify(lld);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+      tags:
+        - tag: class
+          value: network
+        - tag: target
+          value: starlink
+      macros:
+        - macro: '{$STARLINK.DISH.ALERT.MATCHES}'
+          value: '.*'
+          description: 'Filter of discoverable dish alerts by name.'
+        - macro: '{$STARLINK.DISH.ALERT.NOT_MATCHES}'
+          value: CHANGE_IF_NEEDED
+          description: 'Filter to exclude discovered dish alerts by name.'
+        - macro: '{$STARLINK.DISH.DIAG.BUTTON.XPATH}'
+          value: '//button[normalize-space(.)=''Diagnostics'']'
+          description: 'XPath of the "Diagnostics" button in the Starlink web application that opens the diagnostics data.'
+          config:
+            type: TEXT
+            priority: '2'
+            section_name: Advanced
+            label: 'Diagnostics button XPath'
+            description: 'XPath of the "Diagnostics" button. Change only if the web application layout changes. Make sure it does not match other buttons, such as "Reboot" or "Stow".'
+            required: 'YES'
+        - macro: '{$STARLINK.DISH.DATA.WAIT}'
+          value: '15'
+          description: 'Maximum time in seconds to wait for the web application to load and render the diagnostics data. Must be lower than the "Dish: Get data" item timeout.'
+          config:
+            type: TEXT
+            priority: '4'
+            section_name: Advanced
+            label: 'Page load wait time (seconds)'
+            description: 'Maximum time to wait for the Starlink web application to render the dish data.'
+            regex: '^[0-9]+$'
+        - macro: '{$STARLINK.DISH.DATA.XPATH}'
+          value: '//pre[contains(@class,''Json-Format'')]/div[contains(@class,''Json-Text'')]'
+          description: 'XPath of the element(s) in the Starlink web application diagnostics window that contain the dish diagnostics JSON.'
+          config:
+            type: TEXT
+            priority: '3'
+            section_name: Advanced
+            label: 'Dish data XPath'
+            description: 'XPath of the element that contains the dish diagnostics JSON. Change only if the web application layout changes.'
+            required: 'YES'
+        - macro: '{$STARLINK.DISH.NODATA.TIMEOUT}'
+          value: 15m
+          description: 'Time without data after which the "Dish: Failed to get data" trigger fires.'
+        - macro: '{$STARLINK.URL}'
+          value: 'http://webapp.starlink.com'
+          description: 'URL of the Starlink web application.'
+          config:
+            type: TEXT
+            priority: '1'
+            label: 'Starlink web application URL'
+            description: 'URL of the Starlink web application. The browser used by Zabbix must be on the same network as the dish.'
+            required: 'YES'
+      valuemaps:
+        - uuid: 8a2c7031beef4945943e5c9e519fd714
+          name: 'Starlink alert status'
+          mappings:
+            - value: '0'
+              newvalue: Inactive
+            - value: '1'
+              newvalue: Active
+        - uuid: 04774eebd5ad4caeba454b8b8486cb09
+          name: 'Starlink disablement code'
+          mappings:
+            - value: '0'
+              newvalue: Unknown
+            - value: '1'
+              newvalue: OK
+            - value: '2'
+              newvalue: 'No active account'
+            - value: '3'
+              newvalue: 'Too far from service address'
+            - value: '4'
+              newvalue: 'In ocean'
+            - value: '6'
+              newvalue: 'Blocked country'
+            - value: '7'
+              newvalue: 'Data overage sandbox policy'
+            - value: '8'
+              newvalue: 'Cell is disabled'
+            - value: '10'
+              newvalue: 'Roam restricted'
+            - value: '11'
+              newvalue: 'Unknown location'
+            - value: '12'
+              newvalue: 'Account disabled'
+            - value: '13'
+              newvalue: 'Unsupported version'
+            - value: '14'
+              newvalue: 'Moving too fast for policy'
+            - value: '15'
+              newvalue: 'Under aviation flyover limits'
+            - value: '16'
+              newvalue: 'Blocked area'
+        - uuid: 064721365bbc4a02bd5afdd094245a44
+          name: 'Starlink self-test status'
+          mappings:
+            - value: '0'
+              newvalue: 'No result'
+            - value: '1'
+              newvalue: Passed
+            - value: '2'
+              newvalue: Failed
+        - uuid: 5d2bb5a78a0d4f339a1fbf4fee1bfc70
+          name: 'Starlink yes/no'
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
