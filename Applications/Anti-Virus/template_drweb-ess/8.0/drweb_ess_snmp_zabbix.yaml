@@ -1,0 +1,887 @@
+zabbix_export:
+  version: '8.0'
+  template_groups:
+    - uuid: cdd2966896b44218b21183192a08b43f
+      name: Templates/Applications
+  templates:
+    - uuid: da532dce467e4245bd3f094575f9d4fa
+      template: 'DrWeb ESS SNMP traps'
+      name: 'DrWeb ESS SNMP traps'
+      description: |
+        Мониторинг Dr.Web Enterprise Security Suite через SNMP traps.
+        IP задаётся макросом {$DRWEB.IP}. По умолчанию макрос пустой: перед использованием обязательно задайте адрес отправителя traps в макросах узла. Для использования макроса вручную укажите {$DRWEB.IP} в поле IP SNMP-интерфейса узла. Импорт шаблона не меняет интерфейсы узла. В snmptrapd.conf остаётся реальный IP; Zabbix-макросы там не раскрываются. Подготовлен для Zabbix 8.0; формат обмена 7.0 для совместимого импорта. MIB ревизии 202606110000Z.
+        Привязать к узлу сервера Dr.Web; SNMP-интерфейс: поле IP {$DRWEB.IP}, подключение по IP, наблюдение через сервер Zabbix.
+        Требуется уже настроенный snmptrapd с официальным zabbix_trap_receiver.pl и outputOption n.
+        После привязки отключить старый тестовый триггер на snmptrap.fallback. Сам fallback можно оставить для нераспознанных traps; совпавшие с новым SNMP trap элементом сообщения в fallback больше не попадут.
+        Тест .35 сохраняется в drweb.test и drweb.trap.text без создания проблемы. Включить нужные оповещения в Dr.Web. Для проверки ошибки можно послать искусственный trap .30; проблема закрывается вручную.
+        20 триггеров: отдельная проблема на каждое сообщение, ручное закрытие. Дубликаты повторно доставленных traps не подавляются. HIPS, контроль приложений и остальные события доступны в общей истории без триггеров. События срока лицензии разделены по mSGExpired 0/1.
+        В оперативных данных проблемы отображается текст события. Для сообщений действий Zabbix используйте {ITEM.VALUE1}, чтобы зафиксировать значение события; {ITEM.LASTVALUE1} может указывать уже на более позднее сообщение.
+        Дата DateAndTime и бинарные поля, не являющиеся UTF-8, сохраняются в исходном представлении. Декодируется многострочный Hex-STRING с корректным UTF-8.
+        Шаблон не контролирует доступность службы Dr.Web и доставку traps: для этого нужен отдельный мониторинг. Ротацию /var/log/snmptrap/snmptrap.log настроить отдельно, сохранив владельца Debian-snmp и группу, доступную процессу zabbix.
+
+        Ошибки обработки файлов (OID .16 и .53) сохраняются только в общей истории, отдельные элементы и триггеры для них исключены.
+
+        В названия новых событий добавляется станция из текста сообщения — та же, что используется в теге station. Для серверных событий отображается «Сервер Dr.Web». Ранее созданные проблемы автоматически не переименовываются.
+
+        Фильтры событий возвращают null для неподходящих уведомлений: Zabbix отбрасывает значение без ошибки Other event. Некорректный JSON остаётся диагностируемой ошибкой.
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 9f7f137adf4f4bf5a8297ad3e78a1d13
+          name: 'Dr.Web: Ошибка авторизации администратора'
+          type: DEPENDENT
+          key: drweb.event.admin_auth
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([1, 28].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 1fcf6c562da74b6282c175268796d9fb
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.admin_auth,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка авторизации администратора'
+              event_name: 'Dr.Web: Ошибка авторизации администратора — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: admin_auth
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: b0bafe841289426c8e59dc791a2017f6
+          name: 'Dr.Web: Массовые разрывы соединений'
+          type: DEPENDENT
+          key: drweb.event.disconnects
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([56].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 33b27eed2f8648c5b215d6c75ba22f99
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.disconnects,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Массовые разрывы соединений'
+              event_name: 'Dr.Web: Массовые разрывы соединений — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: disconnects
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 6646218f16af4f29ab181351042af69b
+          name: 'Dr.Web: Недостаточно места или inode на сервере'
+          type: DEPENDENT
+          key: drweb.event.disk_space
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([12].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: b38a306d565c4d6195e9b8885aa671f2
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.disk_space,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Недостаточно места или inode на сервере'
+              event_name: 'Dr.Web: Недостаточно места или inode на сервере — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: disk_space
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: c13365f5fe7d403dbb531ff88617e3a4
+          name: 'Dr.Web: Эпидемия'
+          type: DEPENDENT
+          key: drweb.event.epidemic
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([37].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: c26cae1aa7d746eaae6bada39af77a89
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.epidemic,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Эпидемия'
+              event_name: 'Dr.Web: Эпидемия — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: DISASTER
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: epidemic
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 7de8c7c6b87b41b7b1e17bb18e742289
+          name: 'Dr.Web: Обнаружена угроза'
+          type: DEPENDENT
+          key: drweb.event.infection
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([7, 52].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 4165a37214ef44f4b2a047f6c6d08529
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.infection,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Обнаружена угроза'
+              event_name: 'Dr.Web: Обнаружена угроза — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: infection
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 04a15131f13a46b58fb541d10be254f3
+          name: 'Dr.Web: Ошибка установки антивируса'
+          type: DEPENDENT
+          key: drweb.event.installation
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([8].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 0a8b491ce32c4a09887de62f0706e9b8
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.installation,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка установки антивируса'
+              event_name: 'Dr.Web: Ошибка установки антивируса — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: installation
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 5799efe4801e43bcbedcc16826ea67c2
+          name: 'Dr.Web: Лицензионный ключ заблокирован'
+          type: DEPENDENT
+          key: drweb.event.license_blocked
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([48].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 4c2d9417bf9546aa8eaa54543f3d5f5c
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_blocked,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Лицензионный ключ заблокирован'
+              event_name: 'Dr.Web: Лицензионный ключ заблокирован — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_blocked
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: efac1fa5ea2f483baca63f114e695ce5
+          name: 'Dr.Web: Истёк лицензионный ключ'
+          type: DEPENDENT
+          key: drweb.event.license_expired
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([44].indexOf(e.event_id) < 0) return null;
+                  if (String(e.fields.mSGExpired) !== '1') return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 2aa9f197407b431f8595a331d816b077
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_expired,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Истёк лицензионный ключ'
+              event_name: 'Dr.Web: Истёк лицензионный ключ — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_expired
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 243fc69be25a432fb95d13cde37ee437
+          name: 'Dr.Web: Истекает лицензионный ключ'
+          type: DEPENDENT
+          key: drweb.event.license_expiring
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([44].indexOf(e.event_id) < 0) return null;
+                  if (String(e.fields.mSGExpired) !== '0') return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: f79bcd5652104eeb86dd529ba0deecc7
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_expiring,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Истекает лицензионный ключ'
+              event_name: 'Dr.Web: Истекает лицензионный ключ — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_expiring
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 6fb34b79872c4f46b0d783c66f6dfc8f
+          name: 'Dr.Web: Ограничение числа станций или лицензии'
+          type: DEPENDENT
+          key: drweb.event.license_limit
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([27, 57].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: df89c252b18841cc8dcd0bc7d4a5b11d
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_limit,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ограничение числа станций или лицензии'
+              event_name: 'Dr.Web: Ограничение числа станций или лицензии — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_limit
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 9ff5c96e18054d99a2beead28b85b7b0
+          name: 'Dr.Web: Число станций приближается к лимиту'
+          type: DEPENDENT
+          key: drweb.event.license_near_limit
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([58].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 0492b24b7fc646acb6a01dcb2f69a3a4
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_near_limit,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Число станций приближается к лимиту'
+              event_name: 'Dr.Web: Число станций приближается к лимиту — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_near_limit
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 4a6642c0c84f49229d611c02d74d65f2
+          name: 'Dr.Web: Ошибка соединения при продлении ключа'
+          type: DEPENDENT
+          key: drweb.event.license_renew
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([63].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 8f9bf5e0d7b049808d6b3bb06e6d5c99
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.license_renew,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка соединения при продлении ключа'
+              event_name: 'Dr.Web: Ошибка соединения при продлении ключа — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: license_renew
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 3f08d85ddedc49d1882843a7b94f2eab
+          name: 'Dr.Web: Ошибка журнала сервера'
+          type: DEPENDENT
+          key: drweb.event.logger
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([33, 34].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: f5b65e9336c64831a75db6a7dd546dfd
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.logger,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка журнала сервера'
+              event_name: 'Dr.Web: Ошибка журнала сервера — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: logger
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: a0874f62559c491eb9486dd3b9eab418
+          name: 'Dr.Web: Станции требуется перезагрузка'
+          type: DEPENDENT
+          key: drweb.event.reboot
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([31, 43].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: cc2cd995ac824a14a1e4c487f2f1ba1e
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.reboot,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Станции требуется перезагрузка'
+              event_name: 'Dr.Web: Станции требуется перезагрузка — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: reboot
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 3aca554600bc4a65b91b20df2edb9a76
+          name: 'Dr.Web: Продукт заморожен из-за ошибки обновления'
+          type: DEPENDENT
+          key: drweb.event.repository_frozen
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([19].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: c85122e7fde54ea39bc8bd7d85d4b9a1
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.repository_frozen,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Продукт заморожен из-за ошибки обновления'
+              event_name: 'Dr.Web: Продукт заморожен из-за ошибки обновления — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: repository_frozen
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 69737063f11047ae9246eebb5de1402d
+          name: 'Dr.Web: Ошибка обновления репозитория'
+          type: DEPENDENT
+          key: drweb.event.repository_update
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([23].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: aa9a88de21d54724b9f22651b5cdc208
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.repository_update,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка обновления репозитория'
+              event_name: 'Dr.Web: Ошибка обновления репозитория — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: repository_update
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 92d5344d4fb848a19f7a2494ad025662
+          name: 'Dr.Web: Давно нет связи с соседним сервером'
+          type: DEPENDENT
+          key: drweb.event.server_unseen
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([38].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: c5ac995bc3d2435bbc5cc1cbfb148cf0
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.server_unseen,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Давно нет связи с соседним сервером'
+              event_name: 'Dr.Web: Давно нет связи с соседним сервером — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: server_unseen
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 18d6aeb2fd7141e09540cd606d79e371
+          name: 'Dr.Web: Ошибка авторизации станции'
+          type: DEPENDENT
+          key: drweb.event.station_auth
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([25].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: 8e0cd7bcb90b4a79ac77f6b395075d77
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.station_auth,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка авторизации станции'
+              event_name: 'Dr.Web: Ошибка авторизации станции — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: station_auth
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 14fda767224a4c15ad72dee20d075008
+          name: 'Dr.Web: Станция давно не подключалась'
+          type: DEPENDENT
+          key: drweb.event.station_unseen
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([15].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: d6ed79e45e4343d4994ff20018435d7a
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.station_unseen,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Станция давно не подключалась'
+              event_name: 'Dr.Web: Станция давно не подключалась — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: station_unseen
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: 7e3322158b6f47018f5be0728ae08ffc
+          name: 'Dr.Web: Ошибка обновления станции'
+          type: DEPENDENT
+          key: drweb.event.station_update
+          history: 7d
+          value_type: TEXT
+          description: 'Сохраняет только соответствующие события. Другие типы отбрасываются. Повторные сообщения не подавляются.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var e = JSON.parse(value);
+                  if ([30].indexOf(e.event_id) < 0) return null;
+                  return e.text;
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+          triggers:
+            - uuid: c0f8f34e22404b4d8194feff0e5a41a1
+              expression: 'find(/DrWeb ESS SNMP traps/drweb.event.station_update,,"regexp",".")=1'
+              recovery_mode: NONE
+              name: 'Dr.Web: Ошибка обновления станции'
+              event_name: 'Dr.Web: Ошибка обновления станции — {{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Каждый подходящий trap создаёт отдельную проблему. Закрывается вручную; отсутствие новых traps не означает восстановления. Повторная доставка одного trap может создать дубликат. Данные станции и события находятся в оперативных данных и истории элемента.'
+              type: MULTIPLE
+              manual_close: 'YES'
+              tags:
+                - tag: application
+                  value: 'Dr.Web ESS'
+                - tag: component
+                  value: station_update
+                - tag: station
+                  value: '{{ITEM.VALUE1}.regsub("(?m)^Станция: ([^\r\n]*)", "\1")}'
+        - uuid: de9056161ffa4fcf878a6e822186232d
+          name: 'Dr.Web: тестовое сообщение'
+          type: DEPENDENT
+          key: drweb.test
+          history: 7d
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'var e=JSON.parse(value); if(e.event_id !== 35) return null; return e.text;'
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+        - uuid: d0dc5952f78e4582a4240aa0a0468a6a
+          name: 'Dr.Web: разобранное событие JSON'
+          type: DEPENDENT
+          key: drweb.trap.json
+          history: 7d
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var fieldNames = {"10": "admin", "11": "mSGLogin", "20": "gENStationName", "21": "gENStationID", "22": "gENStationAddress", "23": "gENLoginTime", "24": "gENStationPrimaryGroupName", "25": "gENStationPrimaryGroupID", "26": "gENStationDescription", "27": "gENStationMAC", "28": "gENStationSID", "29": "gENStationLDAPDN", "30": "mSGObjectName", "31": "mSGObjectOwner", "40": "mSGID", "41": "mSGStationName", "42": "mSGStationMAC", "43": "mSGStationSID", "50": "mSGProduct", "51": "mSGServerTime", "60": "gENProduct", "61": "gENFolder", "62": "gENCurrentRevision", "63": "gENNextRevision", "64": "gENFile", "65": "gENServerOriginatorID", "66": "gENServerOriginatorName", "67": "gENServerRecvLinkID", "68": "gENServerRecvLinkName", "1000": "mSGError", "1001": "mSGAdminAddress", "1002": "mSGAdminName", "1003": "mSGReason", "1004": "mSGType", "1005": "mSGAction", "1006": "mSGInfectionType", "1007": "mSGVirus", "1008": "mSGExpirationDate", "1009": "mSGExpired", "1010": "mSGObjId", "1011": "mSGObjName", "1012": "mSGObjType", "1013": "mSGLicensed", "1014": "mSGUsed", "1015": "mSGFreeInodes", "1016": "mSGFreeSpace", "1017": "mSGPath", "1018": "mSGRequiredInodes", "1019": "mSGRequiredSpace", "1020": "mSGPercent", "1021": "mSGDaysAgo", "1022": "mSGLastSeenFrom", "1023": "mSGStationID", "1024": "mSGStationDescription", "1025": "mSGAdded", "1026": "mSGAddedCount", "1027": "mSGDeleted", "1028": "mSGDeletedCount", "1029": "mSGReplaced", "1030": "mSGReplacedCount", "1032": "mSGExtendedError", "1033": "mSGServer", "1034": "mSGComponent", "1035": "mSGCured", "1036": "mSGDeletedObjs", "1037": "mSGErrors", "1038": "mSGInfected", "1039": "mSGLocked", "1040": "mSGModifications", "1041": "mSGMoved", "1042": "mSGRenamed", "1043": "mSGRunBy", "1044": "mSGScanned", "1046": "mSGSpeed", "1047": "mSGSuspicious", "1048": "mSGVirusActivity", "1049": "mSGRejected", "1050": "mSGLoginErrorCode", "1051": "mSGTestMessage", "1052": "mSGAttachment", "1053": "mSGAttachmentType", "1054": "mSGLastDisconnectTime", "1055": "mSGKeyName", "1056": "mSGKeyId", "1057": "mSGNewKeyName", "1058": "mSGNewKeyId", "1059": "mSGKeyDifference", "1060": "mSGUser", "1061": "mSGStationTime", "1062": "mSGPid", "1063": "mSGTarget", "1064": "mSGHipsType", "1065": "mSGShellGuardType", "1066": "mSGUserAction", "1067": "mSGDenied", "1068": "mSGTotal", "1069": "mSGAutoBlockedActCount", "1070": "mSGUserBlockedActCount", "1071": "mSGUserBlockedHipsType", "1072": "mSGUserBlockedShellGuard", "1073": "mSGUserAllowedActCount", "1074": "mSGUserAllowedHipsType", "1075": "mSGUserAllowedShellGuard", "1076": "mSGAutoBlockedProc", "1077": "mSGUserBlockedProc", "1078": "mSGUserAllowedProc", "1079": "mSGIsShellGuard", "1080": "mSGUserBlockedIsShellGuard", "1081": "mSGUserAllowedIsShellGuard", "1082": "mSGInstanceId", "1083": "mSGFriendlyName", "1084": "mSGDescription", "1085": "mSGClass", "1086": "mSGCapabilities", "1087": "mSGSHA1", "1088": "mSGSHA256", "1089": "mSGDocument", "1090": "mSGAddrsCount", "1091": "mSGLicenseLimit", "1092": "mSGFree", "1093": "mSGUserSID", "1094": "mSGAppCtlType", "1095": "mSGAppCtlAction", "1096": "mSGProfile", "1097": "mSGRule", "1098": "mSGTargetSHA256", "1099": "mSGTestMode", "1100": "mSGLink", "1101": "mSGAttachmentPath"};
+                  var eventNames = {"1": "administratorAuthorizationFailed", "2": "approvedNewbie", "3": "autoApprovedNewbie", "4": "awaitingApproval", "5": "cannotAddStation", "7": "infection", "8": "installationBad", "9": "installationOK", "12": "lowVarFreeSpace", "14": "newbieNotAllowed", "15": "notSeenForALongTime", "16": "processingError", "17": "rejectedNewbie", "19": "srvRepositoryFrozen", "21": "srvRepositoryUpToDate", "22": "srvRepositoryUpdate", "23": "srvRepositoryUpdateFailed", "24": "stationAlreadyLoggedIn", "25": "stationAuthorizationFailed", "26": "statistics", "27": "tooManyStations", "28": "unknownAdministrator", "29": "unknownStation", "30": "updateFailed", "31": "updateWantsReboot", "33": "loggerWriteError", "34": "loggerRotateError", "35": "testMessage", "36": "periodicReport", "37": "epidemic", "38": "serverNotSeenForALongTime", "39": "tooManyDonations", "40": "donationExpired", "41": "srvRepositoryUpdateStarted", "42": "tooManyMessages", "43": "stationWantsReboot", "44": "keyExpiration", "45": "keyRenewSuccess", "46": "keyToRenewReceived", "47": "deviceBlocked", "48": "keyBlocked", "50": "hipsEvent", "51": "hipsSummary", "52": "knownInfection", "53": "knownProcessingError", "54": "knownHipsEvent", "55": "connectionTerminatedAbnormally", "56": "tooManyDisconnects", "57": "licenseLimit", "58": "nearMaxStations", "59": "appControlEvent", "60": "knownAppControlEvent", "61": "appControlStorm", "62": "srvRepositoryConcurrentUpdate", "63": "keyRenewFailed"};
+                  var namesRu = {"1": "Ошибка авторизации администратора", "7": "Обнаружена угроза", "8": "Ошибка установки антивируса", "9": "Установка завершена", "12": "Недостаточно места или inode на сервере", "15": "Станция давно не подключалась", "16": "Ошибка обработки файла", "19": "Продукт заморожен из-за ошибки обновления", "21": "Репозиторий актуален", "22": "Продукт репозитория обновлён", "23": "Ошибка обновления репозитория", "25": "Ошибка авторизации станции", "30": "Ошибка обновления станции", "31": "Для завершения обновления нужна перезагрузка", "33": "Ошибка записи журнала", "34": "Ошибка ротации журнала", "35": "Тестовое сообщение", "37": "Эпидемия", "38": "Давно нет связи с соседним сервером", "43": "Станции нужна перезагрузка", "44": "Срок действия лицензионного ключа", "45": "Ключ успешно продлён", "48": "Лицензионный ключ заблокирован", "50": "Событие HIPS", "52": "Обнаружена известная угроза", "53": "Известная ошибка обработки файла", "54": "Известное событие HIPS", "55": "Аварийное завершение соединения", "56": "Массовые разрывы соединений", "57": "Ограничение лицензии", "58": "Число станций приближается к лимиту", "59": "Событие контроля приложений", "60": "Известное событие контроля приложений", "61": "Массовые события контроля приложений", "63": "Ошибка соединения при продлении ключа"};
+                  var labels = {"gENStationName": "Станция", "mSGStationName": "Станция", "gENStationID": "ID станции", "mSGStationID": "ID станции", "gENStationAddress": "Адрес станции", "mSGLastSeenFrom": "Последний адрес", "gENStationDescription": "Описание станции", "gENStationPrimaryGroupName": "Группа", "mSGVirus": "Угроза", "mSGObjectName": "Объект", "mSGObjectOwner": "Владелец объекта", "mSGAction": "Действие", "mSGError": "Ошибка", "mSGExtendedError": "Подробности ошибки", "mSGComponent": "Компонент", "mSGProduct": "Продукт станции", "gENProduct": "Продукт репозитория", "mSGReason": "Причина", "mSGTestMessage": "Сообщение", "mSGDaysAgo": "Дней без подключения", "mSGExpirationDate": "Срок лицензии (DateAndTime)", "mSGExpired": "Статус срока лицензии (0 — истекает, 1 — истёк)", "mSGKeyName": "Лицензионный ключ", "mSGKeyId": "ID ключа", "mSGLicensed": "Лицензировано станций", "mSGTotal": "Всего", "mSGFree": "Свободно", "mSGFreeSpace": "Свободно, МБ", "mSGRequiredSpace": "Требуется, МБ", "mSGFreeInodes": "Свободно inode", "mSGRequiredInodes": "Требуется inode", "mSGPath": "Путь", "mSGInfected": "Заражённых объектов", "mSGLogin": "Администратор", "mSGAddress": "Адрес", "mSGAppCtlAction": "Действие контроля приложений", "mSGDenied": "Запрет HIPS"};
+                  var fields = {}, values = {}, i, m;
+                  var input = value.replace(/\r/g, '');
+                  var start = input.indexOf('VARBINDS:');
+                  if (start < 0) throw 'No VARBINDS section';
+                  var block = input.substring(start + 9);
+                  var re = /^\s*(\.?[0-9]+(?:\.[0-9]+)+)\s+type=(\d+)\s+value=([^\n]*)([\s\S]*?)(?=^\s*\.?[0-9]+(?:\.[0-9]+)+\s+type=|(?![\s\S]))/gm;
+                  function clean(s) { return s.replace(/^\s+|\s+$/g, ''); }
+                  function decode(s) {
+                      s = clean(s);
+                      if (/^Hex-STRING:\s*/.test(s)) {
+                          var hex = s.replace(/^Hex-STRING:\s*/, '').replace(/\s/g, '');
+                          if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)) return s;
+                          try { return decodeURIComponent(hex.replace(/../g, '%$&')); }
+                          catch (e) { return s; }
+                      }
+                      s = s.replace(/^(?:STRING|OID|INTEGER|Gauge32|Counter32|Counter64|Unsigned32|IpAddress):\s*/, '');
+                      if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') s = s.substring(1, s.length - 1);
+                      return s;
+                  }
+                  while ((m = re.exec(block)) !== null) {
+                      var oid = m[1].replace(/^\./, '');
+                      var raw = clean(m[3] + m[4]);
+                      var v = Number(m[2]) === 4 ? decode(raw) : raw.replace(/^(?:OID|INTEGER|Gauge32|Counter32|Counter64|Unsigned32|IpAddress):\s*/, '');
+                      values[oid] = v;
+                      var prefix = '1.3.6.1.4.1.29690.1.2.';
+                      if (oid.indexOf(prefix) === 0) {
+                          var id = oid.substring(prefix.length);
+                          if (!fieldNames[id] && /\.0$/.test(id)) id = id.replace(/\.0$/, '');
+                          fields[fieldNames[id] || oid] = v;
+                      }
+                  }
+                  var eventOid = clean(values['1.3.6.1.6.3.1.1.4.1.0'] || '').replace(/^\./, '');
+                  var match = /^1\.3\.6\.1\.4\.1\.29690\.1\.0\.(\d+)$/.exec(eventOid);
+                  if (!match) throw 'Missing or unsupported notification OID';
+                  var eventId = Number(match[1]);
+                  var title = namesRu[eventId] || eventNames[eventId] || ('Неизвестное событие ' + eventId);
+                  var station = fields.gENStationName || fields.mSGStationName || '';
+                  var stationId = fields.gENStationID || fields.mSGStationID || '';
+                  var address = fields.gENStationAddress || fields.mSGLastSeenFrom || '';
+                  var lines = ['Событие: ' + title];
+                  lines.push('Станция: ' + (station || 'Сервер Dr.Web').replace(/[\r\n]/g, ' '));
+                  if (stationId) lines.push('ID станции: ' + stationId);
+                  if (address) lines.push('Адрес станции: ' + address);
+                  var skipped = {gENStationName:1,mSGStationName:1,gENStationID:1,mSGStationID:1,gENStationAddress:1,mSGLastSeenFrom:1};
+                  for (var key in fields) {
+                      if (!skipped[key] && fields[key] !== '') lines.push((labels[key] || key) + ': ' + fields[key]);
+                  }
+                  lines.push('OID: ' + eventOid);
+                  return JSON.stringify({event_id:eventId,event_oid:eventOid,event_name:title,station:station,station_id:stationId,address:address,fields:fields,text:lines.join('\n')});
+          master_item:
+            key: 'snmptrap["1\.3\.6\.1\.4\.1\.29690\.1\.0\.[0-9]+"]'
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+        - uuid: 9e25e3ed3507497988fdda26eafa1bf9
+          name: 'Dr.Web: последнее событие, читаемый текст'
+          type: DEPENDENT
+          key: drweb.trap.text
+          history: 7d
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value).text;'
+          master_item:
+            key: drweb.trap.json
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+        - uuid: 19cb4f6713554c8286a00777e7c6b3b8
+          name: 'Dr.Web: исходные SNMP traps'
+          type: SNMP_TRAP
+          key: 'snmptrap["1\.3\.6\.1\.4\.1\.29690\.1\.0\.[0-9]+"]'
+          history: 7d
+          value_type: TEXT
+          description: 'Полный trap официального Perl-приёмника Zabbix, числовые OID (outputOption n). SNMP-интерфейс узла должен содержать IP сервера Dr.Web.'
+          tags:
+            - tag: application
+              value: 'Dr.Web ESS'
+      tags:
+        - tag: class
+          value: software
+        - tag: target
+          value: drweb
+      macros:
+        - macro: '{$DRWEB.IP}'
+          description: 'Обязательный параметр: задайте IP отправителя SNMP traps в макросах узла. В поле IP SNMP-интерфейса узла укажите {$DRWEB.IP} и выберите подключение по IP. По умолчанию адрес не задан. Шаблон не меняет интерфейсы узла автоматически.'
